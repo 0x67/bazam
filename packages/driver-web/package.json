@@ -1,0 +1,27 @@
+{
+  "name": "@bazam/driver-web",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@bazam/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "playwright": "^1.65.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
+  }
+}

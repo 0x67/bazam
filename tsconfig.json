@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // DOM types for the browser callbacks in packages/driver-web
+    "lib": ["es2024", "dom"]
+  },
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "scripts",
+    "evals",
+    "examples/demo-app/src",
+    "examples/demo-app/test",
+    "vitest.config.ts"
+  ]
+}

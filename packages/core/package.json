@@ -1,0 +1,74 @@
+{
+  "name": "@bazam/core",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "exports": {
+    "./auth": {
+      "development": "./src/auth/index.ts",
+      "default": "./dist/auth/index.js"
+    },
+    "./brand": {
+      "development": "./src/brand.ts",
+      "default": "./dist/brand.js"
+    },
+    "./case": {
+      "development": "./src/case/index.ts",
+      "default": "./dist/case/index.js"
+    },
+    "./challenge": {
+      "development": "./src/challenge/index.ts",
+      "default": "./dist/challenge/index.js"
+    },
+    "./check": {
+      "development": "./src/check/index.ts",
+      "default": "./dist/check/index.js"
+    },
+    "./driver": {
+      "development": "./src/driver/index.ts",
+      "default": "./dist/driver/index.js"
+    },
+    "./env": {
+      "development": "./src/env/index.ts",
+      "default": "./dist/env/index.js"
+    },
+    "./plugin": {
+      "development": "./src/plugin/index.ts",
+      "default": "./dist/plugin/index.js"
+    },
+    "./project": {
+      "development": "./src/project.ts",
+      "default": "./dist/project.js"
+    },
+    "./redact": {
+      "development": "./src/redact/index.ts",
+      "default": "./dist/redact/index.js"
+    },
+    "./report": {
+      "development": "./src/report/index.ts",
+      "default": "./dist/report/index.js"
+    },
+    "./result": {
+      "development": "./src/result/index.ts",
+      "default": "./dist/result/index.js"
+    },
+    "./run": {
+      "development": "./src/run/index.ts",
+      "default": "./dist/run/index.js"
+    },
+    "./secrets": {
+      "development": "./src/secrets/index.ts",
+      "default": "./dist/secrets/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  }
+}
