@@ -1,0 +1,11 @@
+cases:
+  - id: AUTH-UNCHECKED-001
+    title: Case that only looks around
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - open: ${env.APP_URL}/settings
+      - guided:
+          title: Look at the settings page
+          steps: [Scroll to the bottom]

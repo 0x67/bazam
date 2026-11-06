@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { BRAND } from "../brand.ts";
 import { answersFileChannel, builtinKinds, humanResolver, terminalChannel } from "../challenge/index.ts";
+import { builtinRules } from "../check/index.ts";
 import { dotenvProvider, envProvider, onePasswordProvider } from "../secrets/index.ts";
 import type { PluginManifest } from "./registry.ts";
 
@@ -17,8 +18,10 @@ export function builtinContributions(config: BuiltinConfig, projectRoot: string)
     challengeKinds: [...builtinKinds],
     secretProviders: [envProvider, dotenvProvider(join(projectRoot, BRAND.stateDir)), onePasswordProvider(config.secrets?.refs ?? {})],
     channels: [
-      { name: "terminal", create: () => terminalChannel({ input: process.stdin, output: process.stdout }) },
+      // stdout carries only a command's result, such as the one JSON document of --json
+      { name: "terminal", create: () => terminalChannel({ input: process.stdin, output: process.stderr }) },
       { name: "answers-file", create: (runDir) => answersFileChannel(runDir) },
     ],
+    checkRules: [...builtinRules],
   };
 }

@@ -26,6 +26,7 @@ import {
 import type { HumanChannel } from "../src/challenge/index.ts";
 import type { Environment } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION, PluginRegistry } from "../src/plugin/index.ts";
+import { ProjectConfig } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "./support/fake-browser.ts";
 
@@ -133,7 +134,7 @@ describe("Identities", () => {
       env,
       configs: IdentitiesConfig.parse(configs),
       fixtures: { customer: { email: "customer@example.test" } },
-      registry: await PluginRegistry.load({}, root, [plugin]),
+      registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),
       cache: new CredentialCache(join(root, "credentials")),
       lockDir: join(root, "locks"),
       resolve: async (value) => value,
@@ -357,7 +358,7 @@ describe("Identities", () => {
       const expired = new Date(Date.now() - 60_000);
       const stale = { accessToken: "fake-access-0", refreshToken: "fake-refresh-0", expiresAt: expired.toISOString() };
       await new CredentialCache(join(root, "credentials")).save(key, stale, expired);
-      const modules = ["../src/auth/index.ts", "../src/plugin/index.ts", "../src/redact/index.ts"].map((path) => new URL(path, import.meta.url).href);
+      const modules = ["../src/auth/index.ts", "../src/plugin/index.ts", "../src/redact/index.ts", "../src/project.ts"].map((path) => new URL(path, import.meta.url).href);
       const coreDir = fileURLToPath(new URL("..", import.meta.url));
       const start = () => run(process.execPath, ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url], { cwd: coreDir });
 
@@ -393,10 +394,11 @@ describe("IdentitiesConfig", () => {
 // Runs in a separate Node process: refreshes the cached credential through the token server, whose refresh
 // tokens work once, and prints the Authorization header it ends with. Acquire throws, so losing the race fails.
 const REFRESH_WORKER = `
-const [authModule, pluginModule, redactModule, root, server] = process.argv.slice(1);
+const [authModule, pluginModule, redactModule, projectModule, root, server] = process.argv.slice(1);
 const { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig } = await import(authModule);
 const { definePlugin, PLUGIN_API_VERSION, PluginRegistry } = await import(pluginModule);
 const { defaultRedactionRules, Redactor } = await import(redactModule);
+const { ProjectConfig } = await import(projectModule);
 const { z } = await import("zod");
 const { join } = await import("node:path");
 
@@ -421,7 +423,7 @@ const identities = new Identities({
   env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {} },
   configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "single-use", with: { tokenUrl: server + "/refresh" } } } } }),
   fixtures: {},
-  registry: await PluginRegistry.load({}, root, [plugin]),
+  registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),
   cache: new CredentialCache(join(root, "credentials")),
   lockDir: join(root, "locks"),
   resolve: async (value) => value,

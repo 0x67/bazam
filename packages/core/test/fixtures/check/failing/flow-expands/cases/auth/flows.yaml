@@ -1,0 +1,11 @@
+cases:
+  - id: AUTH-FLOWS-001
+    title: Case whose flows do not expand
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - use: { flow: logn, with: { email: "${identity.customer.email}" } }
+      - use: login
+      - use: loop-a
+      - expect: { visible: { id: dashboard } }

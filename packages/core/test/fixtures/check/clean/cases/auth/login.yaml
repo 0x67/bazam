@@ -1,0 +1,44 @@
+cases:
+  - id: AUTH-LOGIN-001
+    title: Customer signs in with an email code
+    stage: acceptance
+    risk: high
+    links: [jira:TD-246]
+    targets: [web]
+    steps:
+      - use: { flow: login, with: { email: "${identity.customer.email}" } }
+      - challenge:
+          kind: otp-email
+          trigger: { tap: { id: send-code } }
+          fill: { id: otp-input }
+          params: { recipient: "${identity.customer.email}" }
+      - expect: { visible: { id: dashboard } }
+  - id: AUTH-LOGIN-002
+    title: Signed-in customer reads their profile
+    stage: regression
+    risk: medium
+    targets: [web]
+    prod_safe: true
+    steps:
+      - request: { method: GET, url: "${env.API_URL}/me", as: customer }
+      - request:
+          method: POST
+          url: ${env.API_URL}/profile/views
+          json: { text: viewed }
+          write: true
+      - note: support writes to help@example.test
+    checks:
+      - request: { method: GET, url: "${env.API_URL}/me", as: customer }
+  - id: AUTH-LOGIN-003
+    title: Person confirms the PIN screen
+    stage: draft
+    risk: low
+    once: true
+    links: [jira:TD-250]
+    targets: [web]
+    steps:
+      - guided:
+          title: Enter the PIN
+          steps: [Type the PIN on the device]
+          expected: Dashboard opens
+      - note: the demo signs with fake-signing-key-ABCDEFGHIJ-0123456789 # bazam: allow-secret

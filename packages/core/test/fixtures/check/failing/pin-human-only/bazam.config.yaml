@@ -1,0 +1,25 @@
+envs:
+  uat:
+    production: false
+    vars:
+      APP_URL: https://uat.app.example.test
+      API_URL: https://api.uat.example.test
+    hosts: [uat.app.example.test, api.uat.example.test]
+    challenges:
+      otp-email: [otp-mailpit, human]
+      pin: [human, otp-mailpit]
+  prod:
+    production: true
+    vars: { APP_URL: https://app.example.test, API_URL: https://api.example.test }
+    hosts: [app.example.test, api.example.test]
+    challenges: { pin: [human], face-scan: [face-bot] }
+secrets:
+  providers: [env, dotenv]
+  names: [DEMO_TOTP_SEED]
+identities:
+  customer:
+    fixture: customer
+targets:
+  web: { browser: chromium, headless: true }
+challenges:
+  humanOnly: [otp-email]

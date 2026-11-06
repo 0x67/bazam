@@ -1,0 +1,4 @@
+flows:
+  - name: login
+    steps:
+      - open: ${env.APP_URL}/sign-in

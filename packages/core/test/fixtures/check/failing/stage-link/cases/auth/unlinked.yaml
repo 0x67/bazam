@@ -1,0 +1,16 @@
+cases:
+  - id: AUTH-UNLINKED-001
+    title: Acceptance case with no ticket
+    stage: acceptance
+    risk: medium
+    targets: [web]
+    steps:
+      - expect: { visible: { id: dashboard } }
+  - id: AUTH-UNLINKED-002
+    title: Once case with no ticket
+    stage: draft
+    risk: low
+    once: true
+    targets: [web]
+    steps:
+      - expect: { visible: { id: dashboard } }

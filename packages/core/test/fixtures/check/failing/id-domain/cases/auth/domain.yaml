@@ -1,0 +1,8 @@
+cases:
+  - id: BILLING-REFUND-001
+    title: Billing case filed under auth
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - expect: { visible: { id: refund-list } }

@@ -1,0 +1,7 @@
+cases:
+  - id: AUTH-SCHEMA-001
+    title: Case with a misspelled field
+    stage: draft
+    risk: low
+    targets: [web]
+    tagz: [smoke]

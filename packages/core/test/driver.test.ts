@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { buildCaseSchema } from "../src/case/index.ts";
 import { PLUGIN_API_VERSION, PluginRegistry, type PluginManifest } from "../src/plugin/index.ts";
+import { ProjectConfig } from "../src/project.ts";
 import { fakeDriver } from "./support/fake-driver.ts";
 
 const web = fakeDriver({ target: "web", capabilities: ["browser.login", "webauthn.virtual"] });
@@ -13,7 +14,7 @@ const mobile = fakeDriver({
 const drivers: PluginManifest = { name: "devices", apiVersion: PLUGIN_API_VERSION, drivers: [web, mobile] };
 
 async function loadDrivers(): Promise<PluginRegistry> {
-  return PluginRegistry.load({}, process.cwd(), [drivers]);
+  return PluginRegistry.load(ProjectConfig.parse({ envs: {} }), process.cwd(), [drivers]);
 }
 
 describe("driver contract", () => {

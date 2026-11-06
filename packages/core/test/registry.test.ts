@@ -14,6 +14,8 @@ import {
   type HumanChannel,
   type PersonPrompt,
 } from "../src/challenge/index.ts";
+import type { CheckRule } from "../src/check/index.ts";
+import { builtinRules } from "../src/check/index.ts";
 import type { Environment } from "../src/env/index.ts";
 import {
   definePlugin,
@@ -23,24 +25,29 @@ import {
   PluginRegistry,
   type PluginManifest,
 } from "../src/plugin/index.ts";
+import { ProjectConfig } from "../src/project.ts";
 import type { SecretProvider } from "../src/secrets/index.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
 const projectRoot = fileURLToPath(new URL("./fixtures/plugins", import.meta.url));
+
+function config(fields: object = {}): ProjectConfig {
+  return ProjectConfig.parse({ envs: {}, ...fields });
+}
 
 function plugin(name: string, contributions: Omit<PluginManifest, "name" | "apiVersion"> = {}): PluginManifest {
   return definePlugin({ name, apiVersion: PLUGIN_API_VERSION, ...contributions });
 }
 
 async function loadFailure(defaults: readonly PluginManifest[], plugins: readonly string[] = []): Promise<unknown> {
-  return PluginRegistry.load({ plugins }, projectRoot, defaults).then(
+  return PluginRegistry.load(config({ plugins }), projectRoot, defaults).then(
     () => undefined,
     (error: unknown) => error,
   );
 }
 
 async function stepKinds(plugins: readonly string[]): Promise<string[]> {
-  const registry = await PluginRegistry.load({ plugins }, projectRoot, []);
+  const registry = await PluginRegistry.load(config({ plugins }), projectRoot, []);
   return registry.stepHandlers().map((step) => step.kind);
 }
 
@@ -56,6 +63,10 @@ const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", human
 
 function slackChannel(): { name: string; create(runDir: string): HumanChannel } {
   return { name: "slack", create: () => ({ ask: async () => ({ kind: "timeout" }) }) };
+}
+
+function checkRule(id: string): CheckRule {
+  return { id, check: () => [] };
 }
 
 function authStrategy(name: string): AuthStrategy<object, { token: string }> {
@@ -95,6 +106,7 @@ describe("PluginRegistry.load", () => {
     ],
     ["two challenge kinds with one name", { challengeKinds: [faceScan] }, { challengeKinds: [faceScan] }, 'challenge kind "face-scan"'],
     ["two channels with one name", { channels: [slackChannel()] }, { channels: [slackChannel()] }, 'human channel "slack"'],
+    ["two check rules with one id", { checkRules: [checkRule("no-todo")] }, { checkRules: [checkRule("no-todo")] }, 'check rule "no-todo"'],
   ])("PluginConflict also covers %s", async (_, first, second, contribution) => {
     const failure = await loadFailure([plugin("first", first), plugin("second", second)]);
 
@@ -141,7 +153,7 @@ describe("PluginRegistry.load", () => {
     const webChrome = fakeDriver({ target: "web-chrome", steps: [fakeStep("open")] });
     const mobile = fakeDriver({ target: "mobile", steps: [fakeStep("open")] });
 
-    const registry = await PluginRegistry.load({}, projectRoot, [
+    const registry = await PluginRegistry.load(config(), projectRoot, [
       plugin("web-drivers", { drivers: [web, webChrome] }),
       plugin("mobile-driver", { drivers: [mobile] }),
     ]);
@@ -180,7 +192,7 @@ describe("built-in secret providers", () => {
   });
 
   it("registers env, dotenv and 1password", async () => {
-    const registry = await PluginRegistry.load({}, root, []);
+    const registry = await PluginRegistry.load(config(), root, []);
 
     expect(registry.secretProviders(["env", "dotenv", "1password"]).map((provider) => provider.name)).toEqual([
       "env",
@@ -192,7 +204,7 @@ describe("built-in secret providers", () => {
   it("reads dotenv values from the project's state directory", async () => {
     await mkdir(join(root, BRAND.stateDir));
     await writeFile(join(root, BRAND.stateDir, "secrets.env"), "DEMO_TOTP_SEED=fake-seed-from-dotenv\n");
-    const registry = await PluginRegistry.load({}, root, []);
+    const registry = await PluginRegistry.load(config(), root, []);
 
     const [dotenv] = registry.secretProviders(["dotenv"]);
 
@@ -202,7 +214,7 @@ describe("built-in secret providers", () => {
   // execFile cannot run the sh stub on Windows
   it.skipIf(process.platform === "win32")("gives the 1password provider the refs from config", async () => {
     vi.stubEnv("PATH", fileURLToPath(new URL("./fixtures/bin", import.meta.url)));
-    const registry = await PluginRegistry.load({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }, root, []);
+    const registry = await PluginRegistry.load(config({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }), root, []);
 
     const [onePassword] = registry.secretProviders(["1password"]);
 
@@ -217,13 +229,13 @@ describe("PluginRegistry.secretProviders", () => {
   ];
 
   it("returns providers in the order of the names, not the order plugins registered them", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(registry.secretProviders(["gcp", "vault"]).map((provider) => provider.name)).toEqual(["gcp", "vault"]);
   });
 
   it("throws on an unknown provider name and lists the known ones", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.secretProviders(["vault", "valt"])).toThrow(/^unknown secret provider "valt"; known: .*\bvault\b/);
   });
@@ -234,28 +246,44 @@ describe("PluginRegistry.strategy", () => {
   const defaults = [plugin("sso-plugin", { authStrategies: [sso, authStrategy("mtls")] })];
 
   it("returns the strategy a plugin registered under that name", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(registry.strategy("sso")).toBe(sso);
   });
 
   it("throws on an unknown strategy name and lists the known ones", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.strategy("ssso")).toThrow(/^unknown auth strategy "ssso"; known: .*\bsso\b/);
   });
 });
 
+describe("PluginRegistry.checkRules", () => {
+  it("returns the built-in rules, then the rules plugins add", async () => {
+    const noTodo = checkRule("no-todo");
+    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("lint-plugin", { checkRules: [noTodo] })]);
+
+    expect(registry.checkRules()).toEqual([...builtinRules, noTodo]);
+  });
+
+  it("refuses a plugin rule with the id of a built-in rule", async () => {
+    const failure = await loadFailure([plugin("lint-plugin", { checkRules: [checkRule("schema")] })]);
+
+    expect(failure).toBeInstanceOf(PluginConflict);
+    expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "lint-plugin"]);
+  });
+});
+
 describe("PluginRegistry.kind", () => {
   it("returns a built-in kind and a kind a plugin adds", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, [plugin("face-plugin", { challengeKinds: [faceScan] })]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("face-plugin", { challengeKinds: [faceScan] })]);
 
     expect(registry.kind("pin")).toEqual({ name: "pin", answer: "action", humanOnly: true, fallbackAfterTrigger: false });
     expect(registry.kind("face-scan")).toBe(faceScan);
   });
 
   it("throws on an unknown kind name and lists the known ones", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, []);
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
 
     expect(() => registry.kind("otp-mail")).toThrow('unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin');
   });
@@ -272,7 +300,7 @@ describe("PluginRegistry.resolverChain", () => {
   }
 
   it("returns the env's resolvers for the kind in config order", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
     const chain = registry.resolverChain(uat({ "otp-email": ["otp-mailpit", "human"], totp: ["totp"] }), "otp-email");
 
     expect(chain).toHaveLength(2);
@@ -281,19 +309,29 @@ describe("PluginRegistry.resolverChain", () => {
   });
 
   it("gives an empty chain for a kind the env lists no resolvers for", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(registry.resolverChain(uat({ totp: ["totp"] }), "otp-sms")).toEqual([]);
   });
 
   it("refuses a chain with an automated resolver for a human-only kind", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resolverChain(uat({ pin: ["human", "pin-typer"] }), "pin")).toThrow(HumanOnlyViolation);
   });
 
+  it("refuses an automated resolver for a kind that config lists under challenges.humanOnly", async () => {
+    const automatableFaceScan = { ...faceScan, humanOnly: false };
+    const faceBot = challengeResolver("face-bot", ["face-scan"]);
+    const facePlugin = plugin("face-plugin", { challengeKinds: [automatableFaceScan], resolvers: [faceBot] });
+    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["face-scan"] } }), projectRoot, [facePlugin]);
+
+    expect(registry.kind("face-scan")).toEqual({ ...automatableFaceScan, humanOnly: true });
+    expect(() => registry.resolverChain(uat({ "face-scan": ["face-bot"] }), "face-scan")).toThrow(HumanOnlyViolation);
+  });
+
   it("throws on a resolver name no plugin registered and lists the known ones", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resolverChain(uat({ "otp-email": ["otp-mailpt"] }), "otp-email")).toThrow(
       'unknown challenge resolver "otp-mailpt"; known: human, otp-mailpit, totp, pin-typer',
@@ -301,13 +339,13 @@ describe("PluginRegistry.resolverChain", () => {
   });
 
   it("throws on a kind name no plugin registered", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp")).toThrow('unknown challenge kind "otp-whatsapp"');
   });
 
   it("throws when the env lists a resolver for a kind it does not answer", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resolverChain(uat({ "otp-email": ["totp"] }), "otp-email")).toThrow(
       'env uat lists resolver "totp" for challenge otp-email, but it answers only totp',
@@ -338,7 +376,7 @@ describe("PluginRegistry.channel", () => {
     };
     await mkdir(join(runDir, "answers"));
     await writeFile(join(runDir, "answers", `${prompt.id}.json`), JSON.stringify({ kind: "done" }));
-    const registry = await PluginRegistry.load({}, projectRoot, []);
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
 
     const answer = await registry.channel("answers-file")(runDir).ask(prompt, new AbortController().signal);
 
@@ -346,8 +384,36 @@ describe("PluginRegistry.channel", () => {
     expect(await readdir(join(runDir, "prompts", "done"))).toEqual([`${prompt.id}.json`]);
   });
 
+  it("prints terminal prompts to stderr, so stdout carries only the command's result", async () => {
+    const prompt: PersonPrompt = {
+      id: "AUTH-LOGIN-001-4-guided",
+      runId: "20261106-093000-a1b2",
+      caseId: "AUTH-LOGIN-001",
+      ask: "verdict",
+      title: "Log in with MPIN",
+      steps: ["Enter the MPIN in the app."],
+      timeoutMs: 1,
+    };
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      // the answer depends on what stdin the test runner gives; only where the prompt went matters
+      await registry
+        .channel("terminal")(runDir)
+        .ask(prompt, new AbortController().signal)
+        .catch(() => undefined);
+
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining("AUTH-LOGIN-001: Log in with MPIN"));
+      expect(stdout).not.toHaveBeenCalledWith(expect.stringContaining("Log in with MPIN"));
+    } finally {
+      stdout.mockRestore();
+      stderr.mockRestore();
+    }
+  });
+
   it("throws on an unknown channel name and lists the known ones", async () => {
-    const registry = await PluginRegistry.load({}, projectRoot, [plugin("slack-plugin", { channels: [slackChannel()] })]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("slack-plugin", { channels: [slackChannel()] })]);
 
     expect(() => registry.channel("slak")).toThrow('unknown human channel "slak"; known: terminal, answers-file, slack');
   });

@@ -1,0 +1,8 @@
+cases:
+  - id: AUTH-LOGIN-001
+    title: Second case with an id in use
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - expect: { visible: { id: dashboard } }

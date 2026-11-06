@@ -1,0 +1,16 @@
+cases:
+  - id: AUTH-PROD-001
+    title: Customer reads orders in production
+    stage: regression
+    risk: high
+    targets: [web]
+    prod_safe: true
+    steps:
+      - request: { method: GET, url: "${env.API_URL}/orders" }
+      - request: { method: DELETE, url: "${env.API_URL}/orders/draft" }
+      - challenge:
+          kind: pin
+          trigger:
+            request: { method: POST, url: "${env.API_URL}/pin/start", write: false }
+    checks:
+      - request: { method: PATCH, url: "${env.API_URL}/orders/seen" }

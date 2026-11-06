@@ -1,0 +1,8 @@
+cases:
+  - id: AUTH-login-1
+    title: Case with a lower case id
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - expect: { visible: { id: dashboard } }

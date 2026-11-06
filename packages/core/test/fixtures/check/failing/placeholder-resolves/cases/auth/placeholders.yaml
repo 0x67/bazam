@@ -1,0 +1,12 @@
+cases:
+  - id: AUTH-PLACEHOLDER-001
+    title: Case with placeholders that do not resolve
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - open: ${env.ADMIN_URL}/users
+      - request: { method: GET, url: "${env.API_URL}/keys/${secret.PARTNER_KEY}" }
+      - fill: { field: { id: phone }, value: "${identity.customer.phone}" }
+      - note: statement goes to ${identity.partner.email}
+      - expect: { visible: { id: dashboard } }

@@ -1,0 +1,5 @@
+customer:
+  email: customer@example.test
+  name: Fake Customer
+auditor:
+  email: auditor@example.invalid

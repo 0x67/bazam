@@ -1,0 +1,11 @@
+cases:
+  - id: AUTH-SELECTOR-001
+    title: Case that selects by CSS and text
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - tap: { css: ".sign-in > button" }
+      - request: { method: POST, url: "${env.API_URL}/notes", json: { text: hello }, write: true }
+      - expect:
+          visible: { text: Welcome back }

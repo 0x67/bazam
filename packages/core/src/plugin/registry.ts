@@ -4,10 +4,12 @@ import { pathToFileURL } from "node:url";
 import type { AuthStrategy, JsonValue } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import { assertHumanOnly, type ChallengeKindSpec, type ChallengeResolver, type HumanChannel } from "../challenge/index.ts";
+import type { CheckRule } from "../check/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
+import type { ProjectConfig } from "../project.ts";
 import type { SecretProvider } from "../secrets/index.ts";
-import { builtinContributions, type BuiltinConfig } from "./builtin.ts";
+import { builtinContributions } from "./builtin.ts";
 
 export const PLUGIN_API_VERSION = 1;
 const CORE_PLUGIN = `${BRAND.scope}/core`;
@@ -26,6 +28,7 @@ export interface PluginManifest {
   challengeKinds?: ChallengeKindSpec[];
   secretProviders?: SecretProvider[];
   channels?: { name: string; create(runDir: string): HumanChannel }[];
+  checkRules?: CheckRule[];
 }
 
 export function definePlugin(manifest: PluginManifest): PluginManifest {
@@ -74,6 +77,7 @@ const contributionLists: { [K in ContributionKey]: ContributionList<Contribution
   challengeKinds: { noun: "challenge kind", name: (kind) => kind.name },
   secretProviders: { noun: "secret provider", name: (provider) => provider.name },
   channels: { noun: "human channel", name: (channel) => channel.name },
+  checkRules: { noun: "check rule", name: (rule) => rule.id },
 };
 const CONTRIBUTION_KEYS = Object.keys(contributionLists) as ContributionKey[];
 
@@ -92,20 +96,19 @@ type Registrations = { [K in ContributionKey]: Map<string, Registered<Contributi
 export class PluginRegistry {
   readonly #registrations = Object.fromEntries(CONTRIBUTION_KEYS.map((key) => [key, new Map()])) as Registrations;
   readonly #steps = new Map<string, RegisteredStep>();
+  readonly #humanOnlyKinds: ReadonlySet<string>;
 
-  private constructor() {}
+  private constructor(humanOnlyKinds: ReadonlySet<string>) {
+    this.#humanOnlyKinds = humanOnlyKinds;
+  }
 
   /** Registers the core plugin, then `defaults`, then each entry of `config.plugins` in order. */
-  static async load(
-    config: BuiltinConfig & { plugins?: readonly string[] },
-    projectRoot: string,
-    defaults: readonly PluginManifest[],
-  ): Promise<PluginRegistry> {
+  static async load(config: ProjectConfig, projectRoot: string, defaults: readonly PluginManifest[]): Promise<PluginRegistry> {
     const root = resolve(projectRoot);
-    const registry = new PluginRegistry();
+    const registry = new PluginRegistry(new Set(config.challenges.humanOnly));
     registry.#add({ name: CORE_PLUGIN, apiVersion: PLUGIN_API_VERSION, ...builtinContributions(config, root) });
     for (const manifest of defaults) registry.#add(manifest);
-    for (const entry of config.plugins ?? []) registry.#add(manifestOf(await importPlugin(entry, root), entry));
+    for (const entry of config.plugins) registry.#add(manifestOf(await importPlugin(entry, root), entry));
     return registry;
   }
 
@@ -117,8 +120,10 @@ export class PluginRegistry {
     return this.#get("authStrategies", name);
   }
 
+  /** A kind that config lists under `challenges.humanOnly` is human-only whatever its plugin says. */
   kind(name: string): ChallengeKindSpec {
-    return this.#get("challengeKinds", name);
+    const spec = this.#get("challengeKinds", name);
+    return this.#humanOnlyKinds.has(name) && !spec.humanOnly ? { ...spec, humanOnly: true } : spec;
   }
 
   /**
@@ -151,6 +156,11 @@ export class PluginRegistry {
   /** One handler per kind; a kind that several drivers offer comes from the first of them. */
   stepHandlers(): readonly StepHandler[] {
     return [...this.#steps.values()].map((registered) => registered.item);
+  }
+
+  /** The built-in rules, then each plugin's, in the order the plugins loaded. */
+  checkRules(): readonly CheckRule[] {
+    return [...this.#registrations.checkRules.values()].map((registered) => registered.item);
   }
 
   #add(manifest: PluginManifest): void {

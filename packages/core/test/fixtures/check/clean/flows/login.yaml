@@ -1,0 +1,7 @@
+flows:
+  - name: login
+    params: [email]
+    steps:
+      - open: ${env.APP_URL}/login
+      - fill: { field: { id: email }, value: "${param.email}" }
+      - tap: { role: button, name: Continue }

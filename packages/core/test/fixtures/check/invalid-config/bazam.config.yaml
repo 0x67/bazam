@@ -1,0 +1,6 @@
+envs:
+  uat:
+    vars: { APP_URL: https://uat.app.example.test }
+    hosts: [uat.app.example.test]
+identity:
+  customer: { fixture: customer }

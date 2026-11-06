@@ -1,0 +1,7 @@
+flows:
+  - name: loop-a
+    steps:
+      - use: loop-b
+  - name: loop-b
+    steps:
+      - use: loop-a

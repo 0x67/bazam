@@ -1,0 +1,8 @@
+cases:
+  - id: AUTH-OLD-001
+    title: Case that reuses a retired id
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - expect: { visible: { id: dashboard } }
