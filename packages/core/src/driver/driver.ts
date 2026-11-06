@@ -1,5 +1,8 @@
 import type { z } from "zod";
+import type { BrowserLogin, BrowserSession, Identities, JsonValue } from "../auth/index.ts";
+import type { Environment } from "../env/index.ts";
 import type { Redactor } from "../redact/index.ts";
+import type { CaseOutcome, EvidenceStore } from "../result/index.ts";
 
 /** An open name for what a driver can do on its device, such as "webauthn.virtual" or "camera.inject". */
 export type Capability = string;
@@ -8,6 +11,9 @@ export interface StepContext {
   session: DriverSession;
   /** The identity the step runs as. */
   identity: string;
+  env: Environment;
+  evidence: EvidenceStore;
+  identities: Identities;
   /** Fills the placeholders in a step value. */
   resolve<T>(value: T): Promise<T>;
   signal: AbortSignal;
@@ -20,14 +26,22 @@ export interface StepHandler<S = unknown> {
 }
 
 export interface LaunchOptions {
+  env: Environment;
   target: string;
+  /** The target's entry in config, such as browser and headless. */
+  settings: Record<string, JsonValue>;
   runDir: string;
   redactor: Redactor;
 }
 
 export interface DriverSession {
   capabilities: ReadonlySet<Capability>;
-  close(): Promise<void>;
+  /** The browser context the identity acts in, on a driver that has one. */
+  browserFor?(identity: string): Promise<BrowserSession>;
+  /** Present when the driver offers browser.login. */
+  browserLogin?: BrowserLogin;
+  /** Keeps the trace when the case did not pass. */
+  close(outcome: CaseOutcome): Promise<void>;
 }
 
 export interface Driver {

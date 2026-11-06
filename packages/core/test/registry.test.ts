@@ -1,9 +1,20 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { defineAuthStrategy, type AuthStrategy } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
+import {
+  HumanOnlyViolation,
+  humanResolver,
+  type ChallengeKindSpec,
+  type ChallengeResolver,
+  type HumanChannel,
+  type PersonPrompt,
+} from "../src/challenge/index.ts";
+import type { Environment } from "../src/env/index.ts";
 import {
   definePlugin,
   PLUGIN_API_VERSION,
@@ -37,6 +48,27 @@ function secretProvider(name: string): SecretProvider {
   return { name, load: async () => undefined };
 }
 
+function challengeResolver(name: string, kinds: readonly string[]): ChallengeResolver {
+  return { name, kinds, requires: [], automated: true, resolve: async () => undefined };
+}
+
+const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", humanOnly: true, fallbackAfterTrigger: false };
+
+function slackChannel(): { name: string; create(runDir: string): HumanChannel } {
+  return { name: "slack", create: () => ({ ask: async () => ({ kind: "timeout" }) }) };
+}
+
+function authStrategy(name: string): AuthStrategy<object, { token: string }> {
+  return defineAuthStrategy({
+    name,
+    config: z.object({}),
+    cacheable: false,
+    acquire: async () => ({ token: "fake-token" }),
+    apply: async () => {},
+    secrets: (credential) => [credential.token],
+  });
+}
+
 describe("PluginRegistry.load", () => {
   it("PluginConflict names both plugins", async () => {
     const failure = await loadFailure([plugin("mail", { steps: [fakeStep("wait")] }), plugin("sms", { steps: [fakeStep("wait")] })]);
@@ -54,6 +86,15 @@ describe("PluginRegistry.load", () => {
       { drivers: [fakeDriver({ steps: [fakeStep("tap")] })] },
       'step kind "tap"',
     ],
+    ["two auth strategies with one name", { authStrategies: [authStrategy("sso")] }, { authStrategies: [authStrategy("sso")] }, 'auth strategy "sso"'],
+    [
+      "two resolvers with one name",
+      { resolvers: [challengeResolver("totp", ["totp"])] },
+      { resolvers: [challengeResolver("totp", ["totp"])] },
+      'challenge resolver "totp"',
+    ],
+    ["two challenge kinds with one name", { challengeKinds: [faceScan] }, { challengeKinds: [faceScan] }, 'challenge kind "face-scan"'],
+    ["two channels with one name", { channels: [slackChannel()] }, { channels: [slackChannel()] }, 'human channel "slack"'],
   ])("PluginConflict also covers %s", async (_, first, second, contribution) => {
     const failure = await loadFailure([plugin("first", first), plugin("second", second)]);
 
@@ -185,5 +226,129 @@ describe("PluginRegistry.secretProviders", () => {
     const registry = await PluginRegistry.load({}, projectRoot, defaults);
 
     expect(() => registry.secretProviders(["vault", "valt"])).toThrow(/^unknown secret provider "valt"; known: .*\bvault\b/);
+  });
+});
+
+describe("PluginRegistry.strategy", () => {
+  const sso = authStrategy("sso");
+  const defaults = [plugin("sso-plugin", { authStrategies: [sso, authStrategy("mtls")] })];
+
+  it("returns the strategy a plugin registered under that name", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(registry.strategy("sso")).toBe(sso);
+  });
+
+  it("throws on an unknown strategy name and lists the known ones", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(() => registry.strategy("ssso")).toThrow(/^unknown auth strategy "ssso"; known: .*\bsso\b/);
+  });
+});
+
+describe("PluginRegistry.kind", () => {
+  it("returns a built-in kind and a kind a plugin adds", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, [plugin("face-plugin", { challengeKinds: [faceScan] })]);
+
+    expect(registry.kind("pin")).toEqual({ name: "pin", answer: "action", humanOnly: true, fallbackAfterTrigger: false });
+    expect(registry.kind("face-scan")).toBe(faceScan);
+  });
+
+  it("throws on an unknown kind name and lists the known ones", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, []);
+
+    expect(() => registry.kind("otp-mail")).toThrow('unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin');
+  });
+});
+
+describe("PluginRegistry.resolverChain", () => {
+  const mailpit = challengeResolver("otp-mailpit", ["otp-email"]);
+  const totp = challengeResolver("totp", ["totp"]);
+  const pinTyper = challengeResolver("pin-typer", ["pin"]);
+  const defaults = [plugin("resolver-plugin", { resolvers: [mailpit, totp, pinTyper] })];
+
+  function uat(challenges: Record<string, string[]>): Environment {
+    return { name: "uat", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges };
+  }
+
+  it("returns the env's resolvers for the kind in config order", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+    const chain = registry.resolverChain(uat({ "otp-email": ["otp-mailpit", "human"], totp: ["totp"] }), "otp-email");
+
+    expect(chain).toHaveLength(2);
+    expect(chain[0]).toBe(mailpit);
+    expect(chain[1]).toBe(humanResolver);
+  });
+
+  it("gives an empty chain for a kind the env lists no resolvers for", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(registry.resolverChain(uat({ totp: ["totp"] }), "otp-sms")).toEqual([]);
+  });
+
+  it("refuses a chain with an automated resolver for a human-only kind", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(() => registry.resolverChain(uat({ pin: ["human", "pin-typer"] }), "pin")).toThrow(HumanOnlyViolation);
+  });
+
+  it("throws on a resolver name no plugin registered and lists the known ones", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(() => registry.resolverChain(uat({ "otp-email": ["otp-mailpt"] }), "otp-email")).toThrow(
+      'unknown challenge resolver "otp-mailpt"; known: human, otp-mailpit, totp, pin-typer',
+    );
+  });
+
+  it("throws on a kind name no plugin registered", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(() => registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp")).toThrow('unknown challenge kind "otp-whatsapp"');
+  });
+
+  it("throws when the env lists a resolver for a kind it does not answer", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, defaults);
+
+    expect(() => registry.resolverChain(uat({ "otp-email": ["totp"] }), "otp-email")).toThrow(
+      'env uat lists resolver "totp" for challenge otp-email, but it answers only totp',
+    );
+  });
+});
+
+describe("PluginRegistry.channel", () => {
+  let runDir: string;
+
+  beforeEach(async () => {
+    runDir = await mkdtemp(join(tmpdir(), "registry-channel-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(runDir, { recursive: true, force: true });
+  });
+
+  it("creates the answers-file channel over the run directory it is given", async () => {
+    const prompt: PersonPrompt = {
+      id: "AUTH-LOGIN-001-3-pin",
+      runId: "20261106-093000-a1b2",
+      caseId: "AUTH-LOGIN-001",
+      ask: "action",
+      title: "pin challenge at step 3",
+      steps: ["Enter the PIN in the app."],
+      timeoutMs: 5_000,
+    };
+    await mkdir(join(runDir, "answers"));
+    await writeFile(join(runDir, "answers", `${prompt.id}.json`), JSON.stringify({ kind: "done" }));
+    const registry = await PluginRegistry.load({}, projectRoot, []);
+
+    const answer = await registry.channel("answers-file")(runDir).ask(prompt, new AbortController().signal);
+
+    expect(answer).toEqual({ kind: "done" });
+    expect(await readdir(join(runDir, "prompts", "done"))).toEqual([`${prompt.id}.json`]);
+  });
+
+  it("throws on an unknown channel name and lists the known ones", async () => {
+    const registry = await PluginRegistry.load({}, projectRoot, [plugin("slack-plugin", { channels: [slackChannel()] })]);
+
+    expect(() => registry.channel("slak")).toThrow('unknown human channel "slak"; known: terminal, answers-file, slack');
   });
 });

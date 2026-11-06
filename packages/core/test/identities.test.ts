@@ -1,0 +1,483 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
+import {
+  CredentialCache,
+  CredentialRejected,
+  defineAuthStrategy,
+  Identities,
+  IdentitiesConfig,
+  withRefreshLock,
+  type AuthContext,
+  type AuthStrategy,
+  type CredentialKey,
+  type HttpRequestDraft,
+  type IdentitiesDeps,
+  type StorageState,
+} from "../src/auth/index.ts";
+import type { HumanChannel } from "../src/challenge/index.ts";
+import type { Environment } from "../src/env/index.ts";
+import { definePlugin, PLUGIN_API_VERSION, PluginRegistry } from "../src/plugin/index.ts";
+import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
+import { FakeBrowserLogin, FakeBrowserSession } from "./support/fake-browser.ts";
+
+const run = promisify(execFile);
+const env: Environment = { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {} };
+const HOUR_MS = 60 * 60_000;
+const SESSION_COOKIE = { name: "session", value: "fake-session-cookie", domain: "app.example.test" };
+const person: HumanChannel = { ask: async () => ({ kind: "timeout" }) };
+
+type Token = { token: string; refreshToken: string; expiresAt: string };
+
+interface TokenStrategyOptions {
+  name?: string;
+  cacheable?: boolean;
+  refreshFails?: boolean;
+  probe?: (credential: Token) => boolean;
+  /** Adds a field set to undefined, as a strategy does for a value the token endpoint left out. */
+  undefinedField?: boolean;
+}
+
+/** Issues fake-<identity>-1, fake-<identity>-2 and so on, each valid for an hour, and logs each acquire and refresh. */
+function tokenStrategy(clock: () => Date, options: TokenStrategyOptions = {}) {
+  const calls: string[] = [];
+  const contexts: AuthContext[] = [];
+  let issued = 0;
+  const issue = (identity: string): Token => {
+    issued += 1;
+    const expiresAt = new Date(clock().getTime() + HOUR_MS).toISOString();
+    const token = { token: `fake-${identity}-${issued}`, refreshToken: `fake-refresh-${issued}`, expiresAt };
+    return options.undefinedField === true ? ({ ...token, scope: undefined } as Token) : token;
+  };
+  const strategy = defineAuthStrategy<{ audience: string }, Token>({
+    name: options.name ?? "token",
+    config: z.object({ audience: z.string() }),
+    cacheable: options.cacheable ?? true,
+    acquire: async (config, ctx) => {
+      calls.push(`acquire ${ctx.identity} for ${config.audience}`);
+      contexts.push(ctx);
+      return issue(ctx.identity);
+    },
+    refresh: async (credential, _config, ctx) => {
+      calls.push(`refresh ${credential.token}`);
+      if (options.refreshFails === true) throw new Error("refresh token revoked");
+      return issue(ctx.identity);
+    },
+    expiresAt: (credential) => new Date(credential.expiresAt),
+    probe: async (credential) => options.probe?.(credential) ?? true,
+    apply: async (credential, target) => {
+      const authorization = `Bearer ${credential.token}`;
+      if (target.kind === "http") target.request.headers.set("authorization", authorization);
+      else await target.session.setExtraHeaders({ authorization });
+    },
+    secrets: (credential) => [credential.token, credential.refreshToken],
+  });
+  return { strategy, calls, contexts };
+}
+
+/** Logs in through the browser, where a person finishes the login, and has no refresh. */
+const cookieStrategy = defineAuthStrategy<{ loginUrl: string }, StorageState>({
+  name: "cookie",
+  config: z.object({ loginUrl: z.string() }),
+  cacheable: true,
+  needsPerson: () => true,
+  acquire: async (config, ctx) => {
+    if (ctx.browser === undefined) throw new Error("the cookie login needs browser.login");
+    return (await ctx.browser.login({ url: new URL(config.loginUrl), until: { cookie: "session" }, timeoutMs: 1_000 })).state;
+  },
+  apply: async (state, target) => {
+    if (target.kind === "browser") return target.session.loadStorageState(state);
+    const cookies = state.cookies as { name: string; value: string }[];
+    target.request.headers.set("cookie", cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "));
+  },
+  secrets: (state) => (state.cookies as { value: string }[]).map((cookie) => cookie.value),
+});
+
+const cookieSurface = { strategy: "cookie", with: { loginUrl: "https://app.example.test/login" } };
+const tokenSurface = { strategy: "token", with: { audience: "orders" } };
+const customerApiKey: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "token" };
+
+function draft(): HttpRequestDraft {
+  return { method: "GET", url: new URL("https://app.example.test/me"), headers: new Headers() };
+}
+
+describe("Identities", () => {
+  let root: string;
+  let now: Date;
+  const clock = () => now;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "identities-test-"));
+    now = new Date("2026-11-06T09:00:00.000Z");
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  async function identities(
+    configs: unknown,
+    strategies: AuthStrategy<any, any>[],
+    deps: Partial<IdentitiesDeps> = {},
+  ): Promise<Identities> {
+    const plugin = definePlugin({ name: "test-strategies", apiVersion: PLUGIN_API_VERSION, authStrategies: strategies });
+    return new Identities({
+      env,
+      configs: IdentitiesConfig.parse(configs),
+      fixtures: { customer: { email: "customer@example.test" } },
+      registry: await PluginRegistry.load({}, root, [plugin]),
+      cache: new CredentialCache(join(root, "credentials")),
+      lockDir: join(root, "locks"),
+      resolve: async (value) => value,
+      redactor: new Redactor(defaultRedactionRules()),
+      channel: person,
+      now: clock,
+      ...deps,
+    });
+  }
+
+  async function cacheFiles(): Promise<string[]> {
+    return readdir(join(root, "credentials")).catch(() => []);
+  }
+
+  it("uses one credential per identity and surface", async () => {
+    const { strategy, calls } = tokenStrategy(clock);
+    const auth = { web: { strategy: "token", with: { audience: "web" } }, api: { strategy: "token", with: { audience: "api" } } };
+    const ids = await identities({ customer: { auth }, admin: { auth } }, [strategy]);
+    const customerPage = new FakeBrowserSession();
+    const adminPage = new FakeBrowserSession();
+    const customerRequest = draft();
+
+    await ids.authorize("customer", "web", { kind: "browser", session: customerPage });
+    await ids.authorize("admin", "web", { kind: "browser", session: adminPage });
+    await ids.authorize("customer", "api", { kind: "http", request: customerRequest });
+    await ids.authorize("customer", "web", { kind: "browser", session: customerPage });
+
+    expect(customerPage.extraHeaders).toEqual({ authorization: "Bearer fake-customer-1" });
+    expect(adminPage.extraHeaders).toEqual({ authorization: "Bearer fake-admin-2" });
+    expect(customerRequest.headers.get("authorization")).toBe("Bearer fake-customer-3");
+    expect(calls).toEqual(["acquire customer for web", "acquire admin for web", "acquire customer for api"]);
+  });
+
+  it("reuses another surface with from:", async () => {
+    const login = new FakeBrowserLogin([SESSION_COOKIE]);
+    const ids = await identities({ customer: { auth: { web: cookieSurface, api: { strategy: "cookie", from: "web" } } } }, [cookieStrategy], {
+      browser: login,
+    });
+    const page = new FakeBrowserSession();
+    const request = draft();
+
+    await ids.authorize("customer", "web", { kind: "browser", session: page });
+    await ids.authorize("customer", "api", { kind: "http", request });
+
+    expect(login.requests).toHaveLength(1);
+    expect(page.state.cookies).toEqual([SESSION_COOKIE]);
+    expect(request.headers.get("cookie")).toBe("session=fake-session-cookie");
+    expect(await cacheFiles()).toEqual(["demo+customer+web+cookie.json"]);
+  });
+
+  it("runs acquire, apply, refresh for a strategy from defineAuthStrategy", async () => {
+    const { strategy, calls, contexts } = tokenStrategy(clock);
+    const ids = await identities({ customer: { fixture: "customer", auth: { api: tokenSurface } } }, [strategy]);
+    const first = draft();
+    const second = draft();
+
+    await ids.authorize("customer", "api", { kind: "http", request: first });
+    now = new Date(now.getTime() + 2 * HOUR_MS);
+    await ids.authorize("customer", "api", { kind: "http", request: second });
+
+    expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
+    expect(contexts[0]?.fields).toEqual({ email: "customer@example.test" });
+    expect(contexts[0]?.person).toBe(person);
+    expect(first.headers.get("authorization")).toBe("Bearer fake-customer-1");
+    expect(second.headers.get("authorization")).toBe("Bearer fake-customer-2");
+  });
+
+  it("never caches non-cacheable strategies, and masks their secrets", async () => {
+    const { strategy } = tokenStrategy(clock, { name: "static-token", cacheable: false });
+    const redactor = new Redactor(defaultRedactionRules());
+    const ids = await identities({ partner: { auth: { api: { strategy: "static-token", with: { audience: "partner" } } } } }, [strategy], {
+      redactor,
+    });
+
+    await ids.authorize("partner", "api", { kind: "http", request: draft() });
+
+    expect(await cacheFiles()).toEqual([]);
+    expect(redactor.text("sent fake-partner-1")).toBe("sent [redacted]");
+  });
+
+  it("reports each login mode without acquiring or refreshing", async () => {
+    const token = tokenStrategy(clock);
+    const staticToken = tokenStrategy(clock, { name: "static-token", cacheable: false });
+    const configs = {
+      customer: { auth: { api: tokenSurface, web: cookieSurface } },
+      partner: { auth: { api: { strategy: "static-token", with: { audience: "partner" } } } },
+    };
+    const strategies = [token.strategy, staticToken.strategy, cookieStrategy];
+    const ids = await identities(configs, strategies);
+
+    const before = [
+      await ids.credentialState("customer", "api"),
+      await ids.credentialState("customer", "web"),
+      await ids.credentialState("partner", "api"),
+    ];
+    await ids.ensureCredential("customer", "api");
+    const nextProcess = await identities(configs, strategies);
+    const cached = await nextProcess.credentialState("customer", "api");
+    now = new Date(now.getTime() + 2 * HOUR_MS);
+    const expired = await nextProcess.credentialState("customer", "api");
+
+    expect(before).toEqual(["scripted", "person", "static"]);
+    expect([cached, expired]).toEqual(["cached", "refresh"]);
+    expect(token.calls).toEqual(["acquire customer for orders"]);
+  });
+
+  it("reports a person login without resolving the placeholders in its settings", async () => {
+    const resolved: unknown[] = [];
+    const surface = { strategy: "cookie", with: { loginUrl: "${env.APP_URL}/login", password: "${secret.CUSTOMER_PASSWORD}" } };
+    const ids = await identities({ customer: { auth: { web: surface } } }, [cookieStrategy], {
+      resolve: async (value) => {
+        resolved.push(value);
+        throw new Error("secret CUSTOMER_PASSWORD is not set");
+      },
+    });
+
+    expect(await ids.credentialState("customer", "web")).toBe("person");
+    expect(resolved).toEqual([]);
+  });
+
+  it("resolves the settings again after a resolve failed", async () => {
+    const { strategy, calls } = tokenStrategy(clock);
+    let attempts = 0;
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy], {
+      resolve: async (value) => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("op read timed out");
+        return value;
+      },
+    });
+
+    await expect(ids.ensureCredential("customer", "api")).rejects.toThrow("op read timed out");
+    await ids.ensureCredential("customer", "api");
+
+    expect(calls).toEqual(["acquire customer for orders"]);
+  });
+
+  it("reloads the cache after taking the lock", async () => {
+    const staleProbed = Promise.withResolvers<void>();
+    const { strategy, calls } = tokenStrategy(clock, {
+      probe: (credential) => {
+        if (credential.token !== "fake-stale") return true;
+        staleProbed.resolve();
+        return false;
+      },
+    });
+    const cache = new CredentialCache(join(root, "credentials"));
+    const expiresAt = new Date(now.getTime() + HOUR_MS).toISOString();
+    await cache.save(customerApiKey, { token: "fake-stale", refreshToken: "fake-refresh-stale", expiresAt });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    let ensured: Promise<void> | undefined;
+
+    await withRefreshLock(join(root, "locks"), customerApiKey, async () => {
+      ensured = ids.ensureCredential("customer", "api");
+      await staleProbed.promise;
+      // another process saves its refresh while this one waits for the lock
+      await cache.save(customerApiKey, { token: "fake-from-other-process", refreshToken: "fake-refresh-other", expiresAt });
+    });
+    await ensured;
+    const request = draft();
+    await ids.authorize("customer", "api", { kind: "http", request });
+
+    expect(request.headers.get("authorization")).toBe("Bearer fake-from-other-process");
+    expect(calls).toEqual([]);
+  });
+
+  it("acquires again when the refresh fails", async () => {
+    const { strategy, calls } = tokenStrategy(clock, { refreshFails: true });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+
+    await ids.ensureCredential("customer", "api");
+    now = new Date(now.getTime() + 2 * HOUR_MS);
+    await ids.ensureCredential("customer", "api");
+
+    expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1", "acquire customer for orders"]);
+  });
+
+  it("throws CredentialRejected and saves nothing when a new credential fails the probe", async () => {
+    const { strategy } = tokenStrategy(clock, { probe: () => false });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+
+    await expect(ids.ensureCredential("customer", "api")).rejects.toBeInstanceOf(CredentialRejected);
+    expect(await cacheFiles()).toEqual([]);
+  });
+
+  it("refreshes once on a 401 and saves the new credential for the retry", async () => {
+    const { strategy, calls } = tokenStrategy(clock);
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    await ids.ensureCredential("customer", "api");
+    const retry = draft();
+
+    const recovered = await ids.recoverFromUnauthorized("customer", "api");
+    await ids.authorize("customer", "api", { kind: "http", request: retry });
+
+    expect(recovered).toBe(true);
+    expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
+    expect(retry.headers.get("authorization")).toBe("Bearer fake-customer-2");
+    expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toMatchObject({ credential: { token: "fake-customer-2" } });
+  });
+
+  it("refreshes on a 401 when the credential holds a field set to undefined", async () => {
+    const { strategy, calls } = tokenStrategy(clock, { undefinedField: true });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    await ids.ensureCredential("customer", "api");
+
+    expect(await ids.recoverFromUnauthorized("customer", "api")).toBe(true);
+    expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
+  });
+
+  it("second 401 blocks: recoverFromUnauthorized returns false when the strategy cannot refresh", async () => {
+    const ids = await identities({ customer: { auth: { web: cookieSurface } } }, [cookieStrategy], { browser: new FakeBrowserLogin([SESSION_COOKIE]) });
+    await ids.ensureCredential("customer", "web");
+
+    expect(await ids.recoverFromUnauthorized("customer", "web")).toBe(false);
+  });
+
+  it("two processes refreshing a single-use token both end valid", async () => {
+    const server = await startTokenServer();
+    try {
+      const key: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "single-use" };
+      const expired = new Date(Date.now() - 60_000);
+      const stale = { accessToken: "fake-access-0", refreshToken: "fake-refresh-0", expiresAt: expired.toISOString() };
+      await new CredentialCache(join(root, "credentials")).save(key, stale, expired);
+      const modules = ["../src/auth/index.ts", "../src/plugin/index.ts", "../src/redact/index.ts"].map((path) => new URL(path, import.meta.url).href);
+      const coreDir = fileURLToPath(new URL("..", import.meta.url));
+      const start = () => run(process.execPath, ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url], { cwd: coreDir });
+
+      const [first, second] = await Promise.all([start(), start()]);
+
+      expect([first.stdout, second.stdout]).toEqual(["Bearer fake-access-1", "Bearer fake-access-1"]);
+      expect(server.issued).toEqual(["fake-access-1"]);
+    } finally {
+      await server.close();
+    }
+  }, 30_000);
+});
+
+describe("IdentitiesConfig", () => {
+  it("rejects from: naming another strategy or a surface that has no settings of its own", () => {
+    const result = IdentitiesConfig.safeParse({
+      customer: {
+        auth: {
+          web: cookieSurface,
+          api: { strategy: "token", from: "web" },
+          mobile: { strategy: "cookie", from: "api" },
+        },
+      },
+    });
+
+    expect(result.error?.issues.map((issue) => [issue.path.join("."), issue.message])).toEqual([
+      ["customer.auth.api.from", 'surface "web" uses strategy cookie, not token'],
+      ["customer.auth.mobile.from", 'from: "api" must name a surface of this identity with its own settings'],
+    ]);
+  });
+});
+
+// Runs in a separate Node process: refreshes the cached credential through the token server, whose refresh
+// tokens work once, and prints the Authorization header it ends with. Acquire throws, so losing the race fails.
+const REFRESH_WORKER = `
+const [authModule, pluginModule, redactModule, root, server] = process.argv.slice(1);
+const { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig } = await import(authModule);
+const { definePlugin, PLUGIN_API_VERSION, PluginRegistry } = await import(pluginModule);
+const { defaultRedactionRules, Redactor } = await import(redactModule);
+const { z } = await import("zod");
+const { join } = await import("node:path");
+
+const strategy = defineAuthStrategy({
+  name: "single-use",
+  config: z.object({ tokenUrl: z.string() }),
+  cacheable: true,
+  acquire: async () => {
+    throw new Error("acquire needs a person");
+  },
+  refresh: async (credential, config) => {
+    const response = await fetch(config.tokenUrl, { method: "POST", body: credential.refreshToken });
+    if (!response.ok) throw new Error("refresh refused with " + response.status);
+    return { ...(await response.json()), expiresAt: new Date(Date.now() + 3600000).toISOString() };
+  },
+  expiresAt: (credential) => new Date(credential.expiresAt),
+  apply: async (credential, target) => target.request.headers.set("authorization", "Bearer " + credential.accessToken),
+  secrets: (credential) => [credential.accessToken, credential.refreshToken],
+});
+const plugin = definePlugin({ name: "single-use", apiVersion: PLUGIN_API_VERSION, authStrategies: [strategy] });
+const identities = new Identities({
+  env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {} },
+  configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "single-use", with: { tokenUrl: server + "/refresh" } } } } }),
+  fixtures: {},
+  registry: await PluginRegistry.load({}, root, [plugin]),
+  cache: new CredentialCache(join(root, "credentials")),
+  lockDir: join(root, "locks"),
+  resolve: async (value) => value,
+  redactor: new Redactor(defaultRedactionRules()),
+  channel: { ask: async () => ({ kind: "timeout" }) },
+  now: () => new Date(),
+});
+// both processes start refreshing at the same moment
+await fetch(server + "/barrier");
+const request = { method: "GET", url: new URL(server + "/me"), headers: new Headers() };
+await identities.authorize("customer", "api", { kind: "http", request });
+process.stdout.write(request.headers.get("authorization"));
+`;
+
+interface TokenServer {
+  url: string;
+  /** Access tokens issued so far. */
+  issued: string[];
+  close(): Promise<void>;
+}
+
+/** Each refresh token works once; a refresh answers after 300 ms so the second process meets a held lock. */
+async function startTokenServer(): Promise<TokenServer> {
+  let validRefreshToken = "fake-refresh-0";
+  let atBarrier: ServerResponse[] = [];
+  const issued: string[] = [];
+  const server = createServer(async (request, response) => {
+    if (request.url === "/barrier") {
+      atBarrier.push(response);
+      if (atBarrier.length === 2) {
+        for (const waiting of atBarrier) waiting.end();
+        atBarrier = [];
+      }
+      return;
+    }
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    await sleep(300);
+    if (body !== validRefreshToken) {
+      response.writeHead(400).end('{"error":"invalid_grant"}');
+      return;
+    }
+    issued.push(`fake-access-${issued.length + 1}`);
+    validRefreshToken = `fake-refresh-${issued.length}`;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ accessToken: issued.at(-1), refreshToken: validRefreshToken }));
+  });
+  await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    issued,
+    close: () =>
+      new Promise((closed) => {
+        server.closeAllConnections();
+        server.close(() => closed());
+      }),
+  };
+}

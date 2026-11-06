@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BRAND } from "../brand.ts";
+import { answersFileChannel, builtinKinds, humanResolver, terminalChannel } from "../challenge/index.ts";
 import { dotenvProvider, envProvider, onePasswordProvider } from "../secrets/index.ts";
 import type { PluginManifest } from "./registry.ts";
 
@@ -12,6 +13,12 @@ export interface BuiltinConfig {
 // imports only types from registry.ts and the two never form a run-time import cycle.
 export function builtinContributions(config: BuiltinConfig, projectRoot: string): Omit<PluginManifest, "name" | "apiVersion"> {
   return {
+    resolvers: [humanResolver],
+    challengeKinds: [...builtinKinds],
     secretProviders: [envProvider, dotenvProvider(join(projectRoot, BRAND.stateDir)), onePasswordProvider(config.secrets?.refs ?? {})],
+    channels: [
+      { name: "terminal", create: () => terminalChannel({ input: process.stdin, output: process.stdout }) },
+      { name: "answers-file", create: (runDir) => answersFileChannel(runDir) },
+    ],
   };
 }

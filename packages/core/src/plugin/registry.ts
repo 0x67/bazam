@@ -1,8 +1,11 @@
 import { createRequire } from "node:module";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { AuthStrategy, JsonValue } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
+import { assertHumanOnly, type ChallengeKindSpec, type ChallengeResolver, type HumanChannel } from "../challenge/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
+import type { Environment } from "../env/index.ts";
 import type { SecretProvider } from "../secrets/index.ts";
 import { builtinContributions, type BuiltinConfig } from "./builtin.ts";
 
@@ -17,7 +20,12 @@ export interface PluginManifest {
   apiVersion: number;
   drivers?: Driver[];
   steps?: StepHandler[];
+  // any: each strategy has its own config and credential types
+  authStrategies?: AuthStrategy<any, any>[];
+  resolvers?: ChallengeResolver[];
+  challengeKinds?: ChallengeKindSpec[];
   secretProviders?: SecretProvider[];
+  channels?: { name: string; create(runDir: string): HumanChannel }[];
 }
 
 export function definePlugin(manifest: PluginManifest): PluginManifest {
@@ -61,7 +69,11 @@ interface ContributionList<T> {
 // Adding a contribution type takes a manifest field, an entry here and a lookup method.
 const contributionLists: { [K in ContributionKey]: ContributionList<Contribution<K>> } = {
   drivers: { noun: "driver target", name: (driver) => driver.target },
+  authStrategies: { noun: "auth strategy", name: (strategy) => strategy.name },
+  resolvers: { noun: "challenge resolver", name: (resolver) => resolver.name },
+  challengeKinds: { noun: "challenge kind", name: (kind) => kind.name },
   secretProviders: { noun: "secret provider", name: (provider) => provider.name },
+  channels: { noun: "human channel", name: (channel) => channel.name },
 };
 const CONTRIBUTION_KEYS = Object.keys(contributionLists) as ContributionKey[];
 
@@ -101,9 +113,39 @@ export class PluginRegistry {
     return this.#get("drivers", target);
   }
 
+  strategy(name: string): AuthStrategy<unknown, JsonValue> {
+    return this.#get("authStrategies", name);
+  }
+
+  kind(name: string): ChallengeKindSpec {
+    return this.#get("challengeKinds", name);
+  }
+
+  /**
+   * The resolvers `env` lists for the kind, in order. A kind the env lists none for gets an empty chain,
+   * which blocks its cases, so a person is asked only where the env names human.
+   */
+  resolverChain(env: Environment, kind: string): ChallengeResolver[] {
+    const spec = this.kind(kind);
+    const chain = (env.challenges[kind] ?? []).map((name) => {
+      const resolver = this.#get("resolvers", name);
+      if (!resolver.kinds.includes("*") && !resolver.kinds.includes(kind)) {
+        throw new Error(`env ${env.name} lists resolver "${name}" for challenge ${kind}, but it answers only ${resolver.kinds.join(", ")}`);
+      }
+      return resolver;
+    });
+    assertHumanOnly(spec, chain);
+    return chain;
+  }
+
   /** In the order of `names`; an unknown name throws, so a typo in config never drops a provider. */
   secretProviders(names: readonly string[]): SecretProvider[] {
     return names.map((name) => this.#get("secretProviders", name));
+  }
+
+  channel(name: string): (runDir: string) => HumanChannel {
+    const channel = this.#get("channels", name);
+    return (runDir) => channel.create(runDir);
   }
 
   /** One handler per kind; a kind that several drivers offer comes from the first of them. */
