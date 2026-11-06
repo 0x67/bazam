@@ -296,7 +296,7 @@ describe("PluginRegistry.resolverChain", () => {
   const defaults = [plugin("resolver-plugin", { resolvers: [mailpit, totp, pinTyper] })];
 
   function uat(challenges: Record<string, string[]>): Environment {
-    return { name: "uat", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges };
+    return { name: "uat", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges, locale: "en" };
   }
 
   it("returns the env's resolvers for the kind in config order", async () => {

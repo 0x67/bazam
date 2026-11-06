@@ -9,4 +9,5 @@ cases:
       - request: { method: GET, url: "${env.API_URL}/keys/${secret.PARTNER_KEY}" }
       - fill: { field: { id: phone }, value: "${identity.customer.phone}" }
       - note: statement goes to ${identity.partner.email}
+      - fill: { field: { id: national-number }, value: "${identity.customer.email.national}" }
       - expect: { visible: { id: dashboard } }

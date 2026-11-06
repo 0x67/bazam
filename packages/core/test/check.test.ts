@@ -77,6 +77,7 @@ const failing: [string, Expected][] = [
       ["cases/auth/placeholders.yaml", 9, "${secret.PARTNER_KEY} names a secret"],
       ["cases/auth/placeholders.yaml", 10, `${FIXTURES_FILE} has no phone for identity customer`],
       ["cases/auth/placeholders.yaml", 11, `${FIXTURES_FILE} has no email for identity partner`],
+      ["cases/auth/placeholders.yaml", 12, `email of identity customer in ${FIXTURES_FILE} is not a phone number`],
       [BRAND.configFile, 27, "${secret.PARTNER_HMAC_SECRT} names a secret"],
       [BRAND.configFile, 28, "${env.APP_URLL} is not a var of env uat, prod"],
     ],
@@ -171,6 +172,26 @@ describe("checkProject with the built-in rules", () => {
       "      - note: the page shows support@example.invalid",
     ];
     await writeFile(join(root, "cases/auth/help.yaml"), `${support.join("\n")}\n`);
+
+    expect(checkProject(await load(root), builtinRules)).toEqual([]);
+  });
+
+  it("accepts a phone form of a fixture field that holds a possible number", async () => {
+    await cp(clean, root, { recursive: true });
+    await writeFile(join(root, FIXTURES_FILE), 'customer:\n  email: customer@example.test\n  phone: "+447700900123"\n');
+    const phone = [
+      "cases:",
+      "  - id: AUTH-PHONE-001",
+      "    title: Profile saves the phone number",
+      "    stage: draft",
+      "    risk: low",
+      "    targets: [web]",
+      "    steps:",
+      '      - fill: { field: { id: country }, value: "${identity.customer.phone.countryName} (${identity.customer.phone.countryCode})" }',
+      '      - fill: { field: { id: number }, value: "${identity.customer.phone.domestic}" }',
+      "      - expect: { visible: { id: saved } }",
+    ];
+    await writeFile(join(root, "cases/auth/phone.yaml"), `${phone.join("\n")}\n`);
 
     expect(checkProject(await load(root), builtinRules)).toEqual([]);
   });

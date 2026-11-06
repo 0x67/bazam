@@ -1,3 +1,5 @@
+import { isPhoneForm, phoneForm } from "./phone.ts";
+
 export interface PlaceholderSources {
   env(key: string): string | undefined;
   secret(key: string): Promise<string | undefined>;
@@ -5,6 +7,8 @@ export interface PlaceholderSources {
   /** `expression` is `id`, `time` or `random(min, max, decimals)`; see run-values.ts::RunValues. */
   run(expression: string): string | undefined;
   case(key: string): string | undefined;
+  /** The environment's BCP 47 locale, for phone country names. */
+  locale: string;
 }
 
 export class UnresolvedPlaceholder extends Error {
@@ -76,7 +80,7 @@ async function resolveOne(placeholder: string, expression: string, sources: Plac
         break;
       case "identity": {
         const [name, field] = splitFirst(path);
-        if (field !== "") value = sources.identity(name, field);
+        if (field !== "") value = sources.identity(name, field) ?? identityPhoneForm(name, field, sources);
         break;
       }
       case "run":
@@ -90,6 +94,15 @@ async function resolveOne(placeholder: string, expression: string, sources: Plac
   // a string check, so a source that indexes a plain object cannot hand back an inherited member
   if (typeof value !== "string") throw new UnresolvedPlaceholder(placeholder);
   return value;
+}
+
+/** `phone.national` formats the `phone` field when the identity has no field named `phone.national`. */
+function identityPhoneForm(name: string, field: string, sources: PlaceholderSources): string | undefined {
+  const dot = field.lastIndexOf(".");
+  const form = field.slice(dot + 1);
+  if (dot === -1 || !isPhoneForm(form)) return undefined;
+  const number = sources.identity(name, field.slice(0, dot));
+  return typeof number === "string" ? phoneForm(number, form, sources.locale) : undefined;
 }
 
 function splitFirst(text: string): [string, string] {

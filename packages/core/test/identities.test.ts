@@ -31,7 +31,7 @@ import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "./support/fake-browser.ts";
 
 const run = promisify(execFile);
-const env: Environment = { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {} };
+const env: Environment = { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {}, locale: "en" };
 const HOUR_MS = 60 * 60_000;
 const SESSION_COOKIE = { name: "session", value: "fake-session-cookie", domain: "app.example.test" };
 const person: HumanChannel = { ask: async () => ({ kind: "timeout" }) };
@@ -420,7 +420,7 @@ const strategy = defineAuthStrategy({
 });
 const plugin = definePlugin({ name: "single-use", apiVersion: PLUGIN_API_VERSION, authStrategies: [strategy] });
 const identities = new Identities({
-  env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {} },
+  env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en" },
   configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "single-use", with: { tokenUrl: server + "/refresh" } } } } }),
   fixtures: {},
   registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),

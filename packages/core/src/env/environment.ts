@@ -9,6 +9,8 @@ export interface Environment {
   hosts: ReadonlySet<string>;
   /** Resolver chain per challenge kind, in the order they are tried. */
   challenges: Readonly<Record<string, readonly string[]>>;
+  /** BCP 47 tag for display text such as country names. */
+  locale: string;
 }
 
 const EnvironmentConfig = z.strictObject({
@@ -25,7 +27,17 @@ const EnvironmentConfig = z.strictObject({
     )
     .min(1),
   challenges: z.record(z.string().min(1), z.array(z.string().min(1)).min(1)).default({}),
+  locale: z.string().refine(isLocale, { error: 'a locale is a BCP 47 tag such as "en" or "id-ID"' }).default("en"),
 });
+
+function isLocale(tag: string): boolean {
+  try {
+    Intl.getCanonicalLocales(tag);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The `envs` mapping of the project config, parsed into one `Environment` per name. */
 export const EnvsConfig = z

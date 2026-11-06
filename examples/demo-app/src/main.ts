@@ -12,6 +12,7 @@ import { loginRoutes } from "./login.ts"
 import { smtpOtpSender } from "./mail.ts"
 import { oauthRoutes } from "./oauth.ts"
 import { passkeyRoutes } from "./passkey.ts"
+import { phoneRoutes } from "./phone.ts"
 import { sessionRoutes } from "./session.ts"
 import { Store } from "./store.ts"
 import { testHookRoutes } from "./test-hooks.ts"
@@ -27,6 +28,7 @@ app.route("/", loginRoutes(deps))
 app.route("/", totpRoutes(deps))
 app.route("/", passkeyRoutes(deps))
 app.route("/", transferRoutes(deps))
+app.route("/", phoneRoutes(deps))
 app.route("/", sessionRoutes(deps))
 app.route("/", apiKeyRoutes())
 app.route("/", basicAuthRoutes())

@@ -4,7 +4,9 @@ import { findPlaceholders, resolvePlaceholders, UnresolvedPlaceholder, type Plac
 function sources(overrides: Partial<PlaceholderSources> = {}): PlaceholderSources {
   const vars: Record<string, string> = { API_URL: "https://api.uat.example.test" };
   const secrets: Record<string, string> = { PARTNER_KEY_ID: "fake-key-id-0001" };
-  const identities: Record<string, Record<string, string>> = { customer: { email: "admin-1@example.test" } };
+  const identities: Record<string, Record<string, string>> = {
+    customer: { email: "admin-1@example.test", phone: "+447700900123" },
+  };
   const run: Record<string, string> = { id: "20261106-101530-a1b2", "random(1, 9, 2)": "4.37" };
   const saved: Record<string, string> = { orderId: "ord-17" };
   return {
@@ -13,6 +15,7 @@ function sources(overrides: Partial<PlaceholderSources> = {}): PlaceholderSource
     identity: (name, field) => identities[name]?.[field],
     run: (expression) => run[expression],
     case: (key) => saved[key],
+    locale: "en",
     ...overrides,
   };
 }
@@ -73,6 +76,37 @@ describe("resolvePlaceholders", () => {
     const error = await rejectionOf(resolvePlaceholders("${env.constructor}", sources({ env: (key) => vars[key] })));
 
     expect(error).toBeInstanceOf(UnresolvedPlaceholder);
+  });
+
+  it("resolves a phone form from an identity field", async () => {
+    expect(await resolvePlaceholders("${identity.customer.phone.domestic}", sources())).toBe("07700900123");
+    expect(await resolvePlaceholders("${identity.customer.phone.countryName}", sources({ locale: "id-ID" }))).toBe("Inggris Raya");
+  });
+
+  it("composes several phone forms in one string", async () => {
+    const picker = "${identity.customer.phone.countryName} (${identity.customer.phone.countryCode})";
+
+    expect(await resolvePlaceholders(picker, sources())).toBe("United Kingdom (+44)");
+  });
+
+  it("prefers a literal field over a phone form", async () => {
+    const fields: Record<string, string> = { phone: "+447700900123", "phone.national": "07700 900123" };
+    const literal = sources({ identity: (_, field) => fields[field] });
+
+    expect(await resolvePlaceholders("${identity.customer.phone.national}", literal)).toBe("07700 900123");
+  });
+
+  it("throws UnresolvedPlaceholder for an unknown phone form", async () => {
+    const error = await rejectionOf(resolvePlaceholders("${identity.customer.phone.areaCode}", sources()));
+
+    expect((error as UnresolvedPlaceholder).placeholder).toBe("${identity.customer.phone.areaCode}");
+  });
+
+  it("throws UnresolvedPlaceholder for a phone form of a field that holds no possible number", async () => {
+    for (const text of ["${identity.customer.email.national}", "${identity.customer.fax.national}"]) {
+      const error = await rejectionOf(resolvePlaceholders(text, sources()));
+      expect((error as UnresolvedPlaceholder).placeholder).toBe(text);
+    }
   });
 
   it("leaves numbers, booleans, null and keys alone and does not scan resolved text again", async () => {

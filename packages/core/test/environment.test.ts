@@ -26,6 +26,7 @@ const envs = EnvsConfig.parse({
     vars: { APP_URL: "https://uat.app.example.test" },
     hosts: ["UAT.App.Example.Test", "api.uat.example.test"],
     challenges: { "otp-email": ["otp-mailpit", "human"] },
+    locale: "id-ID",
   },
   prod: { production: true, hosts: ["app.example.test"] },
 });
@@ -44,13 +45,14 @@ function caseSpec(prodSafe: boolean): CaseSpec {
 }
 
 describe("EnvsConfig", () => {
-  it("parses each env under its name with lower case hosts and empty defaults", () => {
+  it("parses each env under its name with lower case hosts and defaults, locale en among them", () => {
     expect(uat).toEqual<Environment>({
       name: "uat",
       production: false,
       vars: { APP_URL: "https://uat.app.example.test" },
       hosts: new Set(["uat.app.example.test", "api.uat.example.test"]),
       challenges: { "otp-email": ["otp-mailpit", "human"] },
+      locale: "id-ID",
     });
     expect(prod).toEqual<Environment>({
       name: "prod",
@@ -58,7 +60,14 @@ describe("EnvsConfig", () => {
       vars: {},
       hosts: new Set(["app.example.test"]),
       challenges: {},
+      locale: "en",
     });
+  });
+
+  it("rejects a locale that is not a BCP 47 tag", () => {
+    const result = EnvsConfig.safeParse({ uat: { production: false, hosts: ["uat.app.example.test"], locale: "en_US" } });
+
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([["uat", "locale"]]);
   });
 
   it("rejects a host written as a URL or with a port", () => {

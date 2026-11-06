@@ -13,7 +13,7 @@ import {
   type Step,
 } from "../case/index.ts";
 import { humanResolver } from "../challenge/index.ts";
-import { findPlaceholders } from "../env/index.ts";
+import { findPlaceholders, isPhoneForm, phoneForm } from "../env/index.ts";
 import { FIXTURES_FILE, lineAt, STATE_DIRS, type Project, type ProjectFile } from "../project.ts";
 import type { CheckIssue, CheckRule } from "./check.ts";
 
@@ -165,19 +165,36 @@ function placeholderProblem(project: Project, placeholder: string): Omit<Finding
         message: `${placeholder} names a secret that ${BRAND.configFile} does not declare`,
         fix: `Add ${path} to secrets.names in ${BRAND.configFile}.`,
       };
-    case "identity": {
-      const [name, field] = splitFirst(path);
-      const entry = Object.hasOwn(config.identities, name) ? config.identities[name]?.fixture : undefined;
-      const fields = entry !== undefined && Object.hasOwn(project.fixtures, entry) ? project.fixtures[entry] : undefined;
-      if (fields !== undefined && Object.hasOwn(fields, field)) return undefined;
-      return {
-        message: `${placeholder} does not resolve: ${FIXTURES_FILE} has no ${field} for identity ${name}`,
-        fix: `Give identity ${name} a fixture in ${BRAND.configFile} and add ${field} to that entry in ${FIXTURES_FILE}.`,
-      };
-    }
+    case "identity":
+      return identityProblem(project, placeholder, path);
     default:
       return undefined;
   }
+}
+
+/** `path` is `<name>.<field>`, or `<name>.<field>.<form>` for a phone form of the field. */
+function identityProblem(project: Project, placeholder: string, path: string): Omit<Finding, "at"> | undefined {
+  const [name, field] = splitFirst(path);
+  const { identities } = project.config;
+  const entry = Object.hasOwn(identities, name) ? identities[name]?.fixture : undefined;
+  const fields = entry !== undefined && Object.hasOwn(project.fixtures, entry) ? project.fixtures[entry] : undefined;
+  if (fields !== undefined && Object.hasOwn(fields, field)) return undefined;
+  const dot = field.lastIndexOf(".");
+  const phoneField = field.slice(0, dot);
+  const form = field.slice(dot + 1);
+  const phone = dot !== -1 && fields !== undefined && Object.hasOwn(fields, phoneField) ? fields[phoneField] : undefined;
+  if (phone !== undefined && isPhoneForm(form)) {
+    // the locale sets only the language of a country name, never whether a form resolves
+    if (phoneForm(phone, form, "en") !== undefined) return undefined;
+    return {
+      message: `${placeholder} does not resolve: ${phoneField} of identity ${name} in ${FIXTURES_FILE} is not a phone number with a ${form} form`,
+      fix: `Store ${phoneField} in E.164 form, such as "+447700900123", in ${FIXTURES_FILE}.`,
+    };
+  }
+  return {
+    message: `${placeholder} does not resolve: ${FIXTURES_FILE} has no ${field} for identity ${name}`,
+    fix: `Give identity ${name} a fixture in ${BRAND.configFile} and add ${field} to that entry in ${FIXTURES_FILE}.`,
+  };
 }
 
 function literalSecrets(project: Project): Finding[] {

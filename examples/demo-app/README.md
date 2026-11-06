@@ -1,6 +1,6 @@
 # Demo app
 
-A small web app that the example project, the integration tests and the evals run against. It has email code sign-in delivered through Mailpit, TOTP, passkeys, a PIN step that only a person can pass, and API endpoints behind an API key, HTTP Basic, OAuth2 bearer tokens with refresh, a session cookie and HMAC signatures. State lives in memory and is lost on restart.
+A small web app that the example project, the integration tests and the evals run against. It has email code sign-in delivered through Mailpit, TOTP, passkeys, a PIN step that only a person can pass, four phone number forms, and API endpoints behind an API key, HTTP Basic, OAuth2 bearer tokens with refresh, a session cookie and HMAC signatures. State lives in memory and is lost on restart.
 
 The server is Hono on Node with plain server-rendered HTML. Every link, button and visible input carries a `data-testid`.
 
@@ -34,6 +34,13 @@ The server is Hono on Node with plain server-rendered HTML. Every link, button a
 5. `/account/totp`: TOTP enrollment. It shows the key in `totp-seed` and turns TOTP on with a valid code (`totp-code`, `enable-totp`). With test hooks on, every enrollment uses the fixed key below, so a test can know it in advance.
 6. `/account/passkey`: adds a passkey (`register-passkey`, count in `passkey-count`).
 7. `/transfer/confirm`: the PIN step (`pin-input`, `confirm-transfer`, result in `transfer-confirmed`). Treat it as human only; automation should never type the PIN.
+8. `/profile/phone`: four forms that each post to `/profile/phone/<form>`, save one phone number and show it in E.164 in `<form>-saved` (`select-saved`, `search-saved`, `full-saved`, `local-saved`). The country list holds the United Kingdom, Indonesia and the United States.
+   1. `select`: a native country select (`select-country`, options labelled `United Kingdom (+44)` with the value `GB`) beside a number field (`select-number`, `select-save`).
+   2. `search`: a searchable country list (`search-country`, options such as `🇬🇧 +44`; typing `+44` or `44` works too) beside a number field (`search-number`, `search-save`).
+   3. `full`: one field for the whole number with its country code, such as `+44 7700 900123` (`full-number`, `full-save`).
+   4. `local`: a number field for the fixed country shown in `local-country`, the United Kingdom (`local-number`, `local-save`).
+
+   The `select`, `search` and `local` forms take the national number with or without the trunk prefix (`07700 900123` or `7700 900123`). Every number field ignores spaces, dashes, dots and brackets.
 
 Successful sign-ins set the `session` cookie, which lasts ten minutes. Pages that need a session redirect to `/login` with status 303.
 
