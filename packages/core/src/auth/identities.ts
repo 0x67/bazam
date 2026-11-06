@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { HumanChannel } from "../challenge/index.ts";
+import { guardedHttp, type GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { Redactor } from "../redact/index.ts";
 import type { BrowserLogin } from "./browser.ts";
@@ -56,6 +57,10 @@ export interface IdentitiesDeps {
   /** Fills the placeholders in a surface's `with:` settings. */
   resolve<T>(value: T): Promise<T>;
   redactor: Redactor;
+  /** Gets one line per request a strategy sends through `AuthContext.http`. */
+  log(line: string): void;
+  /** Strategies get it as `AuthContext.projectRoot`. */
+  projectRoot: string;
   /** Strategies get it as `AuthContext.person`. */
   channel: HumanChannel;
   /** Present when the driver offers browser.login. */
@@ -91,9 +96,12 @@ export class Identities {
   readonly #deps: IdentitiesDeps;
   readonly #held = new Map<string, Held>();
   readonly #configs = new Map<string, Promise<unknown>>();
+  // built without identities, so a strategy's own request can never ask for a credential
+  readonly #http: GuardedHttp;
 
   constructor(deps: IdentitiesDeps) {
     this.#deps = deps;
+    this.#http = guardedHttp({ env: deps.env, redactor: deps.redactor, log: deps.log });
   }
 
   /** Probes, refreshes, acquires and resolves nothing, so it fetches no secret; reads only the cache. */
@@ -257,6 +265,8 @@ export class Identities {
       identity,
       fields: this.#fields(identity),
       env: this.#deps.env,
+      http: this.#http,
+      projectRoot: this.#deps.projectRoot,
       person: this.#deps.channel,
       now: () => this.#deps.now(),
     };

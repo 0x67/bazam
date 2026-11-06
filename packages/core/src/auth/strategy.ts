@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { HumanChannel } from "../challenge/index.ts";
+import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { BrowserLogin, BrowserSession } from "./browser.ts";
 
@@ -19,6 +20,10 @@ export interface AuthContext {
   /** The identity's fixture fields. */
   fields: Readonly<Record<string, string>>;
   env: Environment;
+  /** For the strategy's own requests, such as token calls; sends no identity's credential. */
+  http: GuardedHttp;
+  /** Where hook paths such as hmac's `sign:` resolve, through loadAuthHook. */
+  projectRoot: string;
   /** Present when the surface's driver offers browser.login. */
   browser?: BrowserLogin;
   /** Reaches the person a login waits for. */

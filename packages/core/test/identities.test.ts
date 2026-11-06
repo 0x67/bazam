@@ -24,7 +24,7 @@ import {
   type StorageState,
 } from "../src/auth/index.ts";
 import type { HumanChannel } from "../src/challenge/index.ts";
-import type { Environment } from "../src/env/index.ts";
+import { HostNotAllowed, type Environment } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION, PluginRegistry } from "../src/plugin/index.ts";
 import { ProjectConfig } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
@@ -102,6 +102,21 @@ const cookieStrategy = defineAuthStrategy<{ loginUrl: string }, StorageState>({
   secrets: (state) => (state.cookies as { value: string }[]).map((cookie) => cookie.value),
 });
 
+/** Gets its token by posting to `tokenUrl` through `AuthContext.http`. */
+const endpointStrategy = defineAuthStrategy<{ tokenUrl: string }, { accessToken: string }>({
+  name: "endpoint",
+  config: z.object({ tokenUrl: z.string() }),
+  cacheable: false,
+  acquire: async (config, ctx) => {
+    const response = await ctx.http.send({ method: "POST", url: new URL(config.tokenUrl), headers: new Headers() });
+    return { accessToken: (response.body as { accessToken: string }).accessToken };
+  },
+  apply: async (credential, target) => {
+    if (target.kind === "http") target.request.headers.set("authorization", `Bearer ${credential.accessToken}`);
+  },
+  secrets: (credential) => [credential.accessToken],
+});
+
 const cookieSurface = { strategy: "cookie", with: { loginUrl: "https://app.example.test/login" } };
 const tokenSurface = { strategy: "token", with: { audience: "orders" } };
 const customerApiKey: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "token" };
@@ -139,6 +154,8 @@ describe("Identities", () => {
       lockDir: join(root, "locks"),
       resolve: async (value) => value,
       redactor: new Redactor(defaultRedactionRules()),
+      log: () => {},
+      projectRoot: root,
       channel: person,
       now: clock,
       ...deps,
@@ -198,8 +215,38 @@ describe("Identities", () => {
     expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
     expect(contexts[0]?.fields).toEqual({ email: "customer@example.test" });
     expect(contexts[0]?.person).toBe(person);
+    expect(contexts[0]?.projectRoot).toBe(root);
     expect(first.headers.get("authorization")).toBe("Bearer fake-customer-1");
     expect(second.headers.get("authorization")).toBe("Bearer fake-customer-2");
+  });
+
+  it("lets a strategy reach an allowed host through AuthContext.http and refuses a host outside the list", async () => {
+    const received: string[] = [];
+    const server = createServer((request, response) => {
+      received.push(`${request.method} ${request.url} ${request.headers.authorization ?? "no authorization"}`);
+      response.writeHead(200, { "content-type": "application/json" }).end('{"accessToken":"fake-access-1"}');
+    });
+    await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const configs = {
+        customer: { auth: { api: { strategy: "endpoint", with: { tokenUrl: `http://127.0.0.1:${port}/token` } } } },
+        partner: { auth: { api: { strategy: "endpoint", with: { tokenUrl: "https://outside.example.test/token" } } } },
+      };
+      const ids = await identities(configs, [endpointStrategy], { env: { ...env, hosts: new Set(["127.0.0.1"]) } });
+      const request = draft();
+
+      await ids.authorize("customer", "api", { kind: "http", request });
+      const refused = await ids.ensureCredential("partner", "api").catch((error: unknown) => error);
+
+      expect(received).toEqual(["POST /token no authorization"]);
+      expect(request.headers.get("authorization")).toBe("Bearer fake-access-1");
+      expect(refused).toBeInstanceOf(HostNotAllowed);
+      expect((refused as HostNotAllowed).host).toBe("outside.example.test");
+    } finally {
+      server.closeAllConnections();
+      await new Promise((closed) => server.close(closed));
+    }
   });
 
   it("never caches non-cacheable strategies, and masks their secrets", async () => {
@@ -428,6 +475,8 @@ const identities = new Identities({
   lockDir: join(root, "locks"),
   resolve: async (value) => value,
   redactor: new Redactor(defaultRedactionRules()),
+  log: () => {},
+  projectRoot: root,
   channel: { ask: async () => ({ kind: "timeout" }) },
   now: () => new Date(),
 });

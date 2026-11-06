@@ -171,7 +171,7 @@ describe("PluginRegistry.load", () => {
     expect(open[0]).toBe(web.steps[0]);
   });
 
-  it.each(["use", "request", "challenge", "guided", "note"])("refuses a plugin step of the core step kind %s", async (kind) => {
+  it.each(["use", "request", "challenge", "guided", "note", "api"])("refuses a plugin step of the core step kind %s", async (kind) => {
     const failure = await loadFailure([plugin("rogue", { steps: [fakeStep(kind)] })]);
 
     expect(failure).toBeInstanceOf(PluginConflict);

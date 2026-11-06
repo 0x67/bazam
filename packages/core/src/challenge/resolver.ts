@@ -1,4 +1,5 @@
 import type { Capability, DriverSession } from "../driver/index.ts";
+import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { HumanChannel, PersonPrompt } from "./human.ts";
 import { takesValue, type ChallengeKindSpec } from "./kinds.ts";
@@ -16,6 +17,8 @@ export type ChallengeAnswer = { kind: "value"; value: string } | { kind: "done" 
 
 export interface ResolverContext {
   env: Environment;
+  /** For resolvers that read an API, such as a mail inbox; limited to the env's hosts. */
+  http: GuardedHttp;
   session?: DriverSession;
   channel: HumanChannel;
   /** What a resolver that asks a person copies into its prompt beside the question. */

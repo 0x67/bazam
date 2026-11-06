@@ -46,6 +46,11 @@ function channelAnswering(answer: PersonAnswer): ChannelSpy {
 function context(options: { capabilities?: readonly string[]; channel?: HumanChannel } = {}): ResolverContext {
   return {
     env: { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {}, locale: "en" },
+    http: {
+      send: async () => {
+        throw new Error("no HTTP in this test");
+      },
+    },
     session: { capabilities: new Set(options.capabilities ?? []), close: async () => {} },
     channel: options.channel ?? channelAnswering({ kind: "timeout" }),
     prompt: { runId: RUN_ID, screenshot: `runs/${RUN_ID}/AUTH-LOGIN-001/02-login.png`, timeoutMs: 60_000 },
