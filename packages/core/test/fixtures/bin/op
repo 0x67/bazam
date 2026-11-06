@@ -1,0 +1,8 @@
+#!/bin/sh
+# Stands in for the 1Password CLI in tests: knows one fake reference.
+if [ "$1" = "read" ] && [ "$2" = "op://qa/partner/hmac" ]; then
+  printf '%s\n' "fake-hmac-secret-from-op"
+  exit 0
+fi
+printf '%s\n' "[ERROR] could not read secret '$2': item not found" >&2
+exit 1
