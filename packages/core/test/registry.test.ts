@@ -263,6 +263,14 @@ describe("PluginRegistry.strategy", () => {
 
     expect(() => registry.strategy("ssso")).toThrow(/^unknown auth strategy "ssso"; known: .*\bsso\b/);
   });
+
+  it("registers the built-in strategies and caches only the credentials that come from a login", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
+
+    const cacheable = Object.fromEntries(["api-key", "basic", "oauth2", "session-cookie", "hmac"].map((name) => [name, registry.strategy(name).cacheable]));
+
+    expect(cacheable).toEqual({ "api-key": false, basic: false, oauth2: true, "session-cookie": true, hmac: false });
+  });
 });
 
 describe("PluginRegistry.checkRules", () => {

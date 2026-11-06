@@ -242,6 +242,17 @@ describe("http", () => {
       ]);
     });
 
+    it("refuses save names id and title, which ${case.id} and ${case.title} read", async () => {
+      const { ctx } = stepContext(demo);
+
+      for (const name of ["id", "title"]) {
+        await expect(runStep({ request: { method: "POST", url: "${env.API_URL}/orders", save: { [name]: "body.id" } } }, ctx)).rejects.toThrow(
+          "save cannot use the names id and title",
+        );
+      }
+      expect(seen).toEqual([]);
+    });
+
     it("api check compares status and body paths", async () => {
       const { ctx, checks } = stepContext(demo, "customer");
 

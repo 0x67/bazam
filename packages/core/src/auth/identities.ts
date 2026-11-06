@@ -110,7 +110,7 @@ export class Identities {
     if (!slot.strategy.cacheable) return "static";
     const held = this.#held.get(slot.id) ?? (await this.#loadCached(slot));
     if (held !== undefined && !this.#isExpired(held)) return "cached";
-    if (held !== undefined && slot.strategy.refresh !== undefined) return "refresh";
+    if (held !== undefined && this.#refreshFor(slot, held.credential) !== undefined) return "refresh";
     return slot.strategy.needsPerson?.(slot.settings) === true ? "person" : "scripted";
   }
 
@@ -134,8 +134,7 @@ export class Identities {
    */
   async recoverFromUnauthorized(identity: string, surface: string): Promise<boolean> {
     const slot = this.#slot(identity, surface);
-    const refresh = slot.strategy.refresh?.bind(slot.strategy);
-    if (refresh === undefined) return false;
+    if (slot.strategy.refresh === undefined) return false;
     const used = this.#held.get(slot.id);
     const config = await this.#config(slot);
     return withRefreshLock(this.#deps.lockDir, slot.key, async () => {
@@ -145,7 +144,8 @@ export class Identities {
         return true;
       }
       const previous = reloaded ?? used;
-      if (previous === undefined) return false;
+      const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+      if (previous === undefined || refresh === undefined) return false;
       await this.#adopt(slot, await refresh(previous.credential, config, this.#context(slot.identity)));
       return true;
     });
@@ -180,14 +180,21 @@ export class Identities {
 
   async #refreshOrAcquire(slot: Slot, config: unknown, previous: Held | undefined): Promise<JsonValue> {
     const ctx = this.#context(slot.identity);
-    if (previous !== undefined && slot.strategy.refresh !== undefined) {
+    const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+    if (previous !== undefined && refresh !== undefined) {
       try {
-        return await slot.strategy.refresh(previous.credential, config, ctx);
+        return await refresh(previous.credential, config, ctx);
       } catch {
         // a refresh token can expire or be revoked; logging in again replaces it
       }
     }
     return slot.strategy.acquire(config, ctx);
+  }
+
+  /** The strategy's refresh, unless it has none or says it cannot renew this credential. */
+  #refreshFor(slot: Slot, credential: JsonValue): AuthStrategy<unknown, JsonValue>["refresh"] {
+    if (slot.strategy.canRefresh?.(credential, slot.settings) === false) return undefined;
+    return slot.strategy.refresh?.bind(slot.strategy);
   }
 
   async #isUsable(slot: Slot, config: unknown, held: Held): Promise<boolean> {

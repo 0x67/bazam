@@ -14,6 +14,8 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]
 // fetch drops these when a redirect leaves the origin
 const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"];
 const REQUEST_LINE = new RegExp(`^(${RequestStep.shape.method.options.join("|")})\\s+(\\S.*)$`);
+// the runner puts the case id and title in StepContext.values under these names
+const CASE_VALUES: ReadonlySet<string> = new Set(["id", "title"]);
 
 export interface HttpResponse {
   status: number;
@@ -72,7 +74,7 @@ async function follow(deps: GuardedHttpDeps, request: HttpRequestDraft, authoriz
     assertHostAllowed(deps.env, hop.url);
     const response = await sendHop(deps, hop, hop.url.origin === request.url.origin ? authorize : undefined);
     const location = response.headers.get("location");
-    if (!REDIRECT_STATUSES.has(response.status) || location === null) return readResponse(response);
+    if (request.redirect === "manual" || !REDIRECT_STATUSES.has(response.status) || location === null) return readResponse(response);
     await response.body?.cancel();
     if (redirects === MAX_REDIRECTS) throw new Error(`${describeRequest(request)} redirected more than ${MAX_REDIRECTS} times`);
     hop = redirected(hop, response.status, new URL(location, hop.url));
@@ -134,9 +136,14 @@ const ApiCheck = z
   .refine((check) => check.status !== undefined || check.body !== undefined, { error: "an api check names a status, body paths or both" });
 type ApiCheck = z.infer<typeof ApiCheck>;
 
+const RequestStepPayload = RequestStep.refine((step) => Object.keys(step.save ?? {}).every((name) => !CASE_VALUES.has(name)), {
+  path: ["save"],
+  error: "save cannot use the names id and title, which hold the case's own ${case.id} and ${case.title}",
+});
+
 const requestStep: StepHandler<RequestStep> = {
   kind: "request",
-  schema: RequestStep,
+  schema: RequestStepPayload,
   async run(written, ctx) {
     const step = await ctx.resolve(written);
     assertProdWrite(ctx.env, step.method, step);

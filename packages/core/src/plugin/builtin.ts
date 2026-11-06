@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { apiKeyStrategy, basicStrategy, hmacStrategy, oauth2Strategy, sessionCookieStrategy } from "../auth/strategies/index.ts";
 import { BRAND } from "../brand.ts";
 import { answersFileChannel, builtinKinds, humanResolver, terminalChannel } from "../challenge/index.ts";
 import { builtinRules } from "../check/index.ts";
@@ -16,6 +17,7 @@ export interface BuiltinConfig {
 export function builtinContributions(config: BuiltinConfig, projectRoot: string): Omit<PluginManifest, "name" | "apiVersion"> {
   return {
     steps: [...httpSteps],
+    authStrategies: [apiKeyStrategy, basicStrategy, oauth2Strategy, sessionCookieStrategy, hmacStrategy],
     resolvers: [humanResolver],
     challengeKinds: [...builtinKinds],
     secretProviders: [envProvider, dotenvProvider(join(projectRoot, BRAND.stateDir)), onePasswordProvider(config.secrets?.refs ?? {})],

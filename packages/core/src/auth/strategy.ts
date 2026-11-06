@@ -11,6 +11,8 @@ export interface HttpRequestDraft {
   url: URL;
   headers: Headers;
   body?: Uint8Array;
+  /** "manual" returns a 3xx response as it came instead of following its Location. */
+  redirect?: "follow" | "manual";
 }
 
 export type ApplyTarget = { kind: "http"; request: HttpRequestDraft } | { kind: "browser"; session: BrowserSession };
@@ -45,6 +47,11 @@ export interface AuthStrategy<Config, Credential extends JsonValue> {
   acquire(config: Config, ctx: AuthContext): Promise<Credential>;
   apply(credential: Credential, target: ApplyTarget, config: Config): Promise<void>;
   refresh?(credential: Credential, config: Config, ctx: AuthContext): Promise<Credential>;
+  /**
+   * False when refresh cannot renew this credential, such as a token without a refresh token, so the engine
+   * logs in again instead. Gets the raw settings, as needsPerson does.
+   */
+  canRefresh?(credential: Credential, settings: Readonly<Record<string, unknown>>): boolean;
   expiresAt?(credential: Credential): Date | undefined;
   probe?(credential: Credential, config: Config, ctx: AuthContext): Promise<boolean>;
   revoke?(credential: Credential, config: Config, ctx: AuthContext): Promise<void>;

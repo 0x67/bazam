@@ -43,6 +43,7 @@ interface TokenStrategyOptions {
   cacheable?: boolean;
   refreshFails?: boolean;
   probe?: (credential: Token) => boolean;
+  canRefresh?: (credential: Token) => boolean;
   /** Adds a field set to undefined, as a strategy does for a value the token endpoint left out. */
   undefinedField?: boolean;
 }
@@ -72,6 +73,7 @@ function tokenStrategy(clock: () => Date, options: TokenStrategyOptions = {}) {
       if (options.refreshFails === true) throw new Error("refresh token revoked");
       return issue(ctx.identity);
     },
+    canRefresh: (credential) => options.canRefresh?.(credential) ?? true,
     expiresAt: (credential) => new Date(credential.expiresAt),
     probe: async (credential) => options.probe?.(credential) ?? true,
     apply: async (credential, target) => {
@@ -357,6 +359,20 @@ describe("Identities", () => {
     await ids.ensureCredential("customer", "api");
 
     expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1", "acquire customer for orders"]);
+  });
+
+  it("logs in again instead of refreshing when the strategy cannot refresh the credential", async () => {
+    const { strategy, calls } = tokenStrategy(clock, { canRefresh: () => false });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    await ids.ensureCredential("customer", "api");
+
+    const recovered = await ids.recoverFromUnauthorized("customer", "api");
+    now = new Date(now.getTime() + 2 * HOUR_MS);
+    const mode = await ids.credentialState("customer", "api");
+    await ids.ensureCredential("customer", "api");
+
+    expect([recovered, mode]).toEqual([false, "scripted"]);
+    expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
   });
 
   it("throws CredentialRejected and saves nothing when a new credential fails the probe", async () => {
