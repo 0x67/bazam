@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 32rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+input {
+  display: block;
+  width: 100%;
+  padding: 0.4rem;
+  font: inherit;
+}
+
+button {
+  padding: 0.4rem 1rem;
+  font: inherit;
+}
+
+[role="alert"] {
+  color: #b42318;
+}
