@@ -26,6 +26,8 @@ import {
   type PluginManifest,
 } from "../src/plugin/index.ts";
 import { ProjectConfig } from "../src/project.ts";
+import { markdownTracker, type TrackerRenderer } from "../src/report/index.ts";
+import type { CaseResult } from "../src/result/index.ts";
 import type { SecretProvider } from "../src/secrets/index.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
@@ -63,6 +65,10 @@ const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", human
 
 function slackChannel(): { name: string; create(runDir: string): HumanChannel } {
   return { name: "slack", create: () => ({ ask: async () => ({ kind: "timeout" }) }) };
+}
+
+function trackerRenderer(tracker: string): TrackerRenderer {
+  return { tracker, render: () => ({ markdown: `${tracker} comment` }) };
 }
 
 function checkRule(id: string): CheckRule {
@@ -107,6 +113,7 @@ describe("PluginRegistry.load", () => {
     ["two challenge kinds with one name", { challengeKinds: [faceScan] }, { challengeKinds: [faceScan] }, 'challenge kind "face-scan"'],
     ["two channels with one name", { channels: [slackChannel()] }, { channels: [slackChannel()] }, 'human channel "slack"'],
     ["two check rules with one id", { checkRules: [checkRule("no-todo")] }, { checkRules: [checkRule("no-todo")] }, 'check rule "no-todo"'],
+    ["two renderers for one tracker", { trackers: [trackerRenderer("jira")] }, { trackers: [trackerRenderer("jira")] }, 'tracker renderer "jira"'],
   ])("PluginConflict also covers %s", async (_, first, second, contribution) => {
     const failure = await loadFailure([plugin("first", first), plugin("second", second)]);
 
@@ -271,6 +278,47 @@ describe("PluginRegistry.checkRules", () => {
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "lint-plugin"]);
+  });
+});
+
+describe("PluginRegistry.tracker", () => {
+  const jira = trackerRenderer("jira");
+  const defaults = [plugin("jira-plugin", { trackers: [jira] })];
+
+  it("returns the renderer a plugin registered for the tracker", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
+
+    expect(registry.tracker("jira")).toBe(jira);
+  });
+
+  it("falls back to plain Markdown for a tracker no plugin renders", async () => {
+    const passed: CaseResult = {
+      runId: "20261107-100000-ab12",
+      caseId: "AUTH-LOGIN-001",
+      title: "Customer signs in with an email code",
+      stage: "acceptance",
+      env: "uat",
+      target: "web",
+      links: ["notion:release-notes-42"],
+      status: "pass",
+      checks: [],
+      notes: [],
+      followups: [],
+      attachments: [],
+      challenges: [],
+      identities: ["customer"],
+      seed: 7,
+      values: {},
+      startedAt: "2026-11-07T10:00:00.000Z",
+      finishedAt: "2026-11-07T10:01:00.000Z",
+      durationMs: 60_000,
+    };
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
+
+    const notion = registry.tracker("notion");
+
+    expect(notion.tracker).toBe("notion");
+    expect(notion.render(passed)).toEqual(markdownTracker("notion").render(passed));
   });
 });
 

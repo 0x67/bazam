@@ -8,6 +8,7 @@ import type { CheckRule } from "../check/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
 import type { ProjectConfig } from "../project.ts";
+import { markdownTracker, type TrackerRenderer } from "../report/index.ts";
 import type { SecretProvider } from "../secrets/index.ts";
 import { builtinContributions } from "./builtin.ts";
 
@@ -28,6 +29,7 @@ export interface PluginManifest {
   challengeKinds?: ChallengeKindSpec[];
   secretProviders?: SecretProvider[];
   channels?: { name: string; create(runDir: string): HumanChannel }[];
+  trackers?: TrackerRenderer[];
   checkRules?: CheckRule[];
 }
 
@@ -77,6 +79,7 @@ const contributionLists: { [K in ContributionKey]: ContributionList<Contribution
   challengeKinds: { noun: "challenge kind", name: (kind) => kind.name },
   secretProviders: { noun: "secret provider", name: (provider) => provider.name },
   channels: { noun: "human channel", name: (channel) => channel.name },
+  trackers: { noun: "tracker renderer", name: (renderer) => renderer.tracker },
   checkRules: { noun: "check rule", name: (rule) => rule.id },
 };
 const CONTRIBUTION_KEYS = Object.keys(contributionLists) as ContributionKey[];
@@ -151,6 +154,11 @@ export class PluginRegistry {
   channel(name: string): (runDir: string) => HumanChannel {
     const channel = this.#get("channels", name);
     return (runDir) => channel.create(runDir);
+  }
+
+  /** The renderer a plugin registered for the tracker, or plain Markdown when none did. */
+  tracker(name: string): TrackerRenderer {
+    return this.#registrations.trackers.get(name)?.item ?? markdownTracker(name);
   }
 
   /** One handler per kind; a kind that several drivers offer comes from the first of them. */
