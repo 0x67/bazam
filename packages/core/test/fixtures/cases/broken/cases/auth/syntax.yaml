@@ -1,0 +1,4 @@
+cases:
+  - id: AUTH-SYNTAX-001
+    title: One
+    title: Two

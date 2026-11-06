@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import { expandFlows, FlowCycle, InvalidFlowUse, type FlowSpec, type Step } from "../src/case/index.ts";
+
+function thrownBy(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+function flowMap(...flows: FlowSpec[]): Map<string, FlowSpec> {
+  return new Map(flows.map((flow) => [flow.name, flow]));
+}
+
+const login: FlowSpec = {
+  name: "login",
+  params: ["email"],
+  steps: [
+    { request: { method: "POST", url: "${env.API_URL}/login", json: { email: "${param.email}", raw: "$${param.email}" } } },
+    { note: "signed in as ${param.email}" },
+  ],
+};
+
+describe("expandFlows", () => {
+  it("inlines a flow and fills its parameters, leaving other placeholders and escapes for run time", () => {
+    const steps: Step[] = [{ note: "start" }, { use: { flow: "login", with: { email: "ops@example.test" } } }];
+
+    expect(expandFlows(steps, flowMap(login))).toEqual([
+      { note: "start" },
+      { request: { method: "POST", url: "${env.API_URL}/login", json: { email: "ops@example.test", raw: "$${param.email}" } } },
+      { note: "signed in as ops@example.test" },
+    ]);
+  });
+
+  it("passes a flow's parameters on to the flows it uses", () => {
+    const onboard: FlowSpec = { name: "onboard", params: ["user"], steps: [{ use: { flow: "login", with: { email: "${param.user}" } } }] };
+
+    const expanded = expandFlows([{ use: { flow: "onboard", with: { user: "admin-1@example.test" } } }], flowMap(login, onboard));
+
+    expect(expanded[1]).toEqual({ note: "signed in as admin-1@example.test" });
+  });
+
+  it("gives the use step's identity to flow steps that name none in the step or its payload", () => {
+    const adminCheck = { request: { method: "GET", url: "${env.API_URL}/admin", as: "admin" } };
+    const greet: FlowSpec = {
+      name: "greet",
+      params: [],
+      steps: [{ note: "hello" }, { note: "as admin", as: "admin" }, adminCheck],
+    };
+
+    expect(expandFlows([{ use: "greet", as: "customer" }], flowMap(greet))).toEqual([
+      { note: "hello", as: "customer" },
+      { note: "as admin", as: "admin" },
+      adminCheck,
+    ]);
+  });
+
+  it("expands the same flow twice in a row without calling it a cycle", () => {
+    const greet: FlowSpec = { name: "greet", params: [], steps: [{ note: "hello" }] };
+
+    expect(expandFlows([{ use: "greet" }, { use: "greet" }], flowMap(greet))).toHaveLength(2);
+  });
+
+  it("throws FlowCycle with the path when a flow uses itself", () => {
+    const loop: FlowSpec = { name: "loop", params: [], steps: [{ use: "loop" }] };
+
+    const error = thrownBy(() => expandFlows([{ use: "loop" }], flowMap(loop)));
+
+    expect(error).toBeInstanceOf(FlowCycle);
+    expect((error as FlowCycle).path).toEqual(["loop", "loop"]);
+  });
+
+  it("throws FlowCycle with the full path when flows reach each other indirectly", () => {
+    const flows = flowMap(
+      { name: "setup", params: [], steps: [{ use: "a" }] },
+      { name: "a", params: [], steps: [{ note: "a" }, { use: "b" }] },
+      { name: "b", params: [], steps: [{ use: "a" }] },
+    );
+
+    const error = thrownBy(() => expandFlows([{ use: "setup" }], flows));
+
+    expect(error).toBeInstanceOf(FlowCycle);
+    expect((error as FlowCycle).path).toEqual(["setup", "a", "b", "a"]);
+    expect((error as FlowCycle).message).toBe("flow cycle: setup -> a -> b -> a");
+  });
+
+  it.each([
+    ["an unknown flow", { use: "logout" }, "flow logout: no such flow"],
+    ["a missing parameter", { use: "login" }, "flow login: missing parameter email"],
+    ["an undeclared parameter", { use: { flow: "login", with: { email: "a@example.test", pin: 1234 } } }, "flow login: undeclared parameter pin"],
+  ])("throws InvalidFlowUse for %s", (_, step: Step, message) => {
+    const error = thrownBy(() => expandFlows([step], flowMap(login)));
+
+    expect(error).toBeInstanceOf(InvalidFlowUse);
+    expect((error as InvalidFlowUse).message).toBe(message);
+  });
+
+  it("throws InvalidFlowUse when a flow step names a parameter the flow does not declare", () => {
+    const typo: FlowSpec = { name: "typo", params: ["email"], steps: [{ note: "${param.emial}" }] };
+
+    expect(() => expandFlows([{ use: { flow: "typo", with: { email: "a@example.test" } } }], flowMap(typo))).toThrow(
+      "flow typo: ${param.emial} names an undeclared parameter",
+    );
+  });
+});

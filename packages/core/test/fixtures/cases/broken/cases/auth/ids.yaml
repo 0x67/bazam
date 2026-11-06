@@ -1,0 +1,27 @@
+# ids that break the id rules
+cases:
+  - id: AUTH-LOGIN-001
+    title: First use of the id
+    stage: draft
+    risk: low
+    targets: [web]
+  - title: Same id again
+    id: AUTH-LOGIN-001
+    stage: draft
+    risk: low
+    targets: [web]
+  - id: AUTH-OLD-001
+    title: Id listed in cases/.retired
+    stage: draft
+    risk: low
+    targets: [web]
+  - id: PAY-LOGIN-002
+    title: Id from another domain
+    stage: draft
+    risk: low
+    targets: [web]
+  - id: auth-login-3
+    title: Id in the wrong format
+    stage: draft
+    risk: low
+    targets: [web]

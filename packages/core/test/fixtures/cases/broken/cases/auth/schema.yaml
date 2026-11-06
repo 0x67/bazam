@@ -1,0 +1,28 @@
+cases:
+  - id: AUTH-SCHEMA-001
+    title: Unknown field
+    stage: draft
+    risk: low
+    targets: [web]
+    owner: qa
+  - id: AUTH-SCHEMA-002
+    title: Unknown step kind in flow style
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - note: first
+      - { hover: { id: menu } }
+  - id: AUTH-SCHEMA-003
+    title: Wrong type deep in a step
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - request:
+          method: GET
+          url: 42
+  - id: AUTH-SCHEMA-004
+    title: Missing risk
+    stage: draft
+    targets: [web]

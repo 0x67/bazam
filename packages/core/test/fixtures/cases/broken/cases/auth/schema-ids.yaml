@@ -1,0 +1,23 @@
+# cases that fail the schema still go through the id rules
+cases:
+  - id: AUTH-OLD-001
+    title: Retired id on a case with an unknown field
+    stage: draft
+    risk: low
+    targets: [web]
+    owner: qa
+  - id: PAY-LOGIN-003
+    title: Id from another domain on a case without a risk
+    stage: draft
+    targets: [web]
+  - id: AUTH-RESERVED-001
+    title: Unknown field on the first use of the id
+    stage: draft
+    risk: low
+    targets: [web]
+    owner: qa
+  - id: AUTH-RESERVED-001
+    title: Valid case reusing the id
+    stage: draft
+    risk: low
+    targets: [web]

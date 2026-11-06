@@ -1,0 +1,20 @@
+# sign-in journeys
+cases:
+  - id: AUTH-LOGIN-001
+    title: Customer signs in with an email code
+    stage: acceptance
+    risk: high
+    links: [jira:TD-246]
+    targets: [web]
+    steps:
+      - use: { flow: login, with: { email: "${identity.customer.email}" } }
+      - challenge:
+          kind: otp-email
+          trigger: { request: { method: POST, url: "${env.API_URL}/login/code" } }
+          params: { recipient: "${identity.customer.email}" }
+    checks:
+      - request: { method: GET, url: "${env.API_URL}/me", as: customer }
+    report:
+      on:
+        pass: { transition: Ready for Release, mention: [role:qa-lead] }
+  - { id: AUTH-LOGIN-002, title: Session survives a reload, stage: regression, risk: medium, targets: [web] }

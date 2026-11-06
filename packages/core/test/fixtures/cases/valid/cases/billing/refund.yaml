@@ -1,0 +1,13 @@
+cases:
+  - id: BILLING-REFUND-001
+    title: Ops refunds a paid order
+    stage: draft
+    risk: medium
+    links: [jira:TD-300]
+    targets: [web]
+    once: true
+    steps:
+      - guided:
+          title: Refund the order in the back office
+          steps: [Open the order, Press refund]
+          expected: The order shows Refunded
