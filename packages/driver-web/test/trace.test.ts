@@ -102,6 +102,27 @@ describe("scrubTrace", () => {
     },
   );
 
+  it("masks the configured patterns in DOM snapshots and response bodies and keeps timestamps and ids", () => {
+    const redactor = new Redactor(defaultRedactionRules());
+    redactor.configure({ patterns: ["ACCT-\\d+"], screenshotSelectors: ["#account"] });
+    const snapshot = (text: string) =>
+      JSON.stringify({
+        type: "frame-snapshot",
+        snapshot: { callId: "call@12345678", timestamp: 7391506.2, html: ["DIV", { id: "account" }, text] },
+      });
+    const zip = zipSync({
+      "trace.trace": strToU8(`${snapshot("ACCT-4821")}\n`),
+      "resources/0c35.json": strToU8('{"account":"ACCT-4821","sentAt":1731234567890}'),
+      "resources/e160.html": strToU8('<div id="account">ACCT-4821</div>'),
+    });
+
+    const scrubbed = unzipSync(scrubTrace(zip, redactor));
+
+    expect(strFromU8(scrubbed["trace.trace"]!)).toBe(`${snapshot("[redacted]")}\n`);
+    expect(strFromU8(scrubbed["resources/0c35.json"]!)).toBe('{"account":"[redacted]","sentAt":1731234567890}');
+    expect(strFromU8(scrubbed["resources/e160.html"]!)).toBe('<div id="account">[redacted]</div>');
+  });
+
   it("copies binary entries unchanged", () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0x01]);
     const redactor = new Redactor(defaultRedactionRules());

@@ -658,6 +658,19 @@ describe("playwrightDriver", () => {
     ]);
   });
 
+  it("refuses to launch when a configured screenshot selector does not parse", async () => {
+    const root = await tempDir();
+    const redactor = new Redactor(defaultRedactionRules());
+    redactor.configure({ patterns: [], screenshotSelectors: ["#account", "#account["] });
+    try {
+      await expect(launch("chromium", { env: demoEnv(), runDir: root, redactor })).rejects.toThrow(
+        /^redaction\.screenshotSelectors has "#account\[", which Playwright cannot parse: .*while parsing css selector/,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("probe reports browser.login and webauthn.virtual and refuses a channel on another engine", async () => {
     const options = { env: demoEnv(), target: "web", runDir: "runs", redactor: new Redactor(defaultRedactionRules()) };
 

@@ -366,6 +366,35 @@ describe("loadProjectConfig", () => {
     }
   });
 
+  it("reads the redaction entry and reports a pattern that is not a regular expression on its line", async () => {
+    const root = await mkdtemp(join(tmpdir(), "check-test-"));
+    try {
+      const redaction = [
+        "envs: {}",
+        "redaction:",
+        "  screenshotSelectors: ['#card']",
+        "  patterns:",
+        "    - 'ACCT-\\d+'",
+      ];
+      await writeFile(join(root, BRAND.configFile), `${redaction.join("\n")}\n`);
+
+      expect((await loadProjectConfig(root)).config?.redaction).toEqual({
+        patterns: ["ACCT-\\d+"],
+        screenshotSelectors: ["#card"],
+      });
+
+      await writeFile(join(root, BRAND.configFile), `${[...redaction, "    - '(unclosed'"].join("\n")}\n`);
+      const { config, issues } = await loadProjectConfig(root);
+
+      expect(config).toBeUndefined();
+      expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([
+        [BRAND.configFile, 6, expect.stringMatching(/^redaction\.patterns\[1\]: not a regular expression: /)],
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("reports a missing config file", async () => {
     const root = await mkdtemp(join(tmpdir(), "check-test-"));
     try {

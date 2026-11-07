@@ -69,7 +69,10 @@ export interface CommandContext {
   args: readonly string[];
   /** --root resolved against `io.cwd`. */
   root: string;
-  /** One per invocation; a run registers its secrets here, so stdout and stderr mask them too. */
+  /**
+   * One per invocation; a run registers its secrets here, so stdout and stderr mask them too. Loading the config
+   * adds its redaction patterns and screenshot selectors.
+   */
   redactor: Redactor;
   out: Output;
   /** The config and the plugins, without the cases; config issues throw a CommandError that lists them. */
@@ -156,6 +159,8 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   const loadPlugins = async () => {
     const { config, issues } = await loadProjectConfig(root);
     if (config === undefined) throw new CommandError(`the project config in ${root} does not load`, issues);
+    // output written before this point is masked by the default rules only
+    redactor.configure(config.redaction);
     return { config, registry: await PluginRegistry.load(config, root, DEFAULT_PLUGINS) };
   };
   const ctx: CommandContext = {

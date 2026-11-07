@@ -13,7 +13,8 @@ const CREDENTIAL_ARRAYS: ReadonlySet<string> = new Set(["cookies", "localStorage
 
 /**
  * Masks credentials in a Playwright trace zip: header values by header name, every cookie and localStorage value,
- * and the redactor's registered values in all text and JSON numbers. Binary entries and entry names stay as they are.
+ * the redactor's registered values in all text and JSON numbers, and its configured patterns in all text. Binary
+ * entries and entry names stay as they are.
  */
 export function scrubTrace(zip: Uint8Array, redactor: Redactor): Uint8Array {
   const scrubber = new TraceScrubber(redactor);
@@ -45,7 +46,12 @@ class TraceScrubber {
     if (isJsonLines)
       return lines.map(({ line, parsed }) => (parsed.ok ? this.#json(line, parsed.value) : line)).join("\n");
     const whole = parseJson(text);
-    return whole.ok ? this.#json(text, whole.value) : this.#redactor.maskRegistered(text);
+    return whole.ok ? this.#json(text, whole.value) : this.#mask(text);
+  }
+
+  // the default patterns stay out, since they would break timestamps and ids
+  #mask(text: string): string {
+    return this.#redactor.maskConfigured(this.#redactor.maskRegistered(text));
   }
 
   /** The scrubbed JSON, or the text as it was when scrubbing changed nothing. */
@@ -56,7 +62,7 @@ class TraceScrubber {
 
   // registered values are masked inside strings, so a value that is also a run of digits cannot break a JSON number
   #value(value: unknown): unknown {
-    if (typeof value === "string") return this.#redactor.maskRegistered(this.#jsonString(value));
+    if (typeof value === "string") return this.#mask(this.#jsonString(value));
     // a number goes only when it is a registered value whole, since timestamps may contain a short code
     if (typeof value === "number") return this.#redactor.isRegisteredNumber(value) ? MASK : value;
     if (Array.isArray(value)) return value.map((item) => this.#value(item));

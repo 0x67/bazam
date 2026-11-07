@@ -21,6 +21,7 @@ import {
 import type { ChallengeKindSpec, ChallengeResolver } from "./challenge/index.ts";
 import { EnvsConfig } from "./env/index.ts";
 import type { PluginRegistry } from "./plugin/index.ts";
+import { RedactionConfig } from "./redact/index.ts";
 
 const SUITES_FILE = "suites.yaml";
 const SYNTAX_FIX = "Fix the YAML syntax on this line.";
@@ -65,6 +66,8 @@ export const ProjectConfig = z.strictObject({
   /** Default transitions per tracker project. */
   trackers: z.record(z.string().min(1), TrackerConfig).default({}),
   plugins: z.array(z.string().min(1)).default([]),
+  /** Patterns and screenshot selectors masked on top of the built-in rules. */
+  redaction: RedactionConfig.prefault({}),
 });
 export type ProjectConfig = z.infer<typeof ProjectConfig>;
 

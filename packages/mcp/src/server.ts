@@ -5,6 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { BRAND } from "@bazam/core/brand";
+import { loadProjectConfig } from "@bazam/core/project";
 import type { Redactor } from "@bazam/core/redact";
 import type { RunSupervisor } from "./runs.ts";
 import { caseTools, ToolError, type ToolDefinition, type ToolDeps } from "./tools.ts";
@@ -59,6 +60,10 @@ export async function serveStdio(
 async function callTool(tool: ToolDefinition, input: unknown, deps: ToolDeps): Promise<CallToolResult> {
   const { redactor } = deps;
   try {
+    // the config can change while the server runs, so each call takes the redaction rules it holds now; a config
+    // that does not load keeps the rules of the last one that did, and the tools that need it report its issues
+    const { config } = await loadProjectConfig(deps.projectRoot);
+    if (config !== undefined) redactor.configure(config.redaction);
     const reply = await tool.handle(input as Parameters<ToolDefinition["handle"]>[0], deps);
     const text =
       reply.masking === "registered" ? redactor.maskRegistered(json(reply.doc)) : json(redactor.value(reply.doc));

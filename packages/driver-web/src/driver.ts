@@ -113,6 +113,35 @@ function leaseBrowser(kind: BrowserKind): BrowserLease {
   };
 }
 
+// the mask selector lists that parsed, so each is checked once per process
+const parsedMaskSelectors = new Set<string>();
+
+/**
+ * Throws when Playwright cannot parse a selector that screenshots mask, so a typo in the redaction config stops the
+ * run at launch instead of failing every screenshot step as if the product had.
+ */
+async function assertMaskSelectorsParse(browser: Browser, selectors: readonly string[]): Promise<void> {
+  const key = JSON.stringify(selectors);
+  if (selectors.length === 0 || parsedMaskSelectors.has(key)) return;
+  const context = await browser.newContext();
+  try {
+    // a blank page matches nothing, so counting only parses the selector
+    const page = await context.newPage();
+    for (const selector of selectors) {
+      await page
+        .locator(selector)
+        .count()
+        .catch((error: unknown) => {
+          const [reason] = (error instanceof Error ? error.message : String(error)).split("\n");
+          throw new Error(`redaction.screenshotSelectors has "${selector}", which Playwright cannot parse: ${reason}`);
+        });
+    }
+  } finally {
+    await context.close();
+  }
+  parsedMaskSelectors.add(key);
+}
+
 function launchBrowser(kind: BrowserKind): Promise<Browser> {
   return ENGINES[kind.browser].launch({
     headless: kind.headless,
@@ -714,7 +743,9 @@ export const playwrightDriver = defineDriver({
     const settings = parseSettings(options);
     const lease = leaseBrowser(settings);
     try {
-      return new WebSession(options, settings, await lease.browser, lease);
+      const browser = await lease.browser;
+      await assertMaskSelectorsParse(browser, options.redactor.selectors());
+      return new WebSession(options, settings, browser, lease);
     } catch (error) {
       lease.release();
       throw error;

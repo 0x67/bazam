@@ -136,6 +136,25 @@ describe("case tools", () => {
     expect(tagged.cases.map((c) => c.id)).toEqual(["DESK-LOOK-001"]);
   });
 
+  it("masks replies by the redaction in the config as it is at each call, after a start on a config that did not load", async () => {
+    const project = await fixtureProject();
+    const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
+    await project.write(BRAND.configFile, JSON.stringify({ ...config, typoKey: true }));
+    const mcp = await open(project.root);
+    const titles = async () =>
+      (await mcp.json<{ cases: { title: string }[] }>("cases_search", {})).cases.map((c) => c.title);
+
+    expect((await mcp.call("cases_search", {})).isError).toBe(true);
+
+    await project.write(BRAND.configFile, JSON.stringify({ ...config, redaction: { patterns: ["desk lamp"] } }));
+
+    expect(await titles()).toEqual(["A person looks at the desk", "The old [redacted]"]);
+
+    await project.write(BRAND.configFile, JSON.stringify(config));
+
+    expect(await titles()).toEqual(["A person looks at the desk", "The old desk lamp"]);
+  });
+
   it("case_draft refuses a file with errors", async () => {
     const project = await fixtureProject();
     const mcp = await open(project.root);

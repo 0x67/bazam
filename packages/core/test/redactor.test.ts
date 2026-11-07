@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Redactor, defaultRedactionRules } from "../src/redact/index.ts";
+import { RedactionConfig, Redactor, defaultRedactionRules } from "../src/redact/index.ts";
 
 function defaultRedactor(): Redactor {
   return new Redactor(defaultRedactionRules());
@@ -149,5 +149,78 @@ describe("Redactor", () => {
     expect(redactor.isRegisteredNumber(739150)).toBe(true);
     expect(redactor.isRegisteredNumber(7391506)).toBe(false);
     expect(redactor.isRegisteredNumber(424242)).toBe(false);
+  });
+
+  it("masks every match of a configured pattern whole, with any default match that overlaps it", () => {
+    const redactor = defaultRedactor();
+    redactor.configure({ patterns: ["ACCT-\\d+", "x*"], screenshotSelectors: [] });
+
+    expect(redactor.text("acct ACCT-123456789 ref 123456789 box")).toBe("acct [redacted] ref ••••6789 bo[redacted]");
+    expect(redactor.value({ note: ["ACCT-42"] })).toEqual({ note: ["[redacted]"] });
+  });
+
+  it("keeps the default email and digit masks when a configured pattern matches part of an email or a digit run", () => {
+    const redactor = defaultRedactor();
+    redactor.configure({ patterns: ["\\d{5}", "[a-z0-9-]+\\.internal"], screenshotSelectors: [] });
+
+    expect(redactor.text("mail jane.doe48213@gmail.com, write jane.doe@payments.internal")).toBe(
+      "mail [redacted], write [redacted]",
+    );
+    expect(redactor.value({ pan: "pan 123456789012 end" })).toEqual({ pan: "pan [redacted] end" });
+    // an email at a test domain is no default match, so only the configured part goes
+    expect(redactor.text("ops48213@example.test")).toBe("ops[redacted]@example.test");
+  });
+
+  it("maskConfigured masks the configured patterns and leaves the defaults and registered values alone", () => {
+    const redactor = defaultRedactor();
+    redactor.register("hunter22");
+    redactor.configure({ patterns: ["ACCT-\\d+", "\\d{3}-"], screenshotSelectors: [] });
+
+    expect(redactor.maskConfigured("ACCT-4821 ACCT-482-1 at 1731234567890 to ops@mail.invalid hunter22")).toBe(
+      "[redacted] [redacted]1 at 1731234567890 to ops@mail.invalid hunter22",
+    );
+  });
+
+  it("adds configured screenshot selectors to its own, and a later configure replaces the earlier one", () => {
+    const redactor = new Redactor({ ...defaultRedactionRules(), screenshotSelectors: [".base"] });
+    redactor.configure({ patterns: ["ACCT-\\d+"], screenshotSelectors: ["#card"] });
+
+    expect(redactor.selectors()).toEqual([".base", "#card"]);
+
+    redactor.configure({ patterns: [], screenshotSelectors: ["#pan"] });
+
+    expect(redactor.selectors()).toEqual([".base", "#pan"]);
+    expect(redactor.text("ACCT-42")).toBe("ACCT-42");
+  });
+});
+
+describe("RedactionConfig", () => {
+  it("defaults to no patterns and no selectors, and refuses a pattern that is not a regular expression", () => {
+    expect(RedactionConfig.parse({})).toEqual({ patterns: [], screenshotSelectors: [] });
+
+    const result = RedactionConfig.safeParse({ patterns: ["ok-\\d+", "(unclosed"] });
+
+    expect(result.error?.issues.map((issue) => [issue.path, issue.message])).toEqual([
+      [["patterns", 1], expect.stringMatching(/^not a regular expression: Invalid regular expression: \/\(unclosed\//)],
+    ]);
+  });
+
+  it("refuses a pattern that repeats a group holding a repeat, which backtracks exponentially", () => {
+    const patterns = [
+      "(\\w+\\s?)+$",
+      "(\\d{1,4})+",
+      "(?:\\d{4}[ -]?){3}\\d{4}",
+      "(\\d{1,4}){3}",
+      "\\p{L}{2,}",
+      "(ref-\\d+)?",
+    ];
+
+    const result = RedactionConfig.safeParse({ patterns });
+
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([
+      ["patterns", 0],
+      ["patterns", 1],
+    ]);
+    expect(result.error?.issues[0]?.message).toMatch(/^repeats a group that holds a repeat, as \(\\w\+\\s\?\)\+ does/);
   });
 });
