@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,7 @@ import {
   fixtureProject,
   removeFixtures,
   textOf,
+  watchRun,
   type Connection,
   type Fixture,
 } from "./support/project.ts";
@@ -28,6 +29,12 @@ const connections: Connection[] = [];
 const pids: number[] = [];
 
 afterEach(async () => {
+  killRuns();
+  await Promise.all(connections.splice(0).map((connection) => connection.close()));
+  await removeFixtures();
+});
+
+function killRuns(): void {
   for (const pid of pids.splice(0)) {
     try {
       // the run leads its own process group
@@ -41,9 +48,7 @@ afterEach(async () => {
       }
     }
   }
-  await Promise.all(connections.splice(0).map((connection) => connection.close()));
-  await removeFixtures();
-});
+}
 
 async function open(project: Fixture): Promise<Connection> {
   const connection = await connect(project.root, { supervisor: new RunSupervisor(project.root, CLI_PATH) });
@@ -55,6 +60,7 @@ async function start(mcp: Connection, project: Fixture): Promise<string> {
   const { runId } = await mcp.json<{ runId: string }>("run_start", { env: "demo", seed: 42 });
   const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number };
   pids.push(record.pid);
+  watchRun(project.root, runId);
   return runId;
 }
 
@@ -189,6 +195,7 @@ describe("runs over MCP", () => {
         return stdout.endsWith("\n") ? stdout.trim() : undefined;
       });
       const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number };
+      // not watched: the supervisor that would record the exit ends with the host
       pids.push(record.pid);
       const supervisor = new RunSupervisor(project.root, CLI_PATH);
       // the run handles Ctrl-C once its cases run, and the prompt shows they do
@@ -285,6 +292,7 @@ describe("runs over MCP", () => {
       const supervisor = new RunSupervisor(project.root, CLI_PATH);
       // the tool refuses an unknown env before it spawns, so call the supervisor itself
       const { runId } = await supervisor.start({}, "nowhere");
+      watchRun(project.root, runId);
       const status = await waitFor("the run to stop", async () => {
         const current = await supervisor.status(runId);
         return current.state === "stopped" ? current : undefined;
@@ -292,6 +300,32 @@ describe("runs over MCP", () => {
       expect(status.exit).toEqual({ code: 2, signal: null });
       expect(status.stderr).toContain('unknown env "nowhere"');
       expect(await readdir(join(project.root, "runs", runId))).not.toContain("status.json");
+    },
+    SPAWN_TIMEOUT_MS,
+  );
+});
+
+describe("fixture teardown", () => {
+  it(
+    "waits for the supervisor to record a killed run's exit before it removes the run",
+    async () => {
+      const roots = await Promise.all(
+        [1, 2, 3].map(async () => {
+          const project = await fixtureProject();
+          const { runId } = await new RunSupervisor(project.root, CLI_PATH).start({}, "demo", 42);
+          watchRun(project.root, runId);
+          const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number };
+          pids.push(record.pid);
+          // a full folder keeps rm busy long enough for the exit write to land in it
+          const bulk = join(project.root, "runs", runId, "bulk");
+          await mkdir(bulk);
+          await Promise.all(Array.from({ length: 2000 }, (_, n) => writeFile(join(bulk, `${n}.txt`), "x")));
+          return project.root;
+        }),
+      );
+      killRuns();
+      await removeFixtures();
+      expect(roots.filter((root) => existsSync(root))).toEqual([]);
     },
     SPAWN_TIMEOUT_MS,
   );

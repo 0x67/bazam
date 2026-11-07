@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -58,6 +59,7 @@ export interface Fixture {
 }
 
 const roots: string[] = [];
+const watchedRuns: string[] = [];
 
 /** A project with the fake driver, env demo and the desk cases. */
 export async function fixtureProject(): Promise<Fixture> {
@@ -80,8 +82,30 @@ export async function fixtureProject(): Promise<Fixture> {
   return { root, read: (path) => readFile(join(root, path), "utf8"), write };
 }
 
+/**
+ * Marks a run whose supervisor lives in this process, which writes the run's exit into its supervisor.json once the
+ * process ends. Stop the run before removeFixtures, which waits for that record.
+ */
+export function watchRun(root: string, runId: string): void {
+  watchedRuns.push(join(root, "runs", runId));
+}
+
 export async function removeFixtures(): Promise<void> {
+  // removing a run folder while the exit write lands in it fails with ENOTEMPTY
+  await Promise.all(watchedRuns.splice(0).map(exitRecorded));
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+}
+
+const EXIT_RECORD_TIMEOUT_MS = 5000;
+
+async function exitRecorded(runDir: string): Promise<void> {
+  const deadline = Date.now() + EXIT_RECORD_TIMEOUT_MS;
+  for (;;) {
+    const record = JSON.parse(await readFile(join(runDir, "supervisor.json"), "utf8")) as { exit?: unknown };
+    if (record.exit !== undefined) return;
+    if (Date.now() > deadline) throw new Error(`no exit was recorded for ${runDir}; is the run still going?`);
+    await sleep(20);
+  }
 }
 
 export interface Connection {
