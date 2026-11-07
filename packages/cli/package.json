@@ -19,5 +19,8 @@
     "@bazam/resolvers": "workspace:*",
     "@bazam/tracker-jira": "workspace:*",
     "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
   }
 }
