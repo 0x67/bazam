@@ -106,6 +106,8 @@ describe("receipts", () => {
       postedAt: "2026-11-08T10:10:00.000Z",
     });
     expect(await readdir(stateDir)).toEqual(["receipts.json"]);
-    expect(JSON.parse(await readFile(join(stateDir, "receipts.json"), "utf8"))).toHaveProperty(["jira:TD-246:AUTH-LOGIN-001"]);
+    expect(JSON.parse(await readFile(join(stateDir, "receipts.json"), "utf8"))).toHaveProperty([
+      "jira:TD-246:AUTH-LOGIN-001",
+    ]);
   });
 });

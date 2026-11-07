@@ -52,8 +52,14 @@ async function startMailpit(inbox: Mail[] = [], prefix = "/api/v1"): Promise<Fak
       mailpit.onSearch();
       const term = /^to:"(.+)"$/.exec(url.searchParams.get("query") ?? "")?.[1]?.toLowerCase();
       if (term === undefined) return { status: 400, body: { error: "expected a to: query" } };
-      const found = mailpit.inbox.filter((message) => message.to.toLowerCase().includes(term)).sort((a, b) => b.at - a.at);
-      const messages = found.map((message) => ({ ID: message.ID, Created: created(message.at), To: [{ Name: "", Address: message.to }] }));
+      const found = mailpit.inbox
+        .filter((message) => message.to.toLowerCase().includes(term))
+        .sort((a, b) => b.at - a.at);
+      const messages = found.map((message) => ({
+        ID: message.ID,
+        Created: created(message.at),
+        To: [{ Name: "", Address: message.to }],
+      }));
       const date = mailpit.date === undefined ? { sendDate: false } : { headers: { date: mailpit.date.toUTCString() } };
       return { status: 200, body: { messages }, ...date };
     }
@@ -111,7 +117,9 @@ describe("mailpitResolver", () => {
   it("takes mail that arrives after arm even when Mailpit stamps it before arm", async () => {
     const mailpit = await startMailpit();
     const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.5" };
-    const answer = await signIn(params, () => mailpit.inbox.push(mail("new", RECIPIENT, -2, "Your sign-in code is 222222")));
+    const answer = await signIn(params, () =>
+      mailpit.inbox.push(mail("new", RECIPIENT, -2, "Your sign-in code is 222222")),
+    );
     expect(answer).toEqual({ kind: "value", value: "222222" });
   });
 
@@ -123,7 +131,9 @@ describe("mailpitResolver", () => {
   it("returns the first capture of params.pattern", async () => {
     const mailpit = await startMailpit();
     const params = { url: mailpit.url, recipient: RECIPIENT, pattern: "Use ([A-Z0-9]{6})" };
-    const answer = await signIn(params, () => mailpit.inbox.push(mail("new", RECIPIENT, 1, "Use A7K9Q2 to sign in. Reference 123456.")));
+    const answer = await signIn(params, () =>
+      mailpit.inbox.push(mail("new", RECIPIENT, 1, "Use A7K9Q2 to sign in. Reference 123456.")),
+    );
     expect(answer).toEqual({ kind: "value", value: "A7K9Q2" });
   });
 
@@ -161,8 +171,15 @@ describe("mailpitResolver", () => {
 
   it("reads the API under the base URL and paths the params give", async () => {
     const mailpit = await startMailpit([], "/mail/api/v2");
-    const params = { url: `${mailpit.url}/mail/`, searchPath: "/api/v2/search", messagePath: "/api/v2/message", recipient: RECIPIENT };
-    const answer = await signIn(params, () => mailpit.inbox.push(mail("new", RECIPIENT, 1, "Your sign-in code is 222222")));
+    const params = {
+      url: `${mailpit.url}/mail/`,
+      searchPath: "/api/v2/search",
+      messagePath: "/api/v2/message",
+      recipient: RECIPIENT,
+    };
+    const answer = await signIn(params, () =>
+      mailpit.inbox.push(mail("new", RECIPIENT, 1, "Your sign-in code is 222222")),
+    );
     expect(answer).toEqual({ kind: "value", value: "222222" });
   });
 

@@ -61,7 +61,12 @@ function challengeResolver(name: string, kinds: readonly string[]): ChallengeRes
   return { name, kinds, requires: [], automated: true, resolve: async () => undefined };
 }
 
-const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", humanOnly: true, fallbackAfterTrigger: false };
+const faceScan: ChallengeKindSpec = {
+  name: "face-scan",
+  answer: "action",
+  humanOnly: true,
+  fallbackAfterTrigger: false,
+};
 
 function slackChannel(): { name: string; create(runDir: string): HumanChannel } {
   return { name: "slack", create: () => ({ ask: async () => ({ kind: "timeout" }) }) };
@@ -88,7 +93,10 @@ function authStrategy(name: string): AuthStrategy<object, { token: string }> {
 
 describe("PluginRegistry.load", () => {
   it("PluginConflict names both plugins", async () => {
-    const failure = await loadFailure([plugin("mail", { steps: [fakeStep("wait")] }), plugin("sms", { steps: [fakeStep("wait")] })]);
+    const failure = await loadFailure([
+      plugin("mail", { steps: [fakeStep("wait")] }),
+      plugin("sms", { steps: [fakeStep("wait")] }),
+    ]);
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual(["mail", "sms"]);
@@ -96,36 +104,70 @@ describe("PluginRegistry.load", () => {
   });
 
   it.each([
-    ["two drivers with one name", { drivers: [fakeDriver({ name: "playwright" })] }, { drivers: [fakeDriver({ name: "playwright" })] }, 'driver "playwright"'],
+    [
+      "two drivers with one name",
+      { drivers: [fakeDriver({ name: "playwright" })] },
+      { drivers: [fakeDriver({ name: "playwright" })] },
+      'driver "playwright"',
+    ],
     [
       "a driver step with the kind of a plugin step",
       { steps: [fakeStep("tap")] },
       { drivers: [fakeDriver({ steps: [fakeStep("tap")] })] },
       'step kind "tap"',
     ],
-    ["two auth strategies with one name", { authStrategies: [authStrategy("sso")] }, { authStrategies: [authStrategy("sso")] }, 'auth strategy "sso"'],
+    [
+      "two auth strategies with one name",
+      { authStrategies: [authStrategy("sso")] },
+      { authStrategies: [authStrategy("sso")] },
+      'auth strategy "sso"',
+    ],
     [
       "two resolvers with one name",
       { resolvers: [challengeResolver("totp", ["totp"])] },
       { resolvers: [challengeResolver("totp", ["totp"])] },
       'challenge resolver "totp"',
     ],
-    ["two challenge kinds with one name", { challengeKinds: [faceScan] }, { challengeKinds: [faceScan] }, 'challenge kind "face-scan"'],
-    ["two channels with one name", { channels: [slackChannel()] }, { channels: [slackChannel()] }, 'human channel "slack"'],
-    ["two check rules with one id", { checkRules: [checkRule("no-todo")] }, { checkRules: [checkRule("no-todo")] }, 'check rule "no-todo"'],
-    ["two renderers for one tracker", { trackers: [trackerRenderer("jira")] }, { trackers: [trackerRenderer("jira")] }, 'tracker renderer "jira"'],
+    [
+      "two challenge kinds with one name",
+      { challengeKinds: [faceScan] },
+      { challengeKinds: [faceScan] },
+      'challenge kind "face-scan"',
+    ],
+    [
+      "two channels with one name",
+      { channels: [slackChannel()] },
+      { channels: [slackChannel()] },
+      'human channel "slack"',
+    ],
+    [
+      "two check rules with one id",
+      { checkRules: [checkRule("no-todo")] },
+      { checkRules: [checkRule("no-todo")] },
+      'check rule "no-todo"',
+    ],
+    [
+      "two renderers for one tracker",
+      { trackers: [trackerRenderer("jira")] },
+      { trackers: [trackerRenderer("jira")] },
+      'tracker renderer "jira"',
+    ],
   ])("PluginConflict also covers %s", async (_, first, second, contribution) => {
     const failure = await loadFailure([plugin("first", first), plugin("second", second)]);
 
     expect(failure).toBeInstanceOf(PluginConflict);
-    expect((failure as PluginConflict).message).toBe(`${contribution} comes from both plugin "first" and plugin "second"`);
+    expect((failure as PluginConflict).message).toBe(
+      `${contribution} comes from both plugin "first" and plugin "second"`,
+    );
   });
 
   it("PluginApiMismatch on another major", async () => {
     const failure = await loadFailure([{ name: "old-driver", apiVersion: PLUGIN_API_VERSION + 1 }]);
 
     expect(failure).toBeInstanceOf(PluginApiMismatch);
-    expect((failure as PluginApiMismatch).message).toContain(`plugin "old-driver" needs plugin API version ${PLUGIN_API_VERSION + 1}`);
+    expect((failure as PluginApiMismatch).message).toContain(
+      `plugin "old-driver" needs plugin API version ${PLUGIN_API_VERSION + 1}`,
+    );
   });
 
   it("path plugin adds a step kind", async () => {
@@ -152,7 +194,9 @@ describe("PluginRegistry.load", () => {
   ])("refuses a plugin package name with %s segments", async (_, entry) => {
     const failure = await loadFailure([], [entry]);
 
-    expect((failure as Error).message).toBe(`plugin "${entry}" is neither a package name nor a path that starts with "."`);
+    expect((failure as Error).message).toBe(
+      `plugin "${entry}" is neither a package name nor a path that starts with "."`,
+    );
   });
 
   it("lets drivers with different names offer the same step kind", async () => {
@@ -171,12 +215,15 @@ describe("PluginRegistry.load", () => {
     expect(open[0]).toBe(playwright.steps[0]);
   });
 
-  it.each(["use", "request", "challenge", "guided", "note", "api"])("refuses a plugin step of the core step kind %s", async (kind) => {
-    const failure = await loadFailure([plugin("rogue", { steps: [fakeStep(kind)] })]);
+  it.each(["use", "request", "challenge", "guided", "note", "api"])(
+    "refuses a plugin step of the core step kind %s",
+    async (kind) => {
+      const failure = await loadFailure([plugin("rogue", { steps: [fakeStep(kind)] })]);
 
-    expect(failure).toBeInstanceOf(PluginConflict);
-    expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "rogue"]);
-  });
+      expect(failure).toBeInstanceOf(PluginConflict);
+      expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "rogue"]);
+    },
+  );
 
   it("refuses a driver step of a core step kind", async () => {
     const failure = await loadFailure([plugin("rogue", { drivers: [fakeDriver({ steps: [fakeStep("challenge")] })] })]);
@@ -221,7 +268,11 @@ describe("built-in secret providers", () => {
   // execFile cannot run the sh stub on Windows
   it.skipIf(process.platform === "win32")("gives the 1password provider the refs from config", async () => {
     vi.stubEnv("PATH", fileURLToPath(new URL("./fixtures/bin", import.meta.url)));
-    const registry = await PluginRegistry.load(config({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }), root, []);
+    const registry = await PluginRegistry.load(
+      config({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }),
+      root,
+      [],
+    );
 
     const [onePassword] = registry.secretProviders(["1password"]);
 
@@ -244,7 +295,9 @@ describe("PluginRegistry.secretProviders", () => {
   it("throws on an unknown provider name and lists the known ones", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
-    expect(() => registry.secretProviders(["vault", "valt"])).toThrow(/^unknown secret provider "valt"; known: .*\bvault\b/);
+    expect(() => registry.secretProviders(["vault", "valt"])).toThrow(
+      /^unknown secret provider "valt"; known: .*\bvault\b/,
+    );
   });
 });
 
@@ -267,7 +320,9 @@ describe("PluginRegistry.strategy", () => {
   it("registers the built-in strategies and caches only the credentials that come from a login", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
-    const cacheable = Object.fromEntries(["api-key", "basic", "oauth2", "session-cookie", "hmac"].map((name) => [name, registry.strategy(name).cacheable]));
+    const cacheable = Object.fromEntries(
+      ["api-key", "basic", "oauth2", "session-cookie", "hmac"].map((name) => [name, registry.strategy(name).cacheable]),
+    );
 
     expect(cacheable).toEqual({ "api-key": false, basic: false, oauth2: true, "session-cookie": true, hmac: false });
   });
@@ -276,7 +331,9 @@ describe("PluginRegistry.strategy", () => {
 describe("PluginRegistry.checkRules", () => {
   it("returns the built-in rules, then the rules plugins add", async () => {
     const noTodo = checkRule("no-todo");
-    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("lint-plugin", { checkRules: [noTodo] })]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [
+      plugin("lint-plugin", { checkRules: [noTodo] }),
+    ]);
 
     expect(registry.checkRules()).toEqual([...builtinRules, noTodo]);
   });
@@ -332,16 +389,25 @@ describe("PluginRegistry.tracker", () => {
 
 describe("PluginRegistry.kind", () => {
   it("returns a built-in kind and a kind a plugin adds", async () => {
-    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("face-plugin", { challengeKinds: [faceScan] })]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [
+      plugin("face-plugin", { challengeKinds: [faceScan] }),
+    ]);
 
-    expect(registry.kind("pin")).toEqual({ name: "pin", answer: "action", humanOnly: true, fallbackAfterTrigger: false });
+    expect(registry.kind("pin")).toEqual({
+      name: "pin",
+      answer: "action",
+      humanOnly: true,
+      fallbackAfterTrigger: false,
+    });
     expect(registry.kind("face-scan")).toBe(faceScan);
   });
 
   it("throws on an unknown kind name and lists the known ones", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
-    expect(() => registry.kind("otp-mail")).toThrow('unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin');
+    expect(() => registry.kind("otp-mail")).toThrow(
+      'unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin',
+    );
   });
 });
 
@@ -380,7 +446,9 @@ describe("PluginRegistry.resolverChain", () => {
     const automatableFaceScan = { ...faceScan, humanOnly: false };
     const faceBot = challengeResolver("face-bot", ["face-scan"]);
     const facePlugin = plugin("face-plugin", { challengeKinds: [automatableFaceScan], resolvers: [faceBot] });
-    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["face-scan"] } }), projectRoot, [facePlugin]);
+    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["face-scan"] } }), projectRoot, [
+      facePlugin,
+    ]);
 
     expect(registry.kind("face-scan")).toEqual({ ...automatableFaceScan, humanOnly: true });
     expect(() => registry.resolverChain(uat({ "face-scan": ["face-bot"] }), "face-scan")).toThrow(HumanOnlyViolation);
@@ -397,7 +465,9 @@ describe("PluginRegistry.resolverChain", () => {
   it("throws on a kind name no plugin registered", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
-    expect(() => registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp")).toThrow('unknown challenge kind "otp-whatsapp"');
+    expect(() => registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp")).toThrow(
+      'unknown challenge kind "otp-whatsapp"',
+    );
   });
 
   it("throws when the env lists a resolver for a kind it does not answer", async () => {
@@ -469,8 +539,12 @@ describe("PluginRegistry.channel", () => {
   });
 
   it("throws on an unknown channel name and lists the known ones", async () => {
-    const registry = await PluginRegistry.load(config(), projectRoot, [plugin("slack-plugin", { channels: [slackChannel()] })]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [
+      plugin("slack-plugin", { channels: [slackChannel()] }),
+    ]);
 
-    expect(() => registry.channel("slak")).toThrow('unknown human channel "slak"; known: terminal, answers-file, slack');
+    expect(() => registry.channel("slak")).toThrow(
+      'unknown human channel "slak"; known: terminal, answers-file, slack',
+    );
   });
 });

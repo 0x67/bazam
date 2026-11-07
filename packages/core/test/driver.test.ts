@@ -49,7 +49,9 @@ describe("driver contract", () => {
 
   it("a case schema built from stepHandlers() accepts the core api check as a step, under checks and in observe", async () => {
     const schema = buildCaseSchema((await loadDrivers()).stepHandlers());
-    const check = { api: { request: "GET ${env.API_URL}/me", as: "customer", status: 200, body: { "roles[0]": "buyer" } } };
+    const check = {
+      api: { request: "GET ${env.API_URL}/me", as: "customer", status: 200, body: { "roles[0]": "buyer" } },
+    };
     const withChecks = (step: unknown) => ({
       id: "API-ME-001",
       title: "Customer reads their profile",

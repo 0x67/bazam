@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { escapePlaceholders, findPlaceholders, resolvePlaceholders, UnresolvedPlaceholder, type PlaceholderSources } from "../src/env/index.ts";
+import {
+  escapePlaceholders,
+  findPlaceholders,
+  resolvePlaceholders,
+  UnresolvedPlaceholder,
+  type PlaceholderSources,
+} from "../src/env/index.ts";
 
 function sources(overrides: Partial<PlaceholderSources> = {}): PlaceholderSources {
   const vars: Record<string, string> = { API_URL: "https://api.uat.example.test" };
@@ -80,7 +86,9 @@ describe("resolvePlaceholders", () => {
 
   it("resolves a phone form from an identity field", async () => {
     expect(await resolvePlaceholders("${identity.customer.phone.domestic}", sources())).toBe("07700900123");
-    expect(await resolvePlaceholders("${identity.customer.phone.countryName}", sources({ locale: "id-ID" }))).toBe("Inggris Raya");
+    expect(await resolvePlaceholders("${identity.customer.phone.countryName}", sources({ locale: "id-ID" }))).toBe(
+      "Inggris Raya",
+    );
   });
 
   it("composes several phone forms in one string", async () => {

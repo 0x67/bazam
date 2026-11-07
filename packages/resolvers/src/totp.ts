@@ -29,7 +29,8 @@ export const totpResolver: ChallengeResolver = {
   automated: true,
   async resolve(request, ctx) {
     const seedName = request.params["seed"];
-    if (seedName === undefined || seedName === "") throw new Error("totp needs params.seed, the name of the secret that holds the seed");
+    if (seedName === undefined || seedName === "")
+      throw new Error("totp needs params.seed, the name of the secret that holds the seed");
     const seed = await ctx.secrets(seedName);
     const now = ctx.now().getTime();
     const remaining = STEP_MS - (now % STEP_MS);
@@ -43,7 +44,8 @@ export const totpResolver: ChallengeResolver = {
 function base32Decode(seed: string): Buffer {
   const text = seed.replace(/[\s=]/g, "").toUpperCase();
   // the message leaves out the seed, which is a secret
-  if (text === "" || !text.split("").every((char) => BASE32.includes(char))) throw new Error("the TOTP seed is not base32");
+  if (text === "" || !text.split("").every((char) => BASE32.includes(char)))
+    throw new Error("the TOTP seed is not base32");
   const bytes: number[] = [];
   let bits = 0;
   let value = 0;

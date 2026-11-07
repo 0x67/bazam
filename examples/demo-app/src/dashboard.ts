@@ -9,7 +9,11 @@ export function dashboardRoutes({ store }: DemoDeps): Hono<SignedIn> {
 
   app.get("/", (c) => c.redirect("/dashboard", 303))
 
-  app.get("/dashboard", requireSignIn(store), (c) => c.html(page("Dashboard", html`
+  app.get("/dashboard", requireSignIn(store), (c) =>
+    c.html(
+      page(
+        "Dashboard",
+        html`
     <section data-testid="dashboard">
       <p>Signed in as <strong data-testid="user-email">${c.get("user").email}</strong></p>
       <ul>
@@ -20,7 +24,10 @@ export function dashboardRoutes({ store }: DemoDeps): Hono<SignedIn> {
       <form method="post" action="/logout">
         <button type="submit" data-testid="sign-out">Sign out</button>
       </form>
-    </section>`)))
+    </section>`,
+      ),
+    ),
+  )
 
   return app
 }

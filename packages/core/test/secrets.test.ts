@@ -48,7 +48,10 @@ describe("resolveSecret", () => {
     vi.stubEnv("DEMO_TOTP_SEED", "fake-seed-from-env");
     vi.stubEnv("PARTNER_KEY_ID", "");
     vi.stubEnv("DEMO_API_KEY", undefined);
-    const fallback = recordingProvider("fallback", { DEMO_API_KEY: "fake-api-key-from-fallback", DEMO_TOTP_SEED: "unused" });
+    const fallback = recordingProvider("fallback", {
+      DEMO_API_KEY: "fake-api-key-from-fallback",
+      DEMO_TOTP_SEED: "unused",
+    });
     const providers = [envProvider, dotenvProvider(stateDir), fallback];
     const redactor = new Redactor(defaultRedactionRules());
 
@@ -61,7 +64,9 @@ describe("resolveSecret", () => {
   it("throws SecretMissing naming the key and the providers when none has a value", async () => {
     const providers = [recordingProvider("first", {}), recordingProvider("second", { OTHER: "fake-other" })];
 
-    const error = await resolveSecret("DEMO_TOTP_SEED", providers, new Redactor(defaultRedactionRules())).catch((e: unknown) => e);
+    const error = await resolveSecret("DEMO_TOTP_SEED", providers, new Redactor(defaultRedactionRules())).catch(
+      (e: unknown) => e,
+    );
 
     expect(error).toBeInstanceOf(SecretMissing);
     expect(error).toMatchObject({ key: "DEMO_TOTP_SEED", message: expect.stringContaining("[first, second]") });
@@ -70,7 +75,11 @@ describe("resolveSecret", () => {
   it("masks returned values", async () => {
     const redactor = new Redactor(defaultRedactionRules());
 
-    const value = await resolveSecret("DEMO_API_KEY", [recordingProvider("fixed", { DEMO_API_KEY: "fake-api-key" })], redactor);
+    const value = await resolveSecret(
+      "DEMO_API_KEY",
+      [recordingProvider("fixed", { DEMO_API_KEY: "fake-api-key" })],
+      redactor,
+    );
 
     expect(redactor.text(`X-Api-Key: ${value}`)).toBe("X-Api-Key: [redacted]");
   });

@@ -39,7 +39,12 @@ const config = {
       production: false,
       vars: { APP_URL: "https://app.example.test" },
       hosts: ["app.example.test"],
-      challenges: { "otp-email": ["fake-otp", "human"], passkey: ["fake-passkey", "human"], totp: ["fake-totp-device"], pin: ["human"] },
+      challenges: {
+        "otp-email": ["fake-otp", "human"],
+        passkey: ["fake-passkey", "human"],
+        totp: ["fake-totp-device"],
+        pin: ["human"],
+      },
     },
     live: { production: true, hosts: ["app.example.test"], challenges: { pin: ["fake-any"] } },
   },
@@ -49,7 +54,13 @@ const config = {
       auth: {
         web: {
           strategy: "session-cookie",
-          with: { login: { url: "https://app.example.test/login", until: { cookie: "session" }, person: { steps: ["Sign in"] } } },
+          with: {
+            login: {
+              url: "https://app.example.test/login",
+              until: { cookie: "session" },
+              person: { steps: ["Sign in"] },
+            },
+          },
         },
         api: { strategy: "session-cookie", from: "web" },
       },
@@ -57,13 +68,25 @@ const config = {
     partner: { auth: { api: { strategy: "api-key", with: { key: "fake-partner-key-0001", header: "x-api-key" } } } },
     visitor: {},
   },
-  targets: { web: { driver: "fake", browser: "chromium" }, "web-alt": { driver: "fake" }, phone: { driver: "fake-phone" } },
+  targets: {
+    web: { driver: "fake", browser: "chromium" },
+    "web-alt": { driver: "fake" },
+    phone: { driver: "fake-phone" },
+  },
 };
 
 type CaseFields = Record<string, unknown>;
 
 function testCase(id: string, fields: CaseFields): CaseFields {
-  return { id, title: `case ${id}`, stage: "acceptance", risk: "low", links: ["jira:TD-1"], targets: ["web"], ...fields };
+  return {
+    id,
+    title: `case ${id}`,
+    stage: "acceptance",
+    risk: "low",
+    links: ["jira:TD-1"],
+    targets: ["web"],
+    ...fields,
+  };
 }
 
 const roots: string[] = [];
@@ -102,11 +125,16 @@ async function planFor(cases: readonly CaseFields[], options: PlanOptions = {}):
   };
   if (options.targets !== undefined) inputs.targets = options.targets;
   if (options.blockedIdentities !== undefined) inputs.blockedIdentities = options.blockedIdentities;
-  const credentials = new Map(planLogins(inputs).map((login) => [loginKey(login), options.modes?.[loginKey(login)] ?? ("cached" as LoginMode)]));
+  const credentials = new Map(
+    planLogins(inputs).map((login) => [loginKey(login), options.modes?.[loginKey(login)] ?? ("cached" as LoginMode)]),
+  );
   return planRun({ ...inputs, credentials });
 }
 
-const otp = { challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } }, as: "customer" };
+const otp = {
+  challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } },
+  as: "customer",
+};
 
 describe("planRun", () => {
   it("blocks a retired case because its stage does not run", async () => {
@@ -149,12 +177,19 @@ describe("planRun", () => {
         challenges: [{ step: 1, kind: "totp", resolver: null }],
         blocked: "no resolver for challenge totp can run on target web: fake-totp-device needs totp.device",
       },
-      { challenges: [{ step: 1, kind: "otp-sms", resolver: null }], blocked: "env demo has no resolver chain for challenge otp-sms" },
+      {
+        challenges: [{ step: 1, kind: "otp-sms", resolver: null }],
+        blocked: "env demo has no resolver chain for challenge otp-sms",
+      },
     ]);
   });
 
   it("blocks a value challenge with no fill field", async () => {
-    const plan = await planFor([testCase("AUTH-OTP-001", { steps: [{ open: "${env.APP_URL}" }, { challenge: { kind: "otp-email" }, as: "customer" }] })]);
+    const plan = await planFor([
+      testCase("AUTH-OTP-001", {
+        steps: [{ open: "${env.APP_URL}" }, { challenge: { kind: "otp-email" }, as: "customer" }],
+      }),
+    ]);
     expect(plan.cases[0]?.blocked).toBe("challenge step 2 (otp-email) names no fill field for its code");
   });
 
@@ -164,7 +199,12 @@ describe("planRun", () => {
   });
 
   it("blocks a step that only another target's driver offers", async () => {
-    const plan = await planFor([testCase("AUTH-PHONE-001", { targets: ["phone"], steps: [{ swipe: {} }, { open: "${env.APP_URL}", as: "customer" }] })]);
+    const plan = await planFor([
+      testCase("AUTH-PHONE-001", {
+        targets: ["phone"],
+        steps: [{ swipe: {} }, { open: "${env.APP_URL}", as: "customer" }],
+      }),
+    ]);
     expect(plan.cases[0]?.blocked).toBe("driver fake-phone has no open step");
   });
 
@@ -186,14 +226,19 @@ describe("planRun", () => {
 
   it("blocks an identity the caller marks blocked, also when only a placeholder names it", async () => {
     const reason = "identity customer needs fixture customer, but fixtures/identities.local.yaml is missing";
-    const plan = await planFor([testCase("AUTH-MAIL-001", { steps: [{ note: "mail goes to ${identity.customer.email}" }] })], {
-      blockedIdentities: new Map([["customer", reason]]),
-    });
+    const plan = await planFor(
+      [testCase("AUTH-MAIL-001", { steps: [{ note: "mail goes to ${identity.customer.email}" }] })],
+      {
+        blockedIdentities: new Map([["customer", reason]]),
+      },
+    );
     expect(plan.cases[0]).toMatchObject({ identities: ["customer"], blocked: reason });
   });
 
   it("picks the first resolver whose capabilities are present", async () => {
-    const passkey = testCase("AUTH-PASSKEY-001", { steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }] });
+    const passkey = testCase("AUTH-PASSKEY-001", {
+      steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }],
+    });
     const withAuthenticator = await planFor([passkey], { capabilities: ["webauthn.virtual"] });
     const without = await planFor([passkey]);
     expect(withAuthenticator.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
@@ -220,10 +265,14 @@ describe("planRun", () => {
   });
 
   it("counts guided steps, challenges a person answers and person logins as person steps", async () => {
-    const guided = { guided: { title: "Check the statement", steps: ["Open the statement"], expected: "Statement shown" } };
+    const guided = {
+      guided: { title: "Check the statement", steps: ["Open the statement"], expected: "Statement shown" },
+    };
     const plan = await planFor(
       [
-        testCase("AUTH-HUMAN-001", { steps: [{ open: "${env.APP_URL}", as: "customer" }, guided, { challenge: { kind: "pin" }, as: "customer" }] }),
+        testCase("AUTH-HUMAN-001", {
+          steps: [{ open: "${env.APP_URL}", as: "customer" }, guided, { challenge: { kind: "pin" }, as: "customer" }],
+        }),
         testCase("AUTH-AUTO-001", { steps: [otp] }),
         testCase("AUTH-OLD-001", { stage: "retired", steps: [guided] }),
       ],
@@ -234,9 +283,9 @@ describe("planRun", () => {
   });
 
   it("throws for a target that config does not define", async () => {
-    await expect(planFor([testCase("AUTH-WEB-001", { targets: ["mobile"], steps: [{ note: "hello" }] })])).rejects.toThrow(
-      `target mobile is not defined under targets in ${BRAND.configFile}`,
-    );
+    await expect(
+      planFor([testCase("AUTH-WEB-001", { targets: ["mobile"], steps: [{ note: "hello" }] })]),
+    ).rejects.toThrow(`target mobile is not defined under targets in ${BRAND.configFile}`);
   });
 
   it("throws FlowCycle when flows reach each other", async () => {
@@ -246,7 +295,9 @@ describe("planRun", () => {
         { name: "loop-b", steps: [{ use: "loop-a" }] },
       ],
     };
-    await expect(planFor([testCase("AUTH-LOOP-001", { steps: [{ use: "loop-a" }] })], { flows })).rejects.toThrow(FlowCycle);
+    await expect(planFor([testCase("AUTH-LOOP-001", { steps: [{ use: "loop-a" }] })], { flows })).rejects.toThrow(
+      FlowCycle,
+    );
   });
 
   it("throws HumanOnlyViolation when the env lists an automated resolver for pin", async () => {
@@ -258,8 +309,13 @@ describe("planRun", () => {
 describe("planCases", () => {
   it("plan uses the fake driver's probed capabilities", async () => {
     const driver = fakeDriver({ steps: webSteps, capabilities: ["webauthn.virtual"] });
-    const passkey = testCase("AUTH-PASSKEY-001", { steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "visitor" }] });
-    const { root, project, registry } = await loadTestProject({ [BRAND.configFile]: config, "cases/auth/plan.yaml": { cases: [passkey] } }, [plugin(driver)]);
+    const passkey = testCase("AUTH-PASSKEY-001", {
+      steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "visitor" }],
+    });
+    const { root, project, registry } = await loadTestProject(
+      { [BRAND.configFile]: config, "cases/auth/plan.yaml": { cases: [passkey] } },
+      [plugin(driver)],
+    );
     roots.push(root);
     const plan = await planCases({
       project,

@@ -1,6 +1,11 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { builtinKinds, type ChallengeKindSpec, type ChallengeRequest, type ResolverContext } from "@bazam/core/challenge";
+import {
+  builtinKinds,
+  type ChallengeKindSpec,
+  type ChallengeRequest,
+  type ResolverContext,
+} from "@bazam/core/challenge";
 import { guardedHttp } from "@bazam/core/driver";
 import { EnvsConfig } from "@bazam/core/env";
 import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
@@ -57,7 +62,9 @@ export async function serveJson(route: (url: URL, req: IncomingMessage) => Reply
     const reply = route(new URL(req.url ?? "/", "http://127.0.0.1"), req);
     if (reply === undefined) return;
     if (reply.sendDate === false) res.sendDate = false;
-    res.writeHead(reply.status, { "content-type": "application/json", ...reply.headers }).end(reply.body === undefined ? "" : JSON.stringify(reply.body));
+    res
+      .writeHead(reply.status, { "content-type": "application/json", ...reply.headers })
+      .end(reply.body === undefined ? "" : JSON.stringify(reply.body));
   });
   servers.push(server);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));

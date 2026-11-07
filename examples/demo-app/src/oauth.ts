@@ -46,7 +46,10 @@ export function oauthRoutes({ store }: DemoDeps): Hono {
 }
 
 // HTTP Basic (client_secret_basic) or form fields (client_secret_post)
-function clientCredentials(authorization: string | undefined, form: Record<string, unknown>): { id: string; secret: string } {
+function clientCredentials(
+  authorization: string | undefined,
+  form: Record<string, unknown>,
+): { id: string; secret: string } {
   if (authorization?.startsWith("Basic ")) {
     const [id = "", ...secret] = Buffer.from(authorization.slice("Basic ".length), "base64").toString().split(":")
     return { id, secret: secret.join(":") }

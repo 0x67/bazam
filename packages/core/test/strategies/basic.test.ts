@@ -19,7 +19,12 @@ describe("basicStrategy", () => {
   afterAll(() => server.close());
 
   it("sends user and password in a Basic header the server accepts", async () => {
-    const { response } = await sendWith(basicStrategy, SETTINGS, draft("GET", `${server.origin}/api/basic/whoami`), authContext());
+    const { response } = await sendWith(
+      basicStrategy,
+      SETTINGS,
+      draft("GET", `${server.origin}/api/basic/whoami`),
+      authContext(),
+    );
 
     expect(response.status).toBe(200);
   });
@@ -39,7 +44,9 @@ describe("basicStrategy", () => {
     const { credential } = await sendWith(basicStrategy, SETTINGS, request, authContext());
     const secrets = basicStrategy.secrets(credential);
 
-    expect(redacted(secrets, `Authorization: ${request.headers.get("authorization")}`)).toBe("Authorization: Basic [redacted]");
+    expect(redacted(secrets, `Authorization: ${request.headers.get("authorization")}`)).toBe(
+      "Authorization: Basic [redacted]",
+    );
     expect(redacted(secrets, JSON.stringify(credential))).toBe('{"user":"fake-user","password":"[redacted]"}');
   });
 });

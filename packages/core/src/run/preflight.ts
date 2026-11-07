@@ -24,7 +24,10 @@ export async function preflight(plan: RunPlan, identities: Identities): Promise<
     try {
       await identities.ensureCredential(login.identity, login.surface);
     } catch (error) {
-      blocked.set(loginKey(login), `login of ${login.identity} on ${login.surface} failed: ${error instanceof Error ? error.message : String(error)}`);
+      blocked.set(
+        loginKey(login),
+        `login of ${login.identity} on ${login.surface} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   return { blocked };

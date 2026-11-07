@@ -17,7 +17,12 @@ export const humanResolver: ChallengeResolver = {
   },
 };
 
-function challengePrompt(request: ChallengeRequest, ctx: ResolverContext, kind: ChallengeKindSpec, ask: Ask): PersonPrompt {
+function challengePrompt(
+  request: ChallengeRequest,
+  ctx: ResolverContext,
+  kind: ChallengeKindSpec,
+  ask: Ask,
+): PersonPrompt {
   return {
     id: `${request.caseId}-${request.step}-${request.kind}`,
     caseId: request.caseId,

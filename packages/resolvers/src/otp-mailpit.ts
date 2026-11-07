@@ -70,9 +70,11 @@ export const mailpitResolver: ChallengeResolver = {
 
 function inboxOf(params: Readonly<Record<string, string>>): Inbox {
   const recipient = params["recipient"];
-  if (recipient === undefined || recipient === "") throw new Error("otp-mailpit needs params.recipient, the address the code is mailed to");
+  if (recipient === undefined || recipient === "")
+    throw new Error("otp-mailpit needs params.recipient, the address the code is mailed to");
   const timeoutSeconds = Number(params["timeoutSeconds"] ?? DEFAULT_TIMEOUT_SECONDS);
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 0) throw new Error("otp-mailpit params.timeoutSeconds is not a number of seconds");
+  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 0)
+    throw new Error("otp-mailpit params.timeoutSeconds is not a number of seconds");
   return {
     url: (params["url"] ?? DEFAULT_URL).replace(/\/+$/, ""),
     searchPath: params["searchPath"] ?? DEFAULT_SEARCH_PATH,
@@ -84,7 +86,11 @@ function inboxOf(params: Readonly<Record<string, string>>): Inbox {
 }
 
 /** Runs `work` until it settles or the run aborts; undefined once the inbox's timeout passes first. */
-async function withTimeout<T>(inbox: Inbox, run: AbortSignal, work: (stop: AbortSignal) => Promise<T>): Promise<T | undefined> {
+async function withTimeout<T>(
+  inbox: Inbox,
+  run: AbortSignal,
+  work: (stop: AbortSignal) => Promise<T>,
+): Promise<T | undefined> {
   const deadline = AbortSignal.timeout(inbox.timeoutMs);
   try {
     return await work(AbortSignal.any([run, deadline]));
@@ -94,7 +100,12 @@ async function withTimeout<T>(inbox: Inbox, run: AbortSignal, work: (stop: Abort
   }
 }
 
-async function poll(http: GuardedHttp, inbox: Inbox, newMail: (found: Found) => Mail[], stop: AbortSignal): Promise<string> {
+async function poll(
+  http: GuardedHttp,
+  inbox: Inbox,
+  newMail: (found: Found) => Mail[],
+  stop: AbortSignal,
+): Promise<string> {
   for (;;) {
     const code = await findCode(http, inbox, newMail, stop);
     if (code !== undefined) return code;
@@ -103,9 +114,16 @@ async function poll(http: GuardedHttp, inbox: Inbox, newMail: (found: Found) => 
 }
 
 /** The code in the newest new mail that holds one. */
-async function findCode(http: GuardedHttp, inbox: Inbox, newMail: (found: Found) => Mail[], stop: AbortSignal): Promise<string | undefined> {
+async function findCode(
+  http: GuardedHttp,
+  inbox: Inbox,
+  newMail: (found: Found) => Mail[],
+  stop: AbortSignal,
+): Promise<string | undefined> {
   for (const mail of newMail(await search(http, inbox, stop))) {
-    const text = textOf((await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop)).body);
+    const text = textOf(
+      (await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop)).body,
+    );
     const match = inbox.pattern.exec(text);
     if (match !== null) return match[1] ?? match[0];
   }
@@ -126,9 +144,15 @@ async function search(http: GuardedHttp, inbox: Inbox, stop: AbortSignal): Promi
 }
 
 async function getJson(http: GuardedHttp, url: URL, stop: AbortSignal): Promise<HttpResponse> {
-  const response = await http.send({ method: "GET", url, headers: new Headers({ accept: "application/json" }), signal: stop });
+  const response = await http.send({
+    method: "GET",
+    url,
+    headers: new Headers({ accept: "application/json" }),
+    signal: stop,
+  });
   // the query holds the recipient, so the message names only the path
-  if (response.status !== 200) throw new Error(`Mailpit answered ${response.status} to GET ${url.origin}${url.pathname}`);
+  if (response.status !== 200)
+    throw new Error(`Mailpit answered ${response.status} to GET ${url.origin}${url.pathname}`);
   return response;
 }
 

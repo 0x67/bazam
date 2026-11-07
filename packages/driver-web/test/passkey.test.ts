@@ -1,6 +1,12 @@
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { builtinKinds, resolveChallenge, type ChallengeKindSpec, type ChallengeRequest, type ResolverContext } from "@bazam/core/challenge";
+import {
+  builtinKinds,
+  resolveChallenge,
+  type ChallengeKindSpec,
+  type ChallengeRequest,
+  type ResolverContext,
+} from "@bazam/core/challenge";
 import { guardedHttp } from "@bazam/core/driver";
 import type { Environment } from "@bazam/core/env";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
@@ -8,7 +14,18 @@ import type { EvidenceStore } from "@bazam/core/result";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import { virtualPasskeyResolver } from "../src/passkey.ts";
-import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Site } from "./support/site.ts";
+import {
+  demoEnv,
+  ENGINES,
+  html,
+  launch,
+  newEvidence,
+  runSteps,
+  startSite,
+  stepContext,
+  tempDir,
+  type Site,
+} from "./support/site.ts";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
@@ -62,7 +79,8 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
   });
 
   afterEach(async () => {
-    for (const session of sessions.splice(0)) await session.close({ status: "pass", evidence: newEvidence(root, CASE_ID) });
+    for (const session of sessions.splice(0))
+      await session.close({ status: "pass", evidence: newEvidence(root, CASE_ID) });
     await rm(root, { recursive: true, force: true });
   });
 
@@ -91,11 +109,20 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
   }
 
   /** Arms the resolver, taps the button that starts the ceremony, and returns what the page then shows. */
-  async function challenge(session: WebSession, evidence: EvidenceStore, button: string, step: number): Promise<{ resolver: string; status: string }> {
+  async function challenge(
+    session: WebSession,
+    evidence: EvidenceStore,
+    button: string,
+    step: number,
+  ): Promise<{ resolver: string; status: string }> {
     const request: ChallengeRequest = { kind: "passkey", caseId: CASE_ID, identity: IDENTITY, step, params: {} };
     const ctx = stepContext(session, { env, evidence, root, identity: IDENTITY });
-    const resolved = await resolveChallenge(request, passkeyKind, [virtualPasskeyResolver], resolverContext(session), () =>
-      runSteps(ctx, [{ tap: { role: "button", name: button } }]),
+    const resolved = await resolveChallenge(
+      request,
+      passkeyKind,
+      [virtualPasskeyResolver],
+      resolverContext(session),
+      () => runSteps(ctx, [{ tap: { role: "button", name: button } }]),
     );
     const page = await (await session.contextFor(IDENTITY)).page();
     await page.getByTestId("status").filter({ hasText: /\S/ }).waitFor();

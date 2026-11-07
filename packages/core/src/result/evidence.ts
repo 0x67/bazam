@@ -73,7 +73,14 @@ export class EvidenceStore {
 
   /** Records an item a person still has to confirm, so a case that otherwise passes ends `followup`. */
   followup(item: string, hint: string): void {
-    this.#checks.push({ name: item, kind: "followup", expected: "checked by a person", observed: "not automated", ok: true, hint });
+    this.#checks.push({
+      name: item,
+      kind: "followup",
+      expected: "checked by a person",
+      observed: "not automated",
+      ok: true,
+      hint,
+    });
   }
 
   /** Writes `<NN>-<label>.<ext>` and returns that file name. A failed write uses up its number but stays out of the result. */
@@ -120,14 +127,23 @@ export class EvidenceStore {
       durationMs: now.getTime() - meta.startedAt.getTime(),
     };
     // the harness makes the seed, run values and duration, so none is a secret, but the digit-run pattern would mask long ones
-    const masked: CaseResult = { ...this.#redactor.value(result), seed: meta.seed, values: meta.values, durationMs: result.durationMs };
+    const masked: CaseResult = {
+      ...this.#redactor.value(result),
+      seed: meta.seed,
+      values: meta.values,
+      durationMs: result.durationMs,
+    };
     await mkdir(this.#dir, { recursive: true });
     await writeFile(join(this.#dir, "result.json"), `${JSON.stringify(masked, null, 2)}\n`);
     return masked;
   }
 }
 
-function maskedContent(redactor: Redactor, bytes: Uint8Array, ext: "png" | "zip" | "txt" | "json"): Uint8Array | string {
+function maskedContent(
+  redactor: Redactor,
+  bytes: Uint8Array,
+  ext: "png" | "zip" | "txt" | "json",
+): Uint8Array | string {
   // binary goes to disk unchanged: Redactor.value would decode it as UTF-8 and return text
   if (ext === "png" || ext === "zip") return bytes;
   const text = new TextDecoder().decode(bytes);

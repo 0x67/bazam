@@ -58,6 +58,7 @@ export async function loadSuites(root: string): Promise<Map<string, CaseFilter>>
   }
   // a file with only comments parses to null
   const parsed = SuitesFile.safeParse(parse(text) ?? {});
-  if (!parsed.success) throw new Error(`suites.yaml does not match the suite schema:\n${z.prettifyError(parsed.error)}`);
+  if (!parsed.success)
+    throw new Error(`suites.yaml does not match the suite schema:\n${z.prettifyError(parsed.error)}`);
   return new Map(Object.entries(parsed.data));
 }

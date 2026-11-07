@@ -11,7 +11,13 @@ import {
 } from "../challenge/index.ts";
 import type { Driver, DriverSession, StepContext } from "../driver/index.ts";
 import type { GuardedHttp } from "../driver/http.ts";
-import { escapePlaceholders, resolvePlaceholders, type CaseRunValues, type Environment, type PlaceholderSources } from "../env/index.ts";
+import {
+  escapePlaceholders,
+  resolvePlaceholders,
+  type CaseRunValues,
+  type Environment,
+  type PlaceholderSources,
+} from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
@@ -128,14 +134,24 @@ export class CaseRun {
       if (trigger !== undefined) await this.#step(trigger, number, trigger.as ?? identity);
     };
     const kind = registry.kind(challenge.kind);
-    const { answer, resolver } = await resolveChallenge(request, kind, registry.resolverChain(env, challenge.kind), this.#resolverContext(), runTrigger);
+    const { answer, resolver } = await resolveChallenge(
+      request,
+      kind,
+      registry.resolverChain(env, challenge.kind),
+      this.#resolverContext(),
+      runTrigger,
+    );
     this.#parts.evidence.challenge(number, challenge.kind, resolver);
     if (answer.kind !== "value") return;
     redactor.register(answer.value);
     // the plan blocks a value challenge without a fill field
     if (challenge.fill === undefined) throw new Error(`challenge step ${number} has no fill field`);
     // the fill handler resolves its payload, and an answer is text to type, never a placeholder
-    await this.#step({ [FILL_STEP]: { field: challenge.fill, value: escapePlaceholders(answer.value) } }, number, identity);
+    await this.#step(
+      { [FILL_STEP]: { field: challenge.fill, value: escapePlaceholders(answer.value) } },
+      number,
+      identity,
+    );
   }
 
   async #guided(guided: GuidedStep, number: number, identity: string | undefined): Promise<void> {
@@ -158,7 +174,9 @@ export class CaseRun {
     const observes = answer.kind === "verdict" && answer.verdict !== "blocked" && observe !== undefined;
     const observation = observes ? await this.#observe(observe, number, observe.as ?? identity) : undefined;
     // the name keeps the placeholders as written, so it never holds a resolved secret
-    this.#parts.evidence.record(checkGuidedOutcome(guided.title, text.expected ?? "the person confirms the steps", answer, observation));
+    this.#parts.evidence.record(
+      checkGuidedOutcome(guided.title, text.expected ?? "the person confirms the steps", answer, observation),
+    );
   }
 
   /** What the observe step found, taken from the checks it recorded; a product error is a failed observation. */
@@ -187,7 +205,16 @@ export class CaseRun {
   #context(identity: string | undefined): StepContext {
     const { session, evidence } = this.#parts;
     const { env, identities, http, signal } = this.#scope;
-    const ctx: StepContext = { session, env, evidence, identities, values: this.#values, http, resolve: (value) => this.#resolve(value), signal };
+    const ctx: StepContext = {
+      session,
+      env,
+      evidence,
+      identities,
+      values: this.#values,
+      http,
+      resolve: (value) => this.#resolve(value),
+      signal,
+    };
     if (identity !== undefined) ctx.identity = identity;
     return ctx;
   }

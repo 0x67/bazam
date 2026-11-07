@@ -36,10 +36,15 @@ export function requestDraft(check: RequestCheck): HttpRequestDraft {
 }
 
 export function passes(check: RequestCheck, response: HttpResponse): boolean {
-  return check.status === undefined ? response.status >= 200 && response.status < 300 : response.status === check.status;
+  return check.status === undefined
+    ? response.status >= 200 && response.status < 300
+    : response.status === check.status;
 }
 
-const PersonLogin = z.strictObject({ steps: z.array(z.string().min(1)).min(1), expected: z.string().min(1).optional() });
+const PersonLogin = z.strictObject({
+  steps: z.array(z.string().min(1)).min(1),
+  expected: z.string().min(1).optional(),
+});
 type PersonLogin = z.infer<typeof PersonLogin>;
 
 /** What the person sees during a browser login. A login belongs to no case, and the strategy does not know the run. */
@@ -108,11 +113,14 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
     return typeof login === "object" && login !== null && "person" in login;
   },
   acquire: async ({ login }, ctx) => {
-    if (ctx.browser === undefined) throw new Error(`the session-cookie login of ${ctx.identity} needs a driver that offers browser.login`);
-    const timeoutMs = login.timeoutMs ?? (login.person === undefined ? SCRIPTED_LOGIN_TIMEOUT_MS : PERSON_LOGIN_TIMEOUT_MS);
+    if (ctx.browser === undefined)
+      throw new Error(`the session-cookie login of ${ctx.identity} needs a driver that offers browser.login`);
+    const timeoutMs =
+      login.timeoutMs ?? (login.person === undefined ? SCRIPTED_LOGIN_TIMEOUT_MS : PERSON_LOGIN_TIMEOUT_MS);
     const request: BrowserLoginRequest = { url: new URL(login.url), until: login.until, timeoutMs };
     if (login.flow !== undefined) request.flow = [{ use: login.flow }];
-    if (login.person !== undefined) request.prompt = loginPrompt("session-cookie", ctx.identity, login.person, timeoutMs);
+    if (login.person !== undefined)
+      request.prompt = loginPrompt("session-cookie", ctx.identity, login.person, timeoutMs);
     return (await ctx.browser.login(request)).state;
   },
   apply: async (state, target) => {
@@ -127,11 +135,13 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
   },
   canRefresh: (_state, settings) => settings["refresh"] !== undefined,
   refresh: async (state, config, ctx) => {
-    if (config.refresh === undefined) throw new Error(`the session-cookie settings of ${ctx.identity} have no refresh request`);
+    if (config.refresh === undefined)
+      throw new Error(`the session-cookie settings of ${ctx.identity} have no refresh request`);
     const draft = requestDraft(config.refresh);
     setCookieHeader(draft, state);
     const response = await ctx.http.send(draft);
-    if (!passes(config.refresh, response)) throw new Error(`the session refresh of ${ctx.identity} answered ${response.status}`);
+    if (!passes(config.refresh, response))
+      throw new Error(`the session refresh of ${ctx.identity} answered ${response.status}`);
     return storeSetCookies(state, draft.url, response.headers.getSetCookie(), ctx.now());
   },
   // a value a script can read counts only when it looks like a token, so lang=en-GB stays readable in evidence
@@ -246,7 +256,8 @@ function parseSetCookie(line: string, url: URL, now: Date): BrowserCookie | unde
         cookie.httpOnly = true;
         break;
       case "samesite":
-        cookie.sameSite = SAME_SITE.find((sameSite) => sameSite.toLowerCase() === value.toLowerCase()) ?? cookie.sameSite;
+        cookie.sameSite =
+          SAME_SITE.find((sameSite) => sameSite.toLowerCase() === value.toLowerCase()) ?? cookie.sameSite;
         break;
     }
   }
@@ -267,7 +278,12 @@ function cookieDomain(attribute: string, host: string): string | undefined {
 
 function isSameCookie(entry: unknown, cookie: BrowserCookie): boolean {
   const stored = StoredCookie.safeParse(entry);
-  return stored.success && stored.data.name === cookie.name && stored.data.domain === cookie.domain && stored.data.path === cookie.path;
+  return (
+    stored.success &&
+    stored.data.name === cookie.name &&
+    stored.data.domain === cookie.domain &&
+    stored.data.path === cookie.path
+  );
 }
 
 function isExpired(expires: number, nowMs: number): boolean {

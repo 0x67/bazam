@@ -54,7 +54,8 @@ export class Visitor {
 export async function signInByEmail(visitor: Visitor, email: string): Promise<void> {
   await visitor.postForm("/login", { email })
   const response = await visitor.postForm("/login/verify", { email, code: await mailedCode(email) })
-  if (response.headers.get("location") !== "/dashboard") throw new Error(`sign-in for ${email} failed: ${response.status}`)
+  if (response.headers.get("location") !== "/dashboard")
+    throw new Error(`sign-in for ${email} failed: ${response.status}`)
 }
 
 // the newest sign-in code Mailpit received for the recipient
@@ -82,7 +83,12 @@ async function getJson<T>(url: string): Promise<T> {
 async function waitUntilUp(urls: string[]): Promise<void> {
   const deadline = Date.now() + 30_000
   for (const url of urls) {
-    while (!(await fetch(url).then((r) => r.ok, () => false))) {
+    while (
+      !(await fetch(url).then(
+        (r) => r.ok,
+        () => false,
+      ))
+    ) {
       if (Date.now() > deadline) throw new Error(`${url} is not up; start it with docker compose up -d`)
       await sleep(250)
     }

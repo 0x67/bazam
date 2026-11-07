@@ -11,7 +11,12 @@ function loaded(domain: string, fields: Partial<CaseSpec> & { id: string }): Loa
 
 const cases = [
   loaded("auth", { id: "AUTH-LOGIN-001", stage: "acceptance", links: ["jira:TD-246"], tags: ["smoke"] }),
-  loaded("auth", { id: "AUTH-LOGIN-002", stage: "regression", targets: ["web", "web-chrome"], tags: ["smoke", "slow"] }),
+  loaded("auth", {
+    id: "AUTH-LOGIN-002",
+    stage: "regression",
+    targets: ["web", "web-chrome"],
+    tags: ["smoke", "slow"],
+  }),
   loaded("auth", { id: "AUTH-RESET-001", stage: "draft", links: ["jira:TD-300"] }),
   loaded("billing", { id: "BILLING-REFUND-001", stage: "regression", targets: ["web-chrome"], tags: ["smoke"] }),
   loaded("billing", { id: "BILLING-REFUND-002", stage: "retired", tags: ["smoke"] }),
@@ -26,8 +31,14 @@ async function projectWithSuites(text: string): Promise<string> {
 
 describe("selectCases", () => {
   it("filters AND across fields and OR within one", () => {
-    expect(ids(selectCases(cases, { domains: ["auth"], tags: ["smoke"] }))).toEqual(["AUTH-LOGIN-001", "AUTH-LOGIN-002"]);
-    expect(ids(selectCases(cases, { links: ["jira:TD-246", "jira:TD-300"] }))).toEqual(["AUTH-LOGIN-001", "AUTH-RESET-001"]);
+    expect(ids(selectCases(cases, { domains: ["auth"], tags: ["smoke"] }))).toEqual([
+      "AUTH-LOGIN-001",
+      "AUTH-LOGIN-002",
+    ]);
+    expect(ids(selectCases(cases, { links: ["jira:TD-246", "jira:TD-300"] }))).toEqual([
+      "AUTH-LOGIN-001",
+      "AUTH-RESET-001",
+    ]);
     expect(ids(selectCases(cases, { targets: ["web-chrome"], stages: ["regression"] }))).toEqual([
       "AUTH-LOGIN-002",
       "BILLING-REFUND-001",
@@ -38,7 +49,12 @@ describe("selectCases", () => {
   });
 
   it("default keeps draft, acceptance, regression", () => {
-    expect(ids(selectCases(cases, {}))).toEqual(["AUTH-LOGIN-001", "AUTH-LOGIN-002", "AUTH-RESET-001", "BILLING-REFUND-001"]);
+    expect(ids(selectCases(cases, {}))).toEqual([
+      "AUTH-LOGIN-001",
+      "AUTH-LOGIN-002",
+      "AUTH-RESET-001",
+      "BILLING-REFUND-001",
+    ]);
     expect(ids(selectCases(cases, { stages: ["retired"] }))).toEqual(["BILLING-REFUND-002"]);
   });
 });
@@ -57,7 +73,11 @@ chrome-billing:
     const suites = await loadSuites(root);
 
     expect([...suites.keys()]).toEqual(["smoke", "chrome-billing"]);
-    expect(ids(selectCases(cases, suites.get("smoke")!))).toEqual(["AUTH-LOGIN-001", "AUTH-LOGIN-002", "BILLING-REFUND-001"]);
+    expect(ids(selectCases(cases, suites.get("smoke")!))).toEqual([
+      "AUTH-LOGIN-001",
+      "AUTH-LOGIN-002",
+      "BILLING-REFUND-001",
+    ]);
     expect(ids(selectCases(cases, suites.get("chrome-billing")!))).toEqual(["BILLING-REFUND-001"]);
   });
 

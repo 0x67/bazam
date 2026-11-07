@@ -10,7 +10,5 @@
   // "files": [] keeps an empty src/ from failing with TS18003 (no inputs).
   "files": [],
   "include": ["src"],
-  "references": [
-    { "path": "../core" }
-  ]
+  "references": [{ "path": "../core" }]
 }

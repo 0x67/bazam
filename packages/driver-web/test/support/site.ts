@@ -71,7 +71,10 @@ export async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "driver-web-test-"));
 }
 
-export async function launch(engine: Engine, options: { env: Environment; runDir: string; redactor?: Redactor; settings?: Record<string, string> }): Promise<WebSession> {
+export async function launch(
+  engine: Engine,
+  options: { env: Environment; runDir: string; redactor?: Redactor; settings?: Record<string, string> },
+): Promise<WebSession> {
   const session = await playwrightDriver.launch({
     env: options.env,
     target: "web",
@@ -79,14 +82,21 @@ export async function launch(engine: Engine, options: { env: Environment; runDir
     runDir: options.runDir,
     redactor: options.redactor ?? new Redactor(defaultRedactionRules()),
   });
-  if (!(session instanceof WebSession)) throw new Error("the playwright driver launched something other than a WebSession");
+  if (!(session instanceof WebSession))
+    throw new Error("the playwright driver launched something other than a WebSession");
   return session;
 }
 
 /** A step context like the runner's, with `${case.<name>}` read from `values`. */
 export function stepContext(
   session: DriverSession,
-  options: { env: Environment; evidence: EvidenceStore; root: string; identity?: string; values?: Record<string, string> },
+  options: {
+    env: Environment;
+    evidence: EvidenceStore;
+    root: string;
+    identity?: string;
+    values?: Record<string, string>;
+  },
 ): StepContext {
   const { env, evidence, root } = options;
   const redactor = new Redactor(defaultRedactionRules());

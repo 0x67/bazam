@@ -12,7 +12,19 @@ import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
 import { unzipSync } from "fflate";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { playwrightDriver, type WebSession } from "../src/driver.ts";
-import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Handler, type Site } from "./support/site.ts";
+import {
+  demoEnv,
+  ENGINES,
+  html,
+  launch,
+  newEvidence,
+  runSteps,
+  startSite,
+  stepContext,
+  tempDir,
+  type Handler,
+  type Site,
+} from "./support/site.ts";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
@@ -103,7 +115,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         response.end();
       },
       "/card": html('<p data-testid="card" style="font-size: 32px">4242 4242 4242 4242</p><p>Total 12.00</p>'),
-      "/order-form": html('<form method="post" action="/orders"><input name="sku" value="A-100"><button>Place order</button></form>'),
+      "/order-form": html(
+        '<form method="post" action="/orders"><input name="sku" value="A-100"><button>Place order</button></form>',
+      ),
       "/orders": (_request, response) => {
         response.writeHead(303, { location: "/receipt" });
         response.end();
@@ -118,7 +132,11 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
       }),
       "/gated/landing": gated(html("<h1>Landing</h1>")),
       // browsers refuse a cross-origin image's challenge on their own, while a frame's they would answer
-      "/gated/gallery": gated(html('<h1>Gallery</h1><img src="{elsewhere}/gated/pixel.png" alt=""><iframe src="{elsewhere}/gated/landing"></iframe>')),
+      "/gated/gallery": gated(
+        html(
+          '<h1>Gallery</h1><img src="{elsewhere}/gated/pixel.png" alt=""><iframe src="{elsewhere}/gated/landing"></iframe>',
+        ),
+      ),
       "/gated/pixel.png": gated((_request, response) => response.end()),
       "/client": html(CLIENT),
       "/api/orders": (request, response) => {
@@ -146,7 +164,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     await rm(root, { recursive: true, force: true });
   });
 
-  async function open(options: { settings?: Record<string, string>; redactor?: Redactor } = {}): Promise<{ session: WebSession; evidence: EvidenceStore }> {
+  async function open(
+    options: { settings?: Record<string, string>; redactor?: Redactor } = {},
+  ): Promise<{ session: WebSession; evidence: EvidenceStore }> {
     session = await launch(engine, { env, runDir: join(root, "runs"), ...options });
     return { session, evidence: newEvidence(join(root, "runs"), CASE_ID) };
   }
@@ -184,7 +204,13 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         ok: true,
       },
       { name: "css=#out is visible", kind: "ui", expected: "visible", observed: "visible", ok: true },
-      { name: `URL matches ${site.origin}/*`, kind: "ui", expected: `${site.origin}/*`, observed: `${site.origin}/next`, ok: true },
+      {
+        name: `URL matches ${site.origin}/*`,
+        kind: "ui",
+        expected: `${site.origin}/*`,
+        observed: `${site.origin}/next`,
+        ok: true,
+      },
     ]);
   });
 
@@ -210,9 +236,14 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("masks the elements the redactor's screenshot selectors match", async () => {
     const card = "[data-testid=card]";
-    const { session, evidence } = await open({ redactor: new Redactor({ ...defaultRedactionRules(), screenshotSelectors: [card] }) });
+    const { session, evidence } = await open({
+      redactor: new Redactor({ ...defaultRedactionRules(), screenshotSelectors: [card] }),
+    });
 
-    await runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.origin}/card` }, { screenshot: { name: "card" } }]);
+    await runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `${site.origin}/card` },
+      { screenshot: { name: "card" } },
+    ]);
 
     const png = await readFile(join(root, "runs", CASE_ID, "01-card.png"));
     const page = await (await session.contextFor(undefined)).page();
@@ -224,16 +255,37 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const { session, evidence } = await open();
     const customer = await session.browserFor("customer");
     await customer.loadStorageState({
-      cookies: [{ name: "sid", value: "fake-customer-session", domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax" }],
+      cookies: [
+        {
+          name: "sid",
+          value: "fake-customer-session",
+          domain: "127.0.0.1",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        },
+      ],
       origins: [],
     });
 
-    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [{ open: `${site.origin}/whoami?as=customer` }]);
-    await runSteps(stepContext(session, { env, evidence, root, identity: "agent" }), [{ open: `${site.origin}/whoami?as=agent` }]);
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/whoami?as=customer` },
+    ]);
+    await runSteps(stepContext(session, { env, evidence, root, identity: "agent" }), [
+      { open: `${site.origin}/whoami?as=agent` },
+    ]);
     await runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.origin}/whoami?as=nobody` }]);
 
-    const cookies = Object.fromEntries(site.requests.map((request) => [request.path, request.headers.cookie ?? "none"]));
-    expect(cookies).toEqual({ "/whoami?as=customer": "sid=fake-customer-session", "/whoami?as=agent": "none", "/whoami?as=nobody": "none" });
+    const cookies = Object.fromEntries(
+      site.requests.map((request) => [request.path, request.headers.cookie ?? "none"]),
+    );
+    expect(cookies).toEqual({
+      "/whoami?as=customer": "sid=fake-customer-session",
+      "/whoami?as=agent": "none",
+      "/whoami?as=nobody": "none",
+    });
   });
 
   it("sends extra headers to allowlisted hosts and not to subresources elsewhere", async () => {
@@ -245,7 +297,11 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
       { wait: { ms: 300 } },
     ]);
 
-    const sent = site.requests.map((request) => [request.host.split(":")[0], request.path, request.headers.authorization ?? "none"]);
+    const sent = site.requests.map((request) => [
+      request.host.split(":")[0],
+      request.path,
+      request.headers.authorization ?? "none",
+    ]);
     expect(sent).toContainEqual(["127.0.0.1", "/", BEARER]);
     expect(sent).toContainEqual(["localhost", "/pixel.png", "none"]);
   });
@@ -262,9 +318,13 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const { session, evidence } = await open();
     const port = await closedPort();
 
-    const refused = runSteps(stepContext(session, { env, evidence, root }), [{ open: `http://127.0.0.1:${port}/home?code=fake-code` }]);
+    const refused = runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `http://127.0.0.1:${port}/home?code=fake-code` },
+    ]);
 
-    await expect(refused).rejects.toThrow(new ConnectionFailed(`GET http://127.0.0.1:${port}/home`, `connect ECONNREFUSED 127.0.0.1:${port}`));
+    await expect(refused).rejects.toThrow(
+      new ConnectionFailed(`GET http://127.0.0.1:${port}/home`, `connect ECONNREFUSED 127.0.0.1:${port}`),
+    );
   });
 
   it("throws the browser's own error when the server drops a connection it accepted", async () => {
@@ -329,7 +389,11 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
     const elsewhere = site.requests.filter((request) => request.host.startsWith("localhost:"));
     expect(elsewhere.map((request) => request.path)).toEqual(expect.arrayContaining(["/third", "/landing"]));
-    expect(elsewhere.filter((request) => request.headers.authorization !== undefined || request.headers["x-api-key"] !== undefined)).toEqual([]);
+    expect(
+      elsewhere.filter(
+        (request) => request.headers.authorization !== undefined || request.headers["x-api-key"] !== undefined,
+      ),
+    ).toEqual([]);
   });
 
   it("follows the redirect after a form post as a GET when the request carries extra headers", async () => {
@@ -363,45 +427,51 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   });
 
   // Chromium and Firefox answer the 401 challenge on any port, so they keep sending the first request without credentials
-  it.skipIf(engine !== "webkit")("sends basic credentials with the first request on WebKit, before any 401 challenge", async () => {
-    const { session, evidence } = await open();
-    await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+  it.skipIf(engine !== "webkit")(
+    "sends basic credentials with the first request on WebKit, before any 401 challenge",
+    async () => {
+      const { session, evidence } = await open();
+      await (await session.browserFor("customer")).setHttpCredentials(BASIC);
 
-    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
-      { open: `${site.origin}/gated/start` },
-      { expect: { text: { field: { css: "h1" }, equals: "Landing" } } },
-    ]);
+      await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+        { open: `${site.origin}/gated/start` },
+        { expect: { text: { field: { css: "h1" }, equals: "Landing" } } },
+      ]);
 
-    const gated = site.requests.filter((request) => request.path.startsWith("/gated/"));
-    expect(gated.map((request) => [request.path, request.headers.authorization])).toEqual([
-      ["/gated/start", BASIC_AUTHORIZATION],
-      ["/gated/landing", BASIC_AUTHORIZATION],
-    ]);
-  });
+      const gated = site.requests.filter((request) => request.path.startsWith("/gated/"));
+      expect(gated.map((request) => [request.path, request.headers.authorization])).toEqual([
+        ["/gated/start", BASIC_AUTHORIZATION],
+        ["/gated/landing", BASIC_AUTHORIZATION],
+      ]);
+    },
+  );
 
   it.each([
     ["basic credentials", {}],
     ["basic credentials and extra headers", { "X-Api-Key": API_KEY }],
-  ])("keeps the Authorization header a page sets itself on requests to an allowlisted host, with %s", async (_mode, headers) => {
-    const { session, evidence } = await open();
-    const checks = recorded(evidence);
-    const browser = await session.browserFor("customer");
-    if (Object.keys(headers).length > 0) await browser.setExtraHeaders(headers);
-    await browser.setHttpCredentials(BASIC);
+  ])(
+    "keeps the Authorization header a page sets itself on requests to an allowlisted host, with %s",
+    async (_mode, headers) => {
+      const { session, evidence } = await open();
+      const checks = recorded(evidence);
+      const browser = await session.browserFor("customer");
+      if (Object.keys(headers).length > 0) await browser.setExtraHeaders(headers);
+      await browser.setHttpCredentials(BASIC);
 
-    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
-      { open: `${site.origin}/client` },
-      { expect: { text: { field: { id: "calls" }, equals: "orders 200 200" } } },
-    ]);
+      await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+        { open: `${site.origin}/client` },
+        { expect: { text: { field: { id: "calls" }, equals: "orders 200 200" } } },
+      ]);
 
-    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["orders 200 200", true]]);
-    const api = site.requests.filter((request) => request.path.startsWith("/api/"));
-    expect(api.map((request) => [request.path, request.headers.authorization])).toEqual([
-      ["/api/orders?direct", PAGE_BEARER],
-      ["/api/moved", PAGE_BEARER],
-      ["/api/orders?moved", PAGE_BEARER],
-    ]);
-  });
+      expect(checks().map((check) => [check.observed, check.ok])).toEqual([["orders 200 200", true]]);
+      const api = site.requests.filter((request) => request.path.startsWith("/api/"));
+      expect(api.map((request) => [request.path, request.headers.authorization])).toEqual([
+        ["/api/orders?direct", PAGE_BEARER],
+        ["/api/moved", PAGE_BEARER],
+        ["/api/orders?moved", PAGE_BEARER],
+      ]);
+    },
+  );
 
   it("answers a basic auth challenge on a WebSocket handshake to an allowlisted host", async () => {
     const sockets = new Set<Duplex>();
@@ -414,8 +484,12 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         socket.end('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="staging"\r\nContent-Length: 0\r\n\r\n');
         return;
       }
-      const accept = createHash("sha1").update(`${request.headers["sec-websocket-key"]}${WEBSOCKET_GUID}`).digest("base64");
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+      const accept = createHash("sha1")
+        .update(`${request.headers["sec-websocket-key"]}${WEBSOCKET_GUID}`)
+        .digest("base64");
+      socket.write(
+        `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+      );
     });
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const { port } = server.address() as AddressInfo;
@@ -449,7 +523,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const gallery = site.requests.filter((request) => request.path === "/gated/gallery");
     expect(gallery.map((request) => request.headers.authorization)).toContain(BASIC_AUTHORIZATION);
     const elsewhere = site.requests.filter((request) => request.host.startsWith("localhost:"));
-    expect(elsewhere.map((request) => request.path)).toEqual(expect.arrayContaining(["/gated/pixel.png", "/gated/landing"]));
+    expect(elsewhere.map((request) => request.path)).toEqual(
+      expect.arrayContaining(["/gated/pixel.png", "/gated/landing"]),
+    );
     expect(elsewhere.filter((request) => request.headers.authorization !== undefined)).toEqual([]);
   });
 
@@ -481,7 +557,10 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("throws from close a navigation refused after the last step, and keeps the trace of a passing case", async () => {
     const { session: opened, evidence } = await open();
-    await runSteps(stepContext(opened, { env, evidence, root }), [{ open: `${site.origin}/` }, { tap: { role: "button", name: "Pay" } }]);
+    await runSteps(stepContext(opened, { env, evidence, root }), [
+      { open: `${site.origin}/` },
+      { tap: { role: "button", name: "Pay" } },
+    ]);
     await sleep(500);
     session = undefined;
 
@@ -503,7 +582,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     expect(await readdir(caseDir)).toEqual(["01-trace-customer.zip", "02-trace-anonymous.zip"]);
     const entries = unzipSync(await readFile(join(caseDir, "01-trace-customer.zip")));
     expect(Object.keys(entries)).toContain("trace.network");
-    const text = Object.values(entries).map((bytes) => new TextDecoder().decode(bytes)).join("\n");
+    const text = Object.values(entries)
+      .map((bytes) => new TextDecoder().decode(bytes))
+      .join("\n");
     expect(text).toContain("/pixel.png");
     expect(text).not.toContain("fake-bearer-7f3a9c");
   });
@@ -520,7 +601,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     await opened.close({ status: "fail", evidence });
 
     const entries = unzipSync(await readFile(join(root, "runs", CASE_ID, "01-trace.zip")));
-    const text = Object.values(entries).map((bytes) => new TextDecoder().decode(bytes)).join("\n");
+    const text = Object.values(entries)
+      .map((bytes) => new TextDecoder().decode(bytes))
+      .join("\n");
     expect(text).toContain("/gated/landing");
     expect(text).not.toContain(BASIC.password);
     expect(text).not.toContain(BASIC_AUTHORIZATION.slice("Basic ".length));
@@ -529,7 +612,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("names the trace trace.zip when the case used one context, and keeps none when it passes", async () => {
     const failed = await open();
-    await runSteps(stepContext(failed.session, { env, evidence: failed.evidence, root }), [{ open: `${site.origin}/` }]);
+    await runSteps(stepContext(failed.session, { env, evidence: failed.evidence, root }), [
+      { open: `${site.origin}/` },
+    ]);
     session = undefined;
     await failed.session.close({ status: "blocked", evidence: failed.evidence });
     expect(await readdir(join(root, "runs", CASE_ID))).toEqual(["01-trace.zip"]);
@@ -545,7 +630,7 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
 describe("playwrightDriver", () => {
   it("records a failed ui check when the page never meets the expectation", async () => {
-    const site = await startSite({ "/": html("<p data-testid=\"out\">Draft</p>") });
+    const site = await startSite({ "/": html('<p data-testid="out">Draft</p>') });
     const root = await tempDir();
     const env = demoEnv();
     const session = await launch("chromium", { env, runDir: root });
@@ -563,16 +648,24 @@ describe("playwrightDriver", () => {
     }
 
     expect(record.mock.calls.map(([check]) => check)).toEqual([
-      { name: 'text of id=out contains "Paid"', kind: "ui", expected: { contains: "Paid" }, observed: "Draft", ok: false },
+      {
+        name: 'text of id=out contains "Paid"',
+        kind: "ui",
+        expected: { contains: "Paid" },
+        observed: "Draft",
+        ok: false,
+      },
     ]);
   });
 
   it("probe reports browser.login and webauthn.virtual and refuses a channel on another engine", async () => {
     const options = { env: demoEnv(), target: "web", runDir: "runs", redactor: new Redactor(defaultRedactionRules()) };
 
-    await expect(playwrightDriver.probe({ ...options, settings: {} })).resolves.toEqual(new Set(["browser.login", "webauthn.virtual"]));
-    await expect(playwrightDriver.probe({ ...options, settings: { browser: "firefox", channel: "chrome" } })).rejects.toThrow(
-      /target web: .*a channel needs browser: chromium/s,
+    await expect(playwrightDriver.probe({ ...options, settings: {} })).resolves.toEqual(
+      new Set(["browser.login", "webauthn.virtual"]),
     );
+    await expect(
+      playwrightDriver.probe({ ...options, settings: { browser: "firefox", channel: "chrome" } }),
+    ).rejects.toThrow(/target web: .*a channel needs browser: chromium/s);
   });
 });

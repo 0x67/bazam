@@ -65,7 +65,14 @@ function rule(id: string, severity: CheckIssue["severity"], find: (project: Proj
   return {
     id,
     check: (project) =>
-      find(project).map(({ at, message, fix }) => ({ ruleId: id, severity, file: at.file, line: at.line, message, fix })),
+      find(project).map(({ at, message, fix }) => ({
+        ruleId: id,
+        severity,
+        file: at.file,
+        line: at.line,
+        message,
+        fix,
+      })),
   };
 }
 
@@ -101,7 +108,9 @@ function flowUsesThatFail(project: Project): Finding[] {
       loaded.spec[list].flatMap((step, index) => {
         const problem = expansionProblem(step, project);
         if (problem === undefined) return [];
-        return [{ at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), list, index]), ...problem }];
+        return [
+          { at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), list, index]), ...problem },
+        ];
       }),
     ),
   );
@@ -116,10 +125,16 @@ function expansionProblem(step: Step, project: Project): Omit<Finding, "at"> | u
       return { message: error.message, fix: "Remove the use step that leads back to a flow already on this path." };
     }
     if (error instanceof NestedFlowNotOneStep) {
-      return { message: error.message, fix: "Point the trigger or observe at a flow with exactly one step, or write that step in place." };
+      return {
+        message: error.message,
+        fix: "Point the trigger or observe at a flow with exactly one step, or write that step in place.",
+      };
     }
     if (error instanceof InvalidFlowUse) {
-      return { message: error.message, fix: "Use a flow defined under flows/, and pass in with: exactly the params it declares." };
+      return {
+        message: error.message,
+        fix: "Use a flow defined under flows/, and pass in with: exactly the params it declares.",
+      };
     }
     throw error;
   }
@@ -143,7 +158,10 @@ function unresolvedPlaceholders(project: Project): Finding[] {
 
 /** Case and flow files, and the auth settings under `identities` in the config. */
 function placeholderScopes(project: Project): { file: ProjectFile; node: Document | Node }[] {
-  const scopes: { file: ProjectFile; node: Document | Node }[] = stepFiles(project).map((file) => ({ file, node: file.doc }));
+  const scopes: { file: ProjectFile; node: Document | Node }[] = stepFiles(project).map((file) => ({
+    file,
+    node: file.doc,
+  }));
   const config = project.files.get(BRAND.configFile);
   const identities = config?.doc.get("identities", true);
   if (config !== undefined && isNode(identities)) scopes.push({ file: config, node: identities });
@@ -186,7 +204,8 @@ function identityProblem(project: Project, placeholder: string, path: string): O
   const dot = field.lastIndexOf(".");
   const phoneField = field.slice(0, dot);
   const form = field.slice(dot + 1);
-  const phone = dot !== -1 && fields !== undefined && Object.hasOwn(fields, phoneField) ? fields[phoneField] : undefined;
+  const phone =
+    dot !== -1 && fields !== undefined && Object.hasOwn(fields, phoneField) ? fields[phoneField] : undefined;
   if (phone !== undefined && isPhoneForm(form)) {
     // the locale sets only the language of a country name, never whether a form resolves
     if (phoneForm(phone, form, "en") !== undefined) return undefined;
@@ -314,7 +333,8 @@ function selectorsWithoutTestId(project: Project): Finding[] {
   for (const file of stepFiles(project)) {
     visit(file.doc, {
       // HTTP steps and checks hold bodies, not selectors
-      Pair: (_, pair) => (isScalar(pair.key) && (pair.key.value === "request" || pair.key.value === "api") ? visit.SKIP : undefined),
+      Pair: (_, pair) =>
+        isScalar(pair.key) && (pair.key.value === "request" || pair.key.value === "api") ? visit.SKIP : undefined,
       Map(_, map) {
         const selector = textOrCssSelector(map);
         if (selector === undefined) return;
@@ -335,7 +355,9 @@ function textOrCssSelector(map: YAMLMap): string | undefined {
   if (map.items.length !== 1 || pair === undefined || !isScalar(pair.key) || !isScalar(pair.value)) return undefined;
   const { value: key } = pair.key;
   const { value } = pair.value;
-  return (key === "css" || key === "text") && typeof value === "string" ? `${key}: ${JSON.stringify(value)}` : undefined;
+  return (key === "css" || key === "text") && typeof value === "string"
+    ? `${key}: ${JSON.stringify(value)}`
+    : undefined;
 }
 
 /** Case and flow files, where steps are written. */

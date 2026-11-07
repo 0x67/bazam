@@ -11,7 +11,11 @@ describe("resolvers plugin", () => {
         demo: {
           production: false,
           hosts: ["localhost"],
-          challenges: { "otp-email": ["otp-mailpit", "otp-http-hook", "human"], "otp-sms": ["otp-http-hook"], totp: ["totp"] },
+          challenges: {
+            "otp-email": ["otp-mailpit", "otp-http-hook", "human"],
+            "otp-sms": ["otp-http-hook"],
+            totp: ["totp"],
+          },
         },
       },
     });

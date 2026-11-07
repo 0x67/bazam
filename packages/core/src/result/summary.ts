@@ -33,7 +33,13 @@ export async function writeRunStatus(runDir: string, progress: RunProgress): Pro
 export async function writeRunSummary(runDir: string, results: readonly CaseResult[]): Promise<void> {
   const runId = basename(runDir);
   const count = (status: Status) => results.filter((result) => result.status === status).length;
-  const counts = { pass: count("pass"), fail: count("fail"), blocked: count("blocked"), followup: count("followup"), total: results.length };
+  const counts = {
+    pass: count("pass"),
+    fail: count("fail"),
+    blocked: count("blocked"),
+    followup: count("followup"),
+    total: results.length,
+  };
   const cases = results.map(({ caseId, title, target, status, reason }) => ({
     caseId,
     title,
@@ -46,7 +52,11 @@ export async function writeRunSummary(runDir: string, results: readonly CaseResu
   await writeFile(join(runDir, "summary.md"), summaryMarkdown(runId, results, counts));
 }
 
-function summaryMarkdown(runId: string, results: readonly CaseResult[], counts: Record<Status | "total", number>): string {
+function summaryMarkdown(
+  runId: string,
+  results: readonly CaseResult[],
+  counts: Record<Status | "total", number>,
+): string {
   const followups = results.flatMap((result) => result.followups.map((f) => row([result.caseId, f.item, f.hint])));
   return [
     `# Run ${runId}`,

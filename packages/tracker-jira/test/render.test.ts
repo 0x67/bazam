@@ -39,7 +39,13 @@ const RESULTS: Record<Status, CaseResult> = {
     status: "fail",
     checks: [
       { name: "code entry accepts the code", kind: "ui", expected: "accepted", observed: "accepted", ok: true },
-      { name: "session endpoint returns the customer", kind: "api", expected: { status: 200 }, observed: { status: 401 }, ok: false },
+      {
+        name: "session endpoint returns the customer",
+        kind: "api",
+        expected: { status: 200 },
+        observed: { status: 401 },
+        ok: false,
+      },
     ],
     notes: ["The code arrived 40 seconds after the request."],
     attachments: ["01-code-entry.png", "02-trace.zip", "03-session.json"],
@@ -122,7 +128,9 @@ describe("renderJiraComment", () => {
     );
 
     expect(html.match(/<figure /g)).toHaveLength(1);
-    expect(html).toContain('data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"');
+    expect(html).toContain(
+      'data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"',
+    );
     expect(html).toContain("<figcaption>dashboard</figcaption>");
     expect(html).toContain("<p>Attached files: 02-trace.zip, 03-statement.png</p>");
   });
@@ -167,7 +175,9 @@ describe("renderJiraComment", () => {
             name: "message",
             kind: "api",
             expected: "*welcome*",
-            observed: { "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)" },
+            observed: {
+              "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
+            },
             ok: false,
           },
         ],
@@ -201,7 +211,15 @@ describe("renderJiraComment", () => {
     );
 
     expect(markdown).toContain(
-      ["- \\# heading", "- \\- nested", "- \\+ nested", "- \\> quote", "- 1\\. step", "- 2\\) step", "- 3.5 seconds"].join("\n"),
+      [
+        "- \\# heading",
+        "- \\- nested",
+        "- \\+ nested",
+        "- \\> quote",
+        "- 1\\. step",
+        "- 2\\) step",
+        "- 3.5 seconds",
+      ].join("\n"),
     );
   });
 });

@@ -42,13 +42,21 @@ describe("totpCode", () => {
 
 describe("totpResolver", () => {
   it("returns the current code from the secret params.seed names when three seconds remain", async () => {
-    const answer = await totpResolver.resolve(challenge("totp", { seed: "DEMO_TOTP_SEED" }), resolverContext(57_000), TOTP);
+    const answer = await totpResolver.resolve(
+      challenge("totp", { seed: "DEMO_TOTP_SEED" }),
+      resolverContext(57_000),
+      TOTP,
+    );
     expect(answer).toEqual({ kind: "value", value: "287082" });
   });
 
   it("waits for the next step when fewer than three seconds remain", async () => {
     const started = performance.now();
-    const answer = await totpResolver.resolve(challenge("totp", { seed: "DEMO_TOTP_SEED" }), resolverContext(59_750), TOTP);
+    const answer = await totpResolver.resolve(
+      challenge("totp", { seed: "DEMO_TOTP_SEED" }),
+      resolverContext(59_750),
+      TOTP,
+    );
     expect(performance.now() - started).toBeGreaterThanOrEqual(200);
     expect(answer).toEqual({ kind: "value", value: totpCode(SEED, new Date(60_000)) });
     expect(answer).not.toEqual({ kind: "value", value: "287082" });
@@ -56,7 +64,11 @@ describe("totpResolver", () => {
 
   it("stops waiting when the run aborts", async () => {
     const run = new AbortController();
-    const answer = totpResolver.resolve(challenge("totp", { seed: "DEMO_TOTP_SEED" }), resolverContext(58_000, run.signal), TOTP);
+    const answer = totpResolver.resolve(
+      challenge("totp", { seed: "DEMO_TOTP_SEED" }),
+      resolverContext(58_000, run.signal),
+      TOTP,
+    );
     run.abort();
     await expect(answer).rejects.toMatchObject({ name: "AbortError" });
   });

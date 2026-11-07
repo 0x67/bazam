@@ -22,13 +22,15 @@ export class SoftwareAuthenticator {
   register(options: { challenge: string; rp: { id: string } }) {
     const clientDataJSON = this.clientData("webauthn.create", options.challenge)
     const jwk = this.keys.publicKey.export({ format: "jwk" })
-    const coseKey = cbor(new Map<Cbor, Cbor>([
-      [1, 2], // kty: EC2
-      [3, -7], // alg: ES256
-      [-1, 1], // crv: P-256
-      [-2, Buffer.from(jwk.x ?? "", "base64url")],
-      [-3, Buffer.from(jwk.y ?? "", "base64url")],
-    ]))
+    const coseKey = cbor(
+      new Map<Cbor, Cbor>([
+        [1, 2], // kty: EC2
+        [3, -7], // alg: ES256
+        [-1, 1], // crv: P-256
+        [-2, Buffer.from(jwk.x ?? "", "base64url")],
+        [-3, Buffer.from(jwk.y ?? "", "base64url")],
+      ]),
+    )
     const length = Buffer.alloc(2)
     length.writeUInt16BE(this.credentialId.length)
     const authData = Buffer.concat([
@@ -38,7 +40,13 @@ export class SoftwareAuthenticator {
       this.credentialId,
       coseKey,
     ])
-    const attestationObject = cbor(new Map<Cbor, Cbor>([["fmt", "none"], ["attStmt", new Map()], ["authData", authData]]))
+    const attestationObject = cbor(
+      new Map<Cbor, Cbor>([
+        ["fmt", "none"],
+        ["attStmt", new Map()],
+        ["authData", authData],
+      ]),
+    )
     return {
       id: this.credentialId.toString("base64url"),
       rawId: this.credentialId.toString("base64url"),

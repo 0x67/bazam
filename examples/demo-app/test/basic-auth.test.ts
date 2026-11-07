@@ -17,7 +17,9 @@ describe("/api/basic/whoami", () => {
   })
 
   it("answers 401 with a Basic challenge to a wrong password", async () => {
-    const response = await new Visitor().request("/api/basic/whoami", { headers: basic(DEMO_BASIC_USER.username, "wrong") })
+    const response = await new Visitor().request("/api/basic/whoami", {
+      headers: basic(DEMO_BASIC_USER.username, "wrong"),
+    })
 
     expect(response.status).toBe(401)
     expect(response.headers.get("www-authenticate")).toMatch(/^Basic/)

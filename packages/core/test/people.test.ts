@@ -94,7 +94,12 @@ describe("PeopleRegistry", () => {
   it("lists assignee, reporter and unmapped roles as unresolved", async () => {
     await writeFile(join(root, "people.yaml"), PEOPLE);
 
-    const item = failedItem(await PeopleRegistry.load(root), ["role:assignee", "role:qa-lead", "role:reporter", "role:release-manager"]);
+    const item = failedItem(await PeopleRegistry.load(root), [
+      "role:assignee",
+      "role:qa-lead",
+      "role:reporter",
+      "role:release-manager",
+    ]);
 
     expect(item?.mentions).toEqual([
       { role: "assignee" },
@@ -106,7 +111,10 @@ describe("PeopleRegistry", () => {
   });
 
   it("lists assignee and reporter as unresolved even when the registry was built with account ids for them", () => {
-    const people = new PeopleRegistry({ assignee: { jira: "jira-account-assignee" }, reporter: { jira: "jira-account-reporter" } });
+    const people = new PeopleRegistry({
+      assignee: { jira: "jira-account-assignee" },
+      reporter: { jira: "jira-account-reporter" },
+    });
 
     const item = failedItem(people, ["role:assignee", "role:reporter"]);
 

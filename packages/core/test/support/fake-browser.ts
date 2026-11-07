@@ -45,7 +45,8 @@ export class FakeBrowserLogin implements BrowserLogin {
 
   async login(request: BrowserLoginRequest): Promise<{ state: StorageState; finalUrl: URL }> {
     this.requests.push(request);
-    if (this.#delayMs !== undefined) await sleep(this.#delayMs, undefined, request.signal === undefined ? {} : { signal: request.signal });
+    if (this.#delayMs !== undefined)
+      await sleep(this.#delayMs, undefined, request.signal === undefined ? {} : { signal: request.signal });
     return { state: { cookies: structuredClone(this.#cookies), origins: [] }, finalUrl: request.url };
   }
 }

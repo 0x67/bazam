@@ -27,7 +27,12 @@ export async function serve(route: (request: ReceivedRequest, response: ServerRe
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
-      const request = { method: req.method ?? "", url, headers: req.headers, body: Buffer.concat(chunks).toString("utf8") };
+      const request = {
+        method: req.method ?? "",
+        url,
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString("utf8"),
+      };
       received.push(request);
       route(request, res);
     });
@@ -40,7 +45,14 @@ export async function serve(route: (request: ReceivedRequest, response: ServerRe
   };
 }
 
-const env: Environment = { name: "local", production: false, vars: {}, hosts: new Set(["127.0.0.1"]), challenges: {}, locale: "en" };
+const env: Environment = {
+  name: "local",
+  production: false,
+  vars: {},
+  hosts: new Set(["127.0.0.1"]),
+  challenges: {},
+  locale: "en",
+};
 
 /** A context for the identity customer whose HTTP client reaches 127.0.0.1 only. */
 export function authContext(overrides: Partial<AuthContext> = {}): AuthContext {

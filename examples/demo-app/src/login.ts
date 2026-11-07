@@ -43,7 +43,9 @@ export function loginRoutes(deps: DemoDeps): Hono {
 }
 
 function loginPage(error?: string) {
-  return page("Sign in", html`
+  return page(
+    "Sign in",
+    html`
     ${errorMessage(error)}
     <form method="post" action="/login">
       <label>Email <input type="email" name="email" autocomplete="username webauthn" required data-testid="email"></label>
@@ -51,11 +53,14 @@ function loginPage(error?: string) {
     </form>
     <p><button type="button" data-testid="sign-in-passkey">Sign in with a passkey</button></p>
     <p role="status" data-testid="passkey-status"></p>
-    <p><a href="/login/totp" data-testid="sign-in-totp-link">Sign in with an authenticator app</a></p>`)
+    <p><a href="/login/totp" data-testid="sign-in-totp-link">Sign in with an authenticator app</a></p>`,
+  )
 }
 
 function verifyPage(email: string, error?: string) {
-  return page("Enter your code", html`
+  return page(
+    "Enter your code",
+    html`
     ${errorMessage(error)}
     <p>We sent a code to <span data-testid="code-recipient">${email}</span>.</p>
     <form method="post" action="/login/verify">
@@ -63,5 +68,6 @@ function verifyPage(email: string, error?: string) {
       <label>Code <input name="code" inputmode="numeric" autocomplete="one-time-code" required data-testid="otp-input"></label>
       <button type="submit" data-testid="verify-code">Sign in</button>
     </form>
-    <p><a href="/login" data-testid="back-to-login">Use another email</a></p>`)
+    <p><a href="/login" data-testid="back-to-login">Use another email</a></p>`,
+  )
 }

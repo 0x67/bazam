@@ -38,5 +38,7 @@ if (config.testHooks) app.route("/", testHookRoutes(deps))
 app.use("/*", serveStatic({ root: fileURLToPath(new URL("../public", import.meta.url)) }))
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`demo app listening on port ${info.port} for ${config.origin.origin}, test hooks ${config.testHooks ? "on" : "off"}`)
+  console.log(
+    `demo app listening on port ${info.port} for ${config.origin.origin}, test hooks ${config.testHooks ? "on" : "off"}`,
+  )
 })

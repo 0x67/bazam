@@ -92,7 +92,8 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
   const projects = ownEntry(inputs.transitions, ticket.tracker)?.projects;
   const project = projects === undefined ? undefined : ownEntry(projects, trackerProject(ticket.key));
   const transition = action?.transition ?? project?.transitions[result.status];
-  const receipt = report?.comment === "update" ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId) : undefined;
+  const receipt =
+    report?.comment === "update" ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId) : undefined;
   return {
     marker: `${BRAND.markerPrefix}:${result.caseId}:${result.runId}`,
     ticket,

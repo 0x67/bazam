@@ -26,7 +26,16 @@ import { RunBrowserLogin } from "./browser-login.ts";
 import { CaseEvidence } from "./case-evidence.ts";
 import { CaseRun, placeholderSources, type RunScope } from "./case-run.ts";
 import { CaseBlocked, isBlocking, messageOf, outcomeOf } from "./outcome.ts";
-import { caseTarget, loginKey, planLogins, planRun, targetDriver, type PlannedCase, type PlanInputs, type RunPlan } from "./plan.ts";
+import {
+  caseTarget,
+  loginKey,
+  planLogins,
+  planRun,
+  targetDriver,
+  type PlannedCase,
+  type PlanInputs,
+  type RunPlan,
+} from "./plan.ts";
 import { preflight } from "./preflight.ts";
 
 export interface RunOptions {
@@ -114,7 +123,14 @@ class Run {
     // logins and identity settings belong to no case
     const loginSources = placeholderSources(scope, options.runValues.forCase(""));
     const resolve = <T>(value: T): Promise<T> => resolvePlaceholders(value, loginSources);
-    this.#logins = new RunBrowserLogin({ runId: this.#runId, flows: project.flows, resolve, channel, redactor, signal });
+    this.#logins = new RunBrowserLogin({
+      runId: this.#runId,
+      flows: project.flows,
+      resolve,
+      channel,
+      redactor,
+      signal,
+    });
     const identities = new Identities({
       env,
       configs: project.config.identities,
@@ -131,7 +147,12 @@ class Run {
       now: () => new Date(),
     });
     const credentials = blockingCredentials(identities);
-    this.#scope = { ...scope, identities, credentials, http: guardedHttp({ env, redactor, log: this.#log.line, identities: credentials }) };
+    this.#scope = {
+      ...scope,
+      identities,
+      credentials,
+      http: guardedHttp({ env, redactor, log: this.#log.line, identities: credentials }),
+    };
   }
 
   async plan(): Promise<RunPlan> {
@@ -143,7 +164,14 @@ class Run {
       if (target === undefined || project.config.targets[target] === undefined) continue;
       capabilities.set(target, await this.#probe(target));
     }
-    const inputs: Omit<PlanInputs, "credentials"> = { project, env, cases, capabilities, registry, blockedIdentities: this.#fixtureProblems() };
+    const inputs: Omit<PlanInputs, "credentials"> = {
+      project,
+      env,
+      cases,
+      capabilities,
+      registry,
+      blockedIdentities: this.#fixtureProblems(),
+    };
     if (targets !== undefined) inputs.targets = targets;
     const credentials = new Map<string, LoginMode>();
     for (const login of planLogins(inputs)) {
@@ -179,7 +207,11 @@ class Run {
     return blocked;
   }
 
-  async runCase(loaded: LoadedCase, planned: PlannedCase, loginsBlocked: ReadonlyMap<string, string>): Promise<CaseResult> {
+  async runCase(
+    loaded: LoadedCase,
+    planned: PlannedCase,
+    loginsBlocked: ReadonlyMap<string, string>,
+  ): Promise<CaseResult> {
     const { spec } = loaded;
     const { runDir, redactor, env, seed } = this.#options;
     const startedAt = new Date();
@@ -204,7 +236,11 @@ class Run {
     );
     await this.#log.flush(join(runDir, spec.id, "case.log"));
     await this.#progress.update((progress) => {
-      progress.results.push({ caseId: result.caseId, status: result.status, ...(result.reason === undefined ? {} : { reason: result.reason }) });
+      progress.results.push({
+        caseId: result.caseId,
+        status: result.status,
+        ...(result.reason === undefined ? {} : { reason: result.reason }),
+      });
     });
     return result;
   }
@@ -224,7 +260,10 @@ class Run {
       now: new Date(),
     });
     // only the comments go through the redactor again: its digit rule would break account ids and receipt URLs
-    const masked = { ...postPlan, items: postPlan.items.map((item) => ({ ...item, comment: redactor.value(item.comment) })) };
+    const masked = {
+      ...postPlan,
+      items: postPlan.items.map((item) => ({ ...item, comment: redactor.value(item.comment) })),
+    };
     await writeFile(join(runDir, "post-plan.json"), `${JSON.stringify(masked, null, 2)}\n`);
     await this.#progress.update((progress) => {
       progress.state = "finished";
@@ -253,7 +292,13 @@ class Run {
     let outcome: CaseOutcome = { kind: "completed" };
     this.#logins.use(async () => session);
     try {
-      await new CaseRun(this.#scope, { spec: loaded.spec, driver, session, evidence: parts.evidence, runValues: parts.runValues }).run();
+      await new CaseRun(this.#scope, {
+        spec: loaded.spec,
+        driver,
+        session,
+        evidence: parts.evidence,
+        runValues: parts.runValues,
+      }).run();
     } catch (error) {
       outcome = outcomeOf(error, signal.aborted);
       if (outcome.kind === "errored" && outcome.source === "harness") this.#log.line(stackOf(error));
@@ -261,7 +306,10 @@ class Run {
       this.#logins.use(undefined);
     }
     // the session needs the status first, so a case that did not pass keeps its trace
-    const failure = await this.#close(session, { status: deriveStatus(parts.evidence.checks, outcome), evidence: parts.evidence });
+    const failure = await this.#close(session, {
+      status: deriveStatus(parts.evidence.checks, outcome),
+      evidence: parts.evidence,
+    });
     if (failure === undefined || outcome.kind !== "completed") return outcome;
     // a driver may report on close what its guard refused after the last step, such as a navigation to another host
     if (isBlocking(failure)) return { kind: "blocked", reason: failure.message };
@@ -312,9 +360,13 @@ class Run {
     const problems = new Map<string, string>();
     for (const [identity, { fixture }] of Object.entries(this.#options.project.config.identities)) {
       if (fixture === undefined) continue;
-      if (this.#fixtures === undefined) problems.set(identity, `identity ${identity} needs fixture ${fixture}, but ${LOCAL_FIXTURES_FILE} is missing`);
+      if (this.#fixtures === undefined)
+        problems.set(identity, `identity ${identity} needs fixture ${fixture}, but ${LOCAL_FIXTURES_FILE} is missing`);
       else if (!Object.hasOwn(this.#fixtures, fixture)) {
-        problems.set(identity, `identity ${identity} needs fixture ${fixture}, which ${LOCAL_FIXTURES_FILE} does not have`);
+        problems.set(
+          identity,
+          `identity ${identity} needs fixture ${fixture}, which ${LOCAL_FIXTURES_FILE} does not have`,
+        );
       }
     }
     return problems;
@@ -330,11 +382,15 @@ function blockingCredentials(identities: Identities): Pick<Identities, "authoriz
   const blocked =
     (identity: string, surface: string) =>
     (error: unknown): never => {
-      throw isBlocking(error) ? error : new CaseBlocked(`no ${surface} credential for ${identity}: ${messageOf(error)}`);
+      throw isBlocking(error)
+        ? error
+        : new CaseBlocked(`no ${surface} credential for ${identity}: ${messageOf(error)}`);
     };
   return {
-    authorize: (identity, surface, target) => identities.authorize(identity, surface, target).catch(blocked(identity, surface)),
-    recoverFromUnauthorized: (identity, surface) => identities.recoverFromUnauthorized(identity, surface).catch(blocked(identity, surface)),
+    authorize: (identity, surface, target) =>
+      identities.authorize(identity, surface, target).catch(blocked(identity, surface)),
+    recoverFromUnauthorized: (identity, surface) =>
+      identities.recoverFromUnauthorized(identity, surface).catch(blocked(identity, surface)),
   };
 }
 
@@ -348,7 +404,8 @@ async function readLocalFixtures(root: string): Promise<IdentityFixtures | undef
   }
   // a file with only comments parses to null
   const parsed = IdentityFixtures.safeParse(parse(text) ?? {});
-  if (!parsed.success) throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
+  if (!parsed.success)
+    throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
   return parsed.data;
 }
 

@@ -13,8 +13,7 @@ function copyRepository(): string {
   const copy = mkdtempSync(path.join(tmpdir(), "rename-test-"));
   cpSync(root, copy, {
     recursive: true,
-    filter: (source) =>
-      !notCopied.has(path.basename(source)) && !notCopiedAtRoot.has(path.relative(root, source)),
+    filter: (source) => !notCopied.has(path.basename(source)) && !notCopiedAtRoot.has(path.relative(root, source)),
   });
   return copy;
 }

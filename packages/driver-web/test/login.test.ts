@@ -18,8 +18,15 @@ const LOGIN_FORM = `
 
 describe("urlMatches", () => {
   it("lets * span slashes and query strings and matches every other character as itself", () => {
-    expect(urlMatches("https://app.example.test/callback*", "https://app.example.test/callback/done?code=fake-code&state=s1")).toBe(true);
-    expect(urlMatches("https://app.example.test/callback*", "https://app.example.test/login?next=/callback")).toBe(false);
+    expect(
+      urlMatches(
+        "https://app.example.test/callback*",
+        "https://app.example.test/callback/done?code=fake-code&state=s1",
+      ),
+    ).toBe(true);
+    expect(urlMatches("https://app.example.test/callback*", "https://app.example.test/login?next=/callback")).toBe(
+      false,
+    );
     expect(urlMatches("https://app.example.test/a.b*", "https://app.example.test/axb")).toBe(false);
     expect(urlMatches("https://*.example.test/home", "https://uat.example.test/home")).toBe(true);
   });
@@ -36,7 +43,10 @@ describe.each(ENGINES)("browser login on %s", (engine) => {
     site = await startSite({
       "/login": html(LOGIN_FORM),
       "/session": (_request, response) => {
-        response.writeHead(303, { "set-cookie": "sid=fake-session-5d2e8b; Path=/; HttpOnly", location: "/callback/done?code=fake-code" });
+        response.writeHead(303, {
+          "set-cookie": "sid=fake-session-5d2e8b; Path=/; HttpOnly",
+          location: "/callback/done?code=fake-code",
+        });
         response.end();
       },
       "/callback/done": html("<h1>Signed in</h1>"),
@@ -53,16 +63,29 @@ describe.each(ENGINES)("browser login on %s", (engine) => {
     await rm(root, { recursive: true, force: true });
   });
 
-  const flow = [{ fill: { field: { id: "email" }, value: "ops@example.test" } }, { tap: { role: "button", name: "Sign in" } }];
+  const flow = [
+    { fill: { field: { id: "email" }, value: "ops@example.test" } },
+    { tap: { role: "button", name: "Sign in" } },
+  ];
 
   it("runs the flow and returns the storage state once the cookie is set", async () => {
-    const { state } = await login.login({ url: new URL(`${site.origin}/login`), flow, until: { cookie: "sid" }, timeoutMs: 10_000 });
+    const { state } = await login.login({
+      url: new URL(`${site.origin}/login`),
+      flow,
+      until: { cookie: "sid" },
+      timeoutMs: 10_000,
+    });
 
     expect(state.cookies).toContainEqual(expect.objectContaining({ name: "sid", value: "fake-session-5d2e8b" }));
   });
 
   it("returns the final URL once it matches the urlMatches glob", async () => {
-    const { finalUrl } = await login.login({ url: new URL(`${site.origin}/login`), flow, until: { urlMatches: `${site.origin}/callback*` }, timeoutMs: 10_000 });
+    const { finalUrl } = await login.login({
+      url: new URL(`${site.origin}/login`),
+      flow,
+      until: { urlMatches: `${site.origin}/callback*` },
+      timeoutMs: 10_000,
+    });
 
     expect(finalUrl.href).toBe(`${site.origin}/callback/done?code=fake-code`);
   });
@@ -78,7 +101,12 @@ describe.each(ENGINES)("browser login on %s", (engine) => {
     setTimeout(() => controller.abort(new Error("the person answered blocked")), 500);
     const started = Date.now();
 
-    const attempt = login.login({ url: new URL(`${site.origin}/login`), until: { cookie: "sid" }, timeoutMs: 20_000, signal: controller.signal });
+    const attempt = login.login({
+      url: new URL(`${site.origin}/login`),
+      until: { cookie: "sid" },
+      timeoutMs: 20_000,
+      signal: controller.signal,
+    });
 
     await expect(attempt).rejects.toThrow("the person answered blocked");
     expect(Date.now() - started).toBeLessThan(5_000);

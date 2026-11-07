@@ -55,7 +55,9 @@ export function expandFlows(steps: readonly Step[], flows: ReadonlyMap<string, F
 }
 
 function expandSteps(steps: readonly Step[], flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step[] {
-  return steps.flatMap((step) => (stepKind(step) === "use" ? expandUse(step, flows, path) : [expandNested(step, flows, path)]));
+  return steps.flatMap((step) =>
+    stepKind(step) === "use" ? expandUse(step, flows, path) : [expandNested(step, flows, path)],
+  );
 }
 
 function expandNested(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step {
@@ -69,7 +71,10 @@ function expandNested(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: re
   const [only] = expanded;
   // only a use step expands to a count other than one
   if (only === undefined || expanded.length > 1) {
-    throw new NestedFlowNotOneStep(flowName(nested["use"] as UseStep), `a ${kind} ${field} runs one step, and the flow expands to ${expanded.length}`);
+    throw new NestedFlowNotOneStep(
+      flowName(nested["use"] as UseStep),
+      `a ${kind} ${field} runs one step, and the flow expands to ${expanded.length}`,
+    );
   }
   return only === nested ? step : { ...step, [kind]: { ...payload, [field]: only } };
 }
@@ -99,7 +104,10 @@ function namesIdentity(step: Step): boolean {
   return step.as !== undefined || (typeof payload === "object" && payload !== null && Object.hasOwn(payload, "as"));
 }
 
-function flowParams(flow: FlowSpec, given: Readonly<Record<string, string | number | boolean>>): ReadonlyMap<string, string> {
+function flowParams(
+  flow: FlowSpec,
+  given: Readonly<Record<string, string | number | boolean>>,
+): ReadonlyMap<string, string> {
   const missing = flow.params.filter((param) => !Object.hasOwn(given, param));
   if (missing.length > 0) throw new InvalidFlowUse(flow.name, `missing parameter ${missing.join(", ")}`);
   const undeclared = Object.keys(given).filter((key) => !flow.params.includes(key));

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vite-plus/test"
 import { SoftwareAuthenticator } from "./support/authenticator.ts"
 import { APP_URL, Visitor, newEmail, signInByEmail } from "./support/demo.ts"
 
-interface LoginOptions { challenge: string; rpId: string; allowCredentials: { id: string }[] }
+interface LoginOptions {
+  challenge: string
+  rpId: string
+  allowCredentials: { id: string }[]
+}
 
 async function registeredPasskey(): Promise<{ email: string; authenticator: SoftwareAuthenticator }> {
   const visitor = new Visitor()

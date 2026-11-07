@@ -6,7 +6,10 @@ const fromBase64url = (text) =>
   Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (char) => char.charCodeAt(0))
 
 const toBase64url = (buffer) =>
-  btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 
 const byTestId = (id) => document.querySelector(`[data-testid="${id}"]`)
 
@@ -21,7 +24,8 @@ async function postJson(url, body) {
   return json
 }
 
-const withIds = (descriptors = []) => descriptors.map((descriptor) => ({ ...descriptor, id: fromBase64url(descriptor.id) }))
+const withIds = (descriptors = []) =>
+  descriptors.map((descriptor) => ({ ...descriptor, id: fromBase64url(descriptor.id) }))
 
 async function registerPasskey() {
   const options = await postJson("/account/passkey/options", {})

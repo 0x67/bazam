@@ -18,7 +18,13 @@ const login: FlowSpec = {
   name: "login",
   params: ["email"],
   steps: [
-    { request: { method: "POST", url: "${env.API_URL}/login", json: { email: "${param.email}", raw: "$${param.email}" } } },
+    {
+      request: {
+        method: "POST",
+        url: "${env.API_URL}/login",
+        json: { email: "${param.email}", raw: "$${param.email}" },
+      },
+    },
     { note: "signed in as ${param.email}" },
   ],
 };
@@ -29,15 +35,28 @@ describe("expandFlows", () => {
 
     expect(expandFlows(steps, flowMap(login))).toEqual([
       { note: "start" },
-      { request: { method: "POST", url: "${env.API_URL}/login", json: { email: "ops@example.test", raw: "$${param.email}" } } },
+      {
+        request: {
+          method: "POST",
+          url: "${env.API_URL}/login",
+          json: { email: "ops@example.test", raw: "$${param.email}" },
+        },
+      },
       { note: "signed in as ops@example.test" },
     ]);
   });
 
   it("passes a flow's parameters on to the flows it uses", () => {
-    const onboard: FlowSpec = { name: "onboard", params: ["user"], steps: [{ use: { flow: "login", with: { email: "${param.user}" } } }] };
+    const onboard: FlowSpec = {
+      name: "onboard",
+      params: ["user"],
+      steps: [{ use: { flow: "login", with: { email: "${param.user}" } } }],
+    };
 
-    const expanded = expandFlows([{ use: { flow: "onboard", with: { user: "admin-1@example.test" } } }], flowMap(login, onboard));
+    const expanded = expandFlows(
+      [{ use: { flow: "onboard", with: { user: "admin-1@example.test" } } }],
+      flowMap(login, onboard),
+    );
 
     expect(expanded[1]).toEqual({ note: "signed in as admin-1@example.test" });
   });
@@ -89,7 +108,11 @@ describe("expandFlows", () => {
   it.each([
     ["an unknown flow", { use: "logout" }, "flow logout: no such flow"],
     ["a missing parameter", { use: "login" }, "flow login: missing parameter email"],
-    ["an undeclared parameter", { use: { flow: "login", with: { email: "a@example.test", pin: 1234 } } }, "flow login: undeclared parameter pin"],
+    [
+      "an undeclared parameter",
+      { use: { flow: "login", with: { email: "a@example.test", pin: 1234 } } },
+      "flow login: undeclared parameter pin",
+    ],
   ])("throws InvalidFlowUse for %s", (_, step: Step, message) => {
     const error = thrownBy(() => expandFlows([step], flowMap(login)));
 
@@ -99,26 +122,53 @@ describe("expandFlows", () => {
 
   it("replaces a use step in a challenge trigger and a guided observe with the flow's one step", () => {
     const sendCode: FlowSpec = { name: "send-code", params: [], steps: [{ tap: { id: "send-code" } }] };
-    const readMe: FlowSpec = { name: "read-me", params: [], steps: [{ api: { request: "GET ${env.API_URL}/me", status: 200 } }] };
+    const readMe: FlowSpec = {
+      name: "read-me",
+      params: [],
+      steps: [{ api: { request: "GET ${env.API_URL}/me", status: 200 } }],
+    };
     const steps: Step[] = [
       { challenge: { kind: "otp-email", trigger: { use: "send-code" }, fill: { id: "code" } }, as: "customer" },
-      { guided: { title: "Check the account", steps: ["Open the account"], observe: { use: "read-me", as: "customer" } } },
+      {
+        guided: {
+          title: "Check the account",
+          steps: ["Open the account"],
+          observe: { use: "read-me", as: "customer" },
+        },
+      },
     ];
 
     expect(expandFlows(steps, flowMap(sendCode, readMe))).toEqual([
       { challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } }, as: "customer" },
-      { guided: { title: "Check the account", steps: ["Open the account"], observe: { api: { request: "GET ${env.API_URL}/me", status: 200 }, as: "customer" } } },
+      {
+        guided: {
+          title: "Check the account",
+          steps: ["Open the account"],
+          observe: { api: { request: "GET ${env.API_URL}/me", status: 200 }, as: "customer" },
+        },
+      },
     ]);
   });
 
   it("throws InvalidFlowUse for a use step in a trigger whose flow expands to more than one step", () => {
-    const steps: Step[] = [{ challenge: { kind: "otp-email", trigger: { use: { flow: "login", with: { email: "a@example.test" } } } }, as: "customer" }];
+    const steps: Step[] = [
+      {
+        challenge: { kind: "otp-email", trigger: { use: { flow: "login", with: { email: "a@example.test" } } } },
+        as: "customer",
+      },
+    ];
 
-    expect(() => expandFlows(steps, flowMap(login))).toThrow("flow login: a challenge trigger runs one step, and the flow expands to 2");
+    expect(() => expandFlows(steps, flowMap(login))).toThrow(
+      "flow login: a challenge trigger runs one step, and the flow expands to 2",
+    );
   });
 
   it("throws FlowCycle when a flow reaches itself through a challenge trigger", () => {
-    const retry: FlowSpec = { name: "retry", params: [], steps: [{ challenge: { kind: "otp-email", trigger: { use: "retry" } } }] };
+    const retry: FlowSpec = {
+      name: "retry",
+      params: [],
+      steps: [{ challenge: { kind: "otp-email", trigger: { use: "retry" } } }],
+    };
 
     const error = thrownBy(() => expandFlows([{ use: "retry" }], flowMap(retry)));
 

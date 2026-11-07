@@ -15,7 +15,10 @@ export interface LoadedTestProject {
  * Writes each file into a new temp folder, a value that is not a string as YAML, and loads the project the way
  * the CLI does: config, then the registry with `plugins` as defaults, then the rest. Throws on any load issue.
  */
-export async function loadTestProject(files: Readonly<Record<string, unknown>>, plugins: readonly PluginManifest[]): Promise<LoadedTestProject> {
+export async function loadTestProject(
+  files: Readonly<Record<string, unknown>>,
+  plugins: readonly PluginManifest[],
+): Promise<LoadedTestProject> {
   const root = await mkdtemp(join(tmpdir(), "run-project-"));
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(root, path)), { recursive: true });

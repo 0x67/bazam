@@ -2,8 +2,20 @@ import { describe, expect, it } from "vite-plus/test";
 import { phoneForm, type PhoneForm } from "../src/env/index.ts";
 
 function formsOf(e164: string, locale: string): Record<PhoneForm, string | undefined> {
-  const forms: PhoneForm[] = ["e164", "countryCode", "callingCode", "region", "countryName", "flag", "national", "domestic"];
-  return Object.fromEntries(forms.map((form) => [form, phoneForm(e164, form, locale)])) as Record<PhoneForm, string | undefined>;
+  const forms: PhoneForm[] = [
+    "e164",
+    "countryCode",
+    "callingCode",
+    "region",
+    "countryName",
+    "flag",
+    "national",
+    "domestic",
+  ];
+  return Object.fromEntries(forms.map((form) => [form, phoneForm(e164, form, locale)])) as Record<
+    PhoneForm,
+    string | undefined
+  >;
 }
 
 describe("phoneForm", () => {

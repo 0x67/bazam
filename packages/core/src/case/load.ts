@@ -159,10 +159,19 @@ function schemaIssue(
     const fix = `Use an id such as ${file.domain.toUpperCase()}-LOGIN-001: domain, area, then three or more digits.`;
     return errorIssue({ ruleId: "id-format", file: file.path, line, message, fix });
   }
-  return errorIssue({ ruleId: "schema", file: file.path, line, message, fix: "Edit this entry so it matches the case schema." });
+  return errorIssue({
+    ruleId: "schema",
+    file: file.path,
+    line,
+    message,
+    fix: "Edit this entry so it matches the case schema.",
+  });
 }
 
-function checkIds(parsed: readonly ParsedCase[], retiredIds: ReadonlySet<string>): { cases: LoadedCase[]; issues: LoadIssue[] } {
+function checkIds(
+  parsed: readonly ParsedCase[],
+  retiredIds: ReadonlySet<string>,
+): { cases: LoadedCase[]; issues: LoadIssue[] } {
   const cases: LoadedCase[] = [];
   const issues: LoadIssue[] = [];
   const firstById = new Map<string, SourceSpan>();
@@ -176,7 +185,15 @@ function checkIds(parsed: readonly ParsedCase[], retiredIds: ReadonlySet<string>
     const first = firstById.get(id);
     if (first !== undefined) {
       const message = `${id} is already used at ${first.file}:${first.line}`;
-      issues.push(errorIssue({ ruleId: "id-unique", file, line: idLine, message, fix: "Give this case an id no other case uses." }));
+      issues.push(
+        errorIssue({
+          ruleId: "id-unique",
+          file,
+          line: idLine,
+          message,
+          fix: "Give this case an id no other case uses.",
+        }),
+      );
       continue;
     }
     firstById.set(id, source);
@@ -219,7 +236,9 @@ function startOf(node: unknown): number | undefined {
 
 function formatPath(path: readonly PropertyKey[]): string {
   return path
-    .map((segment, index) => (typeof segment === "number" ? `[${segment}]` : `${index === 0 ? "" : "."}${String(segment)}`))
+    .map((segment, index) =>
+      typeof segment === "number" ? `[${segment}]` : `${index === 0 ? "" : "."}${String(segment)}`,
+    )
     .join("");
 }
 

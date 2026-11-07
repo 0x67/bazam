@@ -19,7 +19,9 @@ describe("loadCases", () => {
 
   it("reports duplicate, retired, wrong-domain and malformed ids once each on the id line", async () => {
     const load = await loadCases(fixture("broken"), CaseSpec);
-    const idIssues = load.issues.filter((issue) => issue.ruleId.startsWith("id-") && issue.file === "cases/auth/ids.yaml");
+    const idIssues = load.issues.filter(
+      (issue) => issue.ruleId.startsWith("id-") && issue.file === "cases/auth/ids.yaml",
+    );
 
     expect(idIssues.map((issue) => [issue.ruleId, issue.file, issue.line])).toEqual([
       ["id-format", "cases/auth/ids.yaml", 23],
@@ -36,11 +38,13 @@ describe("loadCases", () => {
     const load = await loadCases(fixture("broken"), CaseSpec);
     const issues = load.issues.filter((issue) => issue.file === "cases/auth/schema-ids.yaml");
 
-    expect(issues.filter((issue) => issue.ruleId.startsWith("id-")).map((issue) => [issue.ruleId, issue.line])).toEqual([
-      ["id-retired", 3],
-      ["id-domain", 9],
-      ["id-unique", 19],
-    ]);
+    expect(issues.filter((issue) => issue.ruleId.startsWith("id-")).map((issue) => [issue.ruleId, issue.line])).toEqual(
+      [
+        ["id-retired", 3],
+        ["id-domain", 9],
+        ["id-unique", 19],
+      ],
+    );
     expect(issues.filter((issue) => issue.ruleId === "schema")).toHaveLength(3);
     expect(issues.find((issue) => issue.ruleId === "id-unique")?.message).toContain("cases/auth/schema-ids.yaml:13");
   });
@@ -61,7 +65,9 @@ describe("loadCases", () => {
       ["schema", 24],
       ["schema", 25],
     ]);
-    expect(schemaIssues[1]?.message).toMatch(/^steps\[1\]\.hover: unknown step kind "hover"; known kinds: challenge, guided/);
+    expect(schemaIssues[1]?.message).toMatch(
+      /^steps\[1\]\.hover: unknown step kind "hover"; known kinds: challenge, guided/,
+    );
     expect(schemaIssues[2]?.message).toMatch(/^steps\[0\]\.request\.url: /);
   });
 

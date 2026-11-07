@@ -42,9 +42,33 @@ describe("CaseSpec", () => {
       prod_safe: true,
       steps: [
         { use: "login" },
-        { request: { method: "POST", url: "${env.API_URL}/orders", as: "customer", json: { amount: 1 }, write: true, save: { orderId: "body.id" } } },
-        { challenge: { kind: "otp-email", trigger: { note: "send" }, fill: { id: "otp-input" }, params: { recipient: "a@example.test" } }, as: "customer" },
-        { guided: { title: "Confirm with face", steps: ["Look at the camera"], expected: "Dashboard", observe: { note: "check" } } },
+        {
+          request: {
+            method: "POST",
+            url: "${env.API_URL}/orders",
+            as: "customer",
+            json: { amount: 1 },
+            write: true,
+            save: { orderId: "body.id" },
+          },
+        },
+        {
+          challenge: {
+            kind: "otp-email",
+            trigger: { note: "send" },
+            fill: { id: "otp-input" },
+            params: { recipient: "a@example.test" },
+          },
+          as: "customer",
+        },
+        {
+          guided: {
+            title: "Confirm with face",
+            steps: ["Look at the camera"],
+            expected: "Dashboard",
+            observe: { note: "check" },
+          },
+        },
         { note: "done" },
       ],
       checks: [{ request: { method: "GET", url: "${env.API_URL}/me" } }],
@@ -109,11 +133,17 @@ describe("buildCaseSchema", () => {
   it("returns the plugin schema's output for its step", () => {
     const shout = { kind: "shout", schema: z.string().transform((text) => ({ text })) };
 
-    expect(buildCaseSchema([shout]).parse({ ...minimal, steps: [{ shout: "hi" }] }).steps).toEqual([{ shout: { text: "hi" } }]);
+    expect(buildCaseSchema([shout]).parse({ ...minimal, steps: [{ shout: "hi" }] }).steps).toEqual([
+      { shout: { text: "hi" } },
+    ]);
   });
 
   it.each([
-    ["two kind keys", { note: "a", request: { method: "GET", url: "u" } }, "a step has exactly one kind key, found note, request"],
+    [
+      "two kind keys",
+      { note: "a", request: { method: "GET", url: "u" } },
+      "a step has exactly one kind key, found note, request",
+    ],
     ["no kind key", { as: "customer" }, "a step has exactly one kind key, found none"],
     ["a plain string", "open the app", "a step is a mapping with one kind key, such as `note: text`"],
   ])("rejects a step with %s", (_, step, message) => {

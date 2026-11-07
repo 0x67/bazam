@@ -44,7 +44,11 @@ function markdownComment(result: CaseResult): string {
   const evidence = [
     result.checks.length === 0
       ? ""
-      : ["| Check | Expected | Observed | Result |", "| --- | --- | --- | --- |", ...result.checks.map(markdownRow)].join("\n"),
+      : [
+          "| Check | Expected | Observed | Result |",
+          "| --- | --- | --- | --- |",
+          ...result.checks.map(markdownRow),
+        ].join("\n"),
     markdownList("Notes:", result.notes),
     result.attachments.length === 0 ? "" : `Attached files: ${escapeMarkdown(result.attachments.join(", "))}`,
   ].filter((block) => block !== "");
@@ -83,7 +87,10 @@ function htmlList(label: string, items: readonly string[]): string {
 
 // the caption is the file name without its number and extension
 function figure(name: string, ref: MediaRef): string {
-  const caption = name.replace(/^\d+-/, "").replace(/\.png$/, "").replaceAll("-", " ");
+  const caption = name
+    .replace(/^\d+-/, "")
+    .replace(/\.png$/, "")
+    .replaceAll("-", " ");
   const collection = ref.collection === undefined ? "" : ` data-collection="${escapeHtml(ref.collection)}"`;
   const media = `<div data-type="media" data-media-type="file" data-id="${escapeHtml(ref.id)}"${collection} data-alt="${escapeHtml(name)}"></div>`;
   return `<figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage">${media}<figcaption>${escapeHtml(caption)}</figcaption></figure>`;

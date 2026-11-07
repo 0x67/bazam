@@ -1,6 +1,14 @@
 import parsePhoneNumber from "libphonenumber-js";
 
-export type PhoneForm = "e164" | "countryCode" | "callingCode" | "region" | "countryName" | "flag" | "national" | "domestic";
+export type PhoneForm =
+  | "e164"
+  | "countryCode"
+  | "callingCode"
+  | "region"
+  | "countryName"
+  | "flag"
+  | "national"
+  | "domestic";
 
 const PHONE_FORMS: ReadonlySet<string> = new Set<PhoneForm>([
   "e164",
@@ -52,5 +60,7 @@ export function phoneForm(e164: string, form: PhoneForm, locale: string): string
 /** The pair of regional indicator symbols for a two letter region code. */
 function flagOf(region: string): string {
   const REGIONAL_INDICATOR_A = 0x1f1e6;
-  return String.fromCodePoint(...region.split("").map((letter) => REGIONAL_INDICATOR_A + letter.charCodeAt(0) - "A".charCodeAt(0)));
+  return String.fromCodePoint(
+    ...region.split("").map((letter) => REGIONAL_INDICATOR_A + letter.charCodeAt(0) - "A".charCodeAt(0)),
+  );
 }

@@ -38,7 +38,11 @@ export async function recordReceipt(
   now: Date,
 ): Promise<void> {
   const receipts = await readReceipts(stateDir);
-  receipts[receiptKey(item.ticket.tracker, item.ticket.key, item.caseId)] = { marker: item.marker, url, postedAt: now.toISOString() };
+  receipts[receiptKey(item.ticket.tracker, item.ticket.key, item.caseId)] = {
+    marker: item.marker,
+    url,
+    postedAt: now.toISOString(),
+  };
   const file = join(stateDir, RECEIPTS_FILE);
   // a unique temp name keeps two writers from renaming each other's half-written file
   const temp = `${file}.${randomUUID()}.tmp`;
@@ -56,7 +60,8 @@ async function readReceipts(stateDir: string): Promise<ReceiptsFile> {
     throw error;
   }
   const parsed = ReceiptsFile.safeParse(parseJson(text));
-  if (!parsed.success) throw new Error(`${RECEIPTS_FILE} does not match the receipts schema:\n${z.prettifyError(parsed.error)}`);
+  if (!parsed.success)
+    throw new Error(`${RECEIPTS_FILE} does not match the receipts schema:\n${z.prettifyError(parsed.error)}`);
   return parsed.data;
 }
 

@@ -7,7 +7,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
-import { answersFileChannel, type ChallengeRequest, type ChallengeResolver, type HumanChannel, type PersonAnswer, type PersonPrompt } from "../src/challenge/index.ts";
+import {
+  answersFileChannel,
+  type ChallengeRequest,
+  type ChallengeResolver,
+  type HumanChannel,
+  type PersonAnswer,
+  type PersonPrompt,
+} from "../src/challenge/index.ts";
 import type { StepContext, StepHandler } from "../src/driver/index.ts";
 import { HostNotAllowed, RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
@@ -21,7 +28,13 @@ const RUN_ID = "20261107-101500-0a1b";
 const BEARER_TOKEN = "fake-bearer-token-7f3a9c";
 const OTP = "482913";
 const API_PASSWORD = "fake-api-password-9d4e";
-const SESSION_COOKIE = { name: "session", value: "fake-session-cookie-0001", domain: "127.0.0.1", path: "/", httpOnly: true };
+const SESSION_COOKIE = {
+  name: "session",
+  value: "fake-session-cookie-0001",
+  domain: "127.0.0.1",
+  path: "/",
+  httpOnly: true,
+};
 
 // what the fake driver's steps and the person channels did, in order, across one run
 let events: string[];
@@ -48,7 +61,9 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 function route(req: IncomingMessage, res: ServerResponse): void {
   switch (`${req.method} ${req.url}`) {
     case "GET /me":
-      return req.headers.authorization === `Bearer ${BEARER_TOKEN}` ? json(res, 200, { echoed: req.headers.authorization }) : json(res, 401, {});
+      return req.headers.authorization === `Bearer ${BEARER_TOKEN}`
+        ? json(res, 200, { echoed: req.headers.authorization })
+        : json(res, 401, {});
     case "GET /locked":
       return json(res, 401, {});
     case "GET /dropped":
@@ -113,7 +128,13 @@ function webSteps(): StepHandler[] {
     step("expect", async (payload, ctx) => {
       const { visible } = payload as { visible: string };
       const found = visible !== "missing";
-      ctx.evidence.record({ name: `${visible} is visible`, kind: "ui", expected: "visible", observed: found ? "visible" : "not found", ok: found });
+      ctx.evidence.record({
+        name: `${visible} is visible`,
+        kind: "ui",
+        expected: "visible",
+        observed: found ? "visible" : "not found",
+        ok: found,
+      });
     }),
     step("screenshot", async (_payload, ctx) => {
       await ctx.evidence.attach("screen", new TextEncoder().encode("fake png bytes"), "png");
@@ -175,7 +196,13 @@ const otpResolver: ChallengeResolver = {
   },
 };
 
-const stuckResolver: ChallengeResolver = { name: "fake-stuck", kinds: ["passkey"], requires: [], automated: true, resolve: async () => undefined };
+const stuckResolver: ChallengeResolver = {
+  name: "fake-stuck",
+  kinds: ["passkey"],
+  requires: [],
+  automated: true,
+  resolve: async () => undefined,
+};
 
 function configFor(): object {
   return {
@@ -190,22 +217,47 @@ function configFor(): object {
     },
     secrets: { providers: ["dotenv"], names: ["API_PASSWORD"] },
     identities: {
-      customer: { fixture: "customer", auth: { web: { strategy: "fake-bearer" }, api: { strategy: "fake-bearer", from: "web" } } },
+      customer: {
+        fixture: "customer",
+        auth: { web: { strategy: "fake-bearer" }, api: { strategy: "fake-bearer", from: "web" } },
+      },
       shopper: {
         fixture: "shopper",
         auth: {
           web: {
             strategy: "session-cookie",
             with: {
-              login: { url: `${origin}/login`, flow: "enter-email", until: { cookie: "session" }, person: { steps: ["Enter the code from your email"] } },
+              login: {
+                url: `${origin}/login`,
+                flow: "enter-email",
+                until: { cookie: "session" },
+                person: { steps: ["Enter the code from your email"] },
+              },
             },
           },
         },
       },
       // a scripted login, with no person
-      courier: { auth: { web: { strategy: "session-cookie", with: { login: { url: `${origin}/login`, flow: "enter-email", until: { cookie: "session" } } } } } },
+      courier: {
+        auth: {
+          web: {
+            strategy: "session-cookie",
+            with: { login: { url: `${origin}/login`, flow: "enter-email", until: { cookie: "session" } } },
+          },
+        },
+      },
       partner: {
-        auth: { api: { strategy: "hmac", with: { keyId: "fake-key-id", secret: "${secret.API_PASSWORD}", maxSkewSeconds: 30, probe: { request: `GET ${origin}/skewed` } } } },
+        auth: {
+          api: {
+            strategy: "hmac",
+            with: {
+              keyId: "fake-key-id",
+              secret: "${secret.API_PASSWORD}",
+              maxSkewSeconds: 30,
+              probe: { request: `GET ${origin}/skewed` },
+            },
+          },
+        },
       },
       rejected: { auth: { api: { strategy: "fake-rejected" } } },
       waiting: { auth: { api: { strategy: "fake-locked" } } },
@@ -222,7 +274,15 @@ function webDriver(options: FakeDriverOptions = {}): FakeDriver {
 type CaseFields = Record<string, unknown>;
 
 function testCase(id: string, fields: CaseFields): CaseFields {
-  return { id, title: `case ${id}`, stage: "acceptance", risk: "low", links: ["jira:TD-7"], targets: ["web"], ...fields };
+  return {
+    id,
+    title: `case ${id}`,
+    stage: "acceptance",
+    risk: "low",
+    links: ["jira:TD-7"],
+    targets: ["web"],
+    ...fields,
+  };
 }
 
 interface RunSetup {
@@ -248,7 +308,9 @@ interface Ran {
 }
 
 /** A person who answers every prompt with done and notes `ask <prompt id>` in `events`. */
-function person(answer: (prompt: PersonPrompt) => PersonAnswer = () => ({ kind: "done" })): HumanChannel & { prompts: PersonPrompt[] } {
+function person(
+  answer: (prompt: PersonPrompt) => PersonAnswer = () => ({ kind: "done" }),
+): HumanChannel & { prompts: PersonPrompt[] } {
   const prompts: PersonPrompt[] = [];
   return {
     prompts,
@@ -273,11 +335,18 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
   const files: Record<string, unknown> = {
     [BRAND.configFile]: configFor(),
     "cases/shop/run.yaml": { cases },
-    "flows/login.yaml": { flows: [{ name: "enter-email", steps: [{ fill: { field: { id: "email" }, value: "${identity.shopper.email}" } }] }] },
+    "flows/login.yaml": {
+      flows: [
+        { name: "enter-email", steps: [{ fill: { field: { id: "email" }, value: "${identity.shopper.email}" } }] },
+      ],
+    },
     [join(BRAND.stateDir, "secrets.env")]: `API_PASSWORD=${API_PASSWORD}\n`,
     ...setup.files,
   };
-  const localFixtures = setup.localFixtures === undefined ? { customer: { email: "customer@example.test" }, shopper: { email: "shopper@example.test" } } : setup.localFixtures;
+  const localFixtures =
+    setup.localFixtures === undefined
+      ? { customer: { email: "customer@example.test" }, shopper: { email: "shopper@example.test" } }
+      : setup.localFixtures;
   if (localFixtures !== null) files["fixtures/identities.local.yaml"] = localFixtures;
   const { root, project, registry } = await loadTestProject(files, [plugin]);
   roots.push(root);
@@ -339,7 +408,9 @@ describe("runCases", () => {
     expect(preflightSession?.closedWith?.status).toBe("pass");
     expect(preflightSession?.browsers.size).toBe(0);
     expect([firstCase, secondCase].map((session) => session?.browserLogin?.requests.length)).toEqual([0, 0]);
-    expect(firstCase?.browsers.get("shopper")?.state.cookies).toEqual([expect.objectContaining({ value: SESSION_COOKIE.value })]);
+    expect(firstCase?.browsers.get("shopper")?.state.cookies).toEqual([
+      expect.objectContaining({ value: SESSION_COOKIE.value }),
+    ]);
     expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
   });
 
@@ -376,17 +447,33 @@ describe("runCases", () => {
         title: "Customer places an order",
         steps: [
           { open: "${env.API_URL}/home", as: "customer" },
-          { request: { method: "POST", url: "${env.API_URL}/orders", json: { amount: "${run.random(1, 9, 2)}" }, save: { orderId: "body.id" } } },
+          {
+            request: {
+              method: "POST",
+              url: "${env.API_URL}/orders",
+              json: { amount: "${run.random(1, 9, 2)}" },
+              save: { orderId: "body.id" },
+            },
+          },
           { note: "order ${case.orderId} for ${case.title}" },
           expectVisible,
         ],
-        checks: [{ api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200, body: { status: "PAID" } } }],
+        checks: [
+          { api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200, body: { status: "PAID" } } },
+        ],
       }),
     ]);
     expect(events).toEqual(["SHOP-ORDER-001 open as customer", "SHOP-ORDER-001 expect"]);
-    expect(driver.sessions[0]?.browsers.get("customer")?.extraHeaders).toEqual({ authorization: `Bearer ${BEARER_TOKEN}` });
+    expect(driver.sessions[0]?.browsers.get("customer")?.extraHeaders).toEqual({
+      authorization: `Bearer ${BEARER_TOKEN}`,
+    });
     const [result] = results;
-    expect(result).toMatchObject({ status: "pass", notes: ["order 42 for Customer places an order"], seed: 7, identities: ["customer"] });
+    expect(result).toMatchObject({
+      status: "pass",
+      notes: ["order 42 for Customer places an order"],
+      seed: 7,
+      identities: ["customer"],
+    });
     expect(result?.checks.map((check) => [check.kind, check.ok])).toEqual([
       ["ui", true],
       ["api", true],
@@ -403,17 +490,28 @@ describe("runCases", () => {
     const { runDir } = await runProject(
       [
         testCase("SHOP-ONE-001", { steps: [expectVisible] }),
-        testCase("SHOP-TWO-001", { steps: [{ "read-status": {} }, { guided: { title: "Look at the cart", steps: ["Open the cart"] } }] }),
+        testCase("SHOP-TWO-001", {
+          steps: [{ "read-status": {} }, { guided: { title: "Look at the cart", steps: ["Open the cart"] } }],
+        }),
       ],
       { channel: verdict },
     );
-    const afterFirst = { runId: RUN_ID, state: "running", total: 2, results: [{ caseId: "SHOP-ONE-001", status: "pass" }] };
+    const afterFirst = {
+      runId: RUN_ID,
+      state: "running",
+      total: 2,
+      results: [{ caseId: "SHOP-ONE-001", status: "pass" }],
+    };
     // the second read happens while the guided prompt waits for its answer
     expect(statusSeen).toEqual([
       { ...afterFirst, pendingPrompts: 0 },
       { ...afterFirst, pendingPrompts: 1 },
     ]);
-    expect(readStatus(runDir)).toMatchObject({ state: "finished", pendingPrompts: 0, results: [{ caseId: "SHOP-ONE-001" }, { caseId: "SHOP-TWO-001" }] });
+    expect(readStatus(runDir)).toMatchObject({
+      state: "finished",
+      pendingPrompts: 0,
+      results: [{ caseId: "SHOP-ONE-001" }, { caseId: "SHOP-TWO-001" }],
+    });
   });
 
   it("runs a challenge through its chain, fills the code and records the resolver", async () => {
@@ -421,23 +519,41 @@ describe("runCases", () => {
       testCase("SHOP-OTP-001", {
         steps: [
           {
-            challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" }, params: { recipient: "${identity.customer.email}" } },
+            challenge: {
+              kind: "otp-email",
+              trigger: { tap: { id: "send-code" } },
+              fill: { id: "code" },
+              params: { recipient: "${identity.customer.email}" },
+            },
             as: "customer",
           },
           expectVisible,
         ],
       }),
     ]);
-    expect(otpRequests).toEqual([{ kind: "otp-email", caseId: "SHOP-OTP-001", identity: "customer", step: 1, params: { recipient: "customer@example.test" } }]);
+    expect(otpRequests).toEqual([
+      {
+        kind: "otp-email",
+        caseId: "SHOP-OTP-001",
+        identity: "customer",
+        step: 1,
+        params: { recipient: "customer@example.test" },
+      },
+    ]);
     expect(events).toEqual(["SHOP-OTP-001 tap as customer", "SHOP-OTP-001 fill as customer", "SHOP-OTP-001 expect"]);
     expect(fills).toEqual([{ field: { id: "code" }, value: OTP }]);
-    expect(results[0]).toMatchObject({ status: "pass", challenges: [{ step: 1, kind: "otp-email", resolver: "fake-otp" }] });
+    expect(results[0]).toMatchObject({
+      status: "pass",
+      challenges: [{ step: 1, kind: "otp-email", resolver: "fake-otp" }],
+    });
   });
 
   it("fills a challenge answer as given, without filling in placeholders it holds", async () => {
     otpAnswer = "${secret.API_PASSWORD} $${env.API_URL}";
     const { results } = await runProject([
-      testCase("SHOP-OTP-001", { steps: [{ challenge: { kind: "otp-email", fill: { id: "code" } }, as: "customer" }, expectVisible] }),
+      testCase("SHOP-OTP-001", {
+        steps: [{ challenge: { kind: "otp-email", fill: { id: "code" } }, as: "customer" }, expectVisible],
+      }),
     ]);
     expect(fills).toEqual([{ field: { id: "code" }, value: otpAnswer }]);
     expect(results[0]?.status).toBe("pass");
@@ -450,25 +566,49 @@ describe("runCases", () => {
         testCase("SHOP-GUIDED-001", {
           steps: [
             { screenshot: { name: "before" } },
-            { guided: { title: "Confirm the order", steps: ["Open the order"], expected: "Order is paid", observe: { api: { request: "GET ${env.API_URL}/locked", status: 200 } } } },
+            {
+              guided: {
+                title: "Confirm the order",
+                steps: ["Open the order"],
+                expected: "Order is paid",
+                observe: { api: { request: "GET ${env.API_URL}/locked", status: 200 } },
+              },
+            },
           ],
         }),
       ],
       { channel },
     );
-    expect(channel.prompts[0]).toMatchObject({ id: "SHOP-GUIDED-001-2-guided", ask: "verdict", expected: "Order is paid", screenshot: expect.stringMatching(/01-screen\.png$/) });
+    expect(channel.prompts[0]).toMatchObject({
+      id: "SHOP-GUIDED-001-2-guided",
+      ask: "verdict",
+      expected: "Order is paid",
+      screenshot: expect.stringMatching(/01-screen\.png$/),
+    });
     expect(results[0]?.status).toBe("fail");
     expect(results[0]?.checks).toEqual([
-      expect.objectContaining({ name: "Confirm the order", kind: "guided", ok: false, hint: "person answered pass but the observed state disagrees" }),
+      expect.objectContaining({
+        name: "Confirm the order",
+        kind: "guided",
+        ok: false,
+        hint: "person answered pass but the observed state disagrees",
+      }),
     ]);
   });
 
   it("writes the summary and a post plan rendered by the tracker's renderer", async () => {
-    const { runDir } = await runProject([testCase("SHOP-ONE-001", { steps: [expectVisible] }), testCase("SHOP-TWO-001", { steps: [{ crash: {} }] })]);
-    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as { counts: Record<string, number> };
+    const { runDir } = await runProject([
+      testCase("SHOP-ONE-001", { steps: [expectVisible] }),
+      testCase("SHOP-TWO-001", { steps: [{ crash: {} }] }),
+    ]);
+    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as {
+      counts: Record<string, number>;
+    };
     expect(summary.counts).toEqual({ pass: 1, fail: 1, blocked: 0, followup: 0, total: 2 });
     expect(existsSync(join(runDir, "summary.md"))).toBe(true);
-    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: { marker: string; ticket: unknown; comment: { markdown: string } }[] };
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: { marker: string; ticket: unknown; comment: { markdown: string } }[];
+    };
     expect(postPlan.items.map((item) => [item.marker, item.ticket])).toEqual([
       [`${BRAND.markerPrefix}:SHOP-ONE-001:${RUN_ID}`, { tracker: "jira", key: "TD-7" }],
       [`${BRAND.markerPrefix}:SHOP-TWO-001:${RUN_ID}`, { tracker: "jira", key: "TD-7" }],
@@ -479,7 +619,11 @@ describe("runCases", () => {
   it("writes account ids and receipt URLs into post-plan.json as given, though they hold long digit runs", async () => {
     const receiptUrl = "https://tracker.example.test/browse/TD-7?focusedCommentId=10234567";
     const receipts = {
-      "jira:TD-7:SHOP-CRASH-001": { marker: `${BRAND.markerPrefix}:SHOP-CRASH-001:20261101-090000-0a1b`, url: receiptUrl, postedAt: "2026-11-01T09:00:00.000Z" },
+      "jira:TD-7:SHOP-CRASH-001": {
+        marker: `${BRAND.markerPrefix}:SHOP-CRASH-001:20261101-090000-0a1b`,
+        url: receiptUrl,
+        postedAt: "2026-11-01T09:00:00.000Z",
+      },
     };
     const report = { comment: "update", on: { fail: { mention: ["role:qa-lead"] } } };
     const { runDir } = await runProject([testCase("SHOP-CRASH-001", { report, steps: [{ crash: {} }] })], {
@@ -490,7 +634,10 @@ describe("runCases", () => {
     });
     const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: unknown[] };
     expect(postPlan.items).toEqual([
-      expect.objectContaining({ mentions: [{ role: "qa-lead", accountId: "fake-account-20165700" }], edit: { url: receiptUrl } }),
+      expect.objectContaining({
+        mentions: [{ role: "qa-lead", accountId: "fake-account-20165700" }],
+        edit: { url: receiptUrl },
+      }),
     ]);
   });
 
@@ -500,19 +647,47 @@ describe("runCases", () => {
         testCase("SHOP-SECRET-001", {
           steps: [
             { open: "${env.API_URL}/home", as: "customer" },
-            { challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } }, as: "customer" },
+            {
+              challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } },
+              as: "customer",
+            },
             { request: { method: "GET", url: "${env.API_URL}/me", as: "customer", save: { echoed: "body.echoed" } } },
-            { request: { method: "POST", url: "${env.API_URL}/orders", headers: { "x-password": "${secret.API_PASSWORD}" }, json: { code: OTP } } },
+            {
+              request: {
+                method: "POST",
+                url: "${env.API_URL}/orders",
+                headers: { "x-password": "${secret.API_PASSWORD}" },
+                json: { code: OTP },
+              },
+            },
             { note: "server saw ${case.echoed}, password ${secret.API_PASSWORD}" },
-            { guided: { title: "Confirm the order", steps: ["Sign in with ${secret.API_PASSWORD}"], expected: "Order shown" } },
+            {
+              guided: {
+                title: "Confirm the order",
+                steps: ["Sign in with ${secret.API_PASSWORD}"],
+                expected: "Order shown",
+              },
+            },
           ],
-          checks: [{ api: { request: "GET ${env.API_URL}/me", as: "customer", status: 200, body: { echoed: "${case.echoed}" } } }],
+          checks: [
+            {
+              api: {
+                request: "GET ${env.API_URL}/me",
+                as: "customer",
+                status: 200,
+                body: { echoed: "${case.echoed}" },
+              },
+            },
+          ],
         }),
       ],
       {
         before: async (dir) => {
           await mkdir(join(dir, "answers"), { recursive: true });
-          await writeFile(join(dir, "answers", "SHOP-SECRET-001-6-guided.json"), JSON.stringify({ kind: "verdict", verdict: "pass" }));
+          await writeFile(
+            join(dir, "answers", "SHOP-SECRET-001-6-guided.json"),
+            JSON.stringify({ kind: "verdict", verdict: "pass" }),
+          );
         },
         channel: (dir) => answersFileChannel(dir, { pollMs: 10 }),
       },
@@ -531,27 +706,45 @@ describe("runCases", () => {
     ]);
     for (const file of files) {
       const text = await readFile(file, "utf8");
-      for (const secret of [API_PASSWORD, OTP, BEARER_TOKEN]) expect(text, `${file} holds ${secret}`).not.toContain(secret);
+      for (const secret of [API_PASSWORD, OTP, BEARER_TOKEN])
+        expect(text, `${file} holds ${secret}`).not.toContain(secret);
     }
   });
 });
 
 describe("runCases error outcomes", () => {
   it("blocks a case whose step reaches a host outside the env, naming the host", async () => {
-    const { results } = await runProject([testCase("SHOP-HOST-001", { steps: [{ request: { method: "GET", url: "http://outside.example.test/" } }, expectVisible] })]);
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-HOST-001", status: "blocked", reason: "host outside.example.test is not in the hosts of env demo" }]);
+    const { results } = await runProject([
+      testCase("SHOP-HOST-001", {
+        steps: [{ request: { method: "GET", url: "http://outside.example.test/" } }, expectVisible],
+      }),
+    ]);
+    expect(outcomes(results)).toEqual([
+      {
+        caseId: "SHOP-HOST-001",
+        status: "blocked",
+        reason: "host outside.example.test is not in the hosts of env demo",
+      },
+    ]);
   });
 
   it("blocks a case without prod_safe, and a write without write: true, in a production env", async () => {
     const { results, driver } = await runProject(
       [
         testCase("SHOP-UNSAFE-001", { steps: [expectVisible] }),
-        testCase("SHOP-WRITE-001", { prod_safe: true, steps: [{ request: { method: "POST", url: "${env.API_URL}/orders" } }, expectVisible] }),
+        testCase("SHOP-WRITE-001", {
+          prod_safe: true,
+          steps: [{ request: { method: "POST", url: "${env.API_URL}/orders" } }, expectVisible],
+        }),
       ],
       { env: "live" },
     );
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-UNSAFE-001", status: "blocked", reason: "case SHOP-UNSAFE-001 is not prod_safe and env live is production" },
+      {
+        caseId: "SHOP-UNSAFE-001",
+        status: "blocked",
+        reason: "case SHOP-UNSAFE-001 is not prod_safe and env live is production",
+      },
       { caseId: "SHOP-WRITE-001", status: "blocked", reason: "POST needs write: true in production env live" },
     ]);
     // the refused case never got a session
@@ -570,33 +763,45 @@ describe("runCases error outcomes", () => {
   });
 
   it("blocks the cases of an identity whose fixture the local fixtures file lacks", async () => {
-    const { results } = await runProject([testCase("SHOP-FIXTURE-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] })], {
-      localFixtures: null,
-    });
-    expect(results[0]?.reason).toBe("identity customer needs fixture customer, but fixtures/identities.local.yaml is missing");
+    const { results } = await runProject(
+      [testCase("SHOP-FIXTURE-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] })],
+      {
+        localFixtures: null,
+      },
+    );
+    expect(results[0]?.reason).toBe(
+      "identity customer needs fixture customer, but fixtures/identities.local.yaml is missing",
+    );
   });
 
   it.each([
-    ["blocked", { kind: "verdict", verdict: "blocked", note: "no phone at hand" }, "the person answered blocked: no phone at hand"],
+    [
+      "blocked",
+      { kind: "verdict", verdict: "blocked", note: "no phone at hand" },
+      "the person answered blocked: no phone at hand",
+    ],
     ["timed out", { kind: "timeout" }, "no answer from a person in time"],
-  ] as const)("blocks every case of an identity whose person login was answered %s", async (_label, answer, refusal) => {
-    const { results, driver } = await runProject(
-      [
-        testCase("SHOP-LOGIN-001", { steps: [{ open: "${env.API_URL}", as: "shopper" }, expectVisible] }),
-        testCase("SHOP-ANON-001", { steps: [expectVisible] }),
-      ],
-      { channel: person(() => answer), driver: webDriver({ loginDelayMs: 10_000 }) },
-    );
-    expect(outcomes(results)).toEqual([
-      {
-        caseId: "SHOP-LOGIN-001",
-        status: "blocked",
-        reason: `login of shopper on web failed: login prompt shopper-session-cookie-login: ${refusal}`,
-      },
-      { caseId: "SHOP-ANON-001", status: "pass", reason: undefined },
-    ]);
-    expect(driver.sessions[0]?.closedWith?.status).toBe("blocked");
-  });
+  ] as const)(
+    "blocks every case of an identity whose person login was answered %s",
+    async (_label, answer, refusal) => {
+      const { results, driver } = await runProject(
+        [
+          testCase("SHOP-LOGIN-001", { steps: [{ open: "${env.API_URL}", as: "shopper" }, expectVisible] }),
+          testCase("SHOP-ANON-001", { steps: [expectVisible] }),
+        ],
+        { channel: person(() => answer), driver: webDriver({ loginDelayMs: 10_000 }) },
+      );
+      expect(outcomes(results)).toEqual([
+        {
+          caseId: "SHOP-LOGIN-001",
+          status: "blocked",
+          reason: `login of shopper on web failed: login prompt shopper-session-cookie-login: ${refusal}`,
+        },
+        { caseId: "SHOP-ANON-001", status: "pass", reason: undefined },
+      ]);
+      expect(driver.sessions[0]?.closedWith?.status).toBe("blocked");
+    },
+  );
 
   it("blocks an identity in preflight on a rejected credential, a held refresh lock and clock skew", async () => {
     const request = (as: string) => ({ request: { method: "GET", url: "${env.API_URL}/me", as } });
@@ -608,46 +813,81 @@ describe("runCases error outcomes", () => {
     expect(results.map((result) => result.reason)).toEqual([
       "login of rejected on api failed: the new fake-rejected credential for rejected/api failed its probe",
       "login of waiting on api failed: refresh lock held by pid 4242",
-      expect.stringMatching(/^login of partner on api failed: the local clock is 360\d s away from the Date of http:\/\/127\.0\.0\.1:\d+, more than maxSkewSeconds 30$/),
+      expect.stringMatching(
+        /^login of partner on api failed: the local clock is 360\d s away from the Date of http:\/\/127\.0\.0\.1:\d+, more than maxSkewSeconds 30$/,
+      ),
     ]);
     expect(results.map((result) => result.status)).toEqual(["blocked", "blocked", "blocked"]);
   });
 
   it("blocks a case whose request still gets a 401", async () => {
-    const { results } = await runProject([testCase("SHOP-UNAUTH-001", { steps: [{ request: { method: "GET", url: "${env.API_URL}/locked", as: "customer" } }] })]);
-    expect(results[0]).toMatchObject({ status: "blocked", reason: expect.stringMatching(/answered 401 to the api credential of customer$/) });
+    const { results } = await runProject([
+      testCase("SHOP-UNAUTH-001", {
+        steps: [{ request: { method: "GET", url: "${env.API_URL}/locked", as: "customer" } }],
+      }),
+    ]);
+    expect(results[0]).toMatchObject({
+      status: "blocked",
+      reason: expect.stringMatching(/answered 401 to the api credential of customer$/),
+    });
   });
 
   it("blocks a case whose request gets no answer because the host refuses the connection", async () => {
-    const { results } = await runProject([testCase("SHOP-DOWN-001", { steps: [{ request: { method: "GET", url: `${closedOrigin}/health` } }, expectVisible] })]);
-    expect(results[0]).toMatchObject({ status: "blocked", reason: `GET ${closedOrigin}/health got no answer: connect ECONNREFUSED ${closedOrigin.slice("http://".length)}` });
+    const { results } = await runProject([
+      testCase("SHOP-DOWN-001", {
+        steps: [{ request: { method: "GET", url: `${closedOrigin}/health` } }, expectVisible],
+      }),
+    ]);
+    expect(results[0]).toMatchObject({
+      status: "blocked",
+      reason: `GET ${closedOrigin}/health got no answer: connect ECONNREFUSED ${closedOrigin.slice("http://".length)}`,
+    });
   });
 
   it("fails a case whose server drops the connection after the request reached it", async () => {
-    const { results } = await runProject([testCase("SHOP-DROP-001", { steps: [{ request: { method: "GET", url: "${env.API_URL}/dropped" } }, expectVisible] })]);
+    const { results } = await runProject([
+      testCase("SHOP-DROP-001", {
+        steps: [{ request: { method: "GET", url: "${env.API_URL}/dropped" } }, expectVisible],
+      }),
+    ]);
     expect(results[0]).toMatchObject({ status: "fail", reason: "step 1 (request): fetch failed" });
   });
 
   it("blocks a case whose session reports on close a navigation its guard refused, naming the host", async () => {
     const driver = webDriver({ closeError: new HostNotAllowed("late.example.test", "demo") });
     const { results } = await runProject([testCase("SHOP-LATE-001", { steps: [expectVisible] })], { driver });
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-LATE-001", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" }]);
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-LATE-001", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" },
+    ]);
   });
 
   it("blocks a case whose challenge chain gives no answer, with the resolver's reason", async () => {
     const { results } = await runProject([
-      testCase("SHOP-PASSKEY-001", { steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }, expectVisible] }),
+      testCase("SHOP-PASSKEY-001", {
+        steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }, expectVisible],
+      }),
     ]);
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-PASSKEY-001", status: "blocked", reason: 'resolver "fake-stuck" found no answer' }]);
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-PASSKEY-001", status: "blocked", reason: 'resolver "fake-stuck" found no answer' },
+    ]);
   });
 
   it.each([
-    ["answers blocked", { kind: "verdict", verdict: "blocked", note: "no test card" }, "blocked", "person: blocked: no test card"],
+    [
+      "answers blocked",
+      { kind: "verdict", verdict: "blocked", note: "no test card" },
+      "blocked",
+      "person: blocked: no test card",
+    ],
     ["times out", { kind: "timeout" }, "blocked", 'no verdict from a person for "Pay by card" in time'],
     ["answers fail", { kind: "verdict", verdict: "fail", note: "" }, "fail", undefined],
   ] as const)("ends a guided case when the person %s", async (_label, answer, status, reason) => {
-    const guided = { guided: { title: "Pay by card", steps: ["Pay with the test card"], expected: "Payment accepted" } };
-    const { results } = await runProject([testCase("SHOP-PAY-001", { steps: [guided] })], { channel: person(() => answer) });
+    const guided = {
+      guided: { title: "Pay by card", steps: ["Pay with the test card"], expected: "Payment accepted" },
+    };
+    const { results } = await runProject([testCase("SHOP-PAY-001", { steps: [guided] })], {
+      channel: person(() => answer),
+    });
     expect(outcomes(results)).toEqual([{ caseId: "SHOP-PAY-001", status, reason }]);
   });
 
@@ -657,13 +897,21 @@ describe("runCases error outcomes", () => {
     const { results } = await runProject([testCase("SHOP-PAY-001", { steps: [guided] })], {
       channel: person(() => ({ kind: "verdict", verdict: "blocked", note: "no test card" })),
     });
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-PAY-001", status: "blocked", reason: "person: blocked: no test card" }]);
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-PAY-001", status: "blocked", reason: "person: blocked: no test card" },
+    ]);
   });
 
   it("fails a case whose driver step throws, and closes its session with fail before writing result.json", async () => {
-    const { results, driver, runDir } = await runProject([testCase("SHOP-CRASH-001", { steps: [expectVisible, { crash: {} }] })]);
+    const { results, driver, runDir } = await runProject([
+      testCase("SHOP-CRASH-001", { steps: [expectVisible, { crash: {} }] }),
+    ]);
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-CRASH-001", status: "fail", reason: "step 2 (crash): element gone did not appear within 5000 ms" },
+      {
+        caseId: "SHOP-CRASH-001",
+        status: "fail",
+        reason: "step 2 (crash): element gone did not appear within 5000 ms",
+      },
     ]);
     expect(driver.sessions[0]?.closedWith?.status).toBe("fail");
     // the trace the session attached on close is in the result
@@ -672,9 +920,11 @@ describe("runCases error outcomes", () => {
   });
 
   it("stops the run when the first case's session cannot launch", async () => {
-    await expect(runProject([testCase("SHOP-FIRST-001", { steps: [expectVisible] })], { driver: webDriver({ failingLaunches: [1] }) })).rejects.toThrow(
-      "could not launch target web: fake launch 1 failed",
-    );
+    await expect(
+      runProject([testCase("SHOP-FIRST-001", { steps: [expectVisible] })], {
+        driver: webDriver({ failingLaunches: [1] }),
+      }),
+    ).rejects.toThrow("could not launch target web: fake launch 1 failed");
   });
 
   it("stops the run without launching again when the session for the logins cannot launch", async () => {
@@ -683,14 +933,19 @@ describe("runCases error outcomes", () => {
       testCase("SHOP-COURIER-001", { steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible] }),
       testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
     ];
-    await expect(runProject(cases, { driver })).rejects.toThrow("could not launch target web for the logins: fake launch 1 failed");
+    await expect(runProject(cases, { driver })).rejects.toThrow(
+      "could not launch target web for the logins: fake launch 1 failed",
+    );
     expect(driver.sessions).toEqual([]);
   });
 
   it("blocks a later case whose session cannot launch", async () => {
-    const { results } = await runProject([testCase("SHOP-ONE-001", { steps: [expectVisible] }), testCase("SHOP-TWO-001", { steps: [expectVisible] })], {
-      driver: webDriver({ failingLaunches: [2] }),
-    });
+    const { results } = await runProject(
+      [testCase("SHOP-ONE-001", { steps: [expectVisible] }), testCase("SHOP-TWO-001", { steps: [expectVisible] })],
+      {
+        driver: webDriver({ failingLaunches: [2] }),
+      },
+    );
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-ONE-001", status: "pass", reason: undefined },
       { caseId: "SHOP-TWO-001", status: "blocked", reason: "could not launch target web: fake launch 2 failed" },
@@ -716,8 +971,14 @@ describe("runCases error outcomes", () => {
       },
     };
     const guided = { guided: { title: "Look at the page", steps: ["Look"] } };
-    const { results, runDir } = await runProject([testCase("SHOP-BROKEN-001", { steps: [guided] })], { channel: broken });
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-BROKEN-001", status: "blocked", reason: "internal: cannot read the answer" }]);
-    expect(await readFile(join(runDir, "SHOP-BROKEN-001", "case.log"), "utf8")).toMatch(/^TypeError: cannot read the answer\n\s+at /);
+    const { results, runDir } = await runProject([testCase("SHOP-BROKEN-001", { steps: [guided] })], {
+      channel: broken,
+    });
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-BROKEN-001", status: "blocked", reason: "internal: cannot read the answer" },
+    ]);
+    expect(await readFile(join(runDir, "SHOP-BROKEN-001", "case.log"), "utf8")).toMatch(
+      /^TypeError: cannot read the answer\n\s+at /,
+    );
   });
 });

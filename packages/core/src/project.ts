@@ -33,7 +33,9 @@ const TrackerConfig = z.strictObject({
   projects: z
     .record(
       z.string().min(1),
-      z.strictObject({ transitions: z.partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1)) }),
+      z.strictObject({
+        transitions: z.partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1)),
+      }),
     )
     .default({}),
 });
@@ -144,7 +146,9 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
   const suites = await readSuites(root);
   const fixtures = await readFixtures(root);
   const kinds = challengeKinds(config, configFile, registry);
-  const files = [configFile, ...caseFiles, ...flows.files, suites.file, fixtures.file].filter((file) => file !== undefined);
+  const files = [configFile, ...caseFiles, ...flows.files, suites.file, fixtures.file].filter(
+    (file) => file !== undefined,
+  );
   return {
     root: resolve(root),
     config,
@@ -155,7 +159,8 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
     retiredIds: caseLoad.retiredIds,
     challengeKinds: kinds.kinds,
     files: new Map(files.map((file) => [file.path, file])),
-    ignoredStateDirs: (await gitIgnoredStateDirs(root)) ?? rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
+    ignoredStateDirs:
+      (await gitIgnoredStateDirs(root)) ?? rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
     issues: [...caseLoad.issues, ...flows.issues, ...suites.issues, ...fixtures.issues, ...kinds.issues],
   };
 }
@@ -184,7 +189,11 @@ async function readConfig(root: string): Promise<ConfigLoad & { file: ProjectFil
   const file = await readProjectFile(root, BRAND.configFile);
   if (file === undefined) {
     const fix = `Run ${BRAND.name} init in the project root, or point at the folder that holds ${BRAND.configFile}.`;
-    return { file, config: undefined, issues: [schemaIssue(BRAND.configFile, 1, `${BRAND.configFile} is missing`, fix)] };
+    return {
+      file,
+      config: undefined,
+      issues: [schemaIssue(BRAND.configFile, 1, `${BRAND.configFile} is missing`, fix)],
+    };
   }
   const parsed = parseFile(file, ProjectConfig, "Edit this entry so it matches the config schema.");
   return { file, config: parsed.data, issues: parsed.issues };
@@ -225,7 +234,14 @@ async function readFlows(
         return;
       }
       const message = `flow ${flow.name} is already defined at ${first.source.file}:${first.source.line}`;
-      issues.push(schemaIssue(file.path, lineAt(file, ["flows", index, "name"]), message, "Give this flow a name no other flow uses."));
+      issues.push(
+        schemaIssue(
+          file.path,
+          lineAt(file, ["flows", index, "name"]),
+          message,
+          "Give this flow a name no other flow uses.",
+        ),
+      );
     });
   }
   return { flows, files, issues };
@@ -240,7 +256,9 @@ async function readSuites(
   return { suites: new Map(Object.entries(parsed.data ?? {})), file, issues: parsed.issues };
 }
 
-async function readFixtures(root: string): Promise<{ fixtures: IdentityFixtures; file: ProjectFile | undefined; issues: LoadIssue[] }> {
+async function readFixtures(
+  root: string,
+): Promise<{ fixtures: IdentityFixtures; file: ProjectFile | undefined; issues: LoadIssue[] }> {
   const file = await readProjectFile(root, FIXTURES_FILE);
   if (file === undefined) return { fixtures: {}, file, issues: [] };
   const parsed = parseFile(file, IdentityFixtures, "Give each fixture entry a mapping of field names to strings.");
@@ -258,7 +276,10 @@ function challengeKinds(
     ...Object.entries(config.envs).flatMap(([env, { challenges }]) =>
       Object.keys(challenges).map((name): [string, PropertyKey[]] => [name, ["envs", env, "challenges", name]]),
     ),
-    ...config.challenges.humanOnly.map((name, index): [string, PropertyKey[]] => [name, ["challenges", "humanOnly", index]]),
+    ...config.challenges.humanOnly.map((name, index): [string, PropertyKey[]] => [
+      name,
+      ["challenges", "humanOnly", index],
+    ]),
   ];
   for (const [name, path] of named) {
     if (kinds.has(name)) continue;
@@ -280,7 +301,11 @@ function challengeKinds(
 async function gitIgnoredStateDirs(root: string): Promise<Set<string> | undefined> {
   let stdout: string;
   try {
-    ({ stdout } = await execFileAsync("git", ["check-ignore", "--no-index", "--verbose", ...STATE_DIRS.map((dir) => `${dir}/`)], { cwd: root }));
+    ({ stdout } = await execFileAsync(
+      "git",
+      ["check-ignore", "--no-index", "--verbose", ...STATE_DIRS.map((dir) => `${dir}/`)],
+      { cwd: root },
+    ));
   } catch (error) {
     // exit code 1: git ignores none of them
     if ((error as { code?: unknown }).code !== 1) return undefined;
@@ -320,13 +345,17 @@ function parseFile<S extends z.ZodType>(
 }
 
 function syntaxIssues(file: ProjectFile): LoadIssue[] {
-  return file.doc.errors.map((error) => schemaIssue(file.path, file.lines.linePos(error.pos[0]).line, error.message, SYNTAX_FIX));
+  return file.doc.errors.map((error) =>
+    schemaIssue(file.path, file.lines.linePos(error.pos[0]).line, error.message, SYNTAX_FIX),
+  );
 }
 
 function zodIssue(file: ProjectFile, issue: z.core.$ZodIssue, fix: string): LoadIssue {
   const path = issue.code === "unrecognized_keys" ? [...issue.path, ...issue.keys.slice(0, 1)] : issue.path;
   const where = issue.path
-    .map((segment, index) => (typeof segment === "number" ? `[${segment}]` : `${index === 0 ? "" : "."}${String(segment)}`))
+    .map((segment, index) =>
+      typeof segment === "number" ? `[${segment}]` : `${index === 0 ? "" : "."}${String(segment)}`,
+    )
     .join("");
   return schemaIssue(file.path, lineAt(file, path), where === "" ? issue.message : `${where}: ${issue.message}`, fix);
 }

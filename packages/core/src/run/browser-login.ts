@@ -41,8 +41,14 @@ export class RunBrowserLogin implements BrowserLogin {
     if (browserLogin === undefined) throw new Error("no open driver session offers browser.login");
     const stop = new AbortController();
     const signals = [stop.signal, this.#scope.signal, ...(request.signal === undefined ? [] : [request.signal])];
-    const forDriver: BrowserLoginRequest = { url: request.url, until: request.until, timeoutMs: request.timeoutMs, signal: AbortSignal.any(signals) };
-    if (request.flow !== undefined) forDriver.flow = await this.#scope.resolve(expandFlows(request.flow, this.#scope.flows));
+    const forDriver: BrowserLoginRequest = {
+      url: request.url,
+      until: request.until,
+      timeoutMs: request.timeoutMs,
+      signal: AbortSignal.any(signals),
+    };
+    if (request.flow !== undefined)
+      forDriver.flow = await this.#scope.resolve(expandFlows(request.flow, this.#scope.flows));
     if (request.prompt === undefined) return browserLogin.login(forDriver);
     // the driver never shows the prompt, but learns from it that a person acts and needs a visible browser
     forDriver.prompt = maskPrompt({ ...request.prompt, runId: this.#scope.runId }, this.#scope.redactor);
@@ -77,7 +83,11 @@ export class RunBrowserLogin implements BrowserLogin {
 
 /** The prompt with every registered secret masked in its text, since channels write prompts to disk. */
 export function maskPrompt(prompt: PersonPrompt, redactor: Redactor): PersonPrompt {
-  const masked: PersonPrompt = { ...prompt, title: redactor.text(prompt.title), steps: prompt.steps.map((step) => redactor.text(step)) };
+  const masked: PersonPrompt = {
+    ...prompt,
+    title: redactor.text(prompt.title),
+    steps: prompt.steps.map((step) => redactor.text(step)),
+  };
   if (prompt.expected !== undefined) masked.expected = redactor.text(prompt.expected);
   return masked;
 }

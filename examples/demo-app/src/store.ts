@@ -9,10 +9,22 @@ export interface User {
   transfersConfirmed: number
 }
 
-export interface IssuedOtp { code: string; expiresAt: number }
-export interface Session { email: string; expiresAt: number }
-export interface AccessToken { clientId: string; expiresAt: number }
-export interface Passkey { email: string; credential: WebAuthnCredential }
+export interface IssuedOtp {
+  code: string
+  expiresAt: number
+}
+export interface Session {
+  email: string
+  expiresAt: number
+}
+export interface AccessToken {
+  clientId: string
+  expiresAt: number
+}
+export interface Passkey {
+  email: string
+  credential: WebAuthnCredential
+}
 
 export class Store {
   readonly users = new Map<string, User>()
@@ -36,9 +48,17 @@ export class Store {
 
   reset(): void {
     for (const map of [
-      this.users, this.otps, this.sessions, this.accessTokens, this.refreshTokens,
-      this.passkeys, this.registrationChallenges, this.loginChallenges, this.hmacNonces,
-    ]) map.clear()
+      this.users,
+      this.otps,
+      this.sessions,
+      this.accessTokens,
+      this.refreshTokens,
+      this.passkeys,
+      this.registrationChallenges,
+      this.loginChallenges,
+      this.hmacNonces,
+    ])
+      map.clear()
   }
 }
 

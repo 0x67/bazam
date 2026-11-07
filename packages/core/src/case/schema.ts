@@ -63,7 +63,9 @@ export interface GuidedStep {
 
 const ReportAction = z.strictObject({
   transition: z.string().min(1).optional(),
-  mention: z.array(z.string().regex(/^role:[a-z][a-z0-9-]*$/, { error: 'a mention looks like "role:qa-lead"' })).default([]),
+  mention: z
+    .array(z.string().regex(/^role:[a-z][a-z0-9-]*$/, { error: 'a mention looks like "role:qa-lead"' }))
+    .default([]),
 });
 export const ReportPolicy = z.strictObject({
   comment: z.enum(["new", "update"]).default("new"),

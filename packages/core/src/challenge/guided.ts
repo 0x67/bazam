@@ -22,7 +22,8 @@ export function checkGuidedOutcome(
   observation: GuidedObservation | undefined,
 ): CheckRecord {
   if (answer.kind === "timeout") throw new GuidedBlocked(`no verdict from a person for "${name}" in time`);
-  if (answer.kind !== "verdict") throw new GuidedBlocked(`the person answered ${answer.kind} for "${name}", which needs a verdict`);
+  if (answer.kind !== "verdict")
+    throw new GuidedBlocked(`the person answered ${answer.kind} for "${name}", which needs a verdict`);
   const said = answer.note === "" ? answer.verdict : `${answer.verdict}: ${answer.note}`;
   if (answer.verdict === "blocked") throw new GuidedBlocked(`person: ${said}`);
 

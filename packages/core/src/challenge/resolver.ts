@@ -41,7 +41,11 @@ export interface ChallengeResolver {
   /** Runs before the trigger, for example to note the mail already in the inbox so it is ignored. */
   arm?(request: ChallengeRequest, ctx: ResolverContext): Promise<void>;
   /** Undefined when it found no answer. */
-  resolve(request: ChallengeRequest, ctx: ResolverContext, kind: ChallengeKindSpec): Promise<ChallengeAnswer | undefined>;
+  resolve(
+    request: ChallengeRequest,
+    ctx: ResolverContext,
+    kind: ChallengeKindSpec,
+  ): Promise<ChallengeAnswer | undefined>;
 }
 
 /** The case cannot go on: no resolver could run, or the chain gave no answer. */
@@ -100,7 +104,8 @@ export async function resolveChallenge(
   const first = await attempt(armed, request, kind, ctx);
   if (typeof first !== "string") return first;
 
-  const person = armed.automated && kind.fallbackAfterTrigger ? runnable.find((resolver) => !resolver.automated) : undefined;
+  const person =
+    armed.automated && kind.fallbackAfterTrigger ? runnable.find((resolver) => !resolver.automated) : undefined;
   if (person === undefined) throw new ChallengeBlocked(first);
   const second = await attempt(person, request, kind, ctx);
   if (typeof second !== "string") return second;
@@ -127,7 +132,8 @@ async function attempt(
   if (answer === undefined) return `resolver "${resolver.name}" found no answer`;
   // checked here so that no resolver, built in or from a plugin, can hand back a value for a human-only kind
   const expected = takesValue(kind) ? "value" : "done";
-  if (answer.kind !== expected) return `resolver "${resolver.name}" answered ${answer.kind}, but ${kind.name} takes ${expected}`;
+  if (answer.kind !== expected)
+    return `resolver "${resolver.name}" answered ${answer.kind}, but ${kind.name} takes ${expected}`;
   return { answer, resolver: resolver.name };
 }
 
@@ -139,7 +145,8 @@ function noRunnableReason(
 ): string {
   if (chain.length === 0) return `env ${env.name} has no resolver chain for challenge ${kind.name}`;
   const missing = chain.map(
-    (resolver) => `${resolver.name} needs ${resolver.requires.filter((capability) => !capabilities.has(capability)).join(", ")}`,
+    (resolver) =>
+      `${resolver.name} needs ${resolver.requires.filter((capability) => !capabilities.has(capability)).join(", ")}`,
   );
   return `no resolver for challenge ${kind.name} can run on this driver: ${missing.join("; ")}`;
 }

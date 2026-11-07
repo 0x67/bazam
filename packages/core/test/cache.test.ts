@@ -33,7 +33,10 @@ describe("CredentialCache", () => {
     await cache.save(key, { accessToken: "fake-access-1" });
     await cache.save(key, { accessToken: "fake-access-2" }, new Date("2026-11-06T10:00:00.000Z"));
 
-    expect(await cache.load(key)).toEqual({ credential: { accessToken: "fake-access-2" }, expiresAt: "2026-11-06T10:00:00.000Z" });
+    expect(await cache.load(key)).toEqual({
+      credential: { accessToken: "fake-access-2" },
+      expiresAt: "2026-11-06T10:00:00.000Z",
+    });
   });
 
   it("keeps keys apart even when their names differ only in where a dash sits", async () => {

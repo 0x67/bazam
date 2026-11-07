@@ -65,7 +65,9 @@ describe("EnvsConfig", () => {
   });
 
   it("rejects a locale that is not a BCP 47 tag", () => {
-    const result = EnvsConfig.safeParse({ uat: { production: false, hosts: ["uat.app.example.test"], locale: "en_US" } });
+    const result = EnvsConfig.safeParse({
+      uat: { production: false, hosts: ["uat.app.example.test"], locale: "en_US" },
+    });
 
     expect(result.error?.issues.map((issue) => issue.path)).toEqual([["uat", "locale"]]);
   });

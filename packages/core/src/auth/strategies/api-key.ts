@@ -23,7 +23,8 @@ export const apiKeyStrategy = defineAuthStrategy<ApiKeyConfig, ApiKeyCredential>
   acquire: async (config) => ({ key: config.key }),
   apply: async (credential, target, config) => {
     if ("header" in config) return applyHeader(target, config.header, credential.key);
-    if (target.kind === "browser") throw new Error(`an api key in the query parameter ${config.query} cannot apply to a browser`);
+    if (target.kind === "browser")
+      throw new Error(`an api key in the query parameter ${config.query} cannot apply to a browser`);
     target.request.url.searchParams.set(config.query, credential.key);
   },
   secrets: (credential) => [credential.key],

@@ -26,7 +26,12 @@ export class RefreshLockTimeout extends Error {
  * machine. The holder touches the file while `fn` runs, so a login that waits on a person keeps it.
  * A lock whose pid no longer runs, or untouched for two minutes, is removed.
  */
-export async function withRefreshLock<T>(lockDir: string, key: CredentialKey, fn: () => Promise<T>, waitMs = WAIT_MS): Promise<T> {
+export async function withRefreshLock<T>(
+  lockDir: string,
+  key: CredentialKey,
+  fn: () => Promise<T>,
+  waitMs = WAIT_MS,
+): Promise<T> {
   await mkdir(lockDir, { recursive: true });
   const stem = [key.env, key.identity, key.surface].map(encodeURIComponent).join("+");
   const path = join(lockDir, `${stem}.lock`);

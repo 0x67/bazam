@@ -18,7 +18,12 @@ describe("apiKeyStrategy", () => {
   afterAll(() => server.close());
 
   it("sends the key in the configured header", async () => {
-    const { response } = await sendWith(apiKeyStrategy, { key: KEY, header: "X-Api-Key" }, draft("GET", `${server.origin}/api/key/whoami`), authContext());
+    const { response } = await sendWith(
+      apiKeyStrategy,
+      { key: KEY, header: "X-Api-Key" },
+      draft("GET", `${server.origin}/api/key/whoami`),
+      authContext(),
+    );
 
     expect(response.status).toBe(200);
     expect(server.received.at(-1)?.headers["x-api-key"]).toBe(KEY);
@@ -40,9 +45,9 @@ describe("apiKeyStrategy", () => {
     await apiKeyStrategy.apply(credential, { kind: "browser", session }, { key: KEY, header: "X-Api-Key" });
 
     expect(session.extraHeaders).toEqual({ "X-Api-Key": KEY });
-    await expect(apiKeyStrategy.apply(credential, { kind: "browser", session }, { key: KEY, query: "api_key" })).rejects.toThrow(
-      "an api key in the query parameter api_key cannot apply to a browser",
-    );
+    await expect(
+      apiKeyStrategy.apply(credential, { kind: "browser", session }, { key: KEY, query: "api_key" }),
+    ).rejects.toThrow("an api key in the query parameter api_key cannot apply to a browser");
   });
 
   it("the redactor masks the key in the header and in the credential", async () => {

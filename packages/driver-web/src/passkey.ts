@@ -44,7 +44,10 @@ export const virtualPasskeyResolver: ChallengeResolver = {
       const { rpId, ...credential } = passkey;
       await context.credentials.create(rpId, credential);
     }
-    armedCounters.set(request, new Map((await context.credentials.get()).map((passkey) => [passkey.id, passkey.signCount])));
+    armedCounters.set(
+      request,
+      new Map((await context.credentials.get()).map((passkey) => [passkey.id, passkey.signCount])),
+    );
   },
   async resolve(request, ctx) {
     const armed = armedCounters.get(request);
@@ -58,14 +61,22 @@ export const virtualPasskeyResolver: ChallengeResolver = {
   },
 };
 
-async function identityContext(request: ChallengeRequest, ctx: ResolverContext): Promise<{ context: BrowserContext; session: WebSession }> {
+async function identityContext(
+  request: ChallengeRequest,
+  ctx: ResolverContext,
+): Promise<{ context: BrowserContext; session: WebSession }> {
   const session = ctx.session;
-  if (!(session instanceof WebSession)) throw new Error(`${RESOLVER} needs a session of the ${playwrightDriver.name} driver`);
+  if (!(session instanceof WebSession))
+    throw new Error(`${RESOLVER} needs a session of the ${playwrightDriver.name} driver`);
   return { context: (await session.contextFor(request.identity)).context, session };
 }
 
 /** The passkeys once one was registered or signed with since the resolver armed, or undefined when none was in time. */
-async function waitForUse(context: BrowserContext, armed: ReadonlyMap<string, number>, signal: AbortSignal): Promise<Passkey[] | undefined> {
+async function waitForUse(
+  context: BrowserContext,
+  armed: ReadonlyMap<string, number>,
+  signal: AbortSignal,
+): Promise<Passkey[] | undefined> {
   const deadline = Date.now() + USE_TIMEOUT_MS;
   for (;;) {
     const passkeys = await context.credentials.get();

@@ -35,7 +35,9 @@ export class PlaywrightLogin implements BrowserLogin {
       return await abortable(drive(tab, request, signal), signal);
     } catch (error) {
       if (timeout.aborted && request.signal?.aborted !== true) {
-        throw new Error(`the login at ${request.url.origin}${request.url.pathname} did not reach ${describeDone(request.until)} within ${request.timeoutMs} ms`);
+        throw new Error(
+          `the login at ${request.url.origin}${request.url.pathname} did not reach ${describeDone(request.until)} within ${request.timeoutMs} ms`,
+        );
       }
       throw error;
     } finally {
@@ -45,7 +47,11 @@ export class PlaywrightLogin implements BrowserLogin {
   }
 }
 
-async function drive(tab: LoginTab, request: BrowserLoginRequest, signal: AbortSignal): Promise<{ state: StorageState; finalUrl: URL }> {
+async function drive(
+  tab: LoginTab,
+  request: BrowserLoginRequest,
+  signal: AbortSignal,
+): Promise<{ state: StorageState; finalUrl: URL }> {
   await tab.runStep({ open: request.url.href });
   for (const step of request.flow ?? []) {
     signal.throwIfAborted();
@@ -71,7 +77,10 @@ async function isDone(tab: LoginTab, until: LoginDone): Promise<boolean> {
 
 /** `*` matches any run of characters, `/` included; every other character matches itself. */
 export function urlMatches(glob: string, url: string): boolean {
-  const pattern = glob.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  const pattern = glob
+    .split("*")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
   return new RegExp(`^${pattern}$`, "s").test(url);
 }
 

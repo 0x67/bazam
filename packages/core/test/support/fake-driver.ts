@@ -1,6 +1,13 @@
 import { z } from "zod";
 import type { StorageState } from "../../src/auth/index.ts";
-import type { Capability, CaseEnding, Driver, DriverSession, LaunchOptions, StepHandler } from "../../src/driver/index.ts";
+import type {
+  Capability,
+  CaseEnding,
+  Driver,
+  DriverSession,
+  LaunchOptions,
+  StepHandler,
+} from "../../src/driver/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "./fake-browser.ts";
 
 export interface FakeDriverOptions {
@@ -49,7 +56,10 @@ export function fakeDriver(options: FakeDriverOptions = {}): FakeDriver {
     launch: async (launchOptions) => {
       launches += 1;
       if (options.failingLaunches?.includes(launches) === true) throw new Error(`fake launch ${launches} failed`);
-      const login = new FakeBrowserLogin(options.loginCookies ?? [], options.loginDelayMs === undefined ? {} : { delayMs: options.loginDelayMs });
+      const login = new FakeBrowserLogin(
+        options.loginCookies ?? [],
+        options.loginDelayMs === undefined ? {} : { delayMs: options.loginDelayMs },
+      );
       const session = fakeSession(launchOptions, capabilities, login, options.closeError);
       sessions.push(session);
       return session;
@@ -59,7 +69,12 @@ export function fakeDriver(options: FakeDriverOptions = {}): FakeDriver {
   };
 }
 
-function fakeSession(options: LaunchOptions, capabilities: ReadonlySet<Capability>, login: FakeBrowserLogin, closeError: Error | undefined): FakeSession {
+function fakeSession(
+  options: LaunchOptions,
+  capabilities: ReadonlySet<Capability>,
+  login: FakeBrowserLogin,
+  closeError: Error | undefined,
+): FakeSession {
   const session: FakeSession = {
     options,
     capabilities,
@@ -67,7 +82,8 @@ function fakeSession(options: LaunchOptions, capabilities: ReadonlySet<Capabilit
     closedWith: undefined,
     close: async (ending) => {
       session.closedWith = ending;
-      if (ending.status !== "pass") await ending.evidence.attach("trace", new TextEncoder().encode("fake trace bytes"), "zip");
+      if (ending.status !== "pass")
+        await ending.evidence.attach("trace", new TextEncoder().encode("fake trace bytes"), "zip");
       if (closeError !== undefined) throw closeError;
     },
   };

@@ -5,7 +5,18 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { chromium, firefox, webkit } from "playwright";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { scrubTrace } from "../src/trace.ts";
-import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Site } from "./support/site.ts";
+import {
+  demoEnv,
+  ENGINES,
+  html,
+  launch,
+  newEvidence,
+  runSteps,
+  startSite,
+  stepContext,
+  tempDir,
+  type Site,
+} from "./support/site.ts";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
@@ -30,7 +41,11 @@ describe("scrubTrace", () => {
     site = await startSite({
       "/": (_request, response, current) => {
         response.setHeader("set-cookie", `sid=${SESSION_COOKIE}; Path=/; HttpOnly`);
-        html('<label>Code <input data-testid="otp"></label><button onclick="fetch(\'/api/me\')">Check</button>')(_request, response, current);
+        html('<label>Code <input data-testid="otp"></label><button onclick="fetch(\'/api/me\')">Check</button>')(
+          _request,
+          response,
+          current,
+        );
       },
       "/api/me": (_request, response) => {
         response.setHeader("content-type", "application/json");
@@ -41,42 +56,51 @@ describe("scrubTrace", () => {
 
   afterAll(() => site.close());
 
-  it.each(ENGINES)("scrubs a bearer header, a cookie and a registered OTP from a recorded trace on %s", async (engine) => {
-    const root = await tempDir();
-    const browser = await browsers[engine].launch();
-    try {
-      const context = await browser.newContext();
-      await context.tracing.start({ snapshots: true, screenshots: false, sources: false });
-      // how WebSession.setExtraHeaders sends a header
-      await context.route(
-        () => true,
-        (route) => route.continue({ headers: { ...route.request().headers(), authorization: `Bearer ${BEARER_TOKEN}` } }),
-      );
-      const page = await context.newPage();
-      await page.goto(`${site.origin}/`);
-      await page.getByTestId("otp").fill(OTP);
-      await page.getByRole("button", { name: "Check" }).click();
-      await page.waitForLoadState("networkidle");
-      await context.storageState();
-      await context.tracing.stop({ path: join(root, "trace.zip") });
-      const raw = await readFile(join(root, "trace.zip"));
-      const redactor = new Redactor(defaultRedactionRules());
-      redactor.register(OTP);
+  it.each(ENGINES)(
+    "scrubs a bearer header, a cookie and a registered OTP from a recorded trace on %s",
+    async (engine) => {
+      const root = await tempDir();
+      const browser = await browsers[engine].launch();
+      try {
+        const context = await browser.newContext();
+        await context.tracing.start({ snapshots: true, screenshots: false, sources: false });
+        // how WebSession.setExtraHeaders sends a header
+        await context.route(
+          () => true,
+          (route) =>
+            route.continue({ headers: { ...route.request().headers(), authorization: `Bearer ${BEARER_TOKEN}` } }),
+        );
+        const page = await context.newPage();
+        await page.goto(`${site.origin}/`);
+        await page.getByTestId("otp").fill(OTP);
+        await page.getByRole("button", { name: "Check" }).click();
+        await page.waitForLoadState("networkidle");
+        await context.storageState();
+        await context.tracing.stop({ path: join(root, "trace.zip") });
+        const raw = await readFile(join(root, "trace.zip"));
+        const redactor = new Redactor(defaultRedactionRules());
+        redactor.register(OTP);
 
-      const scrubbed = unzipSync(scrubTrace(raw, redactor));
+        const scrubbed = unzipSync(scrubTrace(raw, redactor));
 
-      const before = unzipSync(raw);
-      expect(containing(before, SECRETS).sort()).toEqual(expect.arrayContaining(SECRETS.map((secret) => `trace.trace: ${secret}`)));
-      expect(Object.keys(scrubbed).sort()).toEqual(Object.keys(before).sort());
-      expect(containing(scrubbed, SECRETS)).toEqual([]);
-      for (const name of ["trace.trace", "trace.network"]) {
-        for (const line of strFromU8(scrubbed[name]!).split("\n").filter((line) => line !== "")) expect(() => JSON.parse(line)).not.toThrow();
+        const before = unzipSync(raw);
+        expect(containing(before, SECRETS).sort()).toEqual(
+          expect.arrayContaining(SECRETS.map((secret) => `trace.trace: ${secret}`)),
+        );
+        expect(Object.keys(scrubbed).sort()).toEqual(Object.keys(before).sort());
+        expect(containing(scrubbed, SECRETS)).toEqual([]);
+        for (const name of ["trace.trace", "trace.network"]) {
+          for (const line of strFromU8(scrubbed[name]!)
+            .split("\n")
+            .filter((line) => line !== ""))
+            expect(() => JSON.parse(line)).not.toThrow();
+        }
+      } finally {
+        await browser.close();
+        await rm(root, { recursive: true, force: true });
       }
-    } finally {
-      await browser.close();
-      await rm(root, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it("copies binary entries unchanged", () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0x01]);
@@ -90,7 +114,9 @@ describe("scrubTrace", () => {
     const scrubbed = unzipSync(scrubTrace(zip, redactor));
 
     expect(scrubbed["resources/0b1f.png"]).toEqual(png);
-    expect(strFromU8(scrubbed["trace.trace"]!)).toBe('{"type":"log","message":"fill(\\"[redacted]\\")","time":7391506.2}\n');
+    expect(strFromU8(scrubbed["trace.trace"]!)).toBe(
+      '{"type":"log","message":"fill(\\"[redacted]\\")","time":7391506.2}\n',
+    );
   });
 
   it("masks a JSON number that is a registered value and keeps numbers that only contain one", () => {
@@ -121,11 +147,15 @@ describe("scrubTrace", () => {
     const request = (params: { name: string; value: string }[]) =>
       JSON.stringify({
         type: "resource-snapshot",
-        snapshot: { request: { method: "POST", postData: { mimeType: "application/x-www-form-urlencoded", text: "", params } } },
+        snapshot: {
+          request: { method: "POST", postData: { mimeType: "application/x-www-form-urlencoded", text: "", params } },
+        },
       });
     const unrelated = { name: '{ "sentAt": 7123450.2, "page": [1, 2] }', value: "" };
     const zip = zipSync({
-      "trace.network": strToU8(`${request([{ name: '{"code":12345}', value: "" }, unrelated])}\n${request([unrelated])}\n`),
+      "trace.network": strToU8(
+        `${request([{ name: '{"code":12345}', value: "" }, unrelated])}\n${request([unrelated])}\n`,
+      ),
     });
 
     const scrubbed = unzipSync(scrubTrace(zip, redactor));

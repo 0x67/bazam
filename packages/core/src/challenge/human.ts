@@ -111,7 +111,11 @@ class LineQueue {
 }
 
 function promptText(prompt: PersonPrompt): string {
-  const lines = ["", `${prompt.caseId}: ${prompt.title}`, ...prompt.steps.map((step, index) => `  ${index + 1}. ${step}`)];
+  const lines = [
+    "",
+    `${prompt.caseId}: ${prompt.title}`,
+    ...prompt.steps.map((step, index) => `  ${index + 1}. ${step}`),
+  ];
   if (prompt.expected !== undefined) lines.push(`  Expected: ${prompt.expected}`);
   if (prompt.screenshot !== undefined) lines.push(`  Screenshot: ${prompt.screenshot}`);
   return `${lines.join("\n")}\n`;
@@ -127,7 +131,11 @@ function parseLine(ask: PersonPrompt["ask"], line: string): PersonAnswer | null 
 }
 
 const AnswerFile = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("verdict"), verdict: z.enum(["pass", "fail", "blocked"]), note: z.string().default("") }),
+  z.strictObject({
+    kind: z.literal("verdict"),
+    verdict: z.enum(["pass", "fail", "blocked"]),
+    note: z.string().default(""),
+  }),
   z.strictObject({ kind: z.literal("value"), value: z.string() }),
   z.strictObject({ kind: z.literal("done") }),
 ]);
@@ -145,7 +153,8 @@ export function answersFileChannel(runDir: string, options: { pollMs?: number } 
   return {
     async ask(prompt, signal) {
       // the id becomes a file name, so it must not climb out of the run directory
-      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(prompt.id)) throw new Error(`prompt id "${prompt.id}" is not a plain file name`);
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(prompt.id))
+        throw new Error(`prompt id "${prompt.id}" is not a plain file name`);
       signal.throwIfAborted();
       await mkdir(join(promptsDir, "done"), { recursive: true });
       await mkdir(answersDir, { recursive: true });

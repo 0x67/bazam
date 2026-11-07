@@ -16,7 +16,12 @@ const run = promisify(execFile);
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/check/${name}`, import.meta.url));
 const clean = fixture("clean");
 
-const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", humanOnly: true, fallbackAfterTrigger: false };
+const faceScan: ChallengeKindSpec = {
+  name: "face-scan",
+  answer: "action",
+  humanOnly: true,
+  fallbackAfterTrigger: false,
+};
 const web = definePlugin({
   name: "fake-web",
   apiVersion: PLUGIN_API_VERSION,
@@ -51,7 +56,10 @@ const failing: [string, Expected][] = [
     ],
   ],
   ["id-format", [["cases/auth/format.yaml", 2, "id"]]],
-  ["id-domain", [["cases/auth/domain.yaml", 2, "BILLING-REFUND-001 starts with BILLING but the case is in cases/auth/"]]],
+  [
+    "id-domain",
+    [["cases/auth/domain.yaml", 2, "BILLING-REFUND-001 starts with BILLING but the case is in cases/auth/"]],
+  ],
   ["id-unique", [["cases/auth/unique.yaml", 2, "AUTH-LOGIN-001 is already used at cases/auth/login.yaml:2"]]],
   ["id-retired", [["cases/auth/retired.yaml", 2, "AUTH-OLD-001 is retired"]]],
   ["case-has-check", [["cases/auth/unchecked.yaml", 2, "AUTH-UNCHECKED-001 has no check"]]],
@@ -162,7 +170,9 @@ describe("checkProject with the built-in rules", () => {
   it("tells a trigger whose flow has several steps to name a one-step flow", async () => {
     const issues = checkProject(await loadFailing("flow-expands"), builtinRules);
 
-    expect(issues.find((issue) => issue.line === 11)?.fix).toBe("Point the trigger or observe at a flow with exactly one step, or write that step in place.");
+    expect(issues.find((issue) => issue.line === 11)?.fix).toBe(
+      "Point the trigger or observe at a flow with exactly one step, or write that step in place.",
+    );
   });
 
   it("checks emails only in the identities fixtures file, so a case may name a real address", async () => {
@@ -231,7 +241,9 @@ describe("checkProject with the built-in rules", () => {
   it("names the kind of secret without repeating it", async () => {
     const issues = checkProject(await loadFailing("no-literal-secret"), builtinRules);
 
-    expect(issues.map((issue) => `${issue.message} ${issue.fix}`).join("\n")).not.toMatch(/AKIA|ghp_|xoxb|eyJ|BEGIN|fake-api-key/);
+    expect(issues.map((issue) => `${issue.message} ${issue.fix}`).join("\n")).not.toMatch(
+      /AKIA|ghp_|xoxb|eyJ|BEGIN|fake-api-key/,
+    );
   });
 });
 
@@ -239,8 +251,15 @@ describe("loadProject", () => {
   it("loads flows, suites, fixtures and the registry's spec of each challenge kind the envs name", async () => {
     const project = await load(clean);
 
-    expect(project.cases.map((loaded) => loaded.spec.id)).toEqual(["AUTH-LOGIN-001", "AUTH-LOGIN-002", "AUTH-LOGIN-003"]);
-    expect(project.flows.get("login")).toMatchObject({ params: ["email"], source: { file: "flows/login.yaml", line: 2 } });
+    expect(project.cases.map((loaded) => loaded.spec.id)).toEqual([
+      "AUTH-LOGIN-001",
+      "AUTH-LOGIN-002",
+      "AUTH-LOGIN-003",
+    ]);
+    expect(project.flows.get("login")).toMatchObject({
+      params: ["email"],
+      source: { file: "flows/login.yaml", line: 2 },
+    });
     expect(project.suites).toEqual(new Map([["nightly", { stages: ["regression"] }]]));
     expect(project.fixtures).toEqual({ customer: { email: "customer@example.test", name: "Fake Customer" } });
     expect([...project.retiredIds]).toEqual(["AUTH-OLD-001"]);
@@ -251,7 +270,9 @@ describe("loadProject", () => {
   it("refuses a project whose config does not match the schema", async () => {
     const registry = await registryFor(clean);
 
-    await expect(loadProject(fixture("invalid-config"), registry)).rejects.toThrow(`${BRAND.configFile}:2: envs.uat.production`);
+    await expect(loadProject(fixture("invalid-config"), registry)).rejects.toThrow(
+      `${BRAND.configFile}:2: envs.uat.production`,
+    );
   });
 });
 
@@ -269,7 +290,10 @@ describe("loadProjectConfig", () => {
   it("reports a target without a driver on the target's line", async () => {
     const root = await mkdtemp(join(tmpdir(), "check-test-"));
     try {
-      await writeFile(join(root, BRAND.configFile), "envs: {}\ntargets:\n  web: { browser: chromium, headless: true }\n");
+      await writeFile(
+        join(root, BRAND.configFile),
+        "envs: {}\ntargets:\n  web: { browser: chromium, headless: true }\n",
+      );
 
       const { config, issues } = await loadProjectConfig(root);
 
@@ -288,7 +312,9 @@ describe("loadProjectConfig", () => {
       const { config, issues } = await loadProjectConfig(root);
 
       expect(config).toBeUndefined();
-      expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([[BRAND.configFile, 1, `${BRAND.configFile} is missing`]]);
+      expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([
+        [BRAND.configFile, 1, `${BRAND.configFile} is missing`],
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -19,7 +19,11 @@ export class SecretMissing extends Error {
 const resolvedByRun = new WeakMap<Redactor, Map<string, string>>();
 
 /** The first provider that returns a non-empty value wins. */
-export async function resolveSecret(key: string, providers: readonly SecretProvider[], redactor: Redactor): Promise<string> {
+export async function resolveSecret(
+  key: string,
+  providers: readonly SecretProvider[],
+  redactor: Redactor,
+): Promise<string> {
   let resolved = resolvedByRun.get(redactor);
   if (resolved === undefined) {
     resolved = new Map();

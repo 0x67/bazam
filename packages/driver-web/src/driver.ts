@@ -6,11 +6,30 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { BrowserLogin, BrowserLoginRequest, BrowserSession, StorageState } from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import { Selector, stepKind, type Step } from "@bazam/core/case";
-import { ConnectionFailed, defineDriver, type Capability, type CaseEnding, type DriverSession, type LaunchOptions, type StepHandler } from "@bazam/core/driver";
+import {
+  ConnectionFailed,
+  defineDriver,
+  type Capability,
+  type CaseEnding,
+  type DriverSession,
+  type LaunchOptions,
+  type StepHandler,
+} from "@bazam/core/driver";
 import { assertHostAllowed, HostNotAllowed, type Environment } from "@bazam/core/env";
 import type { Redactor } from "@bazam/core/redact";
 import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
-import { chromium, firefox, webkit, type APIResponse, type Browser, type BrowserContext, type Locator, type Page, type Request, type Route } from "playwright";
+import {
+  chromium,
+  firefox,
+  webkit,
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Request,
+  type Route,
+} from "playwright";
 import { z } from "zod";
 import { PlaywrightLogin, storageStateOf, urlMatches, type LoginTab } from "./login.ts";
 import { describeSelector, locate } from "./selectors.ts";
@@ -95,7 +114,10 @@ function leaseBrowser(kind: BrowserKind): BrowserLease {
 }
 
 function launchBrowser(kind: BrowserKind): Promise<Browser> {
-  return ENGINES[kind.browser].launch({ headless: kind.headless, ...(kind.channel === undefined ? {} : { channel: kind.channel }) });
+  return ENGINES[kind.browser].launch({
+    headless: kind.headless,
+    ...(kind.channel === undefined ? {} : { channel: kind.channel }),
+  });
 }
 
 /** The first host refused in any of the contexts that share it, kept until a step throws it. */
@@ -144,7 +166,10 @@ class GuardedContext {
 
   static async open(context: BrowserContext, env: Environment, refusals: Refusals): Promise<GuardedContext> {
     const guarded = new GuardedContext(context, env, refusals);
-    await context.route(() => true, (route) => guarded.#route(route));
+    await context.route(
+      () => true,
+      (route) => guarded.#route(route),
+    );
     // routing misses redirect hops on Chromium and Firefox, so the page's URL is checked after each navigation too
     context.on("page", (page) => {
       // a popup appears once its first navigation has committed, and no framenavigated reports that one
@@ -216,7 +241,9 @@ class GuardedContext {
       if (this.#authorization === undefined) return route.continue();
       // WebKit keeps the header on a same-origin redirect and drops it on a cross-origin one, so a hop to another
       // allowlisted host goes without credentials; an Authorization header the page set itself wins
-      return route.continue({ headers: { ...request.headers(), authorization: request.headers()["authorization"] ?? this.#authorization } });
+      return route.continue({
+        headers: { ...request.headers(), authorization: request.headers()["authorization"] ?? this.#authorization },
+      });
     }
     if (isMainFrameNavigation(request)) return this.#refuse(route, refusal);
     // a page may load fonts or scripts from other hosts; they just never get the extra headers
@@ -260,7 +287,10 @@ class GuardedContext {
     let response: APIResponse;
     try {
       const authorization = this.#authorization === undefined ? {} : { authorization: this.#authorization };
-      response = await route.fetch({ headers: { ...authorization, ...request.headers(), ...this.#headers }, maxRedirects: 0 });
+      response = await route.fetch({
+        headers: { ...authorization, ...request.headers(), ...this.#headers },
+        maxRedirects: 0,
+      });
       // WebKit takes no redirect from a route, so the request is followed from here and the page keeps its first URL
       if (isRedirect(response) && this.#engine === "webkit") {
         const hop = redirectHop(request, response, this.#authorization);
@@ -315,9 +345,16 @@ function redirectHop(request: Request, redirect: APIResponse, authorization: str
   const to = new URL(redirect.headers()["location"]!, from);
   const status = redirect.status();
   const method = request.method();
-  const toGet = ((status === 301 || status === 302) && method === "POST") || (status === 303 && method !== "GET" && method !== "HEAD");
+  const toGet =
+    ((status === 301 || status === 302) && method === "POST") ||
+    (status === 303 && method !== "GET" && method !== "HEAD");
   // the request client adds the cookies and the host of the new URL itself
-  const dropped = new Set(["host", "cookie", ...(to.origin === from.origin ? [] : ["authorization"]), ...(toGet ? BODY_HEADERS : [])]);
+  const dropped = new Set([
+    "host",
+    "cookie",
+    ...(to.origin === from.origin ? [] : ["authorization"]),
+    ...(toGet ? BODY_HEADERS : []),
+  ]);
   const headers = Object.fromEntries(Object.entries(request.headers()).filter(([name]) => !dropped.has(name)));
   // basic credentials stay on a same-origin hop, as they do on a redirect WebKit follows itself, unless the page set its own
   if (authorization !== undefined && to.origin === from.origin) headers["authorization"] ??= authorization;
@@ -347,7 +384,9 @@ async function unreachable(url: URL): Promise<ConnectionFailed | undefined> {
     });
     socket.once("error", settle);
   });
-  return failure === undefined ? undefined : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, { cause: failure });
+  return failure === undefined
+    ? undefined
+    : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, { cause: failure });
 }
 
 function hostRefusal(env: Environment, url: URL): HostNotAllowed | undefined {
@@ -378,7 +417,9 @@ async function loadStorageState(context: BrowserContext, state: StorageState): P
   const credentials = await context.credentials.get();
   // Playwright reads credentials in a storage state, which its type leaves out, and installs the authenticator for them
   const next: PlaywrightStorageState & { credentials?: Passkeys } =
-    credentials.length === 0 ? (state as PlaywrightStorageState) : { ...(state as PlaywrightStorageState), credentials };
+    credentials.length === 0
+      ? (state as PlaywrightStorageState)
+      : { ...(state as PlaywrightStorageState), credentials };
   await context.setStorageState(next);
 }
 
@@ -425,7 +466,10 @@ function caseEvidence(scope: StepScope, kind: string): EvidenceStore {
 const Expectation = z.union([
   z.strictObject({ visible: Selector }),
   z.strictObject({
-    text: z.union([z.strictObject({ field: Selector, equals: z.string() }), z.strictObject({ field: Selector, contains: z.string() })]),
+    text: z.union([
+      z.strictObject({ field: Selector, equals: z.string() }),
+      z.strictObject({ field: Selector, contains: z.string() }),
+    ]),
   }),
   z.strictObject({ url: z.string().min(1) }),
 ]);
@@ -448,7 +492,9 @@ const steps: readonly WebStep<unknown>[] = [
     await field(scope, fill.field).fill(fill.value);
   }),
   webStep("press", z.strictObject({ key: z.string().min(1), field: Selector.optional() }), async (press, scope) => {
-    await (press.field === undefined ? scope.page.keyboard.press(press.key) : field(scope, press.field).press(press.key));
+    await (press.field === undefined
+      ? scope.page.keyboard.press(press.key)
+      : field(scope, press.field).press(press.key));
   }),
   webStep("select", z.strictObject({ field: Selector, option: z.string().min(1) }), async (select, scope) => {
     await field(scope, select.field).selectOption(select.option);
@@ -488,14 +534,23 @@ function expectationName(expectation: Expectation): string {
 }
 
 /** Waits up to the expect timeout for the page to meet the expectation, and reports what it last saw. */
-async function observe(expectation: Expectation, scope: StepScope): Promise<Pick<CheckRecord, "expected" | "observed" | "ok">> {
+async function observe(
+  expectation: Expectation,
+  scope: StepScope,
+): Promise<Pick<CheckRecord, "expected" | "observed" | "ok">> {
   if ("visible" in expectation) {
     const locator = field(scope, expectation.visible);
-    const seen = await poll(() => locator.isVisible(), (visible) => visible);
+    const seen = await poll(
+      () => locator.isVisible(),
+      (visible) => visible,
+    );
     return { expected: "visible", observed: seen.value ? "visible" : "not visible", ok: seen.ok };
   }
   if ("url" in expectation) {
-    const seen = await poll(async () => scope.page.url(), (url) => urlMatches(expectation.url, url));
+    const seen = await poll(
+      async () => scope.page.url(),
+      (url) => urlMatches(expectation.url, url),
+    );
     return { expected: expectation.url, observed: seen.value, ok: seen.ok };
   }
   const text = expectation.text;
@@ -503,7 +558,11 @@ async function observe(expectation: Expectation, scope: StepScope): Promise<Pick
   const matches = (observed: string): boolean =>
     "equals" in text ? observed === normalizeSpace(text.equals) : observed.includes(normalizeSpace(text.contains));
   const seen = await poll(async () => normalizeSpace((await locator.allTextContents()).join(" ")), matches);
-  return { expected: "equals" in text ? { equals: text.equals } : { contains: text.contains }, observed: seen.value, ok: seen.ok };
+  return {
+    expected: "equals" in text ? { equals: text.equals } : { contains: text.contains },
+    observed: seen.value,
+    ok: seen.ok,
+  };
 }
 
 async function poll<T>(read: () => Promise<T>, ok: (value: T) => boolean): Promise<{ value: T; ok: boolean }> {

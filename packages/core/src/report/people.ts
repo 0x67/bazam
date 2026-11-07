@@ -36,7 +36,8 @@ export class PeopleRegistry {
     }
     // a file with only comments parses to null
     const parsed = PeopleFile.safeParse(parse(text) ?? {});
-    if (!parsed.success) throw new Error(`${PEOPLE_FILE} does not match the people schema:\n${z.prettifyError(parsed.error)}`);
+    if (!parsed.success)
+      throw new Error(`${PEOPLE_FILE} does not match the people schema:\n${z.prettifyError(parsed.error)}`);
     return new PeopleRegistry(parsed.data.roles);
   }
 

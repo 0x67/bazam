@@ -41,7 +41,8 @@ export class CredentialCache {
     await mkdir(this.#dir, { recursive: true, mode: 0o700 });
     const file = this.#file(key);
     const temp = `${file}.${randomUUID()}.tmp`;
-    const entry: CachedCredential = expiresAt === undefined ? { credential } : { credential, expiresAt: expiresAt.toISOString() };
+    const entry: CachedCredential =
+      expiresAt === undefined ? { credential } : { credential, expiresAt: expiresAt.toISOString() };
     await writeFile(temp, JSON.stringify(entry), { mode: 0o600, flag: "wx" });
     try {
       await rename(temp, file);

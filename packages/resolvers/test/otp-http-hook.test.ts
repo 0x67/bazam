@@ -9,7 +9,9 @@ const OTP_SMS = builtinKind("otp-sms");
 /** Answers GET /test/otp?recipient=<RECIPIENT> with `body`, and 404 for anyone else. */
 function fakeHook(body: unknown): (url: URL) => Reply {
   return (url) =>
-    url.pathname === "/test/otp" && url.searchParams.get("recipient") === RECIPIENT ? { status: 200, body } : { status: 404 };
+    url.pathname === "/test/otp" && url.searchParams.get("recipient") === RECIPIENT
+      ? { status: 200, body }
+      : { status: 404 };
 }
 
 async function resolveFrom(origin: string, field: string, recipient = RECIPIENT) {

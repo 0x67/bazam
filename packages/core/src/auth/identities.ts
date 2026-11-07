@@ -11,7 +11,9 @@ import type { ApplyTarget, AuthContext, AuthStrategy, JsonValue } from "./strate
 /** Where a credential will come from: the cache, a refresh, a scripted or person login, or static secrets. */
 export type LoginMode = "cached" | "refresh" | "scripted" | "person" | "static";
 
-const IdentityName = z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'an identity name looks like "customer" or "partner-admin"' });
+const IdentityName = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]*$/, { error: 'an identity name looks like "customer" or "partner-admin"' });
 const SurfaceName = z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'a surface name looks like "web" or "api"' });
 const StrategyName = z.string().min(1);
 
@@ -33,9 +35,17 @@ const IdentityConfig = z
       const source = identity.auth[auth.from];
       const path = ["auth", surface, "from"];
       if (source === undefined || "from" in source) {
-        ctx.addIssue({ code: "custom", path, message: `from: "${auth.from}" must name a surface of this identity with its own settings` });
+        ctx.addIssue({
+          code: "custom",
+          path,
+          message: `from: "${auth.from}" must name a surface of this identity with its own settings`,
+        });
       } else if (source.strategy !== auth.strategy) {
-        ctx.addIssue({ code: "custom", path, message: `surface "${auth.from}" uses strategy ${source.strategy}, not ${auth.strategy}` });
+        ctx.addIssue({
+          code: "custom",
+          path,
+          message: `surface "${auth.from}" uses strategy ${source.strategy}, not ${auth.strategy}`,
+        });
       }
     }
   });
@@ -165,7 +175,11 @@ export class Identities {
     return withRefreshLock(this.#deps.lockDir, slot.key, async () => {
       // another process may have refreshed it while this one waited for the lock
       const reloaded = await this.#loadCached(slot);
-      if (reloaded !== undefined && !isSameCredential(reloaded, stale) && (await this.#isUsable(slot, config, reloaded))) {
+      if (
+        reloaded !== undefined &&
+        !isSameCredential(reloaded, stale) &&
+        (await this.#isUsable(slot, config, reloaded))
+      ) {
         return this.#keep(slot, reloaded);
       }
       return this.#renew(slot, config, reloaded ?? stale);
@@ -226,7 +240,10 @@ export class Identities {
     if (!slot.strategy.cacheable) return undefined;
     const cached = await this.#deps.cache.load(slot.key);
     if (cached === undefined) return undefined;
-    return { credential: cached.credential, expiresAt: cached.expiresAt === undefined ? undefined : new Date(cached.expiresAt) };
+    return {
+      credential: cached.credential,
+      expiresAt: cached.expiresAt === undefined ? undefined : new Date(cached.expiresAt),
+    };
   }
 
   #config(slot: Slot): Promise<unknown> {
@@ -242,7 +259,8 @@ export class Identities {
 
   async #parseSettings(slot: Slot): Promise<unknown> {
     const parsed = slot.strategy.config.safeParse(await this.#deps.resolve(slot.settings));
-    if (!parsed.success) throw new Error(`${slot.id} has invalid ${slot.strategy.name} settings: ${z.prettifyError(parsed.error)}`);
+    if (!parsed.success)
+      throw new Error(`${slot.id} has invalid ${slot.strategy.name} settings: ${z.prettifyError(parsed.error)}`);
     return parsed.data;
   }
 
@@ -256,7 +274,9 @@ export class Identities {
     const owner = "from" in auth ? auth.from : surface;
     const settings = config.auth[owner];
     if (settings === undefined || "from" in settings) {
-      throw new Error(`surface "${surface}" of identity "${identity}" takes from: a surface with no settings of its own`);
+      throw new Error(
+        `surface "${surface}" of identity "${identity}" takes from: a surface with no settings of its own`,
+      );
     }
     return {
       id: `${identity}/${owner}`,
@@ -285,7 +305,8 @@ export class Identities {
     const fixture = this.#deps.configs[identity]?.fixture;
     if (fixture === undefined) return {};
     const fields = this.#deps.fixtures[fixture];
-    if (fields === undefined) throw new Error(`identity "${identity}" names fixture "${fixture}", which the fixtures do not have`);
+    if (fields === undefined)
+      throw new Error(`identity "${identity}" names fixture "${fixture}", which the fixtures do not have`);
     return fields;
   }
 }

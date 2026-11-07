@@ -143,7 +143,9 @@ describe("buildPostPlans", () => {
       inputs([result({ status: "blocked", links: ["jira:TD-246", "jira:OPS-12"] })], { transitions }),
     );
 
-    expect(plan.items.map(({ ticket, transition, unresolved }) => ({ key: ticket.key, transition, unresolved }))).toEqual([
+    expect(
+      plan.items.map(({ ticket, transition, unresolved }) => ({ key: ticket.key, transition, unresolved })),
+    ).toEqual([
       { key: "TD-246", transition: undefined, unresolved: [] },
       { key: "OPS-12", transition: undefined, unresolved: ["transition:blocked"] },
     ]);
@@ -193,7 +195,13 @@ describe("markdownTracker", () => {
       checks: [
         { name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true },
         { name: "balance matches", kind: "api", expected: { amount: 10 }, observed: "10 | 10", ok: true },
-        { name: "email reads well", kind: "followup", expected: "checked by a person", observed: "not automated", ok: true },
+        {
+          name: "email reads well",
+          kind: "followup",
+          expected: "checked by a person",
+          observed: "not automated",
+          ok: true,
+        },
       ],
       followups: [{ item: "email reads well", hint: "open the code email in the inbox" }],
       notes: ["Signed in on the second code."],
@@ -243,7 +251,9 @@ describe("markdownTracker", () => {
           name: "message",
           kind: "api",
           expected: "*welcome*",
-          observed: { "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)" },
+          observed: {
+            "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
+          },
           ok: false,
         },
       ],
@@ -253,7 +263,9 @@ describe("markdownTracker", () => {
 
     const { markdown } = markdownTracker("notion").render(blocked);
 
-    expect(markdown).toContain(`AUTH-LOGIN-001 Customer opens \\[the offer\\](https://offer.example.test/) (run ${RUN})\n`);
+    expect(markdown).toContain(
+      `AUTH-LOGIN-001 Customer opens \\[the offer\\](https://offer.example.test/) (run ${RUN})\n`,
+    );
     expect(markdown).toContain("Reason: see \\[the help page\\](https://help.example.test/)\n");
     expect(markdown).toContain(
       '| message | \\*welcome\\* | {"body.message":"\\[Verify your account\\](https://login.example.test/) !\\[x\\](https://cdn.example.test/p.png)"} | not ok |',

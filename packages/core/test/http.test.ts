@@ -6,10 +6,22 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
-import { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig, type HttpRequestDraft } from "../src/auth/index.ts";
+import {
+  CredentialCache,
+  defineAuthStrategy,
+  Identities,
+  IdentitiesConfig,
+  type HttpRequestDraft,
+} from "../src/auth/index.ts";
 import type { StepContext } from "../src/driver/index.ts";
 import { ConnectionFailed, guardedHttp, httpSteps, Unauthorized, type GuardedHttp } from "../src/driver/http.ts";
-import { EnvsConfig, HostNotAllowed, ProdWriteRefused, resolvePlaceholders, type Environment } from "../src/env/index.ts";
+import {
+  EnvsConfig,
+  HostNotAllowed,
+  ProdWriteRefused,
+  resolvePlaceholders,
+  type Environment,
+} from "../src/env/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { EvidenceStore, type CheckRecord } from "../src/result/index.ts";
 
@@ -41,7 +53,13 @@ async function serve(route: Route): Promise<string> {
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       const path = (req.url ?? "/").split("?")[0] ?? "/";
-      seen.push({ method: req.method ?? "", path, authorization: req.headers.authorization, cookie: req.headers.cookie, body: Buffer.concat(chunks).toString("utf8") });
+      seen.push({
+        method: req.method ?? "",
+        path,
+        authorization: req.headers.authorization,
+        cookie: req.headers.cookie,
+        body: Buffer.concat(chunks).toString("utf8"),
+      });
       route(req, res);
     });
   });
@@ -55,7 +73,9 @@ function api(req: IncomingMessage, res: ServerResponse): void {
   const path = (req.url ?? "/").split("?")[0];
   switch (`${req.method} ${path}`) {
     case "GET /me":
-      return req.headers.authorization === "Bearer fake-customer-2" ? json(res, 200, { name: "customer" }) : json(res, 401, {});
+      return req.headers.authorization === "Bearer fake-customer-2"
+        ? json(res, 200, { name: "customer" })
+        : json(res, 401, {});
     case "GET /locked":
       return json(res, 401, {});
     case "POST /orders":
@@ -160,7 +180,10 @@ describe("http", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ name: "customer" });
-      expect(seen.map((request) => request.authorization)).toEqual(["Bearer fake-customer-1", "Bearer fake-customer-2"]);
+      expect(seen.map((request) => request.authorization)).toEqual([
+        "Bearer fake-customer-1",
+        "Bearer fake-customer-2",
+      ]);
     });
 
     it("throws Unauthorized after a second 401", async () => {
@@ -169,7 +192,9 @@ describe("http", () => {
     });
 
     it("checks every redirect hop against the host allowlist", async () => {
-      const failure = await client().send(get("/hop")).catch((error: unknown) => error);
+      const failure = await client()
+        .send(get("/hop"))
+        .catch((error: unknown) => error);
 
       expect(failure).toBeInstanceOf(HostNotAllowed);
       expect((failure as HostNotAllowed).host).toBe("outside.example.test");
@@ -179,7 +204,11 @@ describe("http", () => {
     it("sends no credentials after a redirect to another origin", async () => {
       const otherOrigin = await serve((_req, res) => json(res, 200, {}));
       const moving = await serve((_req, res) => redirect(res, 307, `${otherOrigin}/landing`));
-      const request = { method: "GET", url: new URL("/start", moving), headers: new Headers({ cookie: "session=fake-session" }) };
+      const request = {
+        method: "GET",
+        url: new URL("/start", moving),
+        headers: new Headers({ cookie: "session=fake-session" }),
+      };
 
       await client().send(request, customer);
 
@@ -194,12 +223,20 @@ describe("http", () => {
       await new Promise<void>((done) => closed.listen(0, "127.0.0.1", done));
       const { port } = closed.address() as AddressInfo;
       await new Promise((done) => closed.close(done));
-      const request = { method: "GET", url: new URL(`http://127.0.0.1:${port}/health?code=fake-code`), headers: new Headers() };
+      const request = {
+        method: "GET",
+        url: new URL(`http://127.0.0.1:${port}/health?code=fake-code`),
+        headers: new Headers(),
+      };
 
-      const failure = await client().send(request).catch((error: unknown) => error);
+      const failure = await client()
+        .send(request)
+        .catch((error: unknown) => error);
 
       expect(failure).toBeInstanceOf(ConnectionFailed);
-      expect((failure as ConnectionFailed).message).toBe(`GET http://127.0.0.1:${port}/health?code=[redacted] got no answer: connect ECONNREFUSED 127.0.0.1:${port}`);
+      expect((failure as ConnectionFailed).message).toBe(
+        `GET http://127.0.0.1:${port}/health?code=[redacted] got no answer: connect ECONNREFUSED 127.0.0.1:${port}`,
+      );
     });
 
     it.each([
@@ -268,12 +305,25 @@ describe("http", () => {
 
     it("save exposes ${case.name}", async () => {
       const { ctx } = stepContext(demo);
-      const save = { orderId: "body.id", sku: "body.items[0].sku", requestId: "headers.x-request-id", created: "status" };
+      const save = {
+        orderId: "body.id",
+        sku: "body.items[0].sku",
+        requestId: "headers.x-request-id",
+        created: "status",
+      };
 
-      await runStep({ request: { method: "POST", url: "${env.API_URL}/orders", as: "customer", json: { amount: 10 }, save } }, ctx);
+      await runStep(
+        { request: { method: "POST", url: "${env.API_URL}/orders", as: "customer", json: { amount: 10 }, save } },
+        ctx,
+      );
       await runStep({ api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200 } }, ctx);
 
-      expect(Object.fromEntries(ctx.values)).toEqual({ orderId: "42", sku: "sku-1", requestId: "req-1", created: "201" });
+      expect(Object.fromEntries(ctx.values)).toEqual({
+        orderId: "42",
+        sku: "sku-1",
+        requestId: "req-1",
+        created: "201",
+      });
       expect(seen.map(({ method, path, body }) => [method, path, body])).toEqual([
         ["POST", "/orders", '{"amount":10}'],
         ["GET", "/orders/42", ""],
@@ -284,9 +334,9 @@ describe("http", () => {
       const { ctx } = stepContext(demo);
 
       for (const name of ["id", "title"]) {
-        await expect(runStep({ request: { method: "POST", url: "${env.API_URL}/orders", save: { [name]: "body.id" } } }, ctx)).rejects.toThrow(
-          "save cannot use the names id and title",
-        );
+        await expect(
+          runStep({ request: { method: "POST", url: "${env.API_URL}/orders", save: { [name]: "body.id" } } }, ctx),
+        ).rejects.toThrow("save cannot use the names id and title");
       }
       expect(seen).toEqual([]);
     });
@@ -294,8 +344,14 @@ describe("http", () => {
     it("api check compares status and body paths", async () => {
       const { ctx, checks } = stepContext(demo, "customer");
 
-      await runStep({ api: { request: "GET ${env.API_URL}/orders/42", status: 200, body: { status: "PAID", "items[0].id": "7" } } }, ctx);
-      await runStep({ api: { request: "GET ${env.API_URL}/orders/42", body: { status: "REFUNDED", "items[1].id": 8 } } }, ctx);
+      await runStep(
+        { api: { request: "GET ${env.API_URL}/orders/42", status: 200, body: { status: "PAID", "items[0].id": "7" } } },
+        ctx,
+      );
+      await runStep(
+        { api: { request: "GET ${env.API_URL}/orders/42", body: { status: "REFUNDED", "items[1].id": 8 } } },
+        ctx,
+      );
 
       expect(checks()).toEqual([
         {
@@ -313,7 +369,10 @@ describe("http", () => {
           ok: false,
         },
       ]);
-      expect(seen.map((request) => request.authorization)).toEqual(["Bearer fake-customer-1", "Bearer fake-customer-1"]);
+      expect(seen.map((request) => request.authorization)).toEqual([
+        "Bearer fake-customer-1",
+        "Bearer fake-customer-1",
+      ]);
     });
 
     it("sends an api check without credentials when neither the check nor the step names an identity", async () => {

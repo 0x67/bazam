@@ -52,7 +52,10 @@ function e164From(picker: Picker, form: Record<string, unknown>): string | undef
   const number = formText(form, "number")
   switch (picker) {
     case "select":
-      return withCountry(COUNTRIES.find((country) => country.region === formText(form, "country")), number)
+      return withCountry(
+        COUNTRIES.find((country) => country.region === formText(form, "country")),
+        number,
+      )
     case "search":
       return withCountry(countryByCallingCode(formText(form, "country")), number)
     case "full":
@@ -93,7 +96,9 @@ function flagOf(region: string): string {
 }
 
 function phonePage(numbers: SavedNumbers, error?: string) {
-  return page("Phone number", html`
+  return page(
+    "Phone number",
+    html`
     ${errorMessage(error)}
     <form method="post" action="/profile/phone/select">
       <h2>Country select</h2>
@@ -128,7 +133,8 @@ function phonePage(numbers: SavedNumbers, error?: string) {
       <label>Number <input type="tel" name="number" required data-testid="local-number"></label>
       <button type="submit" data-testid="local-save">Save</button>
       ${savedNumber(numbers, "local")}
-    </form>`)
+    </form>`,
+  )
 }
 
 function savedNumber(numbers: SavedNumbers, picker: Picker) {

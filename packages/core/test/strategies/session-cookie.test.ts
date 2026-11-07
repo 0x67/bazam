@@ -5,10 +5,23 @@ import { FakeBrowserLogin, FakeBrowserSession } from "../support/fake-browser.ts
 import { authContext, draft, redacted, serve, type LocalServer } from "./support.ts";
 
 function cookie(name: string, value: string, fields: object = {}) {
-  return { name, value, domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Lax", ...fields };
+  return {
+    name,
+    value,
+    domain: "127.0.0.1",
+    path: "/",
+    expires: -1,
+    httpOnly: true,
+    secure: false,
+    sameSite: "Lax",
+    ...fields,
+  };
 }
 
-const LOGGED_IN: StorageState = { cookies: [cookie("session", "fake-session-1"), cookie("tracker", "fake-tracker-1")], origins: [] };
+const LOGGED_IN: StorageState = {
+  cookies: [cookie("session", "fake-session-1"), cookie("tracker", "fake-tracker-1")],
+  origins: [],
+};
 const STALE: StorageState = { cookies: [cookie("session", "fake-session-0")], origins: [] };
 
 describe("sessionCookieStrategy", () => {
@@ -29,7 +42,9 @@ describe("sessionCookieStrategy", () => {
         case "GET /home":
           return response.writeHead(200).end();
         case "POST /auth/rotate":
-          return response.writeHead(303, { location: "/home", "set-cookie": "session=fake-session-2; Path=/; HttpOnly" }).end();
+          return response
+            .writeHead(303, { location: "/home", "set-cookie": "session=fake-session-2; Path=/; HttpOnly" })
+            .end();
         case "POST /auth/refresh":
           if (!cookies.includes("session=fake-session-1")) return response.writeHead(401).end();
           return response
@@ -47,7 +62,12 @@ describe("sessionCookieStrategy", () => {
       }
     });
     settings = {
-      login: { url: `${server.origin}/login`, flow: "enter-email", until: { cookie: "session" }, person: { steps: ["Enter the code from your email"], expected: "Dashboard" } },
+      login: {
+        url: `${server.origin}/login`,
+        flow: "enter-email",
+        until: { cookie: "session" },
+        person: { steps: ["Enter the code from your email"], expected: "Dashboard" },
+      },
       probe: { request: `GET ${server.origin}/api/session/me`, status: 200 },
       refresh: { request: `POST ${server.origin}/auth/refresh` },
     };
@@ -66,7 +86,13 @@ describe("sessionCookieStrategy", () => {
     expect(request).toMatchObject({
       flow: [{ use: "enter-email" }],
       until: { cookie: "session" },
-      prompt: { id: "customer-session-cookie-login", ask: "action", steps: ["Enter the code from your email"], expected: "Dashboard", timeoutMs: 300_000 },
+      prompt: {
+        id: "customer-session-cookie-login",
+        ask: "action",
+        steps: ["Enter the code from your email"],
+        expected: "Dashboard",
+        timeoutMs: 300_000,
+      },
       timeoutMs: 300_000,
     });
   });
@@ -82,8 +108,14 @@ describe("sessionCookieStrategy", () => {
   });
 
   it("needs a person only when the login names one, reading unresolved settings", () => {
-    expect(sessionCookieStrategy.needsPerson?.({ login: { url: "${env.APP_URL}/login", person: { steps: ["Enter the code"] } } })).toBe(true);
-    expect(sessionCookieStrategy.needsPerson?.({ login: { url: "${env.APP_URL}/login", flow: "enter-email" } })).toBe(false);
+    expect(
+      sessionCookieStrategy.needsPerson?.({
+        login: { url: "${env.APP_URL}/login", person: { steps: ["Enter the code"] } },
+      }),
+    ).toBe(true);
+    expect(sessionCookieStrategy.needsPerson?.({ login: { url: "${env.APP_URL}/login", flow: "enter-email" } })).toBe(
+      false,
+    );
   });
 
   it("sends only the cookies whose domain, path, Secure flag and expiry match the request", async () => {
@@ -130,14 +162,20 @@ describe("sessionCookieStrategy", () => {
   });
 
   it("the probe fails when the server redirects a dead session to a login page that answers 200", async () => {
-    const page = sessionCookieStrategy.config.parse({ ...settings, probe: { request: `GET ${server.origin}/api/session/page`, status: 200 } });
+    const page = sessionCookieStrategy.config.parse({
+      ...settings,
+      probe: { request: `GET ${server.origin}/api/session/page`, status: 200 },
+    });
 
     expect(await sessionCookieStrategy.probe?.(STALE, page, authContext())).toBe(false);
     expect(server.received.at(-1)?.url.pathname).toBe("/api/session/page");
   });
 
   it("refresh keeps the cookie that a redirecting refresh response sets", async () => {
-    const rotate = sessionCookieStrategy.config.parse({ ...settings, refresh: { request: `POST ${server.origin}/auth/rotate`, status: 303 } });
+    const rotate = sessionCookieStrategy.config.parse({
+      ...settings,
+      refresh: { request: `POST ${server.origin}/auth/rotate`, status: 303 },
+    });
 
     const refreshed = await sessionCookieStrategy.refresh?.(LOGGED_IN, rotate, authContext());
 
@@ -164,12 +202,19 @@ describe("sessionCookieStrategy", () => {
   it("can refresh only when the settings name a refresh request, reading unresolved settings", () => {
     const login = { url: "${env.APP_URL}/login", until: { cookie: "session" } };
 
-    expect(sessionCookieStrategy.canRefresh?.(LOGGED_IN, { login, refresh: { request: "POST ${env.API_URL}/auth/refresh" } })).toBe(true);
+    expect(
+      sessionCookieStrategy.canRefresh?.(LOGGED_IN, {
+        login,
+        refresh: { request: "POST ${env.API_URL}/auth/refresh" },
+      }),
+    ).toBe(true);
     expect(sessionCookieStrategy.canRefresh?.(LOGGED_IN, { login })).toBe(false);
   });
 
   it("refresh fails when the server refuses the session", async () => {
-    await expect(sessionCookieStrategy.refresh?.(STALE, config(), authContext())).rejects.toThrow("the session refresh of customer answered 401");
+    await expect(sessionCookieStrategy.refresh?.(STALE, config(), authContext())).rejects.toThrow(
+      "the session refresh of customer answered 401",
+    );
   });
 
   it("loads the storage state into a browser session", async () => {
@@ -196,7 +241,10 @@ describe("sessionCookieStrategy", () => {
   });
 
   it("secrets lists token-like localStorage values, also inside a JSON value", () => {
-    const user = { email: "customer@example.test", stsTokenManager: { refreshToken: "fake-refresh-token-0001", expirationTime: 1762506000000 } };
+    const user = {
+      email: "customer@example.test",
+      stsTokenManager: { refreshToken: "fake-refresh-token-0001", expirationTime: 1762506000000 },
+    };
     const state: StorageState = {
       cookies: [],
       origins: [
@@ -211,7 +259,10 @@ describe("sessionCookieStrategy", () => {
       ],
     };
 
-    expect(sessionCookieStrategy.secrets(state)).toEqual(["fake-jwt.fake-payload-0001.fake-signature", "fake-refresh-token-0001"]);
+    expect(sessionCookieStrategy.secrets(state)).toEqual([
+      "fake-jwt.fake-payload-0001.fake-signature",
+      "fake-refresh-token-0001",
+    ]);
   });
 
   it("the redactor masks the Cookie header and the credential's cookie values", async () => {
@@ -219,7 +270,9 @@ describe("sessionCookieStrategy", () => {
     await sessionCookieStrategy.apply(LOGGED_IN, { kind: "http", request }, config());
     const secrets = sessionCookieStrategy.secrets(LOGGED_IN);
 
-    expect(redacted(secrets, `Cookie: ${request.headers.get("cookie")}`)).toBe("Cookie: session=[redacted]; tracker=[redacted]");
+    expect(redacted(secrets, `Cookie: ${request.headers.get("cookie")}`)).toBe(
+      "Cookie: session=[redacted]; tracker=[redacted]",
+    );
     expect(redacted(secrets, JSON.stringify(LOGGED_IN))).not.toMatch(/fake-session|fake-tracker/);
   });
 });

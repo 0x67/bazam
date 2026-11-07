@@ -15,7 +15,11 @@ const Client = {
   scope: z.string().min(1).optional(),
 };
 
-const ClientCredentials = z.strictObject({ grant: z.literal("client-credentials"), ...Client, clientSecret: z.string().min(1) });
+const ClientCredentials = z.strictObject({
+  grant: z.literal("client-credentials"),
+  ...Client,
+  clientSecret: z.string().min(1),
+});
 type ClientCredentials = z.infer<typeof ClientCredentials>;
 
 const AuthorizationCode = z.strictObject({
@@ -61,14 +65,24 @@ export const oauth2Strategy = defineAuthStrategy<OAuth2Config, Token>({
       case "client-credentials":
         return clientCredentials(config, ctx);
       case "refresh-token":
-        return requestToken(config, { grant_type: "refresh_token", refresh_token: config.refreshToken }, ctx, config.refreshToken);
+        return requestToken(
+          config,
+          { grant_type: "refresh_token", refresh_token: config.refreshToken },
+          ctx,
+          config.refreshToken,
+        );
       case "authorization-code":
         return authorizationCode(config, ctx);
     }
   },
   refresh: async (token, config, ctx) => {
     if (token.refreshToken !== undefined) {
-      return requestToken(config, { grant_type: "refresh_token", refresh_token: token.refreshToken }, ctx, token.refreshToken);
+      return requestToken(
+        config,
+        { grant_type: "refresh_token", refresh_token: token.refreshToken },
+        ctx,
+        token.refreshToken,
+      );
     }
     // a client credentials token comes without a refresh token, and its grant needs no person
     if (config.grant === "client-credentials") return clientCredentials(config, ctx);
@@ -76,7 +90,8 @@ export const oauth2Strategy = defineAuthStrategy<OAuth2Config, Token>({
   },
   expiresAt: (token) => (token.expiresAt === undefined ? undefined : new Date(token.expiresAt)),
   apply: (token, target) => applyHeader(target, "authorization", `Bearer ${token.accessToken}`),
-  secrets: (token) => (token.refreshToken === undefined ? [token.accessToken] : [token.accessToken, token.refreshToken]),
+  secrets: (token) =>
+    token.refreshToken === undefined ? [token.accessToken] : [token.accessToken, token.refreshToken],
 });
 
 function clientCredentials(config: ClientCredentials, ctx: AuthContext): Promise<Token> {
@@ -87,7 +102,8 @@ function clientCredentials(config: ClientCredentials, ctx: AuthContext): Promise
 
 /** Lets the person log in through the browser, then redeems the code with the PKCE verifier. */
 async function authorizationCode(config: AuthorizationCode, ctx: AuthContext): Promise<Token> {
-  if (ctx.browser === undefined) throw new Error(`the oauth2 login of ${ctx.identity} needs a driver that offers browser.login`);
+  if (ctx.browser === undefined)
+    throw new Error(`the oauth2 login of ${ctx.identity} needs a driver that offers browser.login`);
   const verifier = randomBytes(32).toString("base64url");
   const state = randomBytes(16).toString("base64url");
   const url = new URL(config.authorizeUrl);
@@ -101,11 +117,20 @@ async function authorizationCode(config: AuthorizationCode, ctx: AuthContext): P
   const { finalUrl } = await ctx.browser.login({
     url,
     until: { urlMatches: `${config.redirectUri}*` },
-    prompt: loginPrompt("oauth2", ctx.identity, { steps: [`Sign in as ${ctx.identity} and allow access.`] }, config.timeoutMs),
+    prompt: loginPrompt(
+      "oauth2",
+      ctx.identity,
+      { steps: [`Sign in as ${ctx.identity} and allow access.`] },
+      config.timeoutMs,
+    ),
     timeoutMs: config.timeoutMs,
   });
   const code = codeFromRedirect(finalUrl, new URL(config.redirectUri), state);
-  return requestToken(config, { grant_type: "authorization_code", code, redirect_uri: config.redirectUri, code_verifier: verifier }, ctx);
+  return requestToken(
+    config,
+    { grant_type: "authorization_code", code, redirect_uri: config.redirectUri, code_verifier: verifier },
+    ctx,
+  );
 }
 
 function formEncoded(value: string): string {
@@ -118,14 +143,20 @@ function codeFromRedirect(finalUrl: URL, redirectUri: URL, state: string): strin
   }
   const error = finalUrl.searchParams.get("error");
   if (error !== null) throw new Error(`the authorization server answered ${error}`);
-  if (finalUrl.searchParams.get("state") !== state) throw new Error("the state in the redirect differs from the one the login sent, so its code is refused");
+  if (finalUrl.searchParams.get("state") !== state)
+    throw new Error("the state in the redirect differs from the one the login sent, so its code is refused");
   const code = finalUrl.searchParams.get("code");
   if (code === null) throw new Error("the redirect carries no code");
   return code;
 }
 
 /** Posts the grant to the token endpoint; a response without a refresh token keeps `refreshToken`. */
-async function requestToken(config: OAuth2Config, grant: Record<string, string>, ctx: AuthContext, refreshToken?: string): Promise<Token> {
+async function requestToken(
+  config: OAuth2Config,
+  grant: Record<string, string>,
+  ctx: AuthContext,
+  refreshToken?: string,
+): Promise<Token> {
   const form = new URLSearchParams(grant);
   const headers = new Headers({ "content-type": "application/x-www-form-urlencoded", accept: "application/json" });
   if (config.clientSecret === undefined) {
@@ -143,11 +174,14 @@ async function requestToken(config: OAuth2Config, grant: Record<string, string>,
   if (response.status < 200 || response.status >= 300 || !parsed.success) {
     // only the OAuth error code: the rest of the body may echo what was sent
     const error = OAuthError.safeParse(response.body);
-    throw new Error(`the token endpoint answered ${response.status} to the ${form.get("grant_type")} grant${error.success ? ` (${error.data.error})` : ""}`);
+    throw new Error(
+      `the token endpoint answered ${response.status} to the ${form.get("grant_type")} grant${error.success ? ` (${error.data.error})` : ""}`,
+    );
   }
   const token: Token = { accessToken: parsed.data.access_token };
   const nextRefreshToken = parsed.data.refresh_token ?? refreshToken;
   if (nextRefreshToken !== undefined) token.refreshToken = nextRefreshToken;
-  if (parsed.data.expires_in !== undefined) token.expiresAt = new Date(ctx.now().getTime() + parsed.data.expires_in * 1000).toISOString();
+  if (parsed.data.expires_in !== undefined)
+    token.expiresAt = new Date(ctx.now().getTime() + parsed.data.expires_in * 1000).toISOString();
   return token;
 }

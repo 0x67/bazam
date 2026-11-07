@@ -45,7 +45,14 @@ function channelAnswering(answer: PersonAnswer): ChannelSpy {
 
 function context(options: { capabilities?: readonly string[]; channel?: HumanChannel } = {}): ResolverContext {
   return {
-    env: { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {}, locale: "en" },
+    env: {
+      name: "demo",
+      production: false,
+      vars: {},
+      hosts: new Set(["app.example.test"]),
+      challenges: {},
+      locale: "en",
+    },
     http: {
       send: async () => {
         throw new Error("no HTTP in this test");
@@ -99,7 +106,13 @@ describe("resolveChallenge", () => {
     ];
 
     expect(chooseResolver(chain, new Set())).toBe(chain[1]);
-    const resolved = await resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), chain, context(), noTrigger);
+    const resolved = await resolveChallenge(
+      requestFor("otp-email"),
+      builtinKind("otp-email"),
+      chain,
+      context(),
+      noTrigger,
+    );
 
     expect(resolved).toEqual({ answer: { kind: "value", value: "222222" }, resolver: "otp-mailpit" });
   });
@@ -118,7 +131,13 @@ describe("resolveChallenge", () => {
   it("records the resolver used", async () => {
     const chain = [stubResolver("otp-mailpit", { answer: { kind: "value", value: "222222" } }), humanResolver];
 
-    const resolved = await resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), chain, context(), noTrigger);
+    const resolved = await resolveChallenge(
+      requestFor("otp-email"),
+      builtinKind("otp-email"),
+      chain,
+      context(),
+      noTrigger,
+    );
 
     expect(resolved.resolver).toBe("otp-mailpit");
   });
@@ -127,7 +146,13 @@ describe("resolveChallenge", () => {
     const channel = channelAnswering({ kind: "value", value: "333333" });
     const chain = [stubResolver("otp-mailpit", {}), humanResolver];
 
-    const resolved = await resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), chain, context({ channel }), noTrigger);
+    const resolved = await resolveChallenge(
+      requestFor("otp-email"),
+      builtinKind("otp-email"),
+      chain,
+      context({ channel }),
+      noTrigger,
+    );
 
     expect(resolved).toEqual({ answer: { kind: "value", value: "333333" }, resolver: "human" });
     expect(channel.prompts).toEqual([
@@ -144,7 +169,10 @@ describe("resolveChallenge", () => {
 
   it("blocks instead of falling back for passkey", async () => {
     const channel = channelAnswering({ kind: "done" });
-    const chain = [stubResolver("passkey-virtual", { requires: ["webauthn.virtual"], answer: new Error("no credential was used") }), humanResolver];
+    const chain = [
+      stubResolver("passkey-virtual", { requires: ["webauthn.virtual"], answer: new Error("no credential was used") }),
+      humanResolver,
+    ];
     const ctx = context({ capabilities: ["webauthn.virtual"], channel });
 
     const resolving = resolveChallenge(requestFor("passkey"), builtinKind("passkey"), chain, ctx, noTrigger);
@@ -161,9 +189,15 @@ describe("resolveChallenge", () => {
       stubResolver("otp-http-hook", { answer: { kind: "value", value: "444444" } }, log),
     ];
 
-    const resolved = await resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), chain, context(), async () => {
-      log.push("trigger");
-    });
+    const resolved = await resolveChallenge(
+      requestFor("otp-email"),
+      builtinKind("otp-email"),
+      chain,
+      context(),
+      async () => {
+        log.push("trigger");
+      },
+    );
 
     expect(resolved.resolver).toBe("otp-http-hook");
     expect(log).toEqual(["arm otp-mailpit", "arm otp-http-hook", "trigger", "resolve otp-http-hook"]);
@@ -172,7 +206,9 @@ describe("resolveChallenge", () => {
   it("blocks naming the missing capability when no resolver can run", async () => {
     const chain = [stubResolver("passkey-virtual", { requires: ["webauthn.virtual"] })];
 
-    await expect(resolveChallenge(requestFor("passkey"), builtinKind("passkey"), chain, context(), noTrigger)).rejects.toThrow(
+    await expect(
+      resolveChallenge(requestFor("passkey"), builtinKind("passkey"), chain, context(), noTrigger),
+    ).rejects.toThrow(
       "no resolver for challenge passkey can run on this driver: passkey-virtual needs webauthn.virtual",
     );
   });
@@ -180,7 +216,13 @@ describe("resolveChallenge", () => {
   it("asks a person to act and confirm for pin", async () => {
     const channel = channelAnswering({ kind: "done" });
 
-    const resolved = await resolveChallenge(requestFor("pin"), builtinKind("pin"), [humanResolver], context({ channel }), noTrigger);
+    const resolved = await resolveChallenge(
+      requestFor("pin"),
+      builtinKind("pin"),
+      [humanResolver],
+      context({ channel }),
+      noTrigger,
+    );
 
     expect(resolved).toEqual({ answer: { kind: "done" }, resolver: "human" });
     expect(channel.prompts[0]?.ask).toBe("action");
@@ -190,9 +232,13 @@ describe("resolveChallenge", () => {
   it("never returns a value for pin, even when the person sends one", async () => {
     const channel = channelAnswering({ kind: "value", value: "4321" });
 
-    const error = await resolveChallenge(requestFor("pin"), builtinKind("pin"), [humanResolver], context({ channel }), noTrigger).catch(
-      (thrown: unknown) => thrown,
-    );
+    const error = await resolveChallenge(
+      requestFor("pin"),
+      builtinKind("pin"),
+      [humanResolver],
+      context({ channel }),
+      noTrigger,
+    ).catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ChallengeBlocked);
     expect((error as Error).message).not.toContain("4321");
@@ -202,7 +248,9 @@ describe("resolveChallenge", () => {
     const log: string[] = [];
     const chain = [stubResolver("pin-typer", { answer: { kind: "done" } }, log), humanResolver];
 
-    await expect(resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context(), noTrigger)).rejects.toThrow(HumanOnlyViolation);
+    await expect(resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context(), noTrigger)).rejects.toThrow(
+      HumanOnlyViolation,
+    );
     expect(log).toEqual([]);
   });
 
@@ -210,7 +258,13 @@ describe("resolveChallenge", () => {
     const channel = channelAnswering({ kind: "verdict", verdict: "blocked", note: "no phone at hand" });
 
     await expect(
-      resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), [humanResolver], context({ channel }), noTrigger),
+      resolveChallenge(
+        requestFor("otp-email"),
+        builtinKind("otp-email"),
+        [humanResolver],
+        context({ channel }),
+        noTrigger,
+      ),
     ).rejects.toThrow('resolver "human" failed: the person answered blocked: no phone at hand');
   });
 
@@ -220,6 +274,8 @@ describe("resolveChallenge", () => {
 
     await expect(
       resolveChallenge(requestFor("otp-email"), builtinKind("otp-email"), chain, context({ channel }), noTrigger),
-    ).rejects.toThrow('resolver "otp-mailpit" found no answer; then resolver "human" failed: no answer from a person within 60 s');
+    ).rejects.toThrow(
+      'resolver "otp-mailpit" found no answer; then resolver "human" failed: no answer from a person within 60 s',
+    );
   });
 });

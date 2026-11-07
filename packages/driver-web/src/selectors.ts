@@ -26,7 +26,8 @@ export function locate(page: Page, selector: Selector, idAttribute: string): Loc
 /** The selector as an author reads it, for check names. */
 export function describeSelector(selector: Selector): string {
   if ("id" in selector) return `id=${selector.id}`;
-  if ("role" in selector) return selector.name === undefined ? `role=${selector.role}` : `role=${selector.role}[name="${selector.name}"]`;
+  if ("role" in selector)
+    return selector.name === undefined ? `role=${selector.role}` : `role=${selector.role}[name="${selector.name}"]`;
   if ("text" in selector) return `text="${selector.text}"`;
   return `css=${selector.css}`;
 }

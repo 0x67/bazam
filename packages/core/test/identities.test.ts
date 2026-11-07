@@ -31,7 +31,14 @@ import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "./support/fake-browser.ts";
 
 const run = promisify(execFile);
-const env: Environment = { name: "demo", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges: {}, locale: "en" };
+const env: Environment = {
+  name: "demo",
+  production: false,
+  vars: {},
+  hosts: new Set(["app.example.test"]),
+  challenges: {},
+  locale: "en",
+};
 const HOUR_MS = 60 * 60_000;
 const SESSION_COOKIE = { name: "session", value: "fake-session-cookie", domain: "app.example.test" };
 const person: HumanChannel = { ask: async () => ({ kind: "timeout" }) };
@@ -94,7 +101,8 @@ const cookieStrategy = defineAuthStrategy<{ loginUrl: string }, StorageState>({
   needsPerson: () => true,
   acquire: async (config, ctx) => {
     if (ctx.browser === undefined) throw new Error("the cookie login needs browser.login");
-    return (await ctx.browser.login({ url: new URL(config.loginUrl), until: { cookie: "session" }, timeoutMs: 1_000 })).state;
+    return (await ctx.browser.login({ url: new URL(config.loginUrl), until: { cookie: "session" }, timeoutMs: 1_000 }))
+      .state;
   },
   apply: async (state, target) => {
     if (target.kind === "browser") return target.session.loadStorageState(state);
@@ -146,7 +154,11 @@ describe("Identities", () => {
     strategies: AuthStrategy<any, any>[],
     deps: Partial<IdentitiesDeps> = {},
   ): Promise<Identities> {
-    const plugin = definePlugin({ name: "test-strategies", apiVersion: PLUGIN_API_VERSION, authStrategies: strategies });
+    const plugin = definePlugin({
+      name: "test-strategies",
+      apiVersion: PLUGIN_API_VERSION,
+      authStrategies: strategies,
+    });
     return new Identities({
       env,
       configs: IdentitiesConfig.parse(configs),
@@ -170,7 +182,10 @@ describe("Identities", () => {
 
   it("uses one credential per identity and surface", async () => {
     const { strategy, calls } = tokenStrategy(clock);
-    const auth = { web: { strategy: "token", with: { audience: "web" } }, api: { strategy: "token", with: { audience: "api" } } };
+    const auth = {
+      web: { strategy: "token", with: { audience: "web" } },
+      api: { strategy: "token", with: { audience: "api" } },
+    };
     const ids = await identities({ customer: { auth }, admin: { auth } }, [strategy]);
     const customerPage = new FakeBrowserSession();
     const adminPage = new FakeBrowserSession();
@@ -189,9 +204,13 @@ describe("Identities", () => {
 
   it("reuses another surface with from:", async () => {
     const login = new FakeBrowserLogin([SESSION_COOKIE]);
-    const ids = await identities({ customer: { auth: { web: cookieSurface, api: { strategy: "cookie", from: "web" } } } }, [cookieStrategy], {
-      browser: login,
-    });
+    const ids = await identities(
+      { customer: { auth: { web: cookieSurface, api: { strategy: "cookie", from: "web" } } } },
+      [cookieStrategy],
+      {
+        browser: login,
+      },
+    );
     const page = new FakeBrowserSession();
     const request = draft();
 
@@ -258,7 +277,11 @@ describe("Identities", () => {
     await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
     const { port } = server.address() as AddressInfo;
     try {
-      const plugin = definePlugin({ name: "test-strategies", apiVersion: PLUGIN_API_VERSION, authStrategies: [endpointStrategy] });
+      const plugin = definePlugin({
+        name: "test-strategies",
+        apiVersion: PLUGIN_API_VERSION,
+        authStrategies: [endpointStrategy],
+      });
       const tokenUrl = `http://127.0.0.1:${port}/token`;
       // a deps object whose log is a method that reads its own fields
       const deps: IdentitiesDeps & { lines: string[] } = {
@@ -291,9 +314,13 @@ describe("Identities", () => {
   it("never caches non-cacheable strategies, and masks their secrets", async () => {
     const { strategy } = tokenStrategy(clock, { name: "static-token", cacheable: false });
     const redactor = new Redactor(defaultRedactionRules());
-    const ids = await identities({ partner: { auth: { api: { strategy: "static-token", with: { audience: "partner" } } } } }, [strategy], {
-      redactor,
-    });
+    const ids = await identities(
+      { partner: { auth: { api: { strategy: "static-token", with: { audience: "partner" } } } } },
+      [strategy],
+      {
+        redactor,
+      },
+    );
 
     await ids.authorize("partner", "api", { kind: "http", request: draft() });
 
@@ -329,7 +356,10 @@ describe("Identities", () => {
 
   it("reports a person login without resolving the placeholders in its settings", async () => {
     const resolved: unknown[] = [];
-    const surface = { strategy: "cookie", with: { loginUrl: "${env.APP_URL}/login", password: "${secret.CUSTOMER_PASSWORD}" } };
+    const surface = {
+      strategy: "cookie",
+      with: { loginUrl: "${env.APP_URL}/login", password: "${secret.CUSTOMER_PASSWORD}" },
+    };
     const ids = await identities({ customer: { auth: { web: surface } } }, [cookieStrategy], {
       resolve: async (value) => {
         resolved.push(value);
@@ -377,7 +407,11 @@ describe("Identities", () => {
       ensured = ids.ensureCredential("customer", "api");
       await staleProbed.promise;
       // another process saves its refresh while this one waits for the lock
-      await cache.save(customerApiKey, { token: "fake-from-other-process", refreshToken: "fake-refresh-other", expiresAt });
+      await cache.save(customerApiKey, {
+        token: "fake-from-other-process",
+        refreshToken: "fake-refresh-other",
+        expiresAt,
+      });
     });
     await ensured;
     const request = draft();
@@ -432,7 +466,9 @@ describe("Identities", () => {
     expect(recovered).toBe(true);
     expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
     expect(retry.headers.get("authorization")).toBe("Bearer fake-customer-2");
-    expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toMatchObject({ credential: { token: "fake-customer-2" } });
+    expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toMatchObject({
+      credential: { token: "fake-customer-2" },
+    });
   });
 
   it("refreshes on a 401 when the credential holds a field set to undefined", async () => {
@@ -445,7 +481,9 @@ describe("Identities", () => {
   });
 
   it("second 401 blocks: recoverFromUnauthorized returns false when the strategy cannot refresh", async () => {
-    const ids = await identities({ customer: { auth: { web: cookieSurface } } }, [cookieStrategy], { browser: new FakeBrowserLogin([SESSION_COOKIE]) });
+    const ids = await identities({ customer: { auth: { web: cookieSurface } } }, [cookieStrategy], {
+      browser: new FakeBrowserLogin([SESSION_COOKIE]),
+    });
     await ids.ensureCredential("customer", "web");
 
     expect(await ids.recoverFromUnauthorized("customer", "web")).toBe(false);
@@ -458,9 +496,17 @@ describe("Identities", () => {
       const expired = new Date(Date.now() - 60_000);
       const stale = { accessToken: "fake-access-0", refreshToken: "fake-refresh-0", expiresAt: expired.toISOString() };
       await new CredentialCache(join(root, "credentials")).save(key, stale, expired);
-      const modules = ["../src/auth/index.ts", "../src/plugin/index.ts", "../src/redact/index.ts", "../src/project.ts"].map((path) => new URL(path, import.meta.url).href);
+      const modules = [
+        "../src/auth/index.ts",
+        "../src/plugin/index.ts",
+        "../src/redact/index.ts",
+        "../src/project.ts",
+      ].map((path) => new URL(path, import.meta.url).href);
       const coreDir = fileURLToPath(new URL("..", import.meta.url));
-      const start = () => run(process.execPath, ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url], { cwd: coreDir });
+      const start = () =>
+        run(process.execPath, ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url], {
+          cwd: coreDir,
+        });
 
       const [first, second] = await Promise.all([start(), start()]);
 

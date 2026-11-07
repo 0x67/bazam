@@ -70,7 +70,8 @@ describe("withRefreshLock", () => {
     await Promise.all(trialDirs.map((dir) => writeLock(pid, 0, dir)));
     const lockModule = new URL("../src/auth/lock.ts", import.meta.url).href;
     const startAt = Date.now() + 500;
-    const start = () => run(process.execPath, ["--input-type=module", "-e", TAKEOVER_WORKER, lockModule, String(startAt), ...trialDirs]);
+    const start = () =>
+      run(process.execPath, ["--input-type=module", "-e", TAKEOVER_WORKER, lockModule, String(startAt), ...trialDirs]);
 
     const workers = await Promise.all(Array.from({ length: 8 }, start));
 
@@ -93,7 +94,9 @@ describe("withRefreshLock", () => {
 
       await vi.advanceTimersByTimeAsync(60_000);
       await vi.waitFor(async () => expect(Date.now() - (await stat(path)).mtimeMs).toBeLessThan(60_000));
-      const waiter = await withRefreshLock(lockDir, key, async () => "taken over", 200).catch((error: unknown) => error);
+      const waiter = await withRefreshLock(lockDir, key, async () => "taken over", 200).catch(
+        (error: unknown) => error,
+      );
 
       expect(waiter).toBeInstanceOf(RefreshLockTimeout);
     } finally {

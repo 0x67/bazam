@@ -49,29 +49,38 @@ export function totpRoutes(deps: DemoDeps): Hono<SignedIn> {
 }
 
 function signInPage(error?: string) {
-  return page("Sign in with an authenticator app", html`
+  return page(
+    "Sign in with an authenticator app",
+    html`
     ${errorMessage(error)}
     <form method="post" action="/login/totp">
       <label>Email <input type="email" name="email" autocomplete="username" required data-testid="email"></label>
       <label>Code <input name="code" inputmode="numeric" autocomplete="one-time-code" required data-testid="totp-code"></label>
       <button type="submit" data-testid="sign-in-totp">Sign in</button>
     </form>
-    <p><a href="/login" data-testid="back-to-login">Other ways to sign in</a></p>`)
+    <p><a href="/login" data-testid="back-to-login">Other ways to sign in</a></p>`,
+  )
 }
 
 function enrollPage(seed: string, error?: string) {
-  return page("Set up an authenticator app", html`
+  return page(
+    "Set up an authenticator app",
+    html`
     ${errorMessage(error)}
     <p>Add this key to your authenticator app: <code data-testid="totp-seed">${seed}</code></p>
     <form method="post" action="/account/totp">
       <label>Code from the app <input name="code" inputmode="numeric" autocomplete="one-time-code" required data-testid="totp-code"></label>
       <button type="submit" data-testid="enable-totp">Turn on</button>
     </form>
-    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`)
+    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`,
+  )
 }
 
 function enabledPage() {
-  return page("Authenticator app", html`
+  return page(
+    "Authenticator app",
+    html`
     <p data-testid="totp-enabled">Your authenticator app is on.</p>
-    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`)
+    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`,
+  )
 }

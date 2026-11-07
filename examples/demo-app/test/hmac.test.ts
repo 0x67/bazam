@@ -3,10 +3,22 @@ import { describe, expect, it } from "vite-plus/test"
 import { DEMO_HMAC_KEY } from "../src/config.ts"
 import { Visitor } from "./support/demo.ts"
 
-interface Signing { method: string; pathAndQuery: string; body: string; timestamp?: number; nonce?: string }
+interface Signing {
+  method: string
+  pathAndQuery: string
+  body: string
+  timestamp?: number
+  nonce?: string
+}
 
 // built from the format in README.md, independent of the server code
-function signedHeaders({ method, pathAndQuery, body, timestamp = Math.floor(Date.now() / 1000), nonce = randomUUID() }: Signing) {
+function signedHeaders({
+  method,
+  pathAndQuery,
+  body,
+  timestamp = Math.floor(Date.now() / 1000),
+  nonce = randomUUID(),
+}: Signing) {
   const [path = "", query = ""] = pathAndQuery.split("?")
   const bodySha256 = createHash("sha256").update(body).digest("hex")
   const stringToSign = `${method}\n${path}\n${query}\n${timestamp}\n${nonce}\n${bodySha256}`

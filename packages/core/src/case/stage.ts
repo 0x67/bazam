@@ -37,7 +37,10 @@ export function canPromote(spec: CaseSpec, latest: CaseResult | undefined): Prom
   }
   if (latest === undefined) return { ok: false, reason: `${spec.id} has no result in this environment` };
   if (latest.status !== "pass") {
-    return { ok: false, reason: `the latest result of ${spec.id} in ${latest.env} is ${latest.status}, from run ${latest.runId}` };
+    return {
+      ok: false,
+      reason: `the latest result of ${spec.id} in ${latest.env} is ${latest.status}, from run ${latest.runId}`,
+    };
   }
   return { ok: true };
 }
@@ -49,7 +52,8 @@ export async function promoteCase(root: string, target: LoadedCase, env: string)
   const file = join(root, target.source.file);
   const text = await readFile(file, "utf8");
   const stage = findCase(text, target).item.get("stage", true);
-  if (!isScalar(stage) || !stage.range) throw new Error(`${target.spec.id} in ${target.source.file} has no stage value`);
+  if (!isScalar(stage) || !stage.range)
+    throw new Error(`${target.spec.id} in ${target.source.file} has no stage value`);
   // splice the source text: printing the document again would restyle flow collections across the file
   await writeFile(file, text.slice(0, stage.range[0]) + "regression" + text.slice(stage.range[1]));
   return decision;
@@ -94,7 +98,9 @@ async function latestResult(root: string, caseId: string, env: string): Promise<
 function findCase(text: string, target: LoadedCase): { cases: YAMLSeq; item: YAMLMap } {
   const doc = parseDocument(text, { keepSourceTokens: true });
   const cases = doc.get("cases", true);
-  const item = isSeq(cases) ? cases.items.find((entry) => isMap(entry) && entry.get("id") === target.spec.id) : undefined;
+  const item = isSeq(cases)
+    ? cases.items.find((entry) => isMap(entry) && entry.get("id") === target.spec.id)
+    : undefined;
   if (!isSeq(cases) || !isMap(item)) throw new Error(`${target.spec.id} is not in ${target.source.file}`);
   return { cases, item };
 }

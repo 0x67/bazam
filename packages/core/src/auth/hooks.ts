@@ -4,7 +4,10 @@ import { pathToFileURL } from "node:url";
 import type { HttpRequestDraft, JsonValue } from "./strategy.ts";
 
 /** Returns the headers to set on the outgoing request. */
-export type AuthHook = (request: HttpRequestDraft, credential: JsonValue) => Record<string, string> | Promise<Record<string, string>>;
+export type AuthHook = (
+  request: HttpRequestDraft,
+  credential: JsonValue,
+) => Record<string, string> | Promise<Record<string, string>>;
 
 /**
  * Imports the default export of a project module such as `./hooks/sign.ts`. The path must resolve inside

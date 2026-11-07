@@ -24,9 +24,12 @@ const HmacConfig = z
     algorithm: z.enum(["sha1", "sha256", "sha512"]).default("sha256"),
     encoding: z.enum(["hex", "base64"]).default("hex"),
     stringToSign: template(SIGNED_PARTS).default("{method}\n{path}\n{query}\n{timestamp}\n{nonce}\n{bodySha256}"),
-    headers: z
-      .record(z.string().min(1), template(HEADER_PARTS))
-      .default({ "X-Key-Id": "{keyId}", "X-Timestamp": "{timestamp}", "X-Nonce": "{nonce}", "X-Signature": "{signature}" }),
+    headers: z.record(z.string().min(1), template(HEADER_PARTS)).default({
+      "X-Key-Id": "{keyId}",
+      "X-Timestamp": "{timestamp}",
+      "X-Nonce": "{nonce}",
+      "X-Signature": "{signature}",
+    }),
     timestamp: z.enum(["unix-seconds", "unix-millis", "iso-8601"]).default("unix-seconds"),
     maxSkewSeconds: z.number().positive().optional(),
     /** A request whose Date header the clock is compared with; signed like any other. */
@@ -75,19 +78,35 @@ export const hmacStrategy = defineAuthStrategy<HmacConfig, HmacCredential>({
   secrets: (credential) => [credential.secret],
 });
 
-async function sign(credential: HmacCredential, request: HttpRequestDraft, config: HmacConfig, now: Date): Promise<void> {
+async function sign(
+  credential: HmacCredential,
+  request: HttpRequestDraft,
+  config: HmacConfig,
+  now: Date,
+): Promise<void> {
   const headers =
-    credential.signHook === undefined ? templateHeaders(credential, request, config, now) : await hookHeaders(credential.signHook, credential, request);
+    credential.signHook === undefined
+      ? templateHeaders(credential, request, config, now)
+      : await hookHeaders(credential.signHook, credential, request);
   for (const [name, value] of Object.entries(headers)) request.headers.set(name, value);
 }
 
-async function hookHeaders(path: string, credential: HmacCredential, request: HttpRequestDraft): Promise<Record<string, string>> {
+async function hookHeaders(
+  path: string,
+  credential: HmacCredential,
+  request: HttpRequestDraft,
+): Promise<Record<string, string>> {
   // acquire already checked that the hook is inside the project root
   const hook = await loadAuthHook(dirname(path), path);
   return hook(request, { keyId: credential.keyId, secret: credential.secret });
 }
 
-function templateHeaders(credential: HmacCredential, request: HttpRequestDraft, config: HmacConfig, now: Date): Record<string, string> {
+function templateHeaders(
+  credential: HmacCredential,
+  request: HttpRequestDraft,
+  config: HmacConfig,
+  now: Date,
+): Record<string, string> {
   const parts: Record<string, string> = {
     method: request.method.toUpperCase(),
     path: request.url.pathname,
@@ -99,8 +118,12 @@ function templateHeaders(credential: HmacCredential, request: HttpRequestDraft, 
       .digest("hex"),
     keyId: credential.keyId,
   };
-  const signature = createHmac(config.algorithm, credential.secret).update(fill(config.stringToSign, parts)).digest(config.encoding);
-  return Object.fromEntries(Object.entries(config.headers).map(([name, value]) => [name, fill(value, { ...parts, signature })]));
+  const signature = createHmac(config.algorithm, credential.secret)
+    .update(fill(config.stringToSign, parts))
+    .digest(config.encoding);
+  return Object.fromEntries(
+    Object.entries(config.headers).map(([name, value]) => [name, fill(value, { ...parts, signature })]),
+  );
 }
 
 function fill(text: string, parts: Readonly<Record<string, string>>): string {
@@ -123,6 +146,8 @@ function assertClockSkew(response: HttpResponse, maxSkewSeconds: number, now: Da
   if (Number.isNaN(date)) throw new Error(`${url.origin} sent no Date header, so the clock skew cannot be checked`);
   const skewSeconds = Math.abs(date - now.getTime()) / 1000;
   if (skewSeconds > maxSkewSeconds) {
-    throw new Error(`the local clock is ${Math.round(skewSeconds)} s away from the Date of ${url.origin}, more than maxSkewSeconds ${maxSkewSeconds}`);
+    throw new Error(
+      `the local clock is ${Math.round(skewSeconds)} s away from the Date of ${url.origin}, more than maxSkewSeconds ${maxSkewSeconds}`,
+    );
   }
 }

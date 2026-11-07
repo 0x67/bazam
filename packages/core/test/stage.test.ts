@@ -53,7 +53,14 @@ async function loaded(id: string): Promise<LoadedCase> {
 }
 
 function spec(fields: Partial<CaseSpec>): CaseSpec {
-  return CaseSpec.parse({ id: "AUTH-LOGIN-001", title: "Customer signs in", stage: "acceptance", risk: "high", targets: ["web"], ...fields });
+  return CaseSpec.parse({
+    id: "AUTH-LOGIN-001",
+    title: "Customer signs in",
+    stage: "acceptance",
+    risk: "high",
+    targets: ["web"],
+    ...fields,
+  });
 }
 
 function result(runId: string, env: string, status: Status, finishedAt: string): CaseResult {
@@ -102,7 +109,10 @@ describe("canPromote", () => {
     const pass = result("20261106-093000-a1b2", "demo", "pass", "2026-11-06T09:30:02.000Z");
 
     expect(canPromote(spec({ stage: "draft" }), pass)).toEqual({ ok: false, reason: expect.stringContaining("draft") });
-    expect(canPromote(spec({}), { ...pass, status: "followup" })).toEqual({ ok: false, reason: expect.stringContaining("followup") });
+    expect(canPromote(spec({}), { ...pass, status: "followup" })).toEqual({
+      ok: false,
+      reason: expect.stringContaining("followup"),
+    });
   });
 });
 
@@ -125,7 +135,9 @@ describe("promoteCase", () => {
     expect(unchanged).toBe(LOGIN_FILE);
     expect(promoted).toEqual({ ok: true });
     const before = LOGIN_FILE.split("\n");
-    expect(after.filter((line, index) => line !== before[index])).toEqual(["    stage: regression # promote once TD-246 ships"]);
+    expect(after.filter((line, index) => line !== before[index])).toEqual([
+      "    stage: regression # promote once TD-246 ships",
+    ]);
     expect(after).toHaveLength(before.length);
   });
 
@@ -133,7 +145,10 @@ describe("promoteCase", () => {
     await write("cases/auth/login.yaml", LOGIN_FILE);
     const target = await loaded("AUTH-LOGIN-001");
 
-    expect(await promoteCase(root, target, "demo")).toEqual({ ok: false, reason: expect.stringContaining("no result") });
+    expect(await promoteCase(root, target, "demo")).toEqual({
+      ok: false,
+      reason: expect.stringContaining("no result"),
+    });
     expect(await readFile(join(root, "cases/auth/login.yaml"), "utf8")).toBe(LOGIN_FILE);
   });
 
@@ -157,7 +172,9 @@ describe("retireCase", () => {
     expect(await readFile(join(root, "cases/auth/login.yaml"), "utf8")).toBe(
       LOGIN_FILE.replace(/ {2}# flaky on webkit[^]*?targets: \[web\]\n/, ""),
     );
-    expect(await readFile(join(root, "cases/.retired"), "utf8")).toBe("# never reuse these ids\nAUTH-OLD-001\nAUTH-LOGIN-002\n");
+    expect(await readFile(join(root, "cases/.retired"), "utf8")).toBe(
+      "# never reuse these ids\nAUTH-OLD-001\nAUTH-LOGIN-002\n",
+    );
     const load = await loadCases(root, CaseSpec);
     expect(load.issues).toEqual([]);
     expect(load.cases.map((c) => c.spec.id)).toEqual(["AUTH-LOGIN-001", "AUTH-LOGIN-003"]);
@@ -174,7 +191,10 @@ describe("retireCase", () => {
   });
 
   it("deletes the file when its last case is retired and creates .retired when missing", async () => {
-    await write("cases/auth/reload.yaml", "cases:\n  - { id: AUTH-RELOAD-001, title: Reload keeps the session, stage: regression, risk: low, targets: [web] }\n");
+    await write(
+      "cases/auth/reload.yaml",
+      "cases:\n  - { id: AUTH-RELOAD-001, title: Reload keeps the session, stage: regression, risk: low, targets: [web] }\n",
+    );
 
     await retireCase(root, await loaded("AUTH-RELOAD-001"));
 

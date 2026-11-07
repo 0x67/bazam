@@ -29,7 +29,13 @@ const meta: CaseMeta = {
   values: { amount: "4.27" },
   startedAt: new Date("2026-11-06T09:30:00.000Z"),
 };
-const heading: CheckRecord = { name: "dashboard heading", kind: "ui", expected: "Dashboard", observed: "Dashboard", ok: true };
+const heading: CheckRecord = {
+  name: "dashboard heading",
+  kind: "ui",
+  expected: "Dashboard",
+  observed: "Dashboard",
+  ok: true,
+};
 const pngHeader = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 let runDir: string;
@@ -99,7 +105,11 @@ describe("EvidenceStore", () => {
   it("records the reason when a harness error ends the case", async () => {
     const store = newStore();
 
-    const result = await store.finish({ kind: "errored", message: "driver crashed", source: "harness" }, meta, finishedAt);
+    const result = await store.finish(
+      { kind: "errored", message: "driver crashed", source: "harness" },
+      meta,
+      finishedAt,
+    );
 
     expect([result.status, result.reason]).toEqual(["blocked", "internal: driver crashed"]);
   });
@@ -127,11 +137,21 @@ describe("EvidenceStore", () => {
     redactor.register("demo-client-secret");
     const store = newStore(redactor);
     const encode = (s: string) => new TextEncoder().encode(s);
-    store.record({ name: "token request", kind: "api", expected: 200, observed: "client_secret=demo-client-secret", ok: true });
+    store.record({
+      name: "token request",
+      kind: "api",
+      expected: 200,
+      observed: "client_secret=demo-client-secret",
+      ok: true,
+    });
     store.note("sent demo-client-secret");
 
     await store.attach("log", encode("POST /token client_secret=demo-client-secret"), "txt");
-    await store.attach("token response", encode(JSON.stringify({ access_token: "fake-access-token", user: "admin-1" })), "json");
+    await store.attach(
+      "token response",
+      encode(JSON.stringify({ access_token: "fake-access-token", user: "admin-1" })),
+      "json",
+    );
     await store.finish(completed, meta, finishedAt);
 
     const resultJson = await readCaseFile("result.json");
@@ -141,7 +161,10 @@ describe("EvidenceStore", () => {
       notes: ["sent [redacted]"],
     });
     expect(await readCaseFile("01-log.txt")).toBe("POST /token client_secret=[redacted]");
-    expect(JSON.parse(await readCaseFile("02-token-response.json"))).toEqual({ access_token: "[redacted]", user: "admin-1" });
+    expect(JSON.parse(await readCaseFile("02-token-response.json"))).toEqual({
+      access_token: "[redacted]",
+      user: "admin-1",
+    });
   });
 
   it("writes png bytes unchanged even when they hold a registered value", async () => {
@@ -169,7 +192,11 @@ describe("EvidenceStore", () => {
     store.record(heading);
     const values = { "random(10000000, 99999999, 0)": "66655867" };
 
-    const result = await store.finish(completed, { ...meta, values, startedAt: new Date("2026-11-06T06:30:00.000Z") }, finishedAt);
+    const result = await store.finish(
+      completed,
+      { ...meta, values, startedAt: new Date("2026-11-06T06:30:00.000Z") },
+      finishedAt,
+    );
 
     expect([result.values, result.durationMs]).toEqual([values, 10_802_500]);
     expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ values, durationMs: 10_802_500 });

@@ -2,7 +2,12 @@ import { describe, expect, it } from "vite-plus/test"
 import { DEMO_OAUTH_CLIENT } from "../src/config.ts"
 import { Visitor } from "./support/demo.ts"
 
-interface TokenResponse { access_token: string; token_type: string; expires_in: number; refresh_token: string }
+interface TokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  refresh_token: string
+}
 
 const clientBasic = {
   Authorization: `Basic ${Buffer.from(`${DEMO_OAUTH_CLIENT.id}:${DEMO_OAUTH_CLIENT.secret}`).toString("base64")}`,

@@ -82,8 +82,10 @@ export function guardedHttp(deps: GuardedHttpDeps): GuardedHttp {
     async send(request, as) {
       if (as === undefined) return follow(deps, request, undefined);
       const identities = deps.identities;
-      if (identities === undefined) throw new Error(`this HTTP client sends no credentials, so it cannot send as ${as.identity}`);
-      const authorize: Authorize = (draft) => identities.authorize(as.identity, as.surface, { kind: "http", request: draft });
+      if (identities === undefined)
+        throw new Error(`this HTTP client sends no credentials, so it cannot send as ${as.identity}`);
+      const authorize: Authorize = (draft) =>
+        identities.authorize(as.identity, as.surface, { kind: "http", request: draft });
       const response = await follow(deps, request, authorize);
       if (response.status !== 401) return response;
       if (await identities.recoverFromUnauthorized(as.identity, as.surface)) {
@@ -96,26 +98,42 @@ export function guardedHttp(deps: GuardedHttpDeps): GuardedHttp {
 }
 
 /** Follows redirects by hand so each hop is checked against the env's hosts. */
-async function follow(deps: GuardedHttpDeps, request: HttpRequestDraft, authorize: Authorize | undefined): Promise<HttpResponse> {
+async function follow(
+  deps: GuardedHttpDeps,
+  request: HttpRequestDraft,
+  authorize: Authorize | undefined,
+): Promise<HttpResponse> {
   let hop = request;
   for (let redirects = 0; ; redirects += 1) {
     assertHostAllowed(deps.env, hop.url);
     const response = await sendHop(deps, hop, hop.url.origin === request.url.origin ? authorize : undefined);
     const location = response.headers.get("location");
-    if (request.redirect === "manual" || !REDIRECT_STATUSES.has(response.status) || location === null) return readResponse(response);
+    if (request.redirect === "manual" || !REDIRECT_STATUSES.has(response.status) || location === null)
+      return readResponse(response);
     await response.body?.cancel();
-    if (redirects === MAX_REDIRECTS) throw new Error(`${describeRequest(request)} redirected more than ${MAX_REDIRECTS} times`);
+    if (redirects === MAX_REDIRECTS)
+      throw new Error(`${describeRequest(request)} redirected more than ${MAX_REDIRECTS} times`);
     hop = redirected(hop, response.status, new URL(location, hop.url));
   }
 }
 
-async function sendHop(deps: GuardedHttpDeps, hop: HttpRequestDraft, authorize: Authorize | undefined): Promise<Response> {
+async function sendHop(
+  deps: GuardedHttpDeps,
+  hop: HttpRequestDraft,
+  authorize: Authorize | undefined,
+): Promise<Response> {
   // a strategy may set headers or a query parameter, and the caller's draft is sent again after a refresh
   const draft: HttpRequestDraft = { ...hop, url: new URL(hop.url), headers: new Headers(hop.headers) };
   if (authorize !== undefined) await authorize(draft);
   // the copy is backed by an ArrayBuffer, which fetch takes; the draft's bytes may sit in a SharedArrayBuffer
   const body = draft.body === undefined ? null : new Uint8Array(draft.body);
-  const init: RequestInit = { method: draft.method, headers: draft.headers, body, redirect: "manual", signal: draft.signal ?? null };
+  const init: RequestInit = {
+    method: draft.method,
+    headers: draft.headers,
+    body,
+    redirect: "manual",
+    signal: draft.signal ?? null,
+  };
   // an abort rejects with the signal's reason, a DOMException that connectFailure passes through
   const response = await fetch(draft.url, init).catch((error: unknown) => {
     throw connectFailure(describeRequest(draft), error) ?? error;
@@ -136,7 +154,11 @@ function redirected(hop: HttpRequestDraft, status: number, url: URL): HttpReques
 }
 
 async function readResponse(response: Response): Promise<HttpResponse> {
-  return { status: response.status, headers: response.headers, body: parseBody(await response.text(), response.headers.get("content-type")) };
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: parseBody(await response.text(), response.headers.get("content-type")),
+  };
 }
 
 function parseBody(text: string, contentType: string | null): unknown {
@@ -158,20 +180,27 @@ function describeRequest(request: Pick<HttpRequestDraft, "method" | "url">): str
 
 const ApiCheck = z
   .strictObject({
-    request: z.string().regex(REQUEST_LINE, { error: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"' }),
+    request: z
+      .string()
+      .regex(REQUEST_LINE, { error: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"' }),
     as: z.string().min(1).optional(),
     write: z.boolean().optional(),
     status: z.number().int().optional(),
     /** Expected values by dot path inside the response body, such as `items[0].id`. */
     body: z.record(z.string(), z.unknown()).optional(),
   })
-  .refine((check) => check.status !== undefined || check.body !== undefined, { error: "an api check names a status, body paths or both" });
+  .refine((check) => check.status !== undefined || check.body !== undefined, {
+    error: "an api check names a status, body paths or both",
+  });
 type ApiCheck = z.infer<typeof ApiCheck>;
 
-const RequestStepPayload = RequestStep.refine((step) => Object.keys(step.save ?? {}).every((name) => !CASE_VALUES.has(name)), {
-  path: ["save"],
-  error: "save cannot use the names id and title, which hold the case's own ${case.id} and ${case.title}",
-});
+const RequestStepPayload = RequestStep.refine(
+  (step) => Object.keys(step.save ?? {}).every((name) => !CASE_VALUES.has(name)),
+  {
+    path: ["save"],
+    error: "save cannot use the names id and title, which hold the case's own ${case.id} and ${case.title}",
+  },
+);
 
 const requestStep: StepHandler<RequestStep> = {
   kind: "request",
@@ -179,7 +208,12 @@ const requestStep: StepHandler<RequestStep> = {
   async run(written, ctx) {
     const step = await ctx.resolve(written);
     assertProdWrite(ctx.env, step.method, step);
-    const draft: HttpRequestDraft = { method: step.method, url: new URL(step.url), headers: new Headers(step.headers), signal: ctx.signal };
+    const draft: HttpRequestDraft = {
+      method: step.method,
+      url: new URL(step.url),
+      headers: new Headers(step.headers),
+      signal: ctx.signal,
+    };
     if (step.json !== undefined) {
       if (!draft.headers.has("content-type")) draft.headers.set("content-type", "application/json");
       draft.body = new TextEncoder().encode(JSON.stringify(step.json));
@@ -196,7 +230,10 @@ const apiCheck: StepHandler<ApiCheck> = {
     const check = await ctx.resolve(written);
     const { method, url } = requestLine(check.request);
     assertProdWrite(ctx.env, method, check);
-    const response = await ctx.http.send({ method, url, headers: new Headers(), signal: ctx.signal }, actingIdentity(check.as, ctx));
+    const response = await ctx.http.send(
+      { method, url, headers: new Headers(), signal: ctx.signal },
+      actingIdentity(check.as, ctx),
+    );
     // the name keeps the placeholders as written, so it never holds a resolved secret
     ctx.evidence.record({ name: written.request, kind: "api", ...compare(check, response) });
   },
@@ -206,14 +243,18 @@ const apiCheck: StepHandler<ApiCheck> = {
 export const httpSteps: readonly StepHandler[] = [requestStep, apiCheck];
 
 /** The identity the payload names, else the step's, on the api surface; none when neither names one. */
-function actingIdentity(named: string | undefined, ctx: StepContext): { identity: string; surface: string } | undefined {
+function actingIdentity(
+  named: string | undefined,
+  ctx: StepContext,
+): { identity: string; surface: string } | undefined {
   const identity = named ?? ctx.identity;
   return identity === undefined ? undefined : { identity, surface: API_SURFACE };
 }
 
 function requestLine(line: string): { method: string; url: URL } {
   const match = REQUEST_LINE.exec(line);
-  if (match?.[1] === undefined || match[2] === undefined) throw new Error(`"${line}" is not a method followed by a URL`);
+  if (match?.[1] === undefined || match[2] === undefined)
+    throw new Error(`"${line}" is not a method followed by a URL`);
   return { method: match[1], url: new URL(match[2]) };
 }
 
@@ -240,7 +281,8 @@ function compare(check: ApiCheck, response: HttpResponse): Pick<CheckRecord, "ex
 
 // placeholders resolve to text, so "${case.orderId}" has to match the number 42
 function matches(expected: unknown, observed: unknown): boolean {
-  if (typeof expected === "string" && (typeof observed === "number" || typeof observed === "boolean")) return String(observed) === expected;
+  if (typeof expected === "string" && (typeof observed === "number" || typeof observed === "boolean"))
+    return String(observed) === expected;
   return isDeepStrictEqual(expected, observed);
 }
 
@@ -248,7 +290,8 @@ function matches(expected: unknown, observed: unknown): boolean {
 function valueAt(response: HttpResponse, path: string): unknown {
   const [root, ...rest] = pathSegments(path);
   if (root === "status" && rest.length === 0) return response.status;
-  if (root === "headers" && rest.length === 1 && typeof rest[0] === "string") return response.headers.get(rest[0]) ?? undefined;
+  if (root === "headers" && rest.length === 1 && typeof rest[0] === "string")
+    return response.headers.get(rest[0]) ?? undefined;
   if (root === "body") return rest.reduce<unknown>((value, key) => child(value, key), response.body);
   throw new Error(`${path} is not status, headers.<name> or a path under body`);
 }
@@ -267,6 +310,7 @@ function pathSegments(path: string): (string | number)[] {
 
 function child(value: unknown, key: string | number): unknown {
   if (typeof key === "number") return Array.isArray(value) ? value[key] : undefined;
-  if (typeof value !== "object" || value === null || Array.isArray(value) || !Object.hasOwn(value, key)) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value) || !Object.hasOwn(value, key))
+    return undefined;
   return (value as Record<string, unknown>)[key];
 }

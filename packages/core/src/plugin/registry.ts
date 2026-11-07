@@ -3,7 +3,12 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AuthStrategy, JsonValue } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
-import { assertHumanOnly, type ChallengeKindSpec, type ChallengeResolver, type HumanChannel } from "../challenge/index.ts";
+import {
+  assertHumanOnly,
+  type ChallengeKindSpec,
+  type ChallengeResolver,
+  type HumanChannel,
+} from "../challenge/index.ts";
 import type { CheckRule } from "../check/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
@@ -55,7 +60,9 @@ export class PluginApiMismatch extends Error {
   readonly apiVersion: number;
 
   constructor(plugin: string, apiVersion: number) {
-    super(`plugin "${plugin}" needs plugin API version ${apiVersion}; ${CORE_PLUGIN} provides version ${PLUGIN_API_VERSION}`);
+    super(
+      `plugin "${plugin}" needs plugin API version ${apiVersion}; ${CORE_PLUGIN} provides version ${PLUGIN_API_VERSION}`,
+    );
     this.name = "PluginApiMismatch";
     this.plugin = plugin;
     this.apiVersion = apiVersion;
@@ -107,7 +114,11 @@ export class PluginRegistry {
   }
 
   /** Registers the core plugin, then `defaults`, then each entry of `config.plugins` in order. */
-  static async load(config: ProjectConfig, projectRoot: string, defaults: readonly PluginManifest[]): Promise<PluginRegistry> {
+  static async load(
+    config: ProjectConfig,
+    projectRoot: string,
+    defaults: readonly PluginManifest[],
+  ): Promise<PluginRegistry> {
     const root = resolve(projectRoot);
     const registry = new PluginRegistry(new Set(config.challenges.humanOnly));
     registry.#add({ name: CORE_PLUGIN, apiVersion: PLUGIN_API_VERSION, ...builtinContributions(config, root) });
@@ -139,7 +150,9 @@ export class PluginRegistry {
     const chain = (env.challenges[kind] ?? []).map((name) => {
       const resolver = this.#get("resolvers", name);
       if (!resolver.kinds.includes("*") && !resolver.kinds.includes(kind)) {
-        throw new Error(`env ${env.name} lists resolver "${name}" for challenge ${kind}, but it answers only ${resolver.kinds.join(", ")}`);
+        throw new Error(
+          `env ${env.name} lists resolver "${name}" for challenge ${kind}, but it answers only ${resolver.kinds.join(", ")}`,
+        );
       }
       return resolver;
     });
@@ -234,12 +247,19 @@ function stepKind(step: StepHandler): string {
 }
 
 /** Checks that `value` is a list whose items each have a non-empty name, and pairs each name with its item. */
-function namedItems<T>(plugin: string, field: string, value: unknown, noun: string, name: (item: T) => string): [string, T][] {
+function namedItems<T>(
+  plugin: string,
+  field: string,
+  value: unknown,
+  noun: string,
+  name: (item: T) => string,
+): [string, T][] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error(`plugin "${plugin}": ${field} is not a list`);
   return value.map((item: T) => {
     const itemName: unknown = typeof item === "object" && item !== null ? name(item) : undefined;
-    if (typeof itemName !== "string" || itemName === "") throw new Error(`plugin "${plugin}" has an entry with no ${noun}`);
+    if (typeof itemName !== "string" || itemName === "")
+      throw new Error(`plugin "${plugin}" has an entry with no ${noun}`);
     return [itemName, item];
   });
 }

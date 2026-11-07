@@ -17,7 +17,10 @@ const EnvironmentConfig = z.strictObject({
   // required, so a production env is never one by omission
   production: z.boolean(),
   vars: z
-    .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: "a var name is letters, digits and underscores" }), z.string())
+    .record(
+      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: "a var name is letters, digits and underscores" }),
+      z.string(),
+    )
     .default({}),
   hosts: z
     .array(
@@ -41,7 +44,10 @@ function isLocale(tag: string): boolean {
 
 /** The `envs` mapping of the project config, parsed into one `Environment` per name. */
 export const EnvsConfig = z
-  .record(z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'an env name looks like "uat" or "demo-prod"' }), EnvironmentConfig)
+  .record(
+    z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'an env name looks like "uat" or "demo-prod"' }),
+    EnvironmentConfig,
+  )
   .transform((envs): Record<string, Environment> =>
     Object.fromEntries(
       Object.entries(envs).map(([name, env]) => [

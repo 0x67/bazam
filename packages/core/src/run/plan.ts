@@ -146,7 +146,11 @@ function analyseCase(loaded: LoadedCase, inputs: Omit<PlanInputs, "credentials">
 }
 
 /** Why the case does not run here at all, before any of its steps are looked at. */
-function caseRefusal(spec: CaseSpec, target: string | undefined, inputs: Omit<PlanInputs, "credentials">): string | undefined {
+function caseRefusal(
+  spec: CaseSpec,
+  target: string | undefined,
+  inputs: Omit<PlanInputs, "credentials">,
+): string | undefined {
   if (!stagePolicy(spec.stage).runs) return `stage ${spec.stage} does not run`;
   try {
     assertProdSafe(inputs.env, spec);
@@ -154,7 +158,8 @@ function caseRefusal(spec: CaseSpec, target: string | undefined, inputs: Omit<Pl
     if (error instanceof ProdCaseRefused) return error.message;
     throw error;
   }
-  if (target === undefined) return `none of the case's targets (${spec.targets.join(", ")}) is selected (${inputs.targets?.join(", ")})`;
+  if (target === undefined)
+    return `none of the case's targets (${spec.targets.join(", ")}) is selected (${inputs.targets?.join(", ")})`;
   return undefined;
 }
 
@@ -194,7 +199,8 @@ class StepPlanner {
     this.#analysis.challenges.push({ step: number, kind: challenge.kind, resolver });
     if (identity === undefined) this.#block("challenge step names no identity");
     else this.#addLogin(identity, this.#driver.surface);
-    if (resolver === undefined) this.#block(noResolverReason(challenge.kind, chain, capabilities, env, this.#analysis.target));
+    if (resolver === undefined)
+      this.#block(noResolverReason(challenge.kind, chain, capabilities, env, this.#analysis.target));
     if (takesValue(kind) && challenge.fill === undefined) {
       this.#block(`challenge step ${number} (${challenge.kind}) names no fill field for its code`);
     }
@@ -248,7 +254,9 @@ class StepPlanner {
 
 /** The identities `${identity.<name>.<field>}` placeholders name, in order. */
 function placeholderIdentities(steps: readonly Step[]): string[] {
-  const names = findPlaceholders(steps).flatMap((placeholder) => /^\$\{identity\.([^.}]+)\./.exec(placeholder)?.slice(1, 2) ?? []);
+  const names = findPlaceholders(steps).flatMap(
+    (placeholder) => /^\$\{identity\.([^.}]+)\./.exec(placeholder)?.slice(1, 2) ?? [],
+  );
   return [...new Set(names)];
 }
 
@@ -265,7 +273,9 @@ function noResolverReason(
   target: string,
 ): string {
   if (chain.length === 0) return `env ${env.name} has no resolver chain for challenge ${kind}`;
-  const missing = chain.map((resolver) => `${resolver.name} needs ${resolver.requires.filter((c) => !capabilities.has(c)).join(", ")}`);
+  const missing = chain.map(
+    (resolver) => `${resolver.name} needs ${resolver.requires.filter((c) => !capabilities.has(c)).join(", ")}`,
+  );
   return `no resolver for challenge ${kind} can run on target ${target}: ${missing.join("; ")}`;
 }
 
@@ -276,8 +286,15 @@ function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, Lo
     target: analysis.target,
     stage: analysis.stage,
     identities: [...analysis.identities],
-    logins: blocked === undefined ? [...analysis.logins.values()].map((login) => ({ ...login, mode: loginMode(credentials, login) })) : [],
-    challenges: analysis.challenges.map(({ step, kind, resolver }) => ({ step, kind, resolver: resolver?.name ?? null })),
+    logins:
+      blocked === undefined
+        ? [...analysis.logins.values()].map((login) => ({ ...login, mode: loginMode(credentials, login) }))
+        : [],
+    challenges: analysis.challenges.map(({ step, kind, resolver }) => ({
+      step,
+      kind,
+      resolver: resolver?.name ?? null,
+    })),
   };
   if (blocked !== undefined) planned.blocked = blocked;
   return planned;
@@ -285,7 +302,8 @@ function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, Lo
 
 function loginMode(credentials: ReadonlyMap<string, LoginMode>, login: Login): LoginMode {
   const mode = credentials.get(loginKey(login));
-  if (mode === undefined) throw new Error(`no login mode for ${loginKey(login)}; planLogins lists the logins to look up`);
+  if (mode === undefined)
+    throw new Error(`no login mode for ${loginKey(login)}; planLogins lists the logins to look up`);
   return mode;
 }
 
@@ -295,7 +313,8 @@ function personSteps(analyses: readonly CaseAnalysis[], cases: readonly PlannedC
   analyses.forEach((analysis, index) => {
     const planned = cases[index];
     if (planned === undefined || planned.blocked !== undefined) return;
-    steps += analysis.guidedSteps + analysis.challenges.filter((challenge) => challenge.resolver?.automated === false).length;
+    steps +=
+      analysis.guidedSteps + analysis.challenges.filter((challenge) => challenge.resolver?.automated === false).length;
     for (const login of planned.logins) if (login.mode === "person") personLogins.add(loginKey(login));
   });
   return steps + personLogins.size;

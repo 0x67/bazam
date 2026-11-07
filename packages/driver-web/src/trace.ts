@@ -2,7 +2,12 @@ import type { Redactor } from "@bazam/core/redact";
 import { strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 
 const MASK = "[redacted]";
-const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set(["authorization", "proxy-authorization", "cookie", "set-cookie"]);
+const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "set-cookie",
+]);
 // arrays of { name, value } whose every value is a credential
 const CREDENTIAL_ARRAYS: ReadonlySet<string> = new Set(["cookies", "localStorage"]);
 
@@ -35,8 +40,10 @@ class TraceScrubber {
   #text(text: string): string {
     // trace.trace and trace.network hold one JSON event per line; lines go first so their line breaks stay
     const lines = text.split("\n").map((line) => ({ line, parsed: parseJson(line) }));
-    const isJsonLines = lines.some(({ line }) => line !== "") && lines.every(({ line, parsed }) => line === "" || parsed.ok);
-    if (isJsonLines) return lines.map(({ line, parsed }) => (parsed.ok ? this.#json(line, parsed.value) : line)).join("\n");
+    const isJsonLines =
+      lines.some(({ line }) => line !== "") && lines.every(({ line, parsed }) => line === "" || parsed.ok);
+    if (isJsonLines)
+      return lines.map(({ line, parsed }) => (parsed.ok ? this.#json(line, parsed.value) : line)).join("\n");
     const whole = parseJson(text);
     return whole.ok ? this.#json(text, whole.value) : this.#redactor.maskRegistered(text);
   }
@@ -54,7 +61,9 @@ class TraceScrubber {
     if (typeof value === "number") return this.#redactor.isRegisteredNumber(value) ? MASK : value;
     if (Array.isArray(value)) return value.map((item) => this.#value(item));
     if (typeof value !== "object" || value === null) return value;
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.#value(this.#maskCredentials(key, item))]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, this.#value(this.#maskCredentials(key, item))]),
+    );
   }
 
   // a JSON body can sit in a string, such as the params name of one posted as form-urlencoded, where a number has
@@ -67,7 +76,10 @@ class TraceScrubber {
 
   #maskCredentials(key: string, item: unknown): unknown {
     if (!Array.isArray(item)) return item;
-    if (key === "headers") return item.map((header) => (isPair(header) && this.#isSensitiveHeader(header.name) ? { ...header, value: MASK } : header));
+    if (key === "headers")
+      return item.map((header) =>
+        isPair(header) && this.#isSensitiveHeader(header.name) ? { ...header, value: MASK } : header,
+      );
     if (CREDENTIAL_ARRAYS.has(key)) return item.map((pair) => (isPair(pair) ? { ...pair, value: MASK } : pair));
     return item;
   }
@@ -85,7 +97,12 @@ class TraceScrubber {
 }
 
 function isPair(value: unknown): value is { name: string; value: unknown } {
-  return typeof value === "object" && value !== null && typeof (value as { name?: unknown }).name === "string" && "value" in value;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { name?: unknown }).name === "string" &&
+    "value" in value
+  );
 }
 
 function utf8(bytes: Uint8Array): string | undefined {

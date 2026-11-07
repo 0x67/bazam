@@ -47,19 +47,28 @@ describe("loadAuthHook", () => {
   });
 
   it("refuses a hook outside the root", async () => {
-    await expect(loadAuthHook(project, "../outside.ts")).rejects.toThrow('auth hook "../outside.ts" is outside the project root');
+    await expect(loadAuthHook(project, "../outside.ts")).rejects.toThrow(
+      'auth hook "../outside.ts" is outside the project root',
+    );
   });
 
   // creating a symlink on Windows needs extra privileges
-  it.skipIf(process.platform === "win32")("refuses a hook inside the root that links to a file outside it", async () => {
-    await symlink(join(dir, "outside.ts"), join(project, "hooks", "sign.ts"));
+  it.skipIf(process.platform === "win32")(
+    "refuses a hook inside the root that links to a file outside it",
+    async () => {
+      await symlink(join(dir, "outside.ts"), join(project, "hooks", "sign.ts"));
 
-    await expect(loadAuthHook(project, "./hooks/sign.ts")).rejects.toThrow('auth hook "./hooks/sign.ts" is outside the project root');
-  });
+      await expect(loadAuthHook(project, "./hooks/sign.ts")).rejects.toThrow(
+        'auth hook "./hooks/sign.ts" is outside the project root',
+      );
+    },
+  );
 
   it("refuses a module whose default export is not a function", async () => {
     await writeFile(join(project, "hooks", "headers.ts"), 'export default { "X-Signature": "fake-signature" };\n');
 
-    await expect(loadAuthHook(project, "./hooks/headers.ts")).rejects.toThrow('auth hook "./hooks/headers.ts" has no default export function');
+    await expect(loadAuthHook(project, "./hooks/headers.ts")).rejects.toThrow(
+      'auth hook "./hooks/headers.ts" has no default export function',
+    );
   });
 });

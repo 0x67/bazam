@@ -23,7 +23,8 @@ export function passkeyRoutes(deps: DemoDeps): Hono<SignedIn> {
   const app = new Hono<SignedIn>()
 
   app.get("/account/passkey", requireSignIn(store), (c) =>
-    c.html(accountPage(passkeysOf(store, c.get("user").email).length)))
+    c.html(accountPage(passkeysOf(store, c.get("user").email).length)),
+  )
 
   app.post("/account/passkey/options", async (c) => {
     const user = sessionUser(c, store)
@@ -48,7 +49,11 @@ export function passkeyRoutes(deps: DemoDeps): Hono<SignedIn> {
     store.registrationChallenges.delete(user.email)
     try {
       const result = await verifyRegistrationResponse({
-        response, expectedChallenge, expectedOrigin, expectedRPID: rpID, requireUserVerification: false,
+        response,
+        expectedChallenge,
+        expectedOrigin,
+        expectedRPID: rpID,
+        requireUserVerification: false,
       })
       if (!result.verified) return c.json({ error: "registration was not verified" }, 400)
       const { credential } = result.registrationInfo
@@ -120,9 +125,12 @@ function messageOf(error: unknown): string {
 }
 
 function accountPage(count: number) {
-  return page("Passkeys", html`
+  return page(
+    "Passkeys",
+    html`
     <p>Passkeys on this account: <span data-testid="passkey-count">${count}</span></p>
     <p><button type="button" data-testid="register-passkey">Add a passkey</button></p>
     <p role="status" data-testid="passkey-status"></p>
-    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`)
+    <p><a href="/dashboard" data-testid="back-to-dashboard">Back to dashboard</a></p>`,
+  )
 }

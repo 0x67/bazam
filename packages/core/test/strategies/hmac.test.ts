@@ -26,7 +26,14 @@ function hmacHex(text: string): string {
 function templateSignatureIsValid(request: ReceivedRequest): boolean {
   const { headers } = request;
   const bodySha256 = createHash("sha256").update(request.body).digest("hex");
-  const signed = [request.method, request.url.pathname, request.url.search.slice(1), headers["x-timestamp"], headers["x-nonce"], bodySha256].join("\n");
+  const signed = [
+    request.method,
+    request.url.pathname,
+    request.url.search.slice(1),
+    headers["x-timestamp"],
+    headers["x-nonce"],
+    bodySha256,
+  ].join("\n");
   return headers["x-key-id"] === "fake-key-id" && headers["x-signature"] === hmacHex(signed);
 }
 
@@ -107,11 +114,17 @@ describe("hmacStrategy", () => {
   it("refuses a sign hook outside the project root", async () => {
     const config = hmacStrategy.config.parse({ ...SETTINGS, sign: "../outside.ts" });
 
-    await expect(hmacStrategy.acquire(config, authContext({ projectRoot: project }))).rejects.toThrow("is outside the project root");
+    await expect(hmacStrategy.acquire(config, authContext({ projectRoot: project }))).rejects.toThrow(
+      "is outside the project root",
+    );
   });
 
   it("the probe passes within maxSkewSeconds and throws when the clock is further from the server's Date", async () => {
-    const config = hmacStrategy.config.parse({ ...SETTINGS, maxSkewSeconds: 30, probe: { request: `GET ${server.origin}/api/hmac/echo` } });
+    const config = hmacStrategy.config.parse({
+      ...SETTINGS,
+      maxSkewSeconds: 30,
+      probe: { request: `GET ${server.origin}/api/hmac/echo` },
+    });
     const credential = await hmacStrategy.acquire(config, authContext());
     const behind = authContext({ now: () => new Date(Date.now() - 120_000) });
 
@@ -122,7 +135,9 @@ describe("hmacStrategy", () => {
   });
 
   it("refuses maxSkewSeconds without a probe request", () => {
-    expect(() => hmacStrategy.config.parse({ ...SETTINGS, maxSkewSeconds: 30 })).toThrow("maxSkewSeconds needs a probe request");
+    expect(() => hmacStrategy.config.parse({ ...SETTINGS, maxSkewSeconds: 30 })).toThrow(
+      "maxSkewSeconds needs a probe request",
+    );
   });
 
   it.each([
@@ -136,6 +151,8 @@ describe("hmacStrategy", () => {
   it("the redactor masks the secret in the credential", async () => {
     const credential = await hmacStrategy.acquire(hmacStrategy.config.parse(SETTINGS), authContext());
 
-    expect(redacted(hmacStrategy.secrets(credential), JSON.stringify(credential))).toBe('{"keyId":"fake-key-id","secret":"[redacted]"}');
+    expect(redacted(hmacStrategy.secrets(credential), JSON.stringify(credential))).toBe(
+      '{"keyId":"fake-key-id","secret":"[redacted]"}',
+    );
   });
 });
