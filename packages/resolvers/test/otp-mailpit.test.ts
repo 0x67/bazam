@@ -32,6 +32,8 @@ interface FakeMailpit {
   stalled: boolean;
   /** One promise per unanswered request, settled when its socket closes. */
   hung: Promise<void>[];
+  /** Mailpit's clock in the Date header of each search answer; no Date is sent when undefined. */
+  date: Date | undefined;
 }
 
 /**
@@ -39,7 +41,7 @@ interface FakeMailpit {
  * every address that contains the term in any case, newest first.
  */
 async function startMailpit(inbox: Mail[] = [], prefix = "/api/v1"): Promise<FakeMailpit> {
-  const mailpit: FakeMailpit = { url: "", inbox, searches: 0, onSearch: () => {}, stalled: false, hung: [] };
+  const mailpit: FakeMailpit = { url: "", inbox, searches: 0, onSearch: () => {}, stalled: false, hung: [], date: NOW };
   mailpit.url = await serveJson((url, req) => {
     if (mailpit.stalled) {
       mailpit.hung.push(new Promise((closed) => req.socket.once("close", () => closed())));
@@ -52,7 +54,8 @@ async function startMailpit(inbox: Mail[] = [], prefix = "/api/v1"): Promise<Fak
       if (term === undefined) return { status: 400, body: { error: "expected a to: query" } };
       const found = mailpit.inbox.filter((message) => message.to.toLowerCase().includes(term)).sort((a, b) => b.at - a.at);
       const messages = found.map((message) => ({ ID: message.ID, Created: created(message.at), To: [{ Name: "", Address: message.to }] }));
-      return { status: 200, body: { messages } };
+      const date = mailpit.date === undefined ? { sendDate: false } : { headers: { date: mailpit.date.toUTCString() } };
+      return { status: 200, body: { messages }, ...date };
     }
     const message = mailpit.inbox.find((candidate) => url.pathname === `${prefix}/message/${candidate.ID}`);
     return message === undefined ? { status: 404 } : { status: 200, body: { ID: message.ID, Text: message.Text } };
@@ -124,12 +127,34 @@ describe("mailpitResolver", () => {
     expect(answer).toEqual({ kind: "value", value: "A7K9Q2" });
   });
 
-  it("looks back a short window when arm was skipped", async () => {
+  it("looks back a short window from the runner's clock when arm was skipped and Mailpit sends no Date", async () => {
     const mailpit = await startMailpit([mail("stale", RECIPIENT, -300, "Your sign-in code is 444444")]);
+    mailpit.date = undefined;
     const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.2" };
     expect(await mailpitResolver.resolve(challenge("otp-email", params), context(), OTP_EMAIL)).toBeUndefined();
 
     mailpit.inbox.push(mail("recent", RECIPIENT, -10, "Your sign-in code is 333333"));
+    const answer = await mailpitResolver.resolve(challenge("otp-email", params), context(), OTP_EMAIL);
+    expect(answer).toEqual({ kind: "value", value: "333333" });
+  });
+
+  it("looks back from Mailpit's Date when arm was skipped and its clock is behind the runner's", async () => {
+    // Mailpit's clock is 10 minutes behind, and it stamped the mail 5 s before its own Date
+    const mailpit = await startMailpit([mail("recent", RECIPIENT, -605, "Your sign-in code is 333333")]);
+    mailpit.date = new Date(NOW.getTime() - 600_000);
+    const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.2" };
+    const answer = await mailpitResolver.resolve(challenge("otp-email", params), context(), OTP_EMAIL);
+    expect(answer).toEqual({ kind: "value", value: "333333" });
+  });
+
+  it("ignores mail stamped more than 30 s before Mailpit's Date when arm was skipped and its clock is ahead of the runner's", async () => {
+    // Mailpit's clock is 10 minutes ahead, and it stamped the mail 40 s before its own Date
+    const mailpit = await startMailpit([mail("stale", RECIPIENT, 560, "Your sign-in code is 444444")]);
+    mailpit.date = new Date(NOW.getTime() + 600_000);
+    const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.2" };
+    expect(await mailpitResolver.resolve(challenge("otp-email", params), context(), OTP_EMAIL)).toBeUndefined();
+
+    mailpit.inbox.push(mail("recent", RECIPIENT, 595, "Your sign-in code is 333333"));
     const answer = await mailpitResolver.resolve(challenge("otp-email", params), context(), OTP_EMAIL);
     expect(answer).toEqual({ kind: "value", value: "333333" });
   });

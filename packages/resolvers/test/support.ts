@@ -43,6 +43,10 @@ export function builtinKind(name: string): ChallengeKindSpec {
 export interface Reply {
   status: number;
   body?: unknown;
+  /** A `date` here replaces the one node:http sends from the wall clock. */
+  headers?: Record<string, string>;
+  /** False sends no Date header. */
+  sendDate?: boolean;
 }
 
 const servers: Server[] = [];
@@ -52,7 +56,8 @@ export async function serveJson(route: (url: URL, req: IncomingMessage) => Reply
   const server = createServer((req, res) => {
     const reply = route(new URL(req.url ?? "/", "http://127.0.0.1"), req);
     if (reply === undefined) return;
-    res.writeHead(reply.status, { "content-type": "application/json" }).end(reply.body === undefined ? "" : JSON.stringify(reply.body));
+    if (reply.sendDate === false) res.sendDate = false;
+    res.writeHead(reply.status, { "content-type": "application/json", ...reply.headers }).end(reply.body === undefined ? "" : JSON.stringify(reply.body));
   });
   servers.push(server);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));

@@ -38,7 +38,7 @@ export interface ChallengeResolver {
   requires: readonly Capability[];
   /** False for a resolver that hands the challenge to a person. */
   automated: boolean;
-  /** Runs before the trigger, for example to note the time so older mail is ignored. */
+  /** Runs before the trigger, for example to note the mail already in the inbox so it is ignored. */
   arm?(request: ChallengeRequest, ctx: ResolverContext): Promise<void>;
   /** Undefined when it found no answer. */
   resolve(request: ChallengeRequest, ctx: ResolverContext, kind: ChallengeKindSpec): Promise<ChallengeAnswer | undefined>;

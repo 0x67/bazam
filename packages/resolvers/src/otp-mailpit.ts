@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ChallengeRequest, ChallengeResolver } from "@bazam/core/challenge";
-import type { GuardedHttp } from "@bazam/core/driver";
+import type { GuardedHttp, HttpResponse } from "@bazam/core/driver";
 
 const DEFAULT_URL = "http://localhost:8025";
 const DEFAULT_SEARCH_PATH = "/api/v1/search";
@@ -29,6 +29,13 @@ interface Mail {
   created: number;
 }
 
+interface Found {
+  /** Mail to the recipient, newest first. */
+  mail: Mail[];
+  /** Epoch milliseconds on Mailpit's clock from the answer's Date header; undefined when it is missing or does not parse. */
+  date: number | undefined;
+}
+
 /**
  * Answers `otp-email` from a Mailpit inbox with the first capture of `params.pattern` in the newest mail
  * to `params.recipient` that arrived after arm. Optional params and their defaults: `url` (Mailpit's base URL,
@@ -44,14 +51,19 @@ export const mailpitResolver: ChallengeResolver = {
     const inbox = inboxOf(request.params);
     const held = await withTimeout(inbox, ctx.signal, (stop) => search(ctx.http, inbox, stop));
     if (held === undefined) throw new Error(`Mailpit did not answer within ${inbox.timeoutMs / 1000} s`);
-    heldAtArm.set(request, new Set(held.map((mail) => mail.id)));
+    heldAtArm.set(request, new Set(held.mail.map((mail) => mail.id)));
   },
   async resolve(request, ctx) {
     const inbox = inboxOf(request.params);
     const held = heldAtArm.get(request);
-    const lookBackFrom = ctx.now().getTime() - LOOK_BACK_MS;
-    const isNew = (mail: Mail) => (held === undefined ? mail.created >= lookBackFrom : !held.has(mail.id));
-    const code = await withTimeout(inbox, ctx.signal, (stop) => poll(ctx.http, inbox, isNew, stop));
+    let lookBackFrom: number | undefined;
+    const newMail = (found: Found) => {
+      if (held !== undefined) return found.mail.filter((mail) => !held.has(mail.id));
+      // Created is on Mailpit's clock, so the look-back starts from the Date of its first answer, or from ours without one
+      const from = (lookBackFrom ??= (found.date ?? ctx.now().getTime()) - LOOK_BACK_MS);
+      return found.mail.filter((mail) => mail.created >= from);
+    };
+    const code = await withTimeout(inbox, ctx.signal, (stop) => poll(ctx.http, inbox, newMail, stop));
     return code === undefined ? undefined : { kind: "value", value: code };
   },
 };
@@ -82,40 +94,42 @@ async function withTimeout<T>(inbox: Inbox, run: AbortSignal, work: (stop: Abort
   }
 }
 
-async function poll(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => boolean, stop: AbortSignal): Promise<string> {
+async function poll(http: GuardedHttp, inbox: Inbox, newMail: (found: Found) => Mail[], stop: AbortSignal): Promise<string> {
   for (;;) {
-    const code = await findCode(http, inbox, isNew, stop);
+    const code = await findCode(http, inbox, newMail, stop);
     if (code !== undefined) return code;
     await sleep(POLL_MS, undefined, { signal: stop });
   }
 }
 
 /** The code in the newest new mail that holds one. */
-async function findCode(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => boolean, stop: AbortSignal): Promise<string | undefined> {
-  for (const mail of (await search(http, inbox, stop)).filter(isNew)) {
-    const text = textOf(await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop));
+async function findCode(http: GuardedHttp, inbox: Inbox, newMail: (found: Found) => Mail[], stop: AbortSignal): Promise<string | undefined> {
+  for (const mail of newMail(await search(http, inbox, stop))) {
+    const text = textOf((await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop)).body);
     const match = inbox.pattern.exec(text);
     if (match !== null) return match[1] ?? match[0];
   }
   return undefined;
 }
 
-/** Mail to the recipient, newest first. */
-async function search(http: GuardedHttp, inbox: Inbox, stop: AbortSignal): Promise<Mail[]> {
+async function search(http: GuardedHttp, inbox: Inbox, stop: AbortSignal): Promise<Found> {
   const url = new URL(`${inbox.url}${inbox.searchPath}`);
   url.searchParams.set("query", `to:"${inbox.recipient}"`);
   // Mailpit's to: search matches any address that contains the term, so joann@ also matches ann@
   const recipient = inbox.recipient.toLowerCase();
-  return summaries(await getJson(http, url, stop))
+  const response = await getJson(http, url, stop);
+  const mail = summaries(response.body)
     .filter((summary) => summary.To.some((to) => to.Address.toLowerCase() === recipient))
     .map((summary) => ({ id: summary.ID, created: Date.parse(summary.Created) }));
+  const date = Date.parse(response.headers.get("date") ?? "");
+  return { mail, date: Number.isNaN(date) ? undefined : date };
 }
 
-async function getJson(http: GuardedHttp, url: URL, stop: AbortSignal): Promise<unknown> {
+async function getJson(http: GuardedHttp, url: URL, stop: AbortSignal): Promise<HttpResponse> {
   const response = await http.send({ method: "GET", url, headers: new Headers({ accept: "application/json" }), signal: stop });
   // the query holds the recipient, so the message names only the path
   if (response.status !== 200) throw new Error(`Mailpit answered ${response.status} to GET ${url.origin}${url.pathname}`);
-  return response.body;
+  return response;
 }
 
 interface MessageSummary {
