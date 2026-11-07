@@ -66,7 +66,13 @@ export async function keepalive(
       // a revoked credential would fail its refresh; KeptAliveCache covers a logout during the refresh
       if (!(await deps.isCached())) throw new LoggedOut();
       // after a 401 the client calls this too: it refreshes under the lock, or takes what another process saved
-      if (!(await identities.recoverFromUnauthorized(identity, surface))) {
+      const refreshed = await identities.recoverFromUnauthorized(identity, surface).catch(async (error: unknown) => {
+        // a logout between the check above and this refresh revokes the credential, so the refresh fails
+        if (!(await deps.isCached())) throw new LoggedOut();
+        throw error;
+      });
+      if (!refreshed) {
+        if (!(await deps.isCached())) throw new LoggedOut();
         throw new CommandError(
           `the ${surface} credential of ${identity} cannot refresh; give its auth settings a refresh in ${BRAND.configFile}`,
         );
