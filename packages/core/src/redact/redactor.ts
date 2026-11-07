@@ -34,9 +34,15 @@ export class Redactor {
 
   text(s: string): string {
     // registered values go first so a pattern cannot mask part of one and leave the rest
+    let out = this.maskRegistered(s);
+    for (const rule of this.#rules.patterns) out = out.replaceAll(rule.pattern, (match) => rule.mask(match));
+    return out;
+  }
+
+  /** Masks registered values only, for text such as a trace where the patterns would mask ids and timestamps. */
+  maskRegistered(s: string): string {
     let out = s;
     for (const value of this.#registered) out = out.replaceAll(value, MASK);
-    for (const rule of this.#rules.patterns) out = out.replaceAll(rule.pattern, (match) => rule.mask(match));
     return out;
   }
 

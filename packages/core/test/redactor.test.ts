@@ -113,4 +113,14 @@ describe("Redactor", () => {
 
     expect(defaultRedactor().text(text)).toBe(text);
   });
+
+  it("maskRegistered masks registered values and leaves digit runs, emails and keys alone", () => {
+    const redactor = defaultRedactor();
+    redactor.register("otp 424242");
+    const line = '{"value":"otp 424242","base64":"b3RwIDQyNDI0Mg==","time":1731234567890,"to":"ops@mail.invalid","password":"x"}';
+
+    expect(redactor.maskRegistered(line)).toBe(
+      '{"value":"[redacted]","base64":"[redacted]","time":1731234567890,"to":"ops@mail.invalid","password":"x"}',
+    );
+  });
 });

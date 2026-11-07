@@ -16,7 +16,9 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@bazam/core": "workspace:*"
+    "@bazam/core": "workspace:*",
+    "fflate": "^0.8.3",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "playwright": "^1.65.0"
