@@ -15,10 +15,16 @@ const KEY: CredentialKey = { env: "demo", identity: "customer", surface: "web", 
 /**
  * A path plugin with two cached strategies. `fake-session` refreshes and revokes, refuses to refresh a revoked
  * session, and records whether the refresh lock file existed during each refresh; `fake-fixed` can do neither.
+ * A `fake-session` credential with `refreshable: false` cannot refresh, and one with `logout: true` is revoked
+ * and deleted from the cache as its refresh starts, as by a logout that ran right after keepalive's cache check.
  */
-function fakeStrategies(lockFile: string, revokedFile: string): string {
-  return `import { appendFileSync, existsSync, readFileSync } from "node:fs";
+function fakeStrategies(lockFile: string, revokedFile: string, credentialFile: string): string {
+  return `import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 const revokedFile = ${JSON.stringify(revokedFile)};
+const logOut = (credential) => {
+  appendFileSync(revokedFile, JSON.stringify({ token: credential.token }) + "\\n");
+  rmSync(${JSON.stringify(credentialFile)});
+};
 const anything = { safeParse: (value) => ({ success: true, data: value }) };
 const session = {
   name: "fake-session",
@@ -29,7 +35,13 @@ const session = {
     throw new Error("the fake session logs in only in a run");
   },
   apply: async () => {},
+  canRefresh: (credential) => {
+    if (credential.refreshable !== false) return true;
+    if (credential.logout === true) logOut(credential);
+    return false;
+  },
   refresh: async (credential) => {
+    if (credential.logout === true) logOut(credential);
     if (existsSync(revokedFile) && readFileSync(revokedFile, "utf8").includes(JSON.stringify(credential.token)))
       throw new Error("the fake server refuses to refresh a revoked session");
     return {
@@ -53,12 +65,9 @@ let root: string;
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "cli-keepalive-"));
-  const lockFile = join(
-    root,
-    BRAND.stateDir,
-    "locks",
-    `${[KEY.env, KEY.identity, KEY.surface].map(encodeURIComponent).join("+")}.lock`,
-  );
+  const stem = (key: readonly string[]): string => key.map(encodeURIComponent).join("+");
+  const lockFile = join(root, BRAND.stateDir, "locks", `${stem([KEY.env, KEY.identity, KEY.surface])}.lock`);
+  const credentialFile = join(credentialsDir(), `${stem([KEY.env, KEY.identity, KEY.surface, KEY.strategy])}.json`);
   const config = {
     envs: {
       demo: { production: false, hosts: ["127.0.0.1"], vars: { AUDIENCE: "demo-app" } },
@@ -77,7 +86,7 @@ beforeEach(async () => {
     plugins: ["./fake-strategies.mjs"],
   };
   await write(BRAND.configFile, JSON.stringify(config, null, 2));
-  await write("fake-strategies.mjs", fakeStrategies(lockFile, join(root, "revoked.jsonl")));
+  await write("fake-strategies.mjs", fakeStrategies(lockFile, join(root, "revoked.jsonl"), credentialFile));
   await write("fixtures/identities.local.yaml", "customer:\n  email: customer@example.test\n");
 });
 
@@ -180,6 +189,44 @@ describe("keepalive", () => {
     expect(ended?.code).toBe(ExitCode.Pass);
     expect(ended?.stderr).toContain("customer/web was logged out; stopped keeping it alive");
     expect(await readdir(credentialsDir())).toEqual([]);
+  });
+
+  it("stops when a logout deletes the credential before a refresh that then fails", async () => {
+    await seed({}, { token: "fake-session-0", lockHeld: [], logout: true });
+    const { code, stdout, stderr } = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    expect(code).toBe(ExitCode.Pass);
+    expect(stderr).toContain("customer/web was logged out; stopped keeping it alive");
+    expect(stderr).not.toContain("refuses to refresh");
+    expect(stdout).toBe("stopped keeping customer alive on web in env demo\n");
+    expect(await readdir(credentialsDir())).toEqual([]);
+  });
+
+  it("stops when a logout deletes the credential before a refresh that then cannot run", async () => {
+    await seed({}, { token: "fake-session-0", lockHeld: [], refreshable: false, logout: true });
+    const { code, stdout, stderr } = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    expect(code).toBe(ExitCode.Pass);
+    expect(stderr).toContain("customer/web was logged out; stopped keeping it alive");
+    expect(stderr).not.toContain("cannot refresh");
+    expect(stdout).toBe("stopped keeping customer alive on web in env demo\n");
+    expect(await readdir(credentialsDir())).toEqual([]);
+  });
+
+  it("exits 2 when a refresh fails while the credential is still cached", async () => {
+    await seed({}, { token: "fake-session-0", lockHeld: [], refreshable: false });
+    const declined = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    expect(declined.code).toBe(ExitCode.CouldNotStart);
+    expect(declined.stderr).toContain(
+      `the web credential of customer cannot refresh; give its auth settings a refresh in ${BRAND.configFile}`,
+    );
+    expect(declined.stderr).not.toContain("was logged out");
+
+    await write("revoked.jsonl", `${JSON.stringify({ token: "fake-session-0" })}\n`);
+    await seed({}, { token: "fake-session-0", lockHeld: [] });
+    const refused = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    expect(refused.code).toBe(ExitCode.CouldNotStart);
+    expect(refused.stderr).toContain("the fake server refuses to refresh a revoked session");
+    expect(refused.stderr).not.toContain("was logged out");
+    expect(await cache().load(KEY)).toBeDefined();
   });
 
   it("does not save back a credential deleted while its refresh waited for the lock", async () => {
