@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { BRAND } from "@bazam/core/brand";
 import { PluginRegistry, type PluginManifest } from "@bazam/core/plugin";
@@ -13,6 +14,7 @@ import { execCommand } from "./commands/exec.ts";
 import { initCommand } from "./commands/init.ts";
 import { keepaliveCommand } from "./commands/keepalive.ts";
 import { logoutCommand } from "./commands/logout.ts";
+import { mcpCommand } from "./commands/mcp.ts";
 import { planCommand } from "./commands/plan.ts";
 import { promoteCommand } from "./commands/promote.ts";
 import { reportCommand } from "./commands/report.ts";
@@ -109,6 +111,8 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
       run: reportCommand,
     },
   ],
+  // run_start spawns this script, from src/ or dist/ as this process runs it
+  ["mcp", { usage: "mcp", run: (ctx) => mcpCommand(ctx, fileURLToPath(import.meta.url)) }],
 ]);
 
 function usage(): string {
