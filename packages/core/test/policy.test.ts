@@ -4,27 +4,30 @@ import {
   assertHumanOnly,
   builtinKinds,
   humanResolver,
+  type ChallengeKindSpec,
   type ChallengeResolver,
 } from "../src/challenge/index.ts";
 
-const pin = builtinKinds.find((kind) => kind.name === "pin")!;
-const otpEmail = builtinKinds.find((kind) => kind.name === "otp-email")!;
-const pinTyper: ChallengeResolver = {
-  name: "pin-typer",
-  kinds: ["pin", "otp-email"],
+const builtin = (name: string): ChallengeKindSpec => builtinKinds.find((kind) => kind.name === name)!;
+// what PluginRegistry.kind returns for a kind config lists under challenges.humanOnly
+const lockedTotp: ChallengeKindSpec = { ...builtin("totp"), humanOnly: true };
+const codeTyper: ChallengeResolver = {
+  name: "code-typer",
+  kinds: ["totp", "otp-email", "pin"],
   requires: [],
   automated: true,
-  resolve: async () => ({ kind: "done" }),
+  resolve: async () => ({ kind: "value", value: "123456" }),
 };
 
 describe("assertHumanOnly", () => {
-  it("rejects an automated resolver for pin", () => {
-    expect(() => assertHumanOnly(pin, [humanResolver, pinTyper])).toThrow(HumanOnlyViolation);
-    expect(() => assertHumanOnly(pin, [pinTyper])).toThrow('automated resolver "pin-typer"');
+  it("rejects an automated resolver for a kind config lists as human-only", () => {
+    expect(() => assertHumanOnly(lockedTotp, [humanResolver, codeTyper])).toThrow(HumanOnlyViolation);
+    expect(() => assertHumanOnly(lockedTotp, [codeTyper])).toThrow('automated resolver "code-typer"');
   });
 
-  it("accepts person resolvers for pin and automated resolvers for other kinds", () => {
-    expect(() => assertHumanOnly(pin, [humanResolver])).not.toThrow();
-    expect(() => assertHumanOnly(otpEmail, [pinTyper, humanResolver])).not.toThrow();
+  it("accepts person resolvers for a human-only kind and automated resolvers for other kinds", () => {
+    expect(() => assertHumanOnly(lockedTotp, [humanResolver])).not.toThrow();
+    expect(() => assertHumanOnly(builtin("otp-email"), [codeTyper, humanResolver])).not.toThrow();
+    expect(() => assertHumanOnly(builtin("pin"), [codeTyper])).not.toThrow();
   });
 });

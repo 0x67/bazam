@@ -7,7 +7,7 @@ import { errorMessage, page } from "./layout.ts"
 import { safeEqual } from "./safe-equal.ts"
 import { requireSignIn, type SignedIn } from "./session.ts"
 
-// a human-only step: no mail or test hook carries the PIN
+// no mail or test hook carries the PIN; a run reads it from a secret
 export function transferRoutes({ store }: DemoDeps): Hono<SignedIn> {
   const app = new Hono<SignedIn>()
 

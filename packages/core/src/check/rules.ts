@@ -50,7 +50,7 @@ export const builtinRules: readonly CheckRule[] = [
   rule("placeholder-resolves", "error", unresolvedPlaceholders),
   rule("no-literal-secret", "error", literalSecrets),
   rule("fixture-domain", "error", unreservedEmails),
-  rule("pin-human-only", "error", humanOnlyChainsWithOthers),
+  rule("human-only-chain", "error", automatedHumanOnlyChains),
   rule("prod-safe", "error", writesWithoutFlag),
   rule("state-ignored", "error", stateDirsNotIgnored),
   rule("selector-test-id", "warning", selectorsWithoutTestId),
@@ -268,12 +268,13 @@ function unreservedEmails(project: Project): Finding[] {
   );
 }
 
-function humanOnlyChainsWithOthers(project: Project): Finding[] {
+function automatedHumanOnlyChains(project: Project): Finding[] {
   const findings: Finding[] = [];
   for (const [env, { challenges }] of Object.entries(project.config.envs)) {
     for (const [kind, chain] of Object.entries(challenges)) {
-      const humanAlone = chain.length === 1 && chain[0] === humanResolver.name;
-      if (humanAlone || project.challengeKinds.get(kind)?.humanOnly !== true) continue;
+      // a resolver no plugin registered counts as automated, since nothing says a person answers it
+      const automated = chain.some((name) => project.resolvers.get(name)?.automated !== false);
+      if (!automated || project.challengeKinds.get(kind)?.humanOnly !== true) continue;
       findings.push({
         at: spanAt(project, BRAND.configFile, ["envs", env, "challenges", kind]),
         message: `env ${env} answers human-only challenge ${kind} with ${chain.join(", ")}`,

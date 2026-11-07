@@ -7,12 +7,12 @@ envs:
     hosts: [uat.app.example.test, api.uat.example.test]
     challenges:
       otp-email: [otp-mailpit, human]
-      pin: [human, otp-mailpit]
+      face-scan: [human, ops-pager]
   prod:
     production: true
     vars: { APP_URL: https://app.example.test, API_URL: https://api.example.test }
     hosts: [app.example.test, api.example.test]
-    challenges: { pin: [human], face-scan: [face-bot] }
+    challenges: { pin: [pin-secret], face-scan: [face-bot] }
 secrets:
   providers: [env, dotenv]
   names: [DEMO_TOTP_SEED]

@@ -18,7 +18,7 @@ import {
   type SourceSpan,
   type Step,
 } from "./case/index.ts";
-import type { ChallengeKindSpec } from "./challenge/index.ts";
+import type { ChallengeKindSpec, ChallengeResolver } from "./challenge/index.ts";
 import { EnvsConfig } from "./env/index.ts";
 import type { PluginRegistry } from "./plugin/index.ts";
 
@@ -56,7 +56,7 @@ export const ProjectConfig = z.strictObject({
   identities: IdentitiesConfig.default({}),
   challenges: z
     .strictObject({
-      /** More kinds that only a person may answer, as with pin. */
+      /** Kinds that only a person may answer, such as an MPIN on a real account. */
       humanOnly: z.array(z.string().min(1)).default([]),
     })
     .prefault({}),
@@ -111,6 +111,8 @@ export interface Project {
   retiredIds: ReadonlySet<string>;
   /** Every challenge kind the config names, as the registry defines it. */
   challengeKinds: ReadonlyMap<string, ChallengeKindSpec>;
+  /** Every resolver an env chain names that a plugin registered, as the registry defines it. */
+  resolvers: ReadonlyMap<string, ChallengeResolver>;
   /** Every YAML file that was read, by path. */
   files: ReadonlyMap<string, ProjectFile>;
   /** The `STATE_DIRS` that a `.gitignore` ignores, in the root or, inside a git repository, a parent folder. */
@@ -158,6 +160,7 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
     fixtures: fixtures.fixtures,
     retiredIds: caseLoad.retiredIds,
     challengeKinds: kinds.kinds,
+    resolvers: chainResolvers(config, registry),
     files: new Map(files.map((file) => [file.path, file])),
     ignoredStateDirs:
       (await gitIgnoredStateDirs(root)) ?? rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
@@ -292,6 +295,19 @@ function challengeKinds(
     }
   }
   return { kinds, issues };
+}
+
+function chainResolvers(config: ProjectConfig, registry: PluginRegistry): Map<string, ChallengeResolver> {
+  const resolvers = new Map<string, ChallengeResolver>();
+  for (const name of Object.values(config.envs).flatMap(({ challenges }) => Object.values(challenges).flat())) {
+    if (resolvers.has(name)) continue;
+    try {
+      resolvers.set(name, registry.resolver(name));
+    } catch {
+      // resolver() throws only for a name no plugin registered, which the run refuses when it builds the chain
+    }
+  }
+  return resolvers;
 }
 
 /**

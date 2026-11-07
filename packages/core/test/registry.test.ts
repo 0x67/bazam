@@ -8,6 +8,7 @@ import { defineAuthStrategy, type AuthStrategy } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
 import {
   HumanOnlyViolation,
+  builtinKinds,
   humanResolver,
   type ChallengeKindSpec,
   type ChallengeResolver,
@@ -393,20 +394,35 @@ describe("PluginRegistry.kind", () => {
       plugin("face-plugin", { challengeKinds: [faceScan] }),
     ]);
 
-    expect(registry.kind("pin")).toEqual({
-      name: "pin",
-      answer: "action",
-      humanOnly: true,
-      fallbackAfterTrigger: false,
+    expect(registry.kind("totp")).toEqual({
+      name: "totp",
+      answer: "value",
+      humanOnly: false,
+      fallbackAfterTrigger: true,
     });
     expect(registry.kind("face-scan")).toBe(faceScan);
   });
 
-  it("throws on an unknown kind name and lists the known ones", async () => {
+  it("defines pin as a value kind and face and biometric as action kinds, none human-only", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
+
+    expect(registry.kind("pin")).toEqual({
+      name: "pin",
+      answer: "value",
+      humanOnly: false,
+      fallbackAfterTrigger: false,
+    });
+    for (const name of ["face", "biometric"]) {
+      expect(registry.kind(name)).toEqual({ name, answer: "action", humanOnly: false, fallbackAfterTrigger: true });
+    }
+    expect(builtinKinds.filter((kind) => registry.kind(kind.name).humanOnly)).toEqual([]);
+  });
+
+  it("lists face and biometric among the known kinds", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
     expect(() => registry.kind("otp-mail")).toThrow(
-      'unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin',
+      'unknown challenge kind "otp-mail"; known: otp-email, otp-sms, totp, passkey, pin, face, biometric',
     );
   });
 });
@@ -414,8 +430,7 @@ describe("PluginRegistry.kind", () => {
 describe("PluginRegistry.resolverChain", () => {
   const mailpit = challengeResolver("otp-mailpit", ["otp-email"]);
   const totp = challengeResolver("totp", ["totp"]);
-  const pinTyper = challengeResolver("pin-typer", ["pin"]);
-  const defaults = [plugin("resolver-plugin", { resolvers: [mailpit, totp, pinTyper] })];
+  const defaults = [plugin("resolver-plugin", { resolvers: [mailpit, totp] })];
 
   function uat(challenges: Record<string, string[]>): Environment {
     return { name: "uat", production: false, vars: {}, hosts: new Set(["app.example.test"]), challenges, locale: "en" };
@@ -436,10 +451,10 @@ describe("PluginRegistry.resolverChain", () => {
     expect(registry.resolverChain(uat({ totp: ["totp"] }), "otp-sms")).toEqual([]);
   });
 
-  it("refuses a chain with an automated resolver for a human-only kind", async () => {
-    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
+  it("refuses an automated resolver in the chain of a kind config lists as human-only", async () => {
+    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["totp"] } }), projectRoot, defaults);
 
-    expect(() => registry.resolverChain(uat({ pin: ["human", "pin-typer"] }), "pin")).toThrow(HumanOnlyViolation);
+    expect(() => registry.resolverChain(uat({ totp: ["human", "totp"] }), "totp")).toThrow(HumanOnlyViolation);
   });
 
   it("refuses an automated resolver for a kind that config lists under challenges.humanOnly", async () => {
@@ -458,7 +473,7 @@ describe("PluginRegistry.resolverChain", () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resolverChain(uat({ "otp-email": ["otp-mailpt"] }), "otp-email")).toThrow(
-      'unknown challenge resolver "otp-mailpt"; known: human, otp-mailpit, totp, pin-typer',
+      'unknown challenge resolver "otp-mailpt"; known: human, otp-mailpit, totp',
     );
   });
 
@@ -476,6 +491,24 @@ describe("PluginRegistry.resolverChain", () => {
     expect(() => registry.resolverChain(uat({ "otp-email": ["totp"] }), "otp-email")).toThrow(
       'env uat lists resolver "totp" for challenge otp-email, but it answers only totp',
     );
+  });
+});
+
+describe("PluginRegistry.resolver", () => {
+  it("returns a plugin's resolver and the core human resolver by name", async () => {
+    const mailpit = challengeResolver("otp-mailpit", ["otp-email"]);
+    const registry = await PluginRegistry.load(config(), projectRoot, [
+      plugin("resolver-plugin", { resolvers: [mailpit] }),
+    ]);
+
+    expect(registry.resolver("otp-mailpit")).toBe(mailpit);
+    expect(registry.resolver("human")).toBe(humanResolver);
+  });
+
+  it("throws on a name no plugin registered and lists the known ones", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
+
+    expect(() => registry.resolver("otp-mailpt")).toThrow('unknown challenge resolver "otp-mailpt"; known: human');
   });
 });
 

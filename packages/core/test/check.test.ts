@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
-import type { ChallengeKindSpec } from "../src/challenge/index.ts";
-import { builtinRules, checkProject } from "../src/check/index.ts";
-import { definePlugin, PLUGIN_API_VERSION, PluginRegistry } from "../src/plugin/index.ts";
+import { humanResolver, type ChallengeKindSpec, type ChallengeResolver } from "../src/challenge/index.ts";
+import { builtinRules, checkProject, type CheckIssue } from "../src/check/index.ts";
+import { definePlugin, PLUGIN_API_VERSION, PluginRegistry, type PluginManifest } from "../src/plugin/index.ts";
 import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project } from "../src/project.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
@@ -29,14 +29,28 @@ const web = definePlugin({
   challengeKinds: [faceScan],
 });
 
-async function registryFor(root: string): Promise<PluginRegistry> {
+function fakeResolver(name: string, kinds: readonly string[], automated: boolean): ChallengeResolver {
+  return { name, kinds, requires: [], automated, resolve: async () => undefined };
+}
+const otpMailpit = fakeResolver("otp-mailpit", ["otp-email"], true);
+const resolvers = definePlugin({
+  name: "fake-resolvers",
+  apiVersion: PLUGIN_API_VERSION,
+  // ops-pager pages a person on call, so like human it is not automated
+  resolvers: [otpMailpit, fakeResolver("face-bot", ["face-scan"], true), fakeResolver("ops-pager", ["*"], false)],
+});
+
+async function registryFor(
+  root: string,
+  plugins: readonly PluginManifest[] = [web, resolvers],
+): Promise<PluginRegistry> {
   const { config, issues } = await loadProjectConfig(root);
   if (config === undefined) throw new Error(`the fixture config has issues: ${JSON.stringify(issues)}`);
-  return PluginRegistry.load(config, root, [web]);
+  return PluginRegistry.load(config, root, plugins);
 }
 
-async function load(root: string): Promise<Project> {
-  return loadProject(root, await registryFor(root));
+async function load(root: string, plugins?: readonly PluginManifest[]): Promise<Project> {
+  return loadProject(root, await registryFor(root, plugins));
 }
 
 /** [file, line, part of the message] of each issue, in the order checkProject reports them. */
@@ -104,10 +118,9 @@ const failing: [string, Expected][] = [
   ],
   ["fixture-domain", [["fixtures/identities.example.yaml", 5, "example.invalid"]]],
   [
-    "pin-human-only",
+    "human-only-chain",
     [
       [BRAND.configFile, 9, "env uat answers human-only challenge otp-email with otp-mailpit, human"],
-      [BRAND.configFile, 10, "env uat answers human-only challenge pin with human, otp-mailpit"],
       [BRAND.configFile, 15, "env prod answers human-only challenge face-scan with face-bot"],
     ],
   ],
@@ -140,10 +153,10 @@ describe("checkProject with the built-in rules", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  async function loadFailing(ruleId: string): Promise<Project> {
+  async function loadFailing(ruleId: string, plugins?: readonly PluginManifest[]): Promise<Project> {
     await cp(clean, root, { recursive: true });
     await cp(fixture(`failing/${ruleId}`), root, { recursive: true });
-    return load(root);
+    return load(root, plugins);
   }
 
   it("finds nothing in the clean project", async () => {
@@ -238,6 +251,43 @@ describe("checkProject with the built-in rules", () => {
     ]);
   });
 
+  describe("human-only-chain failing fixture", () => {
+    async function chainIssues(plugins?: readonly PluginManifest[]): Promise<CheckIssue[]> {
+      const issues = checkProject(await loadFailing("human-only-chain", plugins), builtinRules);
+      return issues.filter((issue) => issue.ruleId === "human-only-chain");
+    }
+
+    it("reports an automated resolver in the chain of a kind config lists as human-only", async () => {
+      expect((await chainIssues()).find((issue) => issue.line === 9)).toMatchObject({
+        message: "env uat answers human-only challenge otp-email with otp-mailpit, human",
+        fix: "Set otp-email to [human] under the challenges of env uat.",
+      });
+    });
+
+    it("reports an automated resolver in the chain of a plugin kind that is human-only", async () => {
+      expect((await chainIssues()).find((issue) => issue.line === 15)).toMatchObject({
+        message: "env prod answers human-only challenge face-scan with face-bot",
+        fix: "Set face-scan to [human] under the challenges of env prod.",
+      });
+    });
+
+    it("accepts a chain of resolvers that are not automated", async () => {
+      // line 10 gives face-scan [human, ops-pager], and line 15 gives pin [pin-secret], since pin is not human-only
+      expect((await chainIssues()).map((issue) => [issue.line, issue.message])).toEqual([
+        [9, "env uat answers human-only challenge otp-email with otp-mailpit, human"],
+        [15, "env prod answers human-only challenge face-scan with face-bot"],
+      ]);
+    });
+
+    it("counts a resolver no plugin registered as automated", async () => {
+      expect((await chainIssues([web])).map((issue) => [issue.line, issue.message])).toEqual([
+        [9, "env uat answers human-only challenge otp-email with otp-mailpit, human"],
+        [10, "env uat answers human-only challenge face-scan with human, ops-pager"],
+        [15, "env prod answers human-only challenge face-scan with face-bot"],
+      ]);
+    });
+  });
+
   it("names the kind of secret without repeating it", async () => {
     const issues = checkProject(await loadFailing("no-literal-secret"), builtinRules);
 
@@ -265,6 +315,16 @@ describe("loadProject", () => {
     expect([...project.retiredIds]).toEqual(["AUTH-OLD-001"]);
     expect([...project.challengeKinds.keys()]).toEqual(["otp-email", "pin", "face-scan"]);
     expect(project.challengeKinds.get("face-scan")).toBe(faceScan);
+    expect(project.resolvers).toEqual(
+      new Map([
+        ["otp-mailpit", otpMailpit],
+        ["human", humanResolver],
+      ]),
+    );
+  });
+
+  it("leaves out of resolvers a name no plugin registered", async () => {
+    expect([...(await load(clean, [web])).resolvers.keys()]).toEqual(["human"]);
   });
 
   it("refuses a project whose config does not match the schema", async () => {

@@ -24,6 +24,9 @@ function builtinKind(name: string): ChallengeKindSpec {
   return kind;
 }
 
+// what PluginRegistry.kind returns for a kind config lists under challenges.humanOnly
+const lockedTotp: ChallengeKindSpec = { ...builtinKind("totp"), humanOnly: true };
+
 function requestFor(kind: string): ChallengeRequest {
   return { kind, caseId: "AUTH-LOGIN-001", identity: "customer", step: 3, params: { recipient: "ops@example.test" } };
 }
@@ -213,12 +216,12 @@ describe("resolveChallenge", () => {
     );
   });
 
-  it("asks a person to act and confirm for pin", async () => {
+  it("asks a person to act and confirm for a kind config lists as human-only", async () => {
     const channel = channelAnswering({ kind: "done" });
 
     const resolved = await resolveChallenge(
-      requestFor("pin"),
-      builtinKind("pin"),
+      requestFor("totp"),
+      lockedTotp,
       [humanResolver],
       context({ channel }),
       noTrigger,
@@ -226,32 +229,72 @@ describe("resolveChallenge", () => {
 
     expect(resolved).toEqual({ answer: { kind: "done" }, resolver: "human" });
     expect(channel.prompts[0]?.ask).toBe("action");
-    expect(channel.prompts[0]?.steps).toContain("Type the pin only into the app, never into the answer.");
+    expect(channel.prompts[0]?.steps).toContain("Type the totp only into the app, never into the answer.");
   });
 
-  it("never returns a value for pin, even when the person sends one", async () => {
-    const channel = channelAnswering({ kind: "value", value: "4321" });
+  it("never returns a value for a human-only kind, even when the person sends one", async () => {
+    const channel = channelAnswering({ kind: "value", value: "135790" });
 
     const error = await resolveChallenge(
-      requestFor("pin"),
-      builtinKind("pin"),
+      requestFor("totp"),
+      lockedTotp,
       [humanResolver],
       context({ channel }),
       noTrigger,
     ).catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ChallengeBlocked);
-    expect((error as Error).message).not.toContain("4321");
+    expect((error as Error).message).not.toContain("135790");
   });
 
-  it("refuses an automated resolver for pin before arming it", async () => {
+  it("refuses an automated resolver for a human-only kind before arming it", async () => {
     const log: string[] = [];
-    const chain = [stubResolver("pin-typer", { answer: { kind: "done" } }, log), humanResolver];
+    const chain = [stubResolver("code-typer", { answer: { kind: "done" } }, log), humanResolver];
 
-    await expect(resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context(), noTrigger)).rejects.toThrow(
+    await expect(resolveChallenge(requestFor("totp"), lockedTotp, chain, context(), noTrigger)).rejects.toThrow(
       HumanOnlyViolation,
     );
     expect(log).toEqual([]);
+  });
+
+  it("fills the value an automated resolver returns for pin", async () => {
+    const chain = [stubResolver("pin-secret", { answer: { kind: "value", value: "2468" } })];
+
+    const resolved = await resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context(), noTrigger);
+
+    expect(resolved).toEqual({ answer: { kind: "value", value: "2468" }, resolver: "pin-secret" });
+  });
+
+  it("blocks instead of falling back to a person after trigger for pin", async () => {
+    const channel = channelAnswering({ kind: "value", value: "2468" });
+    const missing = new Error("secret DEMO_PIN: no value from providers [env, dotenv]");
+    const chain = [stubResolver("pin-secret", { answer: missing }), humanResolver];
+
+    const resolving = resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context({ channel }), noTrigger);
+
+    await expect(resolving).rejects.toThrow(ChallengeBlocked);
+    await expect(resolving).rejects.toThrow(`resolver "pin-secret" failed: ${missing.message}`);
+    expect(channel.prompts).toEqual([]);
+  });
+
+  it("falls back to a person after trigger for face and biometric", async () => {
+    for (const name of ["face", "biometric"]) {
+      const channel = channelAnswering({ kind: "done" });
+      const chain = [stubResolver(`${name}-replay`, { answer: new Error("the replay did not match") }), humanResolver];
+
+      const resolved = await resolveChallenge(
+        requestFor(name),
+        builtinKind(name),
+        chain,
+        context({ channel }),
+        noTrigger,
+      );
+
+      expect(resolved).toEqual({ answer: { kind: "done" }, resolver: "human" });
+      expect(channel.prompts.map((prompt) => [prompt.id, prompt.ask])).toEqual([
+        [`AUTH-LOGIN-001-3-${name}`, "action"],
+      ]);
+    }
   });
 
   it("blocks with the person's note when the person answers blocked", async () => {

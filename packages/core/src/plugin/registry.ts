@@ -141,6 +141,10 @@ export class PluginRegistry {
     return this.#humanOnlyKinds.has(name) && !spec.humanOnly ? { ...spec, humanOnly: true } : spec;
   }
 
+  resolver(name: string): ChallengeResolver {
+    return this.#get("resolvers", name);
+  }
+
   /**
    * The resolvers `env` lists for the kind, in order. A kind the env lists none for gets an empty chain,
    * which blocks its cases, so a person is asked only where the env names human.
@@ -148,7 +152,7 @@ export class PluginRegistry {
   resolverChain(env: Environment, kind: string): ChallengeResolver[] {
     const spec = this.kind(kind);
     const chain = (env.challenges[kind] ?? []).map((name) => {
-      const resolver = this.#get("resolvers", name);
+      const resolver = this.resolver(name);
       if (!resolver.kinds.includes("*") && !resolver.kinds.includes(kind)) {
         throw new Error(
           `env ${env.name} lists resolver "${name}" for challenge ${kind}, but it answers only ${resolver.kinds.join(", ")}`,

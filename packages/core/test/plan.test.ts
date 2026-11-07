@@ -46,8 +46,9 @@ const config = {
         pin: ["human"],
       },
     },
-    live: { production: true, hosts: ["app.example.test"], challenges: { pin: ["fake-any"] } },
+    live: { production: true, hosts: ["app.example.test"], challenges: { face: ["fake-any"] } },
   },
+  challenges: { humanOnly: ["face"] },
   identities: {
     customer: {
       fixture: "customer",
@@ -271,7 +272,11 @@ describe("planRun", () => {
     const plan = await planFor(
       [
         testCase("AUTH-HUMAN-001", {
-          steps: [{ open: "${env.APP_URL}", as: "customer" }, guided, { challenge: { kind: "pin" }, as: "customer" }],
+          steps: [
+            { open: "${env.APP_URL}", as: "customer" },
+            guided,
+            { challenge: { kind: "pin", fill: { id: "pin-input" } }, as: "customer" },
+          ],
         }),
         testCase("AUTH-AUTO-001", { steps: [otp] }),
         testCase("AUTH-OLD-001", { stage: "retired", steps: [guided] }),
@@ -300,9 +305,12 @@ describe("planRun", () => {
     );
   });
 
-  it("throws HumanOnlyViolation when the env lists an automated resolver for pin", async () => {
-    const pin = testCase("AUTH-PIN-001", { prod_safe: true, steps: [{ challenge: { kind: "pin" }, as: "customer" }] });
-    await expect(planFor([pin], { env: "live" })).rejects.toThrow(HumanOnlyViolation);
+  it("throws HumanOnlyViolation when the env lists an automated resolver for a kind config lists as human-only", async () => {
+    const face = testCase("AUTH-FACE-001", {
+      prod_safe: true,
+      steps: [{ challenge: { kind: "face" }, as: "customer" }],
+    });
+    await expect(planFor([face], { env: "live" })).rejects.toThrow(HumanOnlyViolation);
   });
 });
 
