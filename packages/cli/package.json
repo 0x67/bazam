@@ -17,6 +17,7 @@
     "@bazam/driver-web": "workspace:*",
     "@bazam/mcp": "workspace:*",
     "@bazam/resolvers": "workspace:*",
-    "@bazam/tracker-jira": "workspace:*"
+    "@bazam/tracker-jira": "workspace:*",
+    "yaml": "2.9.1"
   }
 }

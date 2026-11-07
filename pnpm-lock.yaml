@@ -211,6 +211,9 @@ importers:
       '@bazam/tracker-jira':
         specifier: workspace:*
         version: link:../tracker-jira
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
 
   packages/core:
     dependencies:

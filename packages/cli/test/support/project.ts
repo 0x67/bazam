@@ -4,7 +4,6 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { BRAND } from "@bazam/core/brand";
-import type { ExitCode } from "../../src/exit.ts";
 import { main } from "../../src/main.ts";
 
 /** A driver with no steps of its own, which runs api checks only; written as a path plugin with no imports. */
@@ -76,7 +75,7 @@ export async function startApi(): Promise<Api> {
 }
 
 export interface CliRun {
-  code: ExitCode;
+  code: number;
   stdout: string;
   stderr: string;
 }

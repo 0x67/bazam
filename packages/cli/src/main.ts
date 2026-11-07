@@ -9,6 +9,10 @@ import driverWeb from "@bazam/driver-web";
 import resolvers from "@bazam/resolvers";
 import jira from "@bazam/tracker-jira";
 import { checkCommand } from "./commands/check.ts";
+import { execCommand } from "./commands/exec.ts";
+import { initCommand } from "./commands/init.ts";
+import { keepaliveCommand } from "./commands/keepalive.ts";
+import { logoutCommand } from "./commands/logout.ts";
 import { planCommand } from "./commands/plan.ts";
 import { promoteCommand } from "./commands/promote.ts";
 import { reportCommand } from "./commands/report.ts";
@@ -41,6 +45,7 @@ const OPTIONS = {
   media: { type: "string" },
   ticket: { type: "string" },
   url: { type: "string" },
+  as: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const satisfies ParseArgsOptionsConfig;
 
@@ -73,11 +78,13 @@ export interface CommandContext {
 
 interface Command {
   usage: string;
-  run(ctx: CommandContext): Promise<ExitCode>;
+  /** An ExitCode, or for exec the exit code of the command it ran. */
+  run(ctx: CommandContext): Promise<number>;
 }
 
 // a later command adds one entry here
 const COMMANDS: ReadonlyMap<string, Command> = new Map([
+  ["init", { usage: "init", run: initCommand }],
   ["schema", { usage: "schema", run: schemaCommand }],
   ["check", { usage: "check", run: checkCommand }],
   ["plan", { usage: "plan --env <env> [selection]", run: planCommand }],
@@ -91,6 +98,9 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
   ],
   ["promote", { usage: "promote <case-id> --env <env>", run: promoteCommand }],
   ["retire", { usage: "retire <case-id>", run: retireCommand }],
+  ["exec", { usage: "exec --env <env> [--channel terminal|answers-file] -- <command> [args]", run: execCommand }],
+  ["keepalive", { usage: "keepalive --env <env> --as <identity>", run: keepaliveCommand }],
+  ["logout", { usage: "logout [--as <identity>] [--env <env>]", run: logoutCommand }],
   [
     "report",
     {
@@ -114,7 +124,8 @@ function usage(): string {
   ].join("\n");
 }
 
-export async function main(argv: readonly string[], io: CliIo): Promise<ExitCode> {
+/** The ExitCode of the command, or for exec the exit code of the command it ran. */
+export async function main(argv: readonly string[], io: CliIo): Promise<number> {
   const redactor = new Redactor(defaultRedactionRules());
   let parsed: ReturnType<typeof parseFlags>;
   try {
