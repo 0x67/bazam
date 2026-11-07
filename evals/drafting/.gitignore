@@ -1,0 +1,2 @@
+# Result files hold the agent command, model ids and run details of one machine. Keep one with git add -f.
+results/
