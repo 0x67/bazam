@@ -4,7 +4,7 @@ cases:
     stage: acceptance
     risk: high
     links: [jira:DEMO-101]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [sign-in]
     steps:
       # a new address each run, so the account and its mail are new
@@ -19,7 +19,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-102]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [sign-in]
     steps:
       - note: >-

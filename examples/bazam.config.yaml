@@ -123,6 +123,8 @@ identities:
 targets:
   web: { driver: playwright, browser: chromium }
   web-chrome: { driver: playwright, browser: chromium, channel: chrome }
+  web-firefox: { driver: playwright, browser: firefox }
+  web-webkit: { driver: playwright, browser: webkit }
 
 trackers:
   jira:

@@ -4,7 +4,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-401]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [profile]
     # one fixture phone gives each field the form it asks for. The demo keeps saved numbers per account and shows
     # them again after a refused save, so a new account each run makes every saved value come from this run.

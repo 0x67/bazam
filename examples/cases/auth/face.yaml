@@ -4,7 +4,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-106]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [person]
     steps:
       - note: >-

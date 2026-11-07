@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # vp install runs the prepare script, which installs no Git hook dispatcher with this set
+  VP_GIT_HOOKS: "0"
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # installs Node, pnpm and the Vite+ version the root package.json names, then runs vp install
+      - uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm check
+
+      # the driver-web unit tests launch every engine, so all three go in before pnpm test
+      - name: Install Playwright browsers
+        run: pnpm --dir packages/driver-web exec playwright install --with-deps chromium firefox webkit
+
+      - run: pnpm test
+      - run: pnpm brand:check
+
+      # The secrets are the demo's public test values from examples/demo-app/README.md ("Demo credentials").
+      # Repository secrets would not reach pull requests from forks or runs that Dependabot starts, and the
+      # log would then mask every 2468 it prints.
+      - name: Prepare the example project
+        run: |
+          cp examples/fixtures/identities.example.yaml examples/fixtures/identities.local.yaml
+          mkdir -p examples/.bazam
+          cat > examples/.bazam/secrets.env <<'EOF'
+          DEMO_PIN=2468
+          DEMO_TOTP_SEED=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+          DEMO_API_KEY=demo-api-key
+          DEMO_BASIC_PASSWORD=demo-password
+          DEMO_OAUTH_CLIENT_SECRET=demo-client-secret
+          DEMO_HMAC_SECRET=demo-hmac-secret
+          EOF
+
+      # the app service has no healthcheck, so wait on the pages the demo's own tests poll
+      - name: Start the demo app
+        id: demo
+        run: |
+          docker compose -f examples/demo-app/docker-compose.yml up -d --build
+          for url in http://localhost:3300/login http://localhost:8325/readyz; do
+            curl --silent --show-error --fail --retry 30 --retry-delay 2 --retry-all-errors --output /dev/null "$url"
+          done
+
+      - name: Demo app tests
+        run: pnpm --filter demo-app test
+
+      # node runs the built CLI directly, since pnpm exec turns every nonzero exit code into 1;
+      # each engine runs even when an earlier one failed
+      - name: Acceptance on Chromium
+        if: ${{ !cancelled() && steps.demo.outcome == 'success' }}
+        run: >-
+          node packages/cli/dist/main.js run --root examples --env demo --suite acceptance --target web
+          --channel answers-file --answers examples/fixtures/answers
+
+      - name: Acceptance on Firefox
+        if: ${{ !cancelled() && steps.demo.outcome == 'success' }}
+        run: >-
+          node packages/cli/dist/main.js run --root examples --env demo --suite acceptance --target web-firefox
+          --channel answers-file --answers examples/fixtures/answers
+
+      - name: Acceptance on WebKit
+        if: ${{ !cancelled() && steps.demo.outcome == 'success' }}
+        run: >-
+          node packages/cli/dist/main.js run --root examples --env demo --suite acceptance --target web-webkit
+          --channel answers-file --answers examples/fixtures/answers
+
+      # also after a failed run, whose traces are the evidence most likely to hold a value; besides the secrets
+      # above it looks for the cached credentials, the TOTP codes of the seed and the codes the demo mailed
+      - name: Scan the runs for secrets
+        id: scan
+        if: ${{ !cancelled() && steps.demo.outcome == 'success' }}
+        run: node scripts/secret-scan.ts examples --totp-seed DEMO_TOTP_SEED --mailpit http://localhost:8325
+
+      # for a failed run, and only once the scan found nothing in its evidence
+      - name: Upload the run evidence
+        if: ${{ failure() && steps.scan.outcome == 'success' }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: acceptance-runs
+          path: examples/runs
+          retention-days: 7
+          if-no-files-found: ignore

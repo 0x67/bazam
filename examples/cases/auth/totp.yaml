@@ -4,7 +4,7 @@ cases:
     stage: acceptance
     risk: high
     links: [jira:DEMO-103]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [sign-in]
     steps:
       # TOTP stays on for an account, so a new address each run starts from the enrollment form

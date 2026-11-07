@@ -4,7 +4,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-201]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [api]
     checks:
       - api: { request: "GET ${env.APP_URL}/api/key/whoami", as: key-client, status: 200, body: { auth: api-key } }
@@ -14,7 +14,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-202]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [api]
     checks:
       - api:
@@ -28,7 +28,7 @@ cases:
     stage: acceptance
     risk: medium
     links: [jira:DEMO-203]
-    targets: [web, web-chrome]
+    targets: [web, web-chrome, web-firefox, web-webkit]
     tags: [api]
     checks:
       - api:
