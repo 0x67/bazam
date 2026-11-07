@@ -116,6 +116,8 @@ function leaseBrowser(kind: BrowserKind): BrowserLease {
 function launchBrowser(kind: BrowserKind): Promise<Browser> {
   return ENGINES[kind.browser].launch({
     headless: kind.headless,
+    // Playwright's own handler would exit 130 on Ctrl-C before the run ends its cases cancelled
+    handleSIGINT: false,
     ...(kind.channel === undefined ? {} : { channel: kind.channel }),
   });
 }
