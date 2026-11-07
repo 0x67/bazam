@@ -8,14 +8,19 @@ on:
 permissions:
   contents: read
 
+# a new push to a pull request stops the run it replaces; runs on main always finish
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # vp install runs the prepare script, which installs no Git hook dispatcher with this set
   VP_GIT_HOOKS: "0"
 
 jobs:
-  ci:
+  checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -30,13 +35,74 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm check
+      - run: pnpm brand:check
+
+      - name: Find the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+
+      # the browsers are cached per Playwright version; the system packages they need are not, so they install either way
+      - name: Cache the Playwright browsers
+        id: browsers
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       # the driver-web unit tests launch every engine, so all three go in before pnpm test
       - name: Install Playwright browsers
+        if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm --dir packages/driver-web exec playwright install --with-deps chromium firefox webkit
 
+      - name: Install the system packages of the cached browsers
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+
       - run: pnpm test
-      - run: pnpm brand:check
+
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+
+      # the acceptance runs call the built CLI
+      - run: pnpm build
+
+      # the app service has no healthcheck, so wait on the pages the demo's own tests poll
+      - name: Start the demo app
+        id: demo
+        run: |
+          docker compose -f examples/demo-app/docker-compose.yml up -d --build
+          for url in http://localhost:3300/login http://localhost:8325/readyz; do
+            curl --silent --show-error --fail --retry 30 --retry-delay 2 --retry-all-errors --output /dev/null "$url"
+          done
+
+      - name: Find the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browsers
+        id: browsers
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm --dir packages/driver-web exec playwright install --with-deps chromium firefox webkit
+
+      - name: Install the system packages of the cached browsers
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
 
       # The secrets are the demo's public test values from examples/demo-app/README.md ("Demo credentials").
       # Repository secrets would not reach pull requests from forks or runs that Dependabot starts, and the
@@ -53,15 +119,6 @@ jobs:
           DEMO_OAUTH_CLIENT_SECRET=demo-client-secret
           DEMO_HMAC_SECRET=demo-hmac-secret
           EOF
-
-      # the app service has no healthcheck, so wait on the pages the demo's own tests poll
-      - name: Start the demo app
-        id: demo
-        run: |
-          docker compose -f examples/demo-app/docker-compose.yml up -d --build
-          for url in http://localhost:3300/login http://localhost:8325/readyz; do
-            curl --silent --show-error --fail --retry 30 --retry-delay 2 --retry-all-errors --output /dev/null "$url"
-          done
 
       - name: Demo app tests
         run: pnpm --filter demo-app test
