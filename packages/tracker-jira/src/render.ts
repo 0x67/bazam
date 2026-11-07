@@ -1,14 +1,7 @@
-import type { MediaRefs, TrackerRenderer } from "@bazam/core/report";
-import type { CaseResult, CheckRecord, Status } from "@bazam/core/result";
+import { cellText, escapeMarkdown, STATUS_LABELS, type MediaRefs, type TrackerRenderer } from "@bazam/core/report";
+import type { CaseResult, CheckRecord } from "@bazam/core/result";
 
 type MediaRef = MediaRefs[string];
-
-const OUTCOME: Record<Status, string> = {
-  pass: "Passed",
-  fail: "Failed",
-  blocked: "Blocked",
-  followup: "Needs follow-up",
-};
 
 /**
  * The comment opens with the result line, then follow-ups for a person, then the evidence.
@@ -40,7 +33,7 @@ function htmlComment(result: CaseResult, media: MediaRefs): string {
     listed.length === 0 ? "" : `<p>Attached files: ${escapeHtml(listed.join(", "))}</p>`,
   ].join("");
   return [
-    `<p><strong>${OUTCOME[result.status]}</strong> on ${escapeHtml(resultSubject(result))}</p>`,
+    `<p><strong>${STATUS_LABELS[result.status]}</strong> on ${escapeHtml(resultSubject(result))}</p>`,
     result.reason === undefined ? "" : `<p>Reason: ${escapeHtml(result.reason)}</p>`,
     htmlList("Follow-up for a person:", result.followups.map(followupText)),
     evidence === "" ? "" : `<details><summary>Evidence</summary>${evidence}</details>`,
@@ -56,7 +49,7 @@ function markdownComment(result: CaseResult): string {
     result.attachments.length === 0 ? "" : `Attached files: ${escapeMarkdown(result.attachments.join(", "))}`,
   ].filter((block) => block !== "");
   return `${[
-    `**${OUTCOME[result.status]}** on ${escapeMarkdown(resultSubject(result))}`,
+    `**${STATUS_LABELS[result.status]}** on ${escapeMarkdown(resultSubject(result))}`,
     result.reason === undefined ? "" : `Reason: ${escapeMarkdown(result.reason)}`,
     markdownList("Follow-up for a person:", result.followups.map(followupText)),
     ...(evidence.length === 0 ? [] : ["### Evidence", ...evidence]),
@@ -78,13 +71,8 @@ function checkResult(check: CheckRecord): string {
   return check.ok ? "ok" : "not ok";
 }
 
-function cell(value: unknown): string {
-  if (value === undefined) return "";
-  return typeof value === "string" ? value : JSON.stringify(value);
-}
-
 function htmlRow(check: CheckRecord): string {
-  const cells = [check.name, cell(check.expected), cell(check.observed), checkResult(check)];
+  const cells = [check.name, cellText(check.expected), cellText(check.observed), checkResult(check)];
   return `<tr>${cells.map((text) => `<td>${escapeHtml(text)}</td>`).join("")}</tr>`;
 }
 
@@ -111,22 +99,11 @@ function escapeHtml(text: string): string {
 }
 
 function markdownRow(check: CheckRecord): string {
-  const cells = [check.name, cell(check.expected), cell(check.observed), checkResult(check)];
+  const cells = [check.name, cellText(check.expected), cellText(check.observed), checkResult(check)];
   return `| ${cells.map(escapeMarkdown).join(" | ")} |`;
 }
 
 function markdownList(label: string, items: readonly string[]): string {
   if (items.length === 0) return "";
   return [label, "", ...items.map((item) => `- ${escapeMarkdown(item)}`)].join("\n");
-}
-
-// Values may come from the app under test, so they stay on one line and render as literal text,
-// also in a table cell or at the start of a list item.
-function escapeMarkdown(text: string): string {
-  return text
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[\\`*_~[\]<>&|]/g, "\\$&")
-    .replace(/^[#+-]/, "\\$&")
-    .replace(/^(\d+)([.)])(?= |$)/, "$1\\$2");
 }

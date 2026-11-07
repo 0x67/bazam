@@ -232,4 +232,67 @@ describe("markdownTracker", () => {
       "Reason: no fallback resolver for otp",
     ]);
   });
+
+  it("shows link, image and HTML syntax from result values as literal text", () => {
+    const blocked = result({
+      status: "blocked",
+      title: "Customer opens [the offer](https://offer.example.test/)",
+      reason: "see [the help page](https://help.example.test/)",
+      checks: [
+        {
+          name: "message",
+          kind: "api",
+          expected: "*welcome*",
+          observed: { "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)" },
+          ok: false,
+        },
+      ],
+      notes: ["<b>raw</b> & `code`"],
+      attachments: ["01-<img src=x>.png"],
+    });
+
+    const { markdown } = markdownTracker("notion").render(blocked);
+
+    expect(markdown).toContain(`AUTH-LOGIN-001 Customer opens \\[the offer\\](https://offer.example.test/) (run ${RUN})\n`);
+    expect(markdown).toContain("Reason: see \\[the help page\\](https://help.example.test/)\n");
+    expect(markdown).toContain(
+      '| message | \\*welcome\\* | {"body.message":"\\[Verify your account\\](https://login.example.test/) !\\[x\\](https://cdn.example.test/p.png)"} | not ok |',
+    );
+    expect(markdown).toContain("Notes: \\<b\\>raw\\</b\\> \\& \\`code\\`\n");
+    expect(markdown).toContain("Attachments: 01-\\<img src=x\\>.png\n");
+  });
+
+  it("keeps a line break in a reason, note or follow-up from starting a new Markdown block", () => {
+    const blocked = result({
+      status: "blocked",
+      reason: "the step failed\n\n# Injected heading",
+      notes: ["trace was left out:\n\n<b>raw</b>"],
+      followups: [{ item: "layout", hint: "compare it\n\n> with the design" }],
+    });
+
+    const { markdown } = markdownTracker("notion").render(blocked);
+
+    expect(markdown.split("\n").filter((line) => /^[#<>]/.test(line))).toEqual(["### Evidence"]);
+    expect(markdown).toContain("Reason: the step failed # Injected heading\n");
+    expect(markdown).toContain("- layout: compare it \\> with the design\n");
+  });
+
+  it("escapes a block marker at the start of a follow-up list item", () => {
+    const items = ["# heading", "- nested", "+ nested", "> quote", "1. step", "2) step", "3.5 seconds"];
+    const followup = result({ status: "followup", followups: items.map((item) => ({ item, hint: "check it" })) });
+
+    const { markdown } = markdownTracker("notion").render(followup);
+
+    expect(markdown).toContain(
+      [
+        "- \\# heading: check it",
+        "- \\- nested: check it",
+        "- \\+ nested: check it",
+        "- \\> quote: check it",
+        "- 1\\. step: check it",
+        "- 2\\) step: check it",
+        "- 3.5 seconds: check it",
+      ].join("\n"),
+    );
+  });
 });
