@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { mailpitResolver } from "../src/otp-mailpit.ts";
 import { builtinKind, challenge, closeServers, context, NOW, serveJson } from "./support.ts";
@@ -29,6 +30,8 @@ interface FakeMailpit {
   onSearch: () => void;
   /** No request gets an answer while set. */
   stalled: boolean;
+  /** One promise per unanswered request, settled when its socket closes. */
+  hung: Promise<void>[];
 }
 
 /**
@@ -36,9 +39,12 @@ interface FakeMailpit {
  * every address that contains the term in any case, newest first.
  */
 async function startMailpit(inbox: Mail[] = [], prefix = "/api/v1"): Promise<FakeMailpit> {
-  const mailpit: FakeMailpit = { url: "", inbox, searches: 0, onSearch: () => {}, stalled: false };
-  mailpit.url = await serveJson((url) => {
-    if (mailpit.stalled) return undefined;
+  const mailpit: FakeMailpit = { url: "", inbox, searches: 0, onSearch: () => {}, stalled: false, hung: [] };
+  mailpit.url = await serveJson((url, req) => {
+    if (mailpit.stalled) {
+      mailpit.hung.push(new Promise((closed) => req.socket.once("close", () => closed())));
+      return undefined;
+    }
     if (url.pathname === `${prefix}/search`) {
       mailpit.searches += 1;
       mailpit.onSearch();
@@ -153,6 +159,15 @@ describe("mailpitResolver", () => {
     const mailpit = await startMailpit();
     const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.3" };
     expect(await signIn(params, () => (mailpit.stalled = true))).toBeUndefined();
+  });
+
+  it("closes the hanging Mailpit request when resolve times out", async () => {
+    const mailpit = await startMailpit();
+    const params = { url: mailpit.url, recipient: RECIPIENT, timeoutSeconds: "0.3" };
+    expect(await signIn(params, () => (mailpit.stalled = true))).toBeUndefined();
+    expect(mailpit.hung).toHaveLength(1);
+    const closed = await Promise.race([mailpit.hung[0]!.then(() => "closed"), sleep(1000, "still open")]);
+    expect(closed).toBe("closed");
   });
 
   it("stops polling when the run aborts", async () => {

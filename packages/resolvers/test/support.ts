@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { builtinKinds, type ChallengeKindSpec, type ChallengeRequest, type ResolverContext } from "@bazam/core/challenge";
 import { guardedHttp } from "@bazam/core/driver";
@@ -48,9 +48,9 @@ export interface Reply {
 const servers: Server[] = [];
 
 /** Serves JSON replies from `route` on 127.0.0.1 and returns the origin. A request `route` gives no reply hangs. */
-export async function serveJson(route: (url: URL) => Reply | undefined): Promise<string> {
+export async function serveJson(route: (url: URL, req: IncomingMessage) => Reply | undefined): Promise<string> {
   const server = createServer((req, res) => {
-    const reply = route(new URL(req.url ?? "/", "http://127.0.0.1"));
+    const reply = route(new URL(req.url ?? "/", "http://127.0.0.1"), req);
     if (reply === undefined) return;
     res.writeHead(reply.status, { "content-type": "application/json" }).end(reply.body === undefined ? "" : JSON.stringify(reply.body));
   });

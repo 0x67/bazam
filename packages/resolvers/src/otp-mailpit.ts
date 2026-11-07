@@ -42,7 +42,7 @@ export const mailpitResolver: ChallengeResolver = {
   automated: true,
   async arm(request, ctx) {
     const inbox = inboxOf(request.params);
-    const held = await withTimeout(inbox, ctx.signal, (stop) => untilAborted(stop, () => search(ctx.http, inbox)));
+    const held = await withTimeout(inbox, ctx.signal, (stop) => search(ctx.http, inbox, stop));
     if (held === undefined) throw new Error(`Mailpit did not answer within ${inbox.timeoutMs / 1000} s`);
     heldAtArm.set(request, new Set(held.map((mail) => mail.id)));
   },
@@ -82,36 +82,18 @@ async function withTimeout<T>(inbox: Inbox, run: AbortSignal, work: (stop: Abort
   }
 }
 
-/**
- * Settles like `work`, or rejects with the signal's reason when `stop` aborts first.
- * GuardedHttp.send takes no signal, so a stalled request is left behind rather than cancelled.
- */
-function untilAborted<T>(stop: AbortSignal, work: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    if (stop.aborted) {
-      reject(stop.reason);
-      return;
-    }
-    const abort = () => reject(stop.reason);
-    stop.addEventListener("abort", abort, { once: true });
-    void work()
-      .then(resolve, reject)
-      .finally(() => stop.removeEventListener("abort", abort));
-  });
-}
-
 async function poll(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => boolean, stop: AbortSignal): Promise<string> {
   for (;;) {
-    const code = await untilAborted(stop, () => findCode(http, inbox, isNew));
+    const code = await findCode(http, inbox, isNew, stop);
     if (code !== undefined) return code;
     await sleep(POLL_MS, undefined, { signal: stop });
   }
 }
 
 /** The code in the newest new mail that holds one. */
-async function findCode(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => boolean): Promise<string | undefined> {
-  for (const mail of (await search(http, inbox)).filter(isNew)) {
-    const text = textOf(await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`)));
+async function findCode(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => boolean, stop: AbortSignal): Promise<string | undefined> {
+  for (const mail of (await search(http, inbox, stop)).filter(isNew)) {
+    const text = textOf(await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop));
     const match = inbox.pattern.exec(text);
     if (match !== null) return match[1] ?? match[0];
   }
@@ -119,18 +101,18 @@ async function findCode(http: GuardedHttp, inbox: Inbox, isNew: (mail: Mail) => 
 }
 
 /** Mail to the recipient, newest first. */
-async function search(http: GuardedHttp, inbox: Inbox): Promise<Mail[]> {
+async function search(http: GuardedHttp, inbox: Inbox, stop: AbortSignal): Promise<Mail[]> {
   const url = new URL(`${inbox.url}${inbox.searchPath}`);
   url.searchParams.set("query", `to:"${inbox.recipient}"`);
   // Mailpit's to: search matches any address that contains the term, so joann@ also matches ann@
   const recipient = inbox.recipient.toLowerCase();
-  return summaries(await getJson(http, url))
+  return summaries(await getJson(http, url, stop))
     .filter((summary) => summary.To.some((to) => to.Address.toLowerCase() === recipient))
     .map((summary) => ({ id: summary.ID, created: Date.parse(summary.Created) }));
 }
 
-async function getJson(http: GuardedHttp, url: URL): Promise<unknown> {
-  const response = await http.send({ method: "GET", url, headers: new Headers({ accept: "application/json" }) });
+async function getJson(http: GuardedHttp, url: URL, stop: AbortSignal): Promise<unknown> {
+  const response = await http.send({ method: "GET", url, headers: new Headers({ accept: "application/json" }), signal: stop });
   // the query holds the recipient, so the message names only the path
   if (response.status !== 200) throw new Error(`Mailpit answered ${response.status} to GET ${url.origin}${url.pathname}`);
   return response.body;

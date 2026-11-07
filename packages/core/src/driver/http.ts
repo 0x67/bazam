@@ -115,7 +115,9 @@ async function sendHop(deps: GuardedHttpDeps, hop: HttpRequestDraft, authorize: 
   if (authorize !== undefined) await authorize(draft);
   // the copy is backed by an ArrayBuffer, which fetch takes; the draft's bytes may sit in a SharedArrayBuffer
   const body = draft.body === undefined ? null : new Uint8Array(draft.body);
-  const response = await fetch(draft.url, { method: draft.method, headers: draft.headers, body, redirect: "manual" }).catch((error: unknown) => {
+  const init: RequestInit = { method: draft.method, headers: draft.headers, body, redirect: "manual", signal: draft.signal ?? null };
+  // an abort rejects with the signal's reason, a DOMException that connectFailure passes through
+  const response = await fetch(draft.url, init).catch((error: unknown) => {
     throw connectFailure(describeRequest(draft), error) ?? error;
   });
   deps.log(deps.redactor.text(`${describeRequest(draft)} ${response.status}`));
@@ -130,7 +132,7 @@ function redirected(hop: HttpRequestDraft, status: number, url: URL): HttpReques
   const toGet = status === 303 ? method !== "HEAD" : (status === 301 || status === 302) && method === "POST";
   if (!toGet) return { ...hop, url, headers };
   headers.delete("content-type");
-  return { method: "GET", url, headers };
+  return { method: "GET", url, headers, ...(hop.signal === undefined ? {} : { signal: hop.signal }) };
 }
 
 async function readResponse(response: Response): Promise<HttpResponse> {
@@ -177,7 +179,7 @@ const requestStep: StepHandler<RequestStep> = {
   async run(written, ctx) {
     const step = await ctx.resolve(written);
     assertProdWrite(ctx.env, step.method, step);
-    const draft: HttpRequestDraft = { method: step.method, url: new URL(step.url), headers: new Headers(step.headers) };
+    const draft: HttpRequestDraft = { method: step.method, url: new URL(step.url), headers: new Headers(step.headers), signal: ctx.signal };
     if (step.json !== undefined) {
       if (!draft.headers.has("content-type")) draft.headers.set("content-type", "application/json");
       draft.body = new TextEncoder().encode(JSON.stringify(step.json));
@@ -194,7 +196,7 @@ const apiCheck: StepHandler<ApiCheck> = {
     const check = await ctx.resolve(written);
     const { method, url } = requestLine(check.request);
     assertProdWrite(ctx.env, method, check);
-    const response = await ctx.http.send({ method, url, headers: new Headers() }, actingIdentity(check.as, ctx));
+    const response = await ctx.http.send({ method, url, headers: new Headers(), signal: ctx.signal }, actingIdentity(check.as, ctx));
     // the name keeps the placeholders as written, so it never holds a resolved secret
     ctx.evidence.record({ name: written.request, kind: "api", ...compare(check, response) });
   },

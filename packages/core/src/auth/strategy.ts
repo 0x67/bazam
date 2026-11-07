@@ -13,6 +13,8 @@ export interface HttpRequestDraft {
   body?: Uint8Array;
   /** "manual" returns a 3xx response as it came instead of following its Location. */
   redirect?: "follow" | "manual";
+  /** Aborts the request on every hop; the send then rejects with the signal's reason. */
+  signal?: AbortSignal;
 }
 
 export type ApplyTarget = { kind: "http"; request: HttpRequestDraft } | { kind: "browser"; session: BrowserSession };

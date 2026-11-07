@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig, type HttpRequestDraft } from "../src/auth/index.ts";
@@ -199,6 +200,30 @@ describe("http", () => {
 
       expect(failure).toBeInstanceOf(ConnectionFailed);
       expect((failure as ConnectionFailed).message).toBe(`GET http://127.0.0.1:${port}/health?code=[redacted] got no answer: connect ECONNREFUSED 127.0.0.1:${port}`);
+    });
+
+    it.each([
+      ["while the server holds it", "GET", "/held"],
+      ["after a 303 turned it into a GET", "POST", "/see-other"],
+    ])("rejects with the abort reason and closes the socket when a send is aborted %s", async (_, method, path) => {
+      let arrived!: () => void;
+      const held = new Promise<void>((done) => (arrived = done));
+      let closed!: Promise<string>;
+      const holding = await serve((req, res) => {
+        if (req.url === "/see-other") return redirect(res, 303, "/held");
+        closed = new Promise((done) => req.socket.once("close", () => done("closed")));
+        arrived();
+      });
+      const abort = new AbortController();
+      const sending = client()
+        .send({ method, url: new URL(path, holding), headers: new Headers(), signal: abort.signal })
+        .catch((error: unknown) => error);
+      await held;
+
+      abort.abort();
+
+      expect(await Promise.race([sending, sleep(1000, "still pending")])).toBe(abort.signal.reason);
+      expect(await Promise.race([closed, sleep(1000, "still open")])).toBe("closed");
     });
 
     it("logs the method, path and status with every query value masked and no header value", async () => {
