@@ -120,7 +120,7 @@ class Refusals {
   }
 }
 
-/** A browser context whose main frames stay on the env's hosts, and whose extra headers go to those hosts alone. */
+/** A browser context whose main frames stay on the env's hosts, and whose extra headers and HTTP credentials go to those hosts alone. */
 class GuardedContext {
   readonly context: BrowserContext;
   readonly #env: Environment;
@@ -128,6 +128,12 @@ class GuardedContext {
   readonly #engine: string | undefined;
   #page: Promise<Page> | undefined;
   #headers: Record<string, string> = {};
+  #credentials: HttpCredentials | undefined;
+  // allowlisted origins, written as URL.origin writes them, whose challenges the credentials answer
+  readonly #credentialOrigins = new Set<string>();
+  #credentialsSet: Promise<void> = Promise.resolve();
+  // the Basic header WebKit sends to allowlisted hosts, since it answers no challenge from http on 80 or https on 443
+  #authorization: string | undefined;
 
   private constructor(context: BrowserContext, env: Environment, refusals: Refusals) {
     this.context = context;
@@ -161,6 +167,22 @@ class GuardedContext {
     for (const [name, value] of Object.entries(headers)) this.#headers[name.toLowerCase()] = value;
   }
 
+  async setCredentials(credentials: HttpCredentials): Promise<void> {
+    // WebKit compares a challenge's port with the origin's, which is empty for http on 80 and https on 443, so it
+    // matches no credentials there; the header also goes on each request to an allowlisted host. A WebSocket
+    // handshake never reaches a route, so WebKit leaves its challenge from such an origin unanswered
+    if (this.#engine === "webkit") {
+      this.#authorization = `Basic ${Buffer.from(`${credentials.username}:${credentials.password}`, "utf8").toString("base64")}`;
+    }
+    this.#credentials = { ...credentials };
+    for (const host of this.#env.hosts) {
+      this.#credentialOrigins.add(new URL(`http://${host}`).origin);
+      this.#credentialOrigins.add(new URL(`https://${host}`).origin);
+    }
+    this.#credentialsSet = this.#applyCredentials(this.#credentials);
+    await this.#credentialsSet;
+  }
+
   /** Throws the navigation the guard refused here or in a context sharing its refusals, if there was one. */
   assertAllowed(): void {
     this.#refusals.assertNone();
@@ -186,11 +208,42 @@ class GuardedContext {
 
   async #route(route: Route): Promise<void> {
     const request = route.request();
-    const refusal = hostRefusal(this.#env, new URL(request.url()));
-    if (refusal === undefined) return Object.keys(this.#headers).length === 0 ? route.continue() : this.#sendWithHeaders(route);
+    const url = new URL(request.url());
+    const refusal = hostRefusal(this.#env, url);
+    if (refusal === undefined) {
+      await this.#answerChallengesFrom(url.origin);
+      if (Object.keys(this.#headers).length > 0) return this.#sendWithHeaders(route);
+      if (this.#authorization === undefined) return route.continue();
+      // WebKit keeps the header on a same-origin redirect and drops it on a cross-origin one, so a hop to another
+      // allowlisted host goes without credentials; an Authorization header the page set itself wins
+      return route.continue({ headers: { ...request.headers(), authorization: request.headers()["authorization"] ?? this.#authorization } });
+    }
     if (isMainFrameNavigation(request)) return this.#refuse(route, refusal);
     // a page may load fonts or scripts from other hosts; they just never get the extra headers
     return route.continue();
+  }
+
+  /**
+   * Adds an allowlisted origin, such as one on a port other than the default, to those the credentials answer.
+   * Chromium and Firefox route no redirect hop, so a hop to such an origin that was never routed goes unanswered.
+   */
+  async #answerChallengesFrom(origin: string): Promise<void> {
+    if (this.#credentials === undefined) return;
+    if (!this.#credentialOrigins.has(origin)) {
+      this.#credentialOrigins.add(origin);
+      this.#credentialsSet = this.#applyCredentials(this.#credentials);
+    }
+    // a request to an origin another request just added waits until the browser has it too
+    await this.#credentialsSet;
+  }
+
+  #applyCredentials(credentials: HttpCredentials): Promise<void> {
+    // an entry without an origin would answer a challenge from any host
+    const entries = [...this.#credentialOrigins].map((origin) => ({ ...credentials, origin }));
+    // a trace records each call with its params, where the scrubber masks only registered values, but leaves out
+    // Playwright's internal calls, and Playwright has no public way to make one
+    const client = this.context as unknown as PlaywrightClient;
+    return client._wrapApiCall(() => this.context.setHTTPCredentials(entries), { internal: true });
   }
 
   #refuse(route: Route, refusal: HostNotAllowed): Promise<void> {
@@ -206,10 +259,11 @@ class GuardedContext {
     const request = route.request();
     let response: APIResponse;
     try {
-      response = await route.fetch({ headers: { ...request.headers(), ...this.#headers }, maxRedirects: 0 });
+      const authorization = this.#authorization === undefined ? {} : { authorization: this.#authorization };
+      response = await route.fetch({ headers: { ...authorization, ...request.headers(), ...this.#headers }, maxRedirects: 0 });
       // WebKit takes no redirect from a route, so the request is followed from here and the page keeps its first URL
       if (isRedirect(response) && this.#engine === "webkit") {
-        const hop = redirectHop(request, response);
+        const hop = redirectHop(request, response, this.#authorization);
         response = await this.context.request.fetch(hop.url, hop.options);
       }
     } catch {
@@ -232,6 +286,13 @@ class GuardedContext {
   }
 }
 
+type HttpCredentials = Parameters<BrowserSession["setHttpCredentials"]>[0];
+
+/** The private method a Playwright client object runs each of its calls through. */
+interface PlaywrightClient {
+  _wrapApiCall<T>(call: () => Promise<T>, options: { internal: boolean }): Promise<T>;
+}
+
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // the headers fetch drops when a redirect turns a request into a GET
 const BODY_HEADERS = ["content-encoding", "content-language", "content-length", "content-location", "content-type"];
@@ -249,7 +310,7 @@ interface RedirectHop {
  * The request a redirect leads to, with the page's own headers and none of the extra ones, built the way fetch
  * builds it. Playwright's request client keeps to the same rules for any hop after it.
  */
-function redirectHop(request: Request, redirect: APIResponse): RedirectHop {
+function redirectHop(request: Request, redirect: APIResponse, authorization: string | undefined): RedirectHop {
   const from = new URL(request.url());
   const to = new URL(redirect.headers()["location"]!, from);
   const status = redirect.status();
@@ -258,6 +319,8 @@ function redirectHop(request: Request, redirect: APIResponse): RedirectHop {
   // the request client adds the cookies and the host of the new URL itself
   const dropped = new Set(["host", "cookie", ...(to.origin === from.origin ? [] : ["authorization"]), ...(toGet ? BODY_HEADERS : [])]);
   const headers = Object.fromEntries(Object.entries(request.headers()).filter(([name]) => !dropped.has(name)));
+  // basic credentials stay on a same-origin hop, as they do on a redirect WebKit follows itself, unless the page set its own
+  if (authorization !== undefined && to.origin === from.origin) headers["authorization"] ??= authorization;
   const body = request.postDataBuffer();
   if (toGet || body === null) return { url: to.href, options: { method: toGet ? "GET" : method, headers } };
   return { url: to.href, options: { method, headers, data: body } };
@@ -486,6 +549,7 @@ export class WebSession implements DriverSession {
       storageState: () => storageStateOf(guarded.context),
       loadStorageState: (state) => loadStorageState(guarded.context, state),
       setExtraHeaders: (headers) => guarded.setHeaders(headers),
+      setHttpCredentials: (credentials) => guarded.setCredentials(credentials),
     };
   }
 

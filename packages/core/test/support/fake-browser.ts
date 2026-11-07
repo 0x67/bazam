@@ -1,10 +1,11 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { BrowserLogin, BrowserLoginRequest, BrowserSession, StorageState } from "../../src/auth/index.ts";
 
-/** One browser context held in memory: its storage state and the extra headers set on it. */
+/** One browser context held in memory: its storage state and the extra headers and HTTP credentials set on it. */
 export class FakeBrowserSession implements BrowserSession {
   state: StorageState = { cookies: [], origins: [] };
   extraHeaders: Record<string, string> = {};
+  httpCredentials: { username: string; password: string } | undefined;
 
   async storageState(): Promise<StorageState> {
     return structuredClone(this.state);
@@ -16,6 +17,10 @@ export class FakeBrowserSession implements BrowserSession {
 
   async setExtraHeaders(headers: Record<string, string>): Promise<void> {
     this.extraHeaders = { ...this.extraHeaders, ...headers };
+  }
+
+  async setHttpCredentials(credentials: { username: string; password: string }): Promise<void> {
+    this.httpCredentials = { ...credentials };
   }
 }
 

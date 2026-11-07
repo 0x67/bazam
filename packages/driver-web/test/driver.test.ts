@@ -1,6 +1,9 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile, rm } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
+import type { Duplex } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
 import { ConnectionFailed } from "@bazam/core/driver";
 import { HostNotAllowed, type Environment } from "@bazam/core/env";
@@ -9,13 +12,26 @@ import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
 import { unzipSync } from "fflate";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { playwrightDriver, type WebSession } from "../src/driver.ts";
-import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Site } from "./support/site.ts";
+import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Handler, type Site } from "./support/site.ts";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const CASE_ID = "WEB-ORDER-001";
 const BEARER = "Bearer fake-bearer-7f3a9c";
 const API_KEY = "fake-api-key-5b1e";
+const BASIC = { username: "ops", password: "fake-basic-password" };
+const BASIC_AUTHORIZATION = `Basic ${Buffer.from("ops:fake-basic-password").toString("base64")}`;
+const PAGE_BEARER = "Bearer fake-page-token-2d8e";
+const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+/** Answers 401 with a Basic challenge unless the request carries the fake basic credentials. */
+function gated(handler: Handler): Handler {
+  return (request, response, current) => {
+    if (request.headers.authorization === BASIC_AUTHORIZATION) return handler(request, response, current);
+    response.writeHead(401, { "www-authenticate": 'Basic realm="staging"', "content-type": "text/html" });
+    response.end("<h1>Unauthorized</h1>");
+  };
+}
 
 const HOME = `
 <h1>Orders</h1>
@@ -32,6 +48,27 @@ const HOME = `
 <button type="button" onclick="window.open('/bounce')">Popup</button>
 <button type="button" onclick="setTimeout(function () { location.href = '{elsewhere}/away' }, 200)">Pay</button>
 <img src="{elsewhere}/pixel.png" alt="">
+`;
+
+// the page calls its API with a token of its own, once directly and once through a same-origin redirect
+const CLIENT = `
+<p data-testid="calls">pending</p>
+<script>
+  (async function () {
+    var headers = { Authorization: "${PAGE_BEARER}" };
+    var direct = await fetch("/api/orders?direct", { headers: headers });
+    var moved = await fetch("/api/moved", { headers: headers });
+    document.querySelector("[data-testid=calls]").textContent = "orders " + direct.status + " " + moved.status;
+  })();
+</script>
+`;
+
+const LIVE = `
+<p data-testid="live">connecting</p>
+<script>
+  var socket = new WebSocket(location.origin.replace("http", "ws") + "/live");
+  socket.onopen = function () { document.querySelector("[data-testid=live]").textContent = "open"; };
+</script>
 `;
 
 /** A port on 127.0.0.1 that was just free, so a connection to it is refused. */
@@ -74,6 +111,23 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
       "/receipt": (request, response) => {
         response.setHeader("content-type", "text/html");
         response.end(`<p data-testid="receipt">Receipt by ${request.method}</p>`);
+      },
+      "/gated/start": gated((_request, response) => {
+        response.writeHead(302, { location: "/gated/landing" });
+        response.end();
+      }),
+      "/gated/landing": gated(html("<h1>Landing</h1>")),
+      // browsers refuse a cross-origin image's challenge on their own, while a frame's they would answer
+      "/gated/gallery": gated(html('<h1>Gallery</h1><img src="{elsewhere}/gated/pixel.png" alt=""><iframe src="{elsewhere}/gated/landing"></iframe>')),
+      "/gated/pixel.png": gated((_request, response) => response.end()),
+      "/client": html(CLIENT),
+      "/api/orders": (request, response) => {
+        response.writeHead(request.headers.authorization === PAGE_BEARER ? 200 : 401);
+        response.end();
+      },
+      "/api/moved": (_request, response) => {
+        response.writeHead(307, { location: "/api/orders?moved" });
+        response.end();
       },
     });
     env = demoEnv();
@@ -293,6 +347,126 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     expect(site.requests.find((request) => request.path === "/orders")?.headers.authorization).toBe(BEARER);
   });
 
+  it("answers a basic auth challenge with the identity's credentials through a redirect", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/gated/start` },
+      { expect: { text: { field: { css: "h1" }, equals: "Landing" } } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["Landing", true]]);
+    const landing = site.requests.filter((request) => request.path === "/gated/landing");
+    expect(landing.map((request) => request.headers.authorization)).toContain(BASIC_AUTHORIZATION);
+  });
+
+  // Chromium and Firefox answer the 401 challenge on any port, so they keep sending the first request without credentials
+  it.skipIf(engine !== "webkit")("sends basic credentials with the first request on WebKit, before any 401 challenge", async () => {
+    const { session, evidence } = await open();
+    await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/gated/start` },
+      { expect: { text: { field: { css: "h1" }, equals: "Landing" } } },
+    ]);
+
+    const gated = site.requests.filter((request) => request.path.startsWith("/gated/"));
+    expect(gated.map((request) => [request.path, request.headers.authorization])).toEqual([
+      ["/gated/start", BASIC_AUTHORIZATION],
+      ["/gated/landing", BASIC_AUTHORIZATION],
+    ]);
+  });
+
+  it.each([
+    ["basic credentials", {}],
+    ["basic credentials and extra headers", { "X-Api-Key": API_KEY }],
+  ])("keeps the Authorization header a page sets itself on requests to an allowlisted host, with %s", async (_mode, headers) => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    const browser = await session.browserFor("customer");
+    if (Object.keys(headers).length > 0) await browser.setExtraHeaders(headers);
+    await browser.setHttpCredentials(BASIC);
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/client` },
+      { expect: { text: { field: { id: "calls" }, equals: "orders 200 200" } } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["orders 200 200", true]]);
+    const api = site.requests.filter((request) => request.path.startsWith("/api/"));
+    expect(api.map((request) => [request.path, request.headers.authorization])).toEqual([
+      ["/api/orders?direct", PAGE_BEARER],
+      ["/api/moved", PAGE_BEARER],
+      ["/api/orders?moved", PAGE_BEARER],
+    ]);
+  });
+
+  it("answers a basic auth challenge on a WebSocket handshake to an allowlisted host", async () => {
+    const sockets = new Set<Duplex>();
+    const page = gated(html(LIVE));
+    const server = createHttpServer((request, response) => page(request, response, site));
+    server.on("upgrade", (request, socket: Duplex) => {
+      socket.on("error", () => {});
+      sockets.add(socket);
+      if (request.headers.authorization !== BASIC_AUTHORIZATION) {
+        socket.end('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="staging"\r\nContent-Length: 0\r\n\r\n');
+        return;
+      }
+      const accept = createHash("sha1").update(`${request.headers["sec-websocket-key"]}${WEBSOCKET_GUID}`).digest("base64");
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const { session, evidence } = await open();
+      const checks = recorded(evidence);
+      await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+
+      await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+        { open: `http://127.0.0.1:${port}/live` },
+        { expect: { text: { field: { id: "live" }, equals: "open" } } },
+      ]);
+
+      expect(checks().map((check) => [check.observed, check.ok])).toEqual([["open", true]]);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
+  });
+
+  it("never answers a basic auth challenge from a host outside the allowlist", async () => {
+    const { session, evidence } = await open();
+    await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/gated/gallery` },
+      { wait: { ms: 300 } },
+    ]);
+
+    const gallery = site.requests.filter((request) => request.path === "/gated/gallery");
+    expect(gallery.map((request) => request.headers.authorization)).toContain(BASIC_AUTHORIZATION);
+    const elsewhere = site.requests.filter((request) => request.host.startsWith("localhost:"));
+    expect(elsewhere.map((request) => request.path)).toEqual(expect.arrayContaining(["/gated/pixel.png", "/gated/landing"]));
+    expect(elsewhere.filter((request) => request.headers.authorization !== undefined)).toEqual([]);
+  });
+
+  it("shows the 401 page in a context without credentials while another identity has them", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    await (await session.browserFor("customer")).setHttpCredentials(BASIC);
+
+    await runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `${site.origin}/gated/start` },
+      { expect: { text: { field: { css: "h1" }, equals: "Unauthorized" } } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["Unauthorized", true]]);
+    expect(site.requests.filter((request) => request.headers.authorization !== undefined)).toEqual([]);
+  });
+
   it("blocks the next step in another identity's context when a navigation was refused after its step", async () => {
     const { session, evidence } = await open();
     await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
@@ -332,6 +506,25 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const text = Object.values(entries).map((bytes) => new TextDecoder().decode(bytes)).join("\n");
     expect(text).toContain("/pixel.png");
     expect(text).not.toContain("fake-bearer-7f3a9c");
+  });
+
+  it("keeps HTTP credentials out of the trace even when the redactor does not know them", async () => {
+    const { session: opened, evidence } = await open();
+    await (await opened.browserFor("customer")).setHttpCredentials(BASIC);
+    await runSteps(stepContext(opened, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/gated/start` },
+      { expect: { text: { field: { css: "h1" }, equals: "Landing" } } },
+    ]);
+
+    session = undefined;
+    await opened.close({ status: "fail", evidence });
+
+    const entries = unzipSync(await readFile(join(root, "runs", CASE_ID, "01-trace.zip")));
+    const text = Object.values(entries).map((bytes) => new TextDecoder().decode(bytes)).join("\n");
+    expect(text).toContain("/gated/landing");
+    expect(text).not.toContain(BASIC.password);
+    expect(text).not.toContain(BASIC_AUTHORIZATION.slice("Basic ".length));
+    expect(text).not.toContain("setHTTPCredentials");
   });
 
   it("names the trace trace.zip when the case used one context, and keeps none when it passes", async () => {

@@ -15,6 +15,8 @@ export interface BrowserSession {
   storageState(): Promise<StorageState>;
   loadStorageState(state: StorageState): Promise<void>;
   setExtraHeaders(headers: Record<string, string>): Promise<void>;
+  /** The browser answers HTTP authentication challenges from hosts in the env's allowlist with these credentials; other hosts never get them. */
+  setHttpCredentials(credentials: { username: string; password: string }): Promise<void>;
 }
 
 /** The login is done when this cookie is set, or when the page URL matches this pattern. */

@@ -24,12 +24,13 @@ describe("basicStrategy", () => {
     expect(response.status).toBe(200);
   });
 
-  it("sets the Authorization header on a browser session", async () => {
+  it("gives a browser session the user and password as HTTP credentials and sets no extra header", async () => {
     const session = new FakeBrowserSession();
 
     await basicStrategy.apply({ user: "fake-user", password: "fake-password" }, { kind: "browser", session }, SETTINGS);
 
-    expect(session.extraHeaders).toEqual({ authorization: `Basic ${Buffer.from("fake-user:fake-password").toString("base64")}` });
+    expect(session.httpCredentials).toEqual({ username: "fake-user", password: "fake-password" });
+    expect(session.extraHeaders).toEqual({});
   });
 
   it("the redactor masks the Authorization header and the password in the credential", async () => {
