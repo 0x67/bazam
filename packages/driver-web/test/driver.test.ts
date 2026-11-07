@@ -10,7 +10,7 @@ import { HostNotAllowed, type Environment } from "@bazam/core/env";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
 import { unzipSync } from "fflate";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { playwrightDriver, type WebSession } from "../src/driver.ts";
 import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Handler, type Site } from "./support/site.ts";
 

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished } from "vite-plus/test";
 import { BRAND } from "../../packages/core/src/brand.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");

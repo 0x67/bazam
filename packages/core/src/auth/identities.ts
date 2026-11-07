@@ -101,7 +101,7 @@ export class Identities {
 
   constructor(deps: IdentitiesDeps) {
     this.#deps = deps;
-    this.#http = guardedHttp({ env: deps.env, redactor: deps.redactor, log: deps.log });
+    this.#http = guardedHttp({ env: deps.env, redactor: deps.redactor, log: (line) => deps.log(line) });
   }
 
   /** Probes, refreshes, acquires and resolves nothing, so it fetches no secret; reads only the cache. */

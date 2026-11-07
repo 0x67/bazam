@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { deriveReason, deriveStatus, type CaseOutcome, type CheckRecord, type Status } from "../src/result/index.ts";
 
 const passed: CheckRecord = { name: "dashboard heading", kind: "ui", expected: "Dashboard", observed: "Dashboard", ok: true };

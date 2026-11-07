@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import type { BrowserLogin } from "@bazam/core/auth";
 import { HostNotAllowed, type Environment } from "@bazam/core/env";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import { urlMatches } from "../src/login.ts";
 import { demoEnv, ENGINES, html, launch, newEvidence, startSite, tempDir, type Site } from "./support/site.ts";

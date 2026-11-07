@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { PluginRegistry } from "@bazam/core/plugin";
 import { ProjectConfig } from "@bazam/core/project";
 import type { MediaRefs } from "@bazam/core/report";

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { GuidedBlocked, checkGuidedOutcome, type PersonAnswer } from "../src/challenge/index.ts";
 
 const NAME = "signed in with MPIN and face check";

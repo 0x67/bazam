@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { chromium, firefox, webkit } from "playwright";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { scrubTrace } from "../src/trace.ts";
 import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Site } from "./support/site.ts";
 

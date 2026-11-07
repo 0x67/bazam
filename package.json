@@ -4,12 +4,16 @@
   "type": "module",
   "packageManager": "pnpm@12.18.0",
   "engines": {
-    "node": ">=22.18"
+    "node": ">=22.22.1"
   },
   "scripts": {
     "build": "tsc -b packages/core packages/driver-web packages/resolvers packages/tracker-jira packages/mcp packages/cli",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "vp test",
+    "check": "vp check",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "prepare": "vp config --no-agent",
     "brand:check": "node scripts/brand-check.ts",
     "rename": "node scripts/rename.ts",
     "eval:drafting": "node evals/drafting/run.ts"
@@ -18,6 +22,6 @@
     "@types/node": "^22.20.5",
     "bazam": "workspace:*",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0"
+    "vite-plus": "1.5.0"
   }
 }

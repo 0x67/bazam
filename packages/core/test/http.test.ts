@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig, type HttpRequestDraft } from "../src/auth/index.ts";
 import type { StepContext } from "../src/driver/index.ts";

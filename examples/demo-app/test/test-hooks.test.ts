@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { once } from "node:events"
 import { fileURLToPath } from "node:url"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Visitor, mailedCode, newEmail, signInByEmail } from "./support/demo.ts"
 
 describe("test hooks", () => {

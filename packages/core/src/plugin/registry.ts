@@ -69,7 +69,7 @@ type Contribution<K extends ContributionKey> = NonNullable<PluginManifest[K]>[nu
 interface ContributionList<T> {
   /** What the name of one item is called in messages. */
   noun: string;
-  name(item: T): string;
+  name: (item: T) => string;
 }
 
 // Adding a contribution type takes a manifest field, an entry here and a lookup method.

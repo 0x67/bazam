@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
 import { CaseSpec, type Stage } from "../src/case/index.ts";
 import { ProjectConfig } from "../src/project.ts";

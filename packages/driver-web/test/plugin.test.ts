@@ -1,7 +1,7 @@
 import { EnvsConfig } from "@bazam/core/env";
 import { PluginRegistry } from "@bazam/core/plugin";
 import { ProjectConfig } from "@bazam/core/project";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import plugin, { playwrightDriver, virtualPasskeyResolver } from "../src/index.ts";
 
 describe("driver-web plugin", () => {

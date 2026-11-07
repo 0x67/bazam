@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { mailpitResolver } from "../src/otp-mailpit.ts";
 import { builtinKind, challenge, closeServers, context, NOW, serveJson } from "./support.ts";
 

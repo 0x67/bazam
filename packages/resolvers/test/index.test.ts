@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { PluginRegistry } from "@bazam/core/plugin";
 import { ProjectConfig } from "@bazam/core/project";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import resolvers from "../src/index.ts";
 
 describe("resolvers plugin", () => {

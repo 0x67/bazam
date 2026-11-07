@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { DEMO_TOTP_SEED } from "../src/config.ts"
 import { totpCode } from "../src/totp-code.ts"
 import { Visitor, newEmail, signInByEmail } from "./support/demo.ts"

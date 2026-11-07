@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type { StorageState } from "../../src/auth/index.ts";
 import { sessionCookieStrategy } from "../../src/auth/strategies/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "../support/fake-browser.ts";

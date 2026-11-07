@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { Redactor, defaultRedactionRules } from "../src/redact/index.ts";
 
 function defaultRedactor(): Redactor {

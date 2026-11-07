@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { SoftwareAuthenticator } from "./support/authenticator.ts"
 import { APP_URL, Visitor, newEmail, signInByEmail } from "./support/demo.ts"
 

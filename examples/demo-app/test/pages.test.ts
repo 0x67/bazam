@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { Visitor, newEmail, signInByEmail } from "./support/demo.ts"
 
 const INTERACTIVE = /<(?:a|button|input|select|textarea)\b[^>]*>/g

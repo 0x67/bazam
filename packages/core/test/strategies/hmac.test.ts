@@ -2,7 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { hmacStrategy } from "../../src/auth/strategies/index.ts";
 import { authContext, draft, redacted, sendWith, serve, type LocalServer, type ReceivedRequest } from "./support.ts";
 

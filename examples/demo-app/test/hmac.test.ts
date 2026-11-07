@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { DEMO_HMAC_KEY } from "../src/config.ts"
 import { Visitor } from "./support/demo.ts"
 

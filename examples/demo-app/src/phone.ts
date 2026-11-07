@@ -89,7 +89,7 @@ function e164Of(digits: string): string | undefined {
 
 // regional indicator symbols start at U+1F1E6 for A
 function flagOf(region: string): string {
-  return String.fromCodePoint(...[...region].map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65))
+  return String.fromCodePoint(...region.split("").map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65))
 }
 
 function phonePage(numbers: SavedNumbers, error?: string) {

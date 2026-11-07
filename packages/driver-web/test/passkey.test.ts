@@ -5,7 +5,7 @@ import { guardedHttp } from "@bazam/core/driver";
 import type { Environment } from "@bazam/core/env";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import type { EvidenceStore } from "@bazam/core/result";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import { virtualPasskeyResolver } from "../src/passkey.ts";
 import { demoEnv, ENGINES, html, launch, newEvidence, runSteps, startSite, stepContext, tempDir, type Site } from "./support/site.ts";

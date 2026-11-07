@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { answersFileChannel, parseVerdict, terminalChannel, type PersonAnswer, type PersonPrompt } from "../src/challenge/index.ts";
 
 const RUN_ID = "20261106-093000-a1b2";

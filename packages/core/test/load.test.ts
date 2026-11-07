@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { CaseSpec, loadCases } from "../src/case/index.ts";
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/cases/${name}`, import.meta.url));

@@ -43,7 +43,7 @@ export const totpResolver: ChallengeResolver = {
 function base32Decode(seed: string): Buffer {
   const text = seed.replace(/[\s=]/g, "").toUpperCase();
   // the message leaves out the seed, which is a secret
-  if (text === "" || ![...text].every((char) => BASE32.includes(char))) throw new Error("the TOTP seed is not base32");
+  if (text === "" || !text.split("").every((char) => BASE32.includes(char))) throw new Error("the TOTP seed is not base32");
   const bytes: number[] = [];
   let bits = 0;
   let value = 0;

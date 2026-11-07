@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
 
 it("derives the config file, env prefix, state dir and MCP name from BRAND", () => {

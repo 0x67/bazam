@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, stat, utimes, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { RefreshLockTimeout, withRefreshLock, type CredentialKey } from "../src/auth/index.ts";
 
 const run = promisify(execFile);

@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { totpCode, totpResolver } from "../src/totp.ts";
 import { builtinKind, challenge, context } from "./support.ts";
 

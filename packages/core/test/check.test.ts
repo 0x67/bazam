@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
 import type { ChallengeKindSpec } from "../src/challenge/index.ts";
 import { builtinRules, checkProject } from "../src/check/index.ts";

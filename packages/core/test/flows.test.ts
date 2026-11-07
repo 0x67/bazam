@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { expandFlows, FlowCycle, InvalidFlowUse, type FlowSpec, type Step } from "../src/case/index.ts";
 
 function thrownBy(run: () => unknown): unknown {

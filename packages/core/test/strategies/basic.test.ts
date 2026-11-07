@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { basicStrategy } from "../../src/auth/strategies/index.ts";
 import { FakeBrowserSession } from "../support/fake-browser.ts";
 import { authContext, draft, redacted, sendWith, serve, type LocalServer } from "./support.ts";

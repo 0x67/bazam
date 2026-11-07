@@ -103,7 +103,7 @@ export function defaultRedactionRules(): RedactionRules {
     sensitiveKeys:
       /(?:^|_)(?:token|secret|password|passwd|cookie|authorization|otp|pin|session)s?(?:_|$)|api_?keys?(?:_|$)|_seed(?:_|$)/,
     patterns: [
-      { pattern: /[\p{L}\p{N}!#$%&'*+\/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu, mask: maskEmailLocalPart },
+      { pattern: /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu, mask: maskEmailLocalPart },
       // the date that starts a run id (YYYYMMDD-HHmmss-<4 hex>) stays readable
       { pattern: /(?!\d{8}-\d{6}-[\da-f]{4}\b)\d{8,}/gi, mask: (match) => `••••${match.slice(-4)}` },
     ],

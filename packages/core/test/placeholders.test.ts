@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { escapePlaceholders, findPlaceholders, resolvePlaceholders, UnresolvedPlaceholder, type PlaceholderSources } from "../src/env/index.ts";
 
 function sources(overrides: Partial<PlaceholderSources> = {}): PlaceholderSources {

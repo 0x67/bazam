@@ -12,6 +12,6 @@
     "evals",
     "examples/demo-app/src",
     "examples/demo-app/test",
-    "vitest.config.ts"
+    "vite.config.ts"
   ]
 }

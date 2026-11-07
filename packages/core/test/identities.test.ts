@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import {
   CredentialCache,
@@ -245,6 +245,43 @@ describe("Identities", () => {
       expect(request.headers.get("authorization")).toBe("Bearer fake-access-1");
       expect(refused).toBeInstanceOf(HostNotAllowed);
       expect((refused as HostNotAllowed).host).toBe("outside.example.test");
+    } finally {
+      server.closeAllConnections();
+      await new Promise((closed) => server.close(closed));
+    }
+  });
+
+  it("calls log on the deps it was given when a strategy sends a request", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "application/json" }).end('{"accessToken":"fake-access-1"}');
+    });
+    await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const plugin = definePlugin({ name: "test-strategies", apiVersion: PLUGIN_API_VERSION, authStrategies: [endpointStrategy] });
+      const tokenUrl = `http://127.0.0.1:${port}/token`;
+      // a deps object whose log is a method that reads its own fields
+      const deps: IdentitiesDeps & { lines: string[] } = {
+        env: { ...env, hosts: new Set(["127.0.0.1"]) },
+        configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "endpoint", with: { tokenUrl } } } } }),
+        fixtures: {},
+        registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),
+        cache: new CredentialCache(join(root, "credentials")),
+        lockDir: join(root, "locks"),
+        resolve: async (value) => value,
+        redactor: new Redactor(defaultRedactionRules()),
+        lines: [],
+        log(line) {
+          this.lines.push(line);
+        },
+        projectRoot: root,
+        channel: person,
+        now: clock,
+      };
+
+      await new Identities(deps).authorize("customer", "api", { kind: "http", request: draft() });
+
+      expect(deps.lines).toEqual([`POST ${tokenUrl} 200`]);
     } finally {
       server.closeAllConnections();
       await new Promise((closed) => server.close(closed));

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { HumanOnlyViolation, assertHumanOnly, builtinKinds, humanResolver, type ChallengeResolver } from "../src/challenge/index.ts";
 
 const pin = builtinKinds.find((kind) => kind.name === "pin")!;

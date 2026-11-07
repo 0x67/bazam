@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ServerResponse } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type { BrowserLogin, BrowserLoginRequest, StorageState } from "../../src/auth/index.ts";
 import { oauth2Strategy } from "../../src/auth/strategies/index.ts";
 import { authContext, draft, redacted, sendWith, serve, type LocalServer, type ReceivedRequest } from "./support.ts";

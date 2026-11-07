@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node src/main.ts",
-    "test": "vitest run --dir test --no-file-parallelism"
+    "test": "vp test --dir test --no-file-parallelism"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",

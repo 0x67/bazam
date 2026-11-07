@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { MAILPIT_URL, Visitor, mailedCode, newEmail } from "./support/demo.ts"
 
 describe("email code sign-in", () => {

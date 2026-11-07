@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema } from "../src/case/index.ts";
 
@@ -150,7 +150,7 @@ describe("caseJsonSchema", () => {
   it("lists every step kind, plugin kinds included, as one anyOf branch", () => {
     const stepBranches = Object.values(json.$defs).find((def) => def.anyOf !== undefined)?.anyOf ?? [];
 
-    expect(stepBranches.map((branch) => branch.required).sort()).toEqual([
+    expect(stepBranches.map((branch) => branch.required).sort((a, b) => a.join().localeCompare(b.join()))).toEqual([
       ["challenge"],
       ["guided"],
       ["note"],

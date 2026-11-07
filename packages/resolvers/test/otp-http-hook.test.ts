@@ -1,5 +1,5 @@
 import { HostNotAllowed } from "@bazam/core/env";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { httpHookResolver } from "../src/otp-http-hook.ts";
 import { builtinKind, challenge, closeServers, context, serveJson, type Reply } from "./support.ts";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { phoneForm, type PhoneForm } from "../src/env/index.ts";
 
 function formsOf(e164: string, locale: string): Record<PhoneForm, string | undefined> {
