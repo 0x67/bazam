@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { StorageState } from "../../src/auth/index.ts";
-import type { Capability, Driver, DriverSession, LaunchOptions, StepHandler } from "../../src/driver/index.ts";
-import type { CaseOutcome } from "../../src/result/index.ts";
+import type { Capability, CaseEnding, Driver, DriverSession, LaunchOptions, StepHandler } from "../../src/driver/index.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "./fake-browser.ts";
 
 export interface FakeDriverOptions {
-  target?: string;
+  name?: string;
+  surface?: string;
   capabilities?: readonly Capability[];
   steps?: readonly StepHandler[];
   /** Cookies every browser login ends with, on a driver with browser.login. */
@@ -18,7 +18,7 @@ export interface FakeSession extends DriverSession {
   /** The browser context of each identity, made on first use. */
   browsers: Map<string, FakeBrowserSession>;
   /** Undefined until the session is closed. */
-  closedWith: CaseOutcome | undefined;
+  closedWith: CaseEnding | undefined;
 }
 
 export interface FakeDriver extends Driver {
@@ -34,7 +34,8 @@ export function fakeDriver(options: FakeDriverOptions = {}): FakeDriver {
   const capabilities: ReadonlySet<Capability> = new Set(options.capabilities ?? []);
   const sessions: FakeSession[] = [];
   return {
-    target: options.target ?? "fake",
+    name: options.name ?? "fake",
+    surface: options.surface ?? "web",
     probe: async () => capabilities,
     launch: async (launchOptions) => {
       const session = fakeSession(launchOptions, capabilities, options.loginCookies ?? []);
@@ -52,8 +53,8 @@ function fakeSession(options: LaunchOptions, capabilities: ReadonlySet<Capabilit
     capabilities,
     browsers: new Map(),
     closedWith: undefined,
-    close: async (outcome) => {
-      session.closedWith = outcome;
+    close: async (ending) => {
+      session.closedWith = ending;
     },
   };
   if (capabilities.has("browser.login")) {

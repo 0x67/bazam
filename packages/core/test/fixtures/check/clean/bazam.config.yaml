@@ -20,4 +20,4 @@ identities:
   customer:
     fixture: customer
 targets:
-  web: { browser: chromium, headless: true }
+  web: { driver: playwright, browser: chromium, headless: true }

@@ -96,7 +96,7 @@ describe("PluginRegistry.load", () => {
   });
 
   it.each([
-    ["two drivers for one target", { drivers: [fakeDriver({ target: "web" })] }, { drivers: [fakeDriver({ target: "web" })] }, 'driver target "web"'],
+    ["two drivers with one name", { drivers: [fakeDriver({ name: "playwright" })] }, { drivers: [fakeDriver({ name: "playwright" })] }, 'driver "playwright"'],
     [
       "a driver step with the kind of a plugin step",
       { steps: [fakeStep("tap")] },
@@ -155,20 +155,20 @@ describe("PluginRegistry.load", () => {
     expect((failure as Error).message).toBe(`plugin "${entry}" is neither a package name nor a path that starts with "."`);
   });
 
-  it("lets drivers for different targets offer the same step kind", async () => {
-    const web = fakeDriver({ target: "web", steps: [fakeStep("open")] });
-    const webChrome = fakeDriver({ target: "web-chrome", steps: [fakeStep("open")] });
-    const mobile = fakeDriver({ target: "mobile", steps: [fakeStep("open")] });
+  it("lets drivers with different names offer the same step kind", async () => {
+    const playwright = fakeDriver({ name: "playwright", steps: [fakeStep("open")] });
+    const selenium = fakeDriver({ name: "selenium", steps: [fakeStep("open")] });
+    const appium = fakeDriver({ name: "appium", surface: "mobile", steps: [fakeStep("open")] });
 
     const registry = await PluginRegistry.load(config(), projectRoot, [
-      plugin("web-drivers", { drivers: [web, webChrome] }),
-      plugin("mobile-driver", { drivers: [mobile] }),
+      plugin("web-drivers", { drivers: [playwright, selenium] }),
+      plugin("mobile-driver", { drivers: [appium] }),
     ]);
     const open = registry.stepHandlers().filter((step) => step.kind === "open");
 
-    expect(registry.driver("web-chrome")).toBe(webChrome);
+    expect(registry.driver("selenium")).toBe(selenium);
     expect(open).toHaveLength(1);
-    expect(open[0]).toBe(web.steps[0]);
+    expect(open[0]).toBe(playwright.steps[0]);
   });
 
   it.each(["use", "request", "challenge", "guided", "note", "api"])("refuses a plugin step of the core step kind %s", async (kind) => {

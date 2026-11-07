@@ -58,8 +58,8 @@ export const ProjectConfig = z.strictObject({
       humanOnly: z.array(z.string().min(1)).default([]),
     })
     .prefault({}),
-  /** Settings per case target, such as browser and headless, handed to the target's driver. */
-  targets: z.record(z.string().min(1), z.record(z.string(), z.json())).default({}),
+  /** Per case target: `driver` names its driver, which gets the other settings, such as browser and headless. */
+  targets: z.record(z.string().min(1), z.object({ driver: z.string().min(1) }).catchall(z.json())).default({}),
   /** Default transitions per tracker project. */
   trackers: z.record(z.string().min(1), TrackerConfig).default({}),
   plugins: z.array(z.string().min(1)).default([]),

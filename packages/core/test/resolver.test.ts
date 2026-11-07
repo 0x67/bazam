@@ -54,6 +54,7 @@ function context(options: { capabilities?: readonly string[]; channel?: HumanCha
     session: { capabilities: new Set(options.capabilities ?? []), close: async () => {} },
     channel: options.channel ?? channelAnswering({ kind: "timeout" }),
     prompt: { runId: RUN_ID, screenshot: `runs/${RUN_ID}/AUTH-LOGIN-001/02-login.png`, timeoutMs: 60_000 },
+    stateDir: "/no/state/in/this/test",
     secrets: async (key) => {
       throw new Error(`no secret ${key} in this test`);
     },

@@ -20,7 +20,7 @@ const faceScan: ChallengeKindSpec = { name: "face-scan", answer: "action", human
 const web = definePlugin({
   name: "fake-web",
   apiVersion: PLUGIN_API_VERSION,
-  drivers: [fakeDriver({ target: "web", steps: ["open", "tap", "fill", "expect"].map(fakeStep) })],
+  drivers: [fakeDriver({ name: "playwright", steps: ["open", "tap", "fill", "expect"].map(fakeStep) })],
   challengeKinds: [faceScan],
 });
 
@@ -257,6 +257,22 @@ describe("loadProjectConfig", () => {
       ["schema", BRAND.configFile, 2, "envs.uat.production: Invalid input: expected boolean, received undefined"],
       ["schema", BRAND.configFile, 5, 'Unrecognized key: "identity"'],
     ]);
+  });
+
+  it("reports a target without a driver on the target's line", async () => {
+    const root = await mkdtemp(join(tmpdir(), "check-test-"));
+    try {
+      await writeFile(join(root, BRAND.configFile), "envs: {}\ntargets:\n  web: { browser: chromium, headless: true }\n");
+
+      const { config, issues } = await loadProjectConfig(root);
+
+      expect(config).toBeUndefined();
+      expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([
+        [BRAND.configFile, 3, "targets.web.driver: Invalid input: expected string, received undefined"],
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("reports a missing config file", async () => {

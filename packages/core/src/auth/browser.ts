@@ -28,6 +28,8 @@ export interface BrowserLoginRequest {
   /** What the person is asked to do once the flow has run. */
   prompt?: PersonPrompt;
   timeoutMs: number;
+  /** Ends the login early, as when the person answers blocked or the prompt times out. */
+  signal?: AbortSignal;
 }
 
 export interface BrowserLogin {

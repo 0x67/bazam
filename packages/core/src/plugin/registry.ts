@@ -74,7 +74,7 @@ interface ContributionList<T> {
 
 // Adding a contribution type takes a manifest field, an entry here and a lookup method.
 const contributionLists: { [K in ContributionKey]: ContributionList<Contribution<K>> } = {
-  drivers: { noun: "driver target", name: (driver) => driver.target },
+  drivers: { noun: "driver", name: (driver) => driver.name },
   authStrategies: { noun: "auth strategy", name: (strategy) => strategy.name },
   resolvers: { noun: "challenge resolver", name: (resolver) => resolver.name },
   challengeKinds: { noun: "challenge kind", name: (kind) => kind.name },
@@ -116,8 +116,8 @@ export class PluginRegistry {
     return registry;
   }
 
-  driver(target: string): Driver {
-    return this.#get("drivers", target);
+  driver(name: string): Driver {
+    return this.#get("drivers", name);
   }
 
   strategy(name: string): AuthStrategy<unknown, JsonValue> {
@@ -179,7 +179,7 @@ export class PluginRegistry {
       this.#addStep(kind, { item: step, plugin: manifest.name, driver: undefined });
     }
     for (const driver of manifest.drivers ?? []) {
-      const field = `steps of driver "${driver.target}"`;
+      const field = `steps of driver "${driver.name}"`;
       for (const [kind, step] of namedItems(manifest.name, field, driver.steps, STEP_KIND, stepKind)) {
         this.#addStep(kind, { item: step, plugin: manifest.name, driver });
       }
@@ -205,7 +205,7 @@ export class PluginRegistry {
       this.#steps.set(kind, step);
       return;
     }
-    // each driver runs its own target, so two drivers may both offer open or tap
+    // the runner sends a driver step to the driver of the case's target, so two drivers may both offer open or tap
     const fromTwoDrivers = earlier.driver !== undefined && step.driver !== undefined && earlier.driver !== step.driver;
     if (!fromTwoDrivers) throw new PluginConflict(`${STEP_KIND} "${kind}"`, [earlier.plugin, step.plugin]);
   }

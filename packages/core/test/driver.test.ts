@@ -5,9 +5,10 @@ import { PLUGIN_API_VERSION, PluginRegistry, type PluginManifest } from "../src/
 import { ProjectConfig } from "../src/project.ts";
 import { fakeDriver } from "./support/fake-driver.ts";
 
-const web = fakeDriver({ target: "web", capabilities: ["browser.login", "webauthn.virtual"] });
+const web = fakeDriver({ name: "playwright", capabilities: ["browser.login", "webauthn.virtual"] });
 const mobile = fakeDriver({
-  target: "mobile",
+  name: "appium",
+  surface: "mobile",
   capabilities: ["camera.inject"],
   steps: [{ kind: "swipe", schema: z.strictObject({ direction: z.enum(["left", "right"]) }), run: async () => {} }],
 });
@@ -18,17 +19,17 @@ async function loadDrivers(): Promise<PluginRegistry> {
 }
 
 describe("driver contract", () => {
-  it("driver() returns the driver registered for the target", async () => {
+  it("driver() returns the driver registered under the name", async () => {
     const registry = await loadDrivers();
 
-    expect(registry.driver("mobile")).toBe(mobile);
-    expect(registry.driver("web")).toBe(web);
+    expect(registry.driver("appium")).toBe(mobile);
+    expect(registry.driver("playwright")).toBe(web);
   });
 
-  it("driver() names the known targets when no driver serves the target", async () => {
+  it("driver() names the known drivers when no driver has the name", async () => {
     const registry = await loadDrivers();
 
-    expect(() => registry.driver("desktop")).toThrow('unknown driver target "desktop"; known: web, mobile');
+    expect(() => registry.driver("selenium")).toThrow('unknown driver "selenium"; known: playwright, appium');
   });
 
   it("a case schema built from stepHandlers() accepts a driver step and checks its payload", async () => {

@@ -2,7 +2,7 @@ import type { z } from "zod";
 import type { BrowserLogin, BrowserSession, Identities, JsonValue } from "../auth/index.ts";
 import type { Environment } from "../env/index.ts";
 import type { Redactor } from "../redact/index.ts";
-import type { CaseOutcome, EvidenceStore } from "../result/index.ts";
+import type { EvidenceStore, Status } from "../result/index.ts";
 import type { GuardedHttp } from "./http.ts";
 
 /** An open name for what a driver can do on its device, such as "webauthn.virtual" or "camera.inject". */
@@ -33,7 +33,7 @@ export interface StepHandler<S = unknown> {
 export interface LaunchOptions {
   env: Environment;
   target: string;
-  /** The target's entry in config, such as browser and headless. */
+  /** The target's entry in config without `driver`, such as browser and headless. */
   settings: Record<string, JsonValue>;
   runDir: string;
   redactor: Redactor;
@@ -45,13 +45,21 @@ export interface DriverSession {
   browserFor?(identity: string): Promise<BrowserSession>;
   /** Present when the driver offers browser.login. */
   browserLogin?: BrowserLogin;
-  /** Keeps the trace when the case did not pass. */
-  close(outcome: CaseOutcome): Promise<void>;
+  /** Attaches a trace to `ending.evidence` when `ending.status` is not pass. */
+  close(ending: CaseEnding): Promise<void>;
+}
+
+/** How the case ended, decided before the session closes. */
+export interface CaseEnding {
+  status: Status;
+  evidence: EvidenceStore;
 }
 
 export interface Driver {
-  /** The case target this driver runs, such as "web". */
-  target: string;
+  /** What `targets.<t>.driver` names in config, such as "playwright". */
+  name: string;
+  /** The identity surface its sessions authorize, such as "web". */
+  surface: string;
   /** Reports the capabilities of this device before any case runs. */
   probe(options: LaunchOptions): Promise<ReadonlySet<Capability>>;
   launch(options: LaunchOptions): Promise<DriverSession>;

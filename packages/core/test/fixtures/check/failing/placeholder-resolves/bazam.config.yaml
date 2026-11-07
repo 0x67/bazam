@@ -27,4 +27,4 @@ identities:
           secret: ${secret.PARTNER_HMAC_SECRT}
           url: ${env.APP_URLL}/partner
 targets:
-  web: { browser: chromium, headless: true }
+  web: { driver: playwright, browser: chromium, headless: true }

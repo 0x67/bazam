@@ -23,6 +23,8 @@ export interface ResolverContext {
   channel: HumanChannel;
   /** What a resolver that asks a person copies into its prompt beside the question. */
   prompt: Pick<PersonPrompt, "runId" | "screenshot" | "timeoutMs">;
+  /** The project's state folder, where resolvers keep per-identity state such as virtual passkeys. */
+  stateDir: string;
   secrets(key: string): Promise<string>;
   now(): Date;
   signal: AbortSignal;
