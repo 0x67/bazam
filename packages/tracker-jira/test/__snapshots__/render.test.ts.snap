@@ -1,0 +1,153 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderJiraComment > matches the snapshot for a blocked result with media 1`] = `
+{
+  "html": "<p><strong>Blocked</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Reason: the email code did not arrive within 60 seconds</p><details><summary>Evidence</summary><p>Notes:</p><ul><li>The mailbox for customer@example.test stayed empty.</li></ul><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-code-entry-0002" data-alt="01-code-entry.png"></div><figcaption>code entry</figcaption></figure></details>",
+  "markdown": "**Blocked** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+Reason: the email code did not arrive within 60 seconds
+
+### Evidence
+
+Notes:
+
+- The mailbox for customer@example.test stayed empty.
+
+Attached files: 01-code-entry.png
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a blocked result without media 1`] = `
+{
+  "html": "<p><strong>Blocked</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Reason: the email code did not arrive within 60 seconds</p><details><summary>Evidence</summary><p>Notes:</p><ul><li>The mailbox for customer@example.test stayed empty.</li></ul><p>Attached files: 01-code-entry.png</p></details>",
+  "markdown": "**Blocked** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+Reason: the email code did not arrive within 60 seconds
+
+### Evidence
+
+Notes:
+
+- The mailbox for customer@example.test stayed empty.
+
+Attached files: 01-code-entry.png
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a fail result with media 1`] = `
+{
+  "html": "<p><strong>Failed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>code entry accepts the code</td><td>accepted</td><td>accepted</td><td>ok</td></tr><tr><td>session endpoint returns the customer</td><td>{&quot;status&quot;:200}</td><td>{&quot;status&quot;:401}</td><td>not ok</td></tr></tbody></table><p>Notes:</p><ul><li>The code arrived 40 seconds after the request.</li></ul><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-code-entry-0002" data-alt="01-code-entry.png"></div><figcaption>code entry</figcaption></figure><p>Attached files: 02-trace.zip, 03-session.json</p></details>",
+  "markdown": "**Failed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| code entry accepts the code | accepted | accepted | ok |
+| session endpoint returns the customer | {"status":200} | {"status":401} | not ok |
+
+Notes:
+
+- The code arrived 40 seconds after the request.
+
+Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a fail result without media 1`] = `
+{
+  "html": "<p><strong>Failed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>code entry accepts the code</td><td>accepted</td><td>accepted</td><td>ok</td></tr><tr><td>session endpoint returns the customer</td><td>{&quot;status&quot;:200}</td><td>{&quot;status&quot;:401}</td><td>not ok</td></tr></tbody></table><p>Notes:</p><ul><li>The code arrived 40 seconds after the request.</li></ul><p>Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json</p></details>",
+  "markdown": "**Failed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| code entry accepts the code | accepted | accepted | ok |
+| session endpoint returns the customer | {"status":200} | {"status":401} | not ok |
+
+Notes:
+
+- The code arrived 40 seconds after the request.
+
+Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a followup result with media 1`] = `
+{
+  "html": "<p><strong>Needs follow-up</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Follow-up for a person:</p><ul><li>welcome email layout: open the welcome email and compare it with the design</li></ul><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr><tr><td>welcome email layout</td><td>checked by a person</td><td>not automated</td><td>follow-up</td></tr></tbody></table><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"></div><figcaption>dashboard</figcaption></figure></details>",
+  "markdown": "**Needs follow-up** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+Follow-up for a person:
+
+- welcome email layout: open the welcome email and compare it with the design
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| dashboard shows the account | visible | visible | ok |
+| welcome email layout | checked by a person | not automated | follow-up |
+
+Attached files: 01-dashboard.png
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a followup result without media 1`] = `
+{
+  "html": "<p><strong>Needs follow-up</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Follow-up for a person:</p><ul><li>welcome email layout: open the welcome email and compare it with the design</li></ul><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr><tr><td>welcome email layout</td><td>checked by a person</td><td>not automated</td><td>follow-up</td></tr></tbody></table><p>Attached files: 01-dashboard.png</p></details>",
+  "markdown": "**Needs follow-up** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+Follow-up for a person:
+
+- welcome email layout: open the welcome email and compare it with the design
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| dashboard shows the account | visible | visible | ok |
+| welcome email layout | checked by a person | not automated | follow-up |
+
+Attached files: 01-dashboard.png
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a pass result with media 1`] = `
+{
+  "html": "<p><strong>Passed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr></tbody></table><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"></div><figcaption>dashboard</figcaption></figure><p>Attached files: 02-trace.zip</p></details>",
+  "markdown": "**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| dashboard shows the account | visible | visible | ok |
+
+Attached files: 01-dashboard.png, 02-trace.zip
+",
+}
+`;
+
+exports[`renderJiraComment > matches the snapshot for a pass result without media 1`] = `
+{
+  "html": "<p><strong>Passed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr></tbody></table><p>Attached files: 01-dashboard.png, 02-trace.zip</p></details>",
+  "markdown": "**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+### Evidence
+
+| Check | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| dashboard shows the account | visible | visible | ok |
+
+Attached files: 01-dashboard.png, 02-trace.zip
+",
+}
+`;
