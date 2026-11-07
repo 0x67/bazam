@@ -175,6 +175,31 @@ describe("oauth2Strategy", () => {
     expect(tokenRequests().at(-1)?.get("grant_type")).toBe("client_credentials");
   });
 
+  it("runs the client credentials grant again when the server refuses the token's refresh token", async () => {
+    const ctx = authContext();
+    const config = oauth2Strategy.config.parse({ grant: "client-credentials", ...confidential });
+    const stale = { accessToken: "fake-stale-access", refreshToken: "fake-stale-refresh" };
+
+    const renewed = await oauth2Strategy.refresh?.(stale, config, ctx);
+
+    expect(renewed?.accessToken).toMatch(/^fake-access-/);
+    expect(renewed?.refreshToken).toBeUndefined();
+    expect(
+      tokenRequests()
+        .slice(-2)
+        .map((form) => form.get("grant_type")),
+    ).toEqual(["refresh_token", "client_credentials"]);
+    // the other grants need the refresh token or a person, so the refusal stands
+    const refreshGrant = oauth2Strategy.config.parse({
+      grant: "refresh-token",
+      ...confidential,
+      refreshToken: "fake-refresh-0",
+    });
+    await expect(oauth2Strategy.refresh?.(stale, refreshGrant, ctx)).rejects.toThrow(
+      "the token endpoint answered 400 to the refresh_token grant (invalid_grant)",
+    );
+  });
+
   it("rotates the refresh token and keeps the last one when the server sends none", async () => {
     const ctx = authContext();
     const config = oauth2Strategy.config.parse({

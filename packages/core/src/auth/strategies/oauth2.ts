@@ -77,14 +77,19 @@ export const oauth2Strategy = defineAuthStrategy<OAuth2Config, Token>({
   },
   refresh: async (token, config, ctx) => {
     if (token.refreshToken !== undefined) {
-      return requestToken(
-        config,
-        { grant_type: "refresh_token", refresh_token: token.refreshToken },
-        ctx,
-        token.refreshToken,
-      );
+      try {
+        return await requestToken(
+          config,
+          { grant_type: "refresh_token", refresh_token: token.refreshToken },
+          ctx,
+          token.refreshToken,
+        );
+      } catch (error) {
+        // a refused refresh token, such as one a restarted server forgot, gives way to the grant below
+        if (config.grant !== "client-credentials") throw error;
+      }
     }
-    // a client credentials token comes without a refresh token, and its grant needs no person
+    // a client credentials token often comes without a refresh token, and its grant needs no person
     if (config.grant === "client-credentials") return clientCredentials(config, ctx);
     throw new Error(`the oauth2 token of ${ctx.identity} has no refresh token`);
   },
