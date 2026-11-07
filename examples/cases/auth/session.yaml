@@ -1,0 +1,29 @@
+cases:
+  - id: AUTH-SESSION-001
+    title: Two signed-in customers each see only their own account
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-107]
+    targets: [web, web-chrome]
+    tags: [session]
+    # each identity acts in its own browser context with its own session
+    steps:
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+      - open: ${env.APP_URL}/dashboard
+        as: teammate
+    checks:
+      - expect: { text: { field: { id: user-email }, equals: "${identity.customer.email}" } }
+        as: customer
+      - expect: { text: { field: { id: user-email }, equals: "${identity.teammate.email}" } }
+        as: teammate
+      - api:
+          request: GET ${env.APP_URL}/api/session/me
+          as: customer
+          status: 200
+          body: { email: "${identity.customer.email}" }
+      - api:
+          request: GET ${env.APP_URL}/api/session/me
+          as: teammate
+          status: 200
+          body: { email: "${identity.teammate.email}" }

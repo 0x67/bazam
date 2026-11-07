@@ -21,6 +21,28 @@ describe("test hooks", () => {
     expect(response.status).toBe(404)
   })
 
+  it("signs in the address given to /test/login and redirects to the dashboard", async () => {
+    const email = newEmail()
+    const visitor = new Visitor()
+
+    const login = await visitor.request(`/test/login?email=${encodeURIComponent(email)}`)
+    const me = await visitor.request("/api/session/me")
+
+    expect(login.status).toBe(303)
+    expect(login.headers.get("location")).toBe("/dashboard")
+    expect(me.status).toBe(200)
+    expect(await me.json()).toMatchObject({ email })
+  })
+
+  it("answers 400 to /test/login without an email address", async () => {
+    const visitor = new Visitor()
+
+    const login = await visitor.request("/test/login")
+
+    expect(login.status).toBe(400)
+    expect(visitor.cookie("session")).toBeUndefined()
+  })
+
   it("drops every session on reset", async () => {
     const visitor = new Visitor()
     await signInByEmail(visitor, newEmail())
@@ -42,9 +64,13 @@ describe("test hooks", () => {
 
       const otp = await fetch(`http://localhost:${port}/test/otp?recipient=${encodeURIComponent(newEmail())}`)
       const reset = await fetch(`http://localhost:${port}/test/reset`, { method: "POST" })
+      const login = await fetch(`http://localhost:${port}/test/login?email=${encodeURIComponent(newEmail())}`, {
+        redirect: "manual",
+      })
 
       expect(otp.status).toBe(404)
       expect(reset.status).toBe(404)
+      expect(login.status).toBe(404)
     } finally {
       app.kill()
     }

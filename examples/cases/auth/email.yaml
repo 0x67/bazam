@@ -1,0 +1,48 @@
+cases:
+  - id: AUTH-EMAIL-001
+    title: New customer signs in with the code mailed to them
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-101]
+    targets: [web, web-chrome]
+    tags: [sign-in]
+    steps:
+      # a new address each run, so the account and its mail are new
+      - use: { flow: email-sign-in, with: { email: "email-${run.id}@example.test" } }
+        as: newcomer
+    checks:
+      - expect: { text: { field: { id: user-email }, equals: "email-${run.id}@example.test" } }
+        as: newcomer
+
+  - id: AUTH-HOOK-001
+    title: New customer signs in with the code the backend's test hook returns
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-102]
+    targets: [web, web-chrome]
+    tags: [sign-in]
+    steps:
+      - note: >-
+          The demo sends no SMS. Its /test/otp hook stands in for the test hook of an SMS backend,
+          so the code is read as kind otp-sms.
+      - open: ${env.APP_URL}/login
+        as: newcomer
+      - fill: { field: { id: email }, value: "hook-${run.id}@example.test" }
+        as: newcomer
+      - tap: { id: send-code }
+        as: newcomer
+      # the hook answers 404 until the app has issued the code, so wait for the code field first
+      - wait: { for: { id: otp-input } }
+        as: newcomer
+      - challenge:
+          kind: otp-sms
+          fill: { id: otp-input }
+          params: { url: "${env.APP_URL}/test/otp?recipient=hook-${run.id}@example.test", field: code }
+        as: newcomer
+      - tap: { id: verify-code }
+        as: newcomer
+    checks:
+      - expect: { visible: { id: dashboard } }
+        as: newcomer
+      - expect: { text: { field: { id: user-email }, equals: "hook-${run.id}@example.test" } }
+        as: newcomer

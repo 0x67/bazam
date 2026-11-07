@@ -1,0 +1,38 @@
+cases:
+  - id: API-KEY-001
+    title: Partner API accepts the API key
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-201]
+    targets: [web, web-chrome]
+    tags: [api]
+    checks:
+      - api: { request: "GET ${env.APP_URL}/api/key/whoami", as: key-client, status: 200, body: { auth: api-key } }
+
+  - id: API-BASIC-001
+    title: Partner API accepts HTTP Basic credentials
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-202]
+    targets: [web, web-chrome]
+    tags: [api]
+    checks:
+      - api:
+          request: GET ${env.APP_URL}/api/basic/whoami
+          as: basic-client
+          status: 200
+          body: { auth: basic, user: demo }
+
+  - id: API-OAUTH-001
+    title: Partner API accepts a client credentials bearer token
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-203]
+    targets: [web, web-chrome]
+    tags: [api]
+    checks:
+      - api:
+          request: GET ${env.APP_URL}/api/oauth/whoami
+          as: oauth-client
+          status: 200
+          body: { auth: oauth2, clientId: demo-client }

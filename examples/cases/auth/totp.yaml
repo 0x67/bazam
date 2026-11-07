@@ -1,0 +1,43 @@
+cases:
+  - id: AUTH-TOTP-001
+    title: Customer turns on an authenticator app and signs in with it
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-103]
+    targets: [web, web-chrome]
+    tags: [sign-in]
+    steps:
+      # TOTP stays on for an account, so a new address each run starts from the enrollment form
+      - use: { flow: email-sign-in, with: { email: "totp-${run.id}@example.test" } }
+        as: newcomer
+      - open: ${env.APP_URL}/account/totp
+        as: newcomer
+      - challenge:
+          kind: totp
+          fill: { id: totp-code }
+          params: { seed: DEMO_TOTP_SEED }
+        as: newcomer
+      - tap: { id: enable-totp }
+        as: newcomer
+      - expect: { visible: { id: totp-enabled } }
+        as: newcomer
+      - open: ${env.APP_URL}/dashboard
+        as: newcomer
+      - tap: { id: sign-out }
+        as: newcomer
+      - expect: { url: "${env.APP_URL}/login*" }
+        as: newcomer
+      - open: ${env.APP_URL}/login/totp
+        as: newcomer
+      - fill: { field: { id: email }, value: "totp-${run.id}@example.test" }
+        as: newcomer
+      - challenge:
+          kind: totp
+          fill: { id: totp-code }
+          params: { seed: DEMO_TOTP_SEED }
+        as: newcomer
+      - press: { key: Enter, field: { id: totp-code } }
+        as: newcomer
+    checks:
+      - expect: { text: { field: { id: user-email }, equals: "totp-${run.id}@example.test" } }
+        as: newcomer

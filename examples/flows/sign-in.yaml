@@ -1,0 +1,14 @@
+flows:
+  # signs in with the code the demo mails through Mailpit; a use step's as: names who signs in
+  - name: email-sign-in
+    params: [email]
+    steps:
+      - open: ${env.APP_URL}/login
+      - fill: { field: { id: email }, value: "${param.email}" }
+      - challenge:
+          kind: otp-email
+          trigger: { tap: { id: send-code } }
+          fill: { id: otp-input }
+          params: { recipient: "${param.email}", url: "${env.MAILPIT_URL}" }
+      - tap: { id: verify-code }
+      - expect: { visible: { id: dashboard } }

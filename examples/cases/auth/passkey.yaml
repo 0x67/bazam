@@ -1,0 +1,34 @@
+cases:
+  - id: AUTH-PASSKEY-001
+    title: Customer adds a passkey and signs in with it
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-104]
+    targets: [web, web-chrome]
+    needs: [passkey]
+    tags: [sign-in]
+    steps:
+      - use: { flow: email-sign-in, with: { email: "passkey-${run.id}@example.test" } }
+        as: newcomer
+      - open: ${env.APP_URL}/account/passkey
+        as: newcomer
+      - challenge:
+          kind: passkey
+          trigger: { tap: { id: register-passkey } }
+        as: newcomer
+      - expect: { text: { field: { id: passkey-count }, equals: "1" } }
+        as: newcomer
+      - open: ${env.APP_URL}/dashboard
+        as: newcomer
+      - tap: { id: sign-out }
+        as: newcomer
+      # with the email filled in, the demo offers only this account's passkeys
+      - fill: { field: { id: email }, value: "passkey-${run.id}@example.test" }
+        as: newcomer
+      - challenge:
+          kind: passkey
+          trigger: { tap: { id: sign-in-passkey } }
+        as: newcomer
+    checks:
+      - expect: { text: { field: { id: user-email }, equals: "passkey-${run.id}@example.test" } }
+        as: newcomer

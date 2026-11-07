@@ -1,0 +1,131 @@
+# The example project: cases for the demo app in demo-app/.
+#
+# Before a run:
+#   1. Start the demo: docker compose -f examples/demo-app/docker-compose.yml up -d
+#   2. Copy fixtures/identities.example.yaml to fixtures/identities.local.yaml, which git ignores.
+#      The run reads identity values only from the local copy.
+#   3. Give the secrets below as environment variables, or put them in .bazam/secrets.env in this
+#      folder, which git also ignores. The demo's values are public test values, listed in
+#      demo-app/README.md under "Demo credentials":
+#        DEMO_PIN                  the transfer PIN
+#        DEMO_TOTP_SEED            the TOTP key the demo enrolls with test hooks on
+#        DEMO_API_KEY              the API key
+#        DEMO_BASIC_PASSWORD       the HTTP Basic password of user demo
+#        DEMO_OAUTH_CLIENT_SECRET  the OAuth2 client secret of demo-client
+#        DEMO_HMAC_SECRET          the HMAC secret of key demo-partner
+#
+# The hosts and ports follow the compose defaults: the app on 3300 and Mailpit on 8325.
+# Passkeys bind to the origin the browser sees, so the app is always reached as localhost.
+
+envs:
+  demo:
+    production: false
+    vars:
+      APP_URL: http://localhost:3300
+      MAILPIT_URL: http://localhost:8325
+    hosts: [localhost]
+    challenges:
+      otp-email: [otp-mailpit, human]
+      # the demo sends no SMS; its /test/otp hook stands in for an SMS backend's test hook
+      otp-sms: [otp-http-hook]
+      totp: [totp]
+      passkey: [passkey-virtual]
+      pin: [pin-secret]
+      face: [human]
+  # the same demo app treated as production, where only prod_safe cases run and writes need write: true
+  demo-prod:
+    production: true
+    vars:
+      APP_URL: http://localhost:3300
+      MAILPIT_URL: http://localhost:8325
+    hosts: [localhost]
+    challenges:
+      pin: [pin-secret]
+      face: [human]
+
+secrets:
+  providers: [env, dotenv]
+  names:
+    - DEMO_PIN
+    - DEMO_TOTP_SEED
+    - DEMO_API_KEY
+    - DEMO_BASIC_PASSWORD
+    - DEMO_OAUTH_CLIENT_SECRET
+    - DEMO_HMAC_SECRET
+
+identities:
+  # signed in through the demo's /test/login hook, so no person and no code is needed
+  customer:
+    fixture: customer
+    auth:
+      web:
+        strategy: session-cookie
+        with:
+          login:
+            url: ${env.APP_URL}/test/login?email=${identity.customer.email}
+            until: { cookie: session }
+          probe: { request: "GET ${env.APP_URL}/api/session/me" }
+          refresh: { request: "POST ${env.APP_URL}/auth/refresh" }
+      api: { strategy: session-cookie, from: web }
+  teammate:
+    fixture: teammate
+    auth:
+      web:
+        strategy: session-cookie
+        with:
+          login:
+            url: ${env.APP_URL}/test/login?email=${identity.teammate.email}
+            until: { cookie: session }
+          probe: { request: "GET ${env.APP_URL}/api/session/me" }
+      api: { strategy: session-cookie, from: web }
+  # signs in during the case itself, with a new address each run
+  newcomer: {}
+  key-client:
+    auth:
+      api:
+        strategy: api-key
+        with: { key: "${secret.DEMO_API_KEY}", header: X-Api-Key }
+  basic-client:
+    auth:
+      api:
+        strategy: basic
+        with: { user: demo, password: "${secret.DEMO_BASIC_PASSWORD}" }
+  oauth-client:
+    auth:
+      api:
+        strategy: oauth2
+        with:
+          grant: client-credentials
+          tokenUrl: ${env.APP_URL}/oauth/token
+          clientId: demo-client
+          clientSecret: ${secret.DEMO_OAUTH_CLIENT_SECRET}
+  # signs with the built-in template, whose defaults match the demo's string to sign and headers
+  partner:
+    auth:
+      api:
+        strategy: hmac
+        with:
+          keyId: demo-partner
+          secret: ${secret.DEMO_HMAC_SECRET}
+          maxSkewSeconds: 30
+          probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
+  # the same key, signed by a project hook instead of the template
+  partner-hook:
+    auth:
+      api:
+        strategy: hmac
+        with:
+          keyId: demo-partner
+          secret: ${secret.DEMO_HMAC_SECRET}
+          sign: hooks/sign-demo.ts
+          probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
+
+targets:
+  web: { driver: playwright, browser: chromium }
+  web-chrome: { driver: playwright, browser: chromium, channel: chrome }
+
+trackers:
+  jira:
+    projects:
+      DEMO:
+        transitions: { pass: Done, fail: In Progress, blocked: Blocked }

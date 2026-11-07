@@ -1,0 +1,28 @@
+cases:
+  - id: AUTH-PIN-001
+    title: Customer confirms a transfer with their PIN
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-105]
+    targets: [web, web-chrome]
+    tags: [payments]
+    steps:
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+      # pin-secret types the PIN from the secret DEMO_PIN, so no person is asked
+      - challenge:
+          kind: pin
+          trigger: { tap: { id: transfer-link } }
+          fill: { id: pin-input }
+          params: { secret: DEMO_PIN }
+        as: customer
+      - tap: { id: confirm-transfer }
+        as: customer
+    checks:
+      - expect: { visible: { id: transfer-confirmed } }
+        as: customer
+    report:
+      comment: update
+      on:
+        fail: { transition: In Progress, mention: [role:qa-lead] }
+        blocked: { mention: [role:qa-lead] }

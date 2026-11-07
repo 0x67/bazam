@@ -1,0 +1,5 @@
+# Tracker account ids for the roles a case mentions, such as role:qa-lead. The ids are made up.
+# Assignee and reporter come from each ticket, so they are not mapped here.
+roles:
+  qa-lead:
+    jira: example-account-qa-lead

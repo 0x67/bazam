@@ -1,0 +1,27 @@
+cases:
+  - id: API-HMAC-001
+    title: Partner API accepts requests signed by the template and by the sign hook
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-204]
+    targets: [web, web-chrome]
+    tags: [api]
+    steps:
+      # the body is signed too; the amount differs per run and result.json records it
+      - request:
+          method: POST
+          url: ${env.APP_URL}/api/hmac/echo?order=${run.id}
+          as: partner
+          json: { amount: "${run.random(1, 500, 2)}" }
+          save: { order: body.query }
+    checks:
+      - api:
+          request: POST ${env.APP_URL}/api/hmac/echo?${case.order}
+          as: partner
+          status: 200
+          body: { keyId: demo-partner, method: POST, query: "${case.order}" }
+      - api:
+          request: GET ${env.APP_URL}/api/hmac/echo?${case.order}
+          as: partner-hook
+          status: 200
+          body: { keyId: demo-partner, method: GET, path: /api/hmac/echo, query: "${case.order}" }

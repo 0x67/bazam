@@ -1,0 +1,51 @@
+cases:
+  - id: PROFILE-PHONE-001
+    title: Customer saves the same phone number through each kind of phone field
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-401]
+    targets: [web, web-chrome]
+    tags: [profile]
+    # one fixture phone gives each field the form it asks for. The demo keeps saved numbers per account and shows
+    # them again after a refused save, so a new account each run makes every saved value come from this run.
+    steps:
+      - open: ${env.APP_URL}/test/login?email=phone-${run.id}@example.test
+        as: newcomer
+      - tap: { id: profile-phone-link }
+        as: newcomer
+      # a native country select, whose option values are region codes
+      - select: { field: { id: select-country }, option: "${identity.customer.phone.region}" }
+        as: newcomer
+      - fill: { field: { id: select-number }, value: "${identity.customer.phone.national}" }
+        as: newcomer
+      - tap: { id: select-save }
+        as: newcomer
+      - expect: { text: { field: { id: select-saved }, equals: "${identity.customer.phone.e164}" } }
+        as: newcomer
+      # a searchable list: type the country name, then take the option it offers, written as flag and code
+      - fill: { field: { id: search-country }, value: "${identity.customer.phone.countryName}" }
+        as: newcomer
+      - fill:
+          field: { id: search-country }
+          value: "${identity.customer.phone.flag} ${identity.customer.phone.countryCode}"
+        as: newcomer
+      - fill: { field: { id: search-number }, value: "${identity.customer.phone.domestic}" }
+        as: newcomer
+      - tap: { id: search-save }
+        as: newcomer
+      - expect: { text: { field: { id: search-saved }, equals: "${identity.customer.phone.e164}" } }
+        as: newcomer
+      # one field for the whole number
+      - fill: { field: { id: full-number }, value: "${identity.customer.phone.e164}" }
+        as: newcomer
+      - tap: { id: full-save }
+        as: newcomer
+      - expect: { text: { field: { id: full-saved }, equals: "${identity.customer.phone.e164}" } }
+        as: newcomer
+      # a number field for the one country the form shows
+      - fill: { field: { id: local-number }, value: "${identity.customer.phone.domestic}" }
+        as: newcomer
+      - tap: { id: local-save }
+        as: newcomer
+      - expect: { text: { field: { id: local-saved }, equals: "${identity.customer.phone.e164}" } }
+        as: newcomer

@@ -1,0 +1,7 @@
+# Fields per identity fixture. Copy this file to identities.local.yaml before a run; the run reads only the copy.
+# Use addresses under example.test and phone numbers from fictional ranges such as +44 7700 900xxx.
+customer:
+  email: customer@example.test
+  phone: "+447700900123"
+teammate:
+  email: teammate@example.test

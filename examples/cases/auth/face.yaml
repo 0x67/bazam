@@ -1,0 +1,32 @@
+cases:
+  - id: AUTH-FACE-001
+    title: Signed-in customer passes the face check before the dashboard
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-106]
+    targets: [web, web-chrome]
+    tags: [person]
+    steps:
+      - note: >-
+          The demo has no face check. A person stands in for it: they finish the face challenge and
+          confirm the signed-in dashboard.
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+      # face goes to a person through the env's chain; the person answers done when the app accepts it
+      - challenge: { kind: face }
+        as: customer
+      - screenshot: { name: dashboard }
+        as: customer
+      # only a person can judge a face check, so this step is guided; observe confirms what they saw
+      - guided:
+          title: Confirm the face check let the customer in
+          steps:
+            - Look at the dashboard screenshot attached to this prompt.
+            - Check that it shows the signed-in customer's email address.
+          expected: The dashboard shows ${identity.customer.email} as signed in.
+          observe:
+            api:
+              request: GET ${env.APP_URL}/api/session/me
+              status: 200
+              body: { email: "${identity.customer.email}" }
+        as: customer

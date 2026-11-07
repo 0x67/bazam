@@ -83,8 +83,11 @@ Any email address can sign in with a code; the first sign-in creates the account
 Mounted only when `DEMO_TEST_HOOKS=1`.
 
 1. `GET /test/otp?recipient=<address>`: the pending sign-in code for that address as `{ "code": "123456" }`, or 404.
-2. `POST /test/reset`: clears every account, session, token, passkey and pending code. Answers 204.
+2. `GET /test/login?email=<address>`: signs the address in without a code, creating the account on first use, and answers 303 to `/dashboard` with the `session` cookie set. Answers 400 when `email` is not an address. The example project's session identities log in through it.
+3. `POST /test/reset`: clears every account, session, token, passkey and pending code. Answers 204.
 
 **Tests**
 
 With the compose stack running, `pnpm --filter demo-app test` calls every endpoint with `fetch`. The tests read `DEMO_APP_PORT` and `DEMO_MAILPIT_HTTP_PORT` like the compose file does, and register passkeys with a software authenticator in `test/support/authenticator.ts`.
+
+`test/example-project.test.ts` runs the CLI from its sources against the example project in `examples/`, which expects the default ports. Its browser run needs Playwright's Chromium: `pnpm --filter @bazam/driver-web exec playwright install chromium`.

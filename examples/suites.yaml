@@ -1,0 +1,9 @@
+# Named case selections: bazam run --suite <name>
+acceptance:
+  stages: [acceptance]
+api:
+  domains: [api]
+sign-in:
+  tags: [sign-in]
+prod-smoke:
+  tags: [prod-smoke]

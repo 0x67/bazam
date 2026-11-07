@@ -1,0 +1,16 @@
+cases:
+  - id: OPS-PROD-001
+    title: Production smoke check reads the session and posts to the partner API
+    stage: acceptance
+    risk: high
+    links: [jira:DEMO-301]
+    targets: [web, web-chrome]
+    tags: [prod-smoke]
+    prod_safe: true
+    steps:
+      - note: >-
+          The POST below has no write: true on purpose. On env demo it passes; on env demo-prod, which is
+          production, the run refuses it and the case ends blocked.
+    checks:
+      - api: { request: "GET ${env.APP_URL}/api/session/me", as: customer, status: 200 }
+      - api: { request: "POST ${env.APP_URL}/api/hmac/echo", as: partner, status: 200 }
