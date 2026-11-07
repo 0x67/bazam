@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { z } from "zod";
 import { CredentialCache, defineAuthStrategy, Identities, IdentitiesConfig, type HttpRequestDraft } from "../src/auth/index.ts";
 import type { StepContext } from "../src/driver/index.ts";
-import { guardedHttp, httpSteps, Unauthorized, type GuardedHttp } from "../src/driver/http.ts";
+import { ConnectionFailed, guardedHttp, httpSteps, Unauthorized, type GuardedHttp } from "../src/driver/http.ts";
 import { EnvsConfig, HostNotAllowed, ProdWriteRefused, resolvePlaceholders, type Environment } from "../src/env/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { EvidenceStore, type CheckRecord } from "../src/result/index.ts";
@@ -186,6 +186,19 @@ describe("http", () => {
         ["/start", "Bearer fake-customer-1", "session=fake-session"],
         ["/landing", undefined, undefined],
       ]);
+    });
+
+    it("throws ConnectionFailed, naming the request and the socket error, when the host refuses the connection", async () => {
+      const closed = createServer();
+      await new Promise<void>((done) => closed.listen(0, "127.0.0.1", done));
+      const { port } = closed.address() as AddressInfo;
+      await new Promise((done) => closed.close(done));
+      const request = { method: "GET", url: new URL(`http://127.0.0.1:${port}/health?code=fake-code`), headers: new Headers() };
+
+      const failure = await client().send(request).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ConnectionFailed);
+      expect((failure as ConnectionFailed).message).toBe(`GET http://127.0.0.1:${port}/health?code=[redacted] got no answer: connect ECONNREFUSED 127.0.0.1:${port}`);
     });
 
     it("logs the method, path and status with every query value masked and no header value", async () => {

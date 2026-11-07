@@ -29,24 +29,58 @@ export class InvalidFlowUse extends Error {
   }
 }
 
+/** A `use` step in a challenge's `trigger` or a guided step's `observe` names a flow that does not expand to one step. */
+export class NestedFlowNotOneStep extends InvalidFlowUse {
+  constructor(flow: string, detail: string) {
+    super(flow, detail);
+    this.name = "NestedFlowNotOneStep";
+  }
+}
+
 const PARAM_PLACEHOLDER = /\$\{param\.([^}]*)\}/g;
+// the payload field of each step kind that holds one nested step
+const NESTED_STEP_FIELDS: ReadonlyMap<string, string> = new Map([
+  ["challenge", "trigger"],
+  ["guided", "observe"],
+]);
 
 /**
  * Replaces each `use` step with its flow's steps, with `${param.X}` filled in.
  * A `use` step's `as` applies to the flow steps that name no identity, either as the step's `as`
  * or as an `as` in the step's payload, such as `request.as`.
+ * A `use` step in a challenge's `trigger` or a guided step's `observe` stands for one step, so its flow must expand to one.
  */
 export function expandFlows(steps: readonly Step[], flows: ReadonlyMap<string, FlowSpec>): Step[] {
   return expandSteps(steps, flows, []);
 }
 
 function expandSteps(steps: readonly Step[], flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step[] {
-  return steps.flatMap((step) => (stepKind(step) === "use" ? expandUse(step, flows, path) : [step]));
+  return steps.flatMap((step) => (stepKind(step) === "use" ? expandUse(step, flows, path) : [expandNested(step, flows, path)]));
+}
+
+function expandNested(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step {
+  const kind = stepKind(step);
+  const field = NESTED_STEP_FIELDS.get(kind);
+  const payload = step[kind];
+  if (field === undefined || typeof payload !== "object" || payload === null) return step;
+  const nested = (payload as Record<string, unknown>)[field] as Step | undefined;
+  if (nested === undefined) return step;
+  const expanded = expandSteps([nested], flows, path);
+  const [only] = expanded;
+  // only a use step expands to a count other than one
+  if (only === undefined || expanded.length > 1) {
+    throw new NestedFlowNotOneStep(flowName(nested["use"] as UseStep), `a ${kind} ${field} runs one step, and the flow expands to ${expanded.length}`);
+  }
+  return only === nested ? step : { ...step, [kind]: { ...payload, [field]: only } };
+}
+
+function flowName(use: UseStep): string {
+  return typeof use === "string" ? use : use.flow;
 }
 
 function expandUse(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step[] {
   const use = step["use"] as UseStep;
-  const name = typeof use === "string" ? use : use.flow;
+  const name = flowName(use);
   const flowPath = [...path, name];
   if (path.includes(name)) throw new FlowCycle(flowPath);
   const flow = flows.get(name);

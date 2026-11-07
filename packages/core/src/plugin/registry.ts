@@ -167,6 +167,15 @@ export class PluginRegistry {
     return [...this.#steps.values()].map((registered) => registered.item);
   }
 
+  /** What a step of `kind` runs with in a session of `driver`: the driver's own handler, else a core or plugin step. */
+  stepHandler(kind: string, driver: Driver): StepHandler | undefined {
+    const own = driver.steps.find((handler) => handler.kind === kind);
+    if (own !== undefined) return own;
+    // a kind only other drivers offer has no handler here
+    const registered = this.#steps.get(kind);
+    return registered?.driver === undefined ? registered?.item : undefined;
+  }
+
   /** The built-in rules, then each plugin's, in the order the plugins loaded. */
   checkRules(): readonly CheckRule[] {
     return [...this.#registrations.checkRules.values()].map((registered) => registered.item);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPlaceholders, resolvePlaceholders, UnresolvedPlaceholder, type PlaceholderSources } from "../src/env/index.ts";
+import { escapePlaceholders, findPlaceholders, resolvePlaceholders, UnresolvedPlaceholder, type PlaceholderSources } from "../src/env/index.ts";
 
 function sources(overrides: Partial<PlaceholderSources> = {}): PlaceholderSources {
   const vars: Record<string, string> = { API_URL: "https://api.uat.example.test" };
@@ -145,5 +145,13 @@ describe("findPlaceholders", () => {
     ];
 
     expect(findPlaceholders(steps)).toEqual(["${env.API_URL}", "${case.orderId}", "${secret.TOKEN}"]);
+  });
+});
+
+describe("escapePlaceholders", () => {
+  it("gives text that resolves back to itself, placeholders and escapes included", async () => {
+    const answer = "${secret.PARTNER_KEY_ID} and $${env.API_URL}";
+
+    expect(await resolvePlaceholders(escapePlaceholders(answer), sources())).toBe(answer);
   });
 });

@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import type { BrowserLogin, BrowserLoginRequest, BrowserSession, StorageState } from "../../src/auth/index.ts";
 
 /** One browser context held in memory: its storage state and the extra headers set on it. */
@@ -18,17 +19,28 @@ export class FakeBrowserSession implements BrowserSession {
   }
 }
 
-/** Finishes every login at once with the given cookies, as if the flow and the person had both succeeded. */
+export interface FakeLoginOptions {
+  /** How long each login waits for its `until`, as a person would take; the login's signal ends the wait early. */
+  delayMs?: number;
+}
+
+/**
+ * Finishes every login with the given cookies, as if the flow and the person had both succeeded: at once, or
+ * after `delayMs` unless the request's signal aborts first.
+ */
 export class FakeBrowserLogin implements BrowserLogin {
   readonly requests: BrowserLoginRequest[] = [];
   readonly #cookies: StorageState["cookies"];
+  readonly #delayMs: number | undefined;
 
-  constructor(cookies: StorageState["cookies"]) {
+  constructor(cookies: StorageState["cookies"], options: FakeLoginOptions = {}) {
     this.#cookies = cookies;
+    this.#delayMs = options.delayMs;
   }
 
   async login(request: BrowserLoginRequest): Promise<{ state: StorageState; finalUrl: URL }> {
     this.requests.push(request);
+    if (this.#delayMs !== undefined) await sleep(this.#delayMs, undefined, request.signal === undefined ? {} : { signal: request.signal });
     return { state: { cookies: structuredClone(this.#cookies), origins: [] }, finalUrl: request.url };
   }
 }

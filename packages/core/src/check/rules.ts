@@ -4,6 +4,7 @@ import {
   expandFlows,
   FlowCycle,
   InvalidFlowUse,
+  NestedFlowNotOneStep,
   stepKind,
   type ChallengeStep,
   type GuidedStep,
@@ -113,6 +114,9 @@ function expansionProblem(step: Step, project: Project): Omit<Finding, "at"> | u
   } catch (error) {
     if (error instanceof FlowCycle) {
       return { message: error.message, fix: "Remove the use step that leads back to a flow already on this path." };
+    }
+    if (error instanceof NestedFlowNotOneStep) {
+      return { message: error.message, fix: "Point the trigger or observe at a flow with exactly one step, or write that step in place." };
     }
     if (error instanceof InvalidFlowUse) {
       return { message: error.message, fix: "Use a flow defined under flows/, and pass in with: exactly the params it declares." };

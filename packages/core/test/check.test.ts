@@ -68,6 +68,7 @@ const failing: [string, Expected][] = [
       ["cases/auth/flows.yaml", 8, "flow logn: no such flow"],
       ["cases/auth/flows.yaml", 9, "flow login: missing parameter email"],
       ["cases/auth/flows.yaml", 10, "flow cycle: loop-a -> loop-b -> loop-a"],
+      ["cases/auth/flows.yaml", 11, "flow login: a challenge trigger runs one step, and the flow expands to 3"],
     ],
   ],
   [
@@ -156,6 +157,12 @@ describe("checkProject with the built-in rules", () => {
       expect(issue.message).toContain(expected[index]?.[2]);
       expect(issue.fix).not.toBe("");
     });
+  });
+
+  it("tells a trigger whose flow has several steps to name a one-step flow", async () => {
+    const issues = checkProject(await loadFailing("flow-expands"), builtinRules);
+
+    expect(issues.find((issue) => issue.line === 11)?.fix).toBe("Point the trigger or observe at a flow with exactly one step, or write that step in place.");
   });
 
   it("checks emails only in the identities fixtures file, so a case may name a real address", async () => {

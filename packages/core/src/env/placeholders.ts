@@ -34,6 +34,12 @@ export function findPlaceholders(value: unknown): string[] {
   return [...found];
 }
 
+/** `text` with every `${` written as `$${`, so resolvePlaceholders gives it back unchanged. */
+export function escapePlaceholders(text: string): string {
+  // a replacer function, since `$$` in a replacement string means one `$`
+  return text.replaceAll("${", () => "$${");
+}
+
 /**
  * Returns a copy of `value` with every placeholder in its strings replaced and every `$${` written as `${`.
  * Placeholders resolve one at a time in document order, so seeded run values come out the same on replay.

@@ -97,6 +97,35 @@ describe("expandFlows", () => {
     expect((error as InvalidFlowUse).message).toBe(message);
   });
 
+  it("replaces a use step in a challenge trigger and a guided observe with the flow's one step", () => {
+    const sendCode: FlowSpec = { name: "send-code", params: [], steps: [{ tap: { id: "send-code" } }] };
+    const readMe: FlowSpec = { name: "read-me", params: [], steps: [{ api: { request: "GET ${env.API_URL}/me", status: 200 } }] };
+    const steps: Step[] = [
+      { challenge: { kind: "otp-email", trigger: { use: "send-code" }, fill: { id: "code" } }, as: "customer" },
+      { guided: { title: "Check the account", steps: ["Open the account"], observe: { use: "read-me", as: "customer" } } },
+    ];
+
+    expect(expandFlows(steps, flowMap(sendCode, readMe))).toEqual([
+      { challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } }, as: "customer" },
+      { guided: { title: "Check the account", steps: ["Open the account"], observe: { api: { request: "GET ${env.API_URL}/me", status: 200 }, as: "customer" } } },
+    ]);
+  });
+
+  it("throws InvalidFlowUse for a use step in a trigger whose flow expands to more than one step", () => {
+    const steps: Step[] = [{ challenge: { kind: "otp-email", trigger: { use: { flow: "login", with: { email: "a@example.test" } } } }, as: "customer" }];
+
+    expect(() => expandFlows(steps, flowMap(login))).toThrow("flow login: a challenge trigger runs one step, and the flow expands to 2");
+  });
+
+  it("throws FlowCycle when a flow reaches itself through a challenge trigger", () => {
+    const retry: FlowSpec = { name: "retry", params: [], steps: [{ challenge: { kind: "otp-email", trigger: { use: "retry" } } }] };
+
+    const error = thrownBy(() => expandFlows([{ use: "retry" }], flowMap(retry)));
+
+    expect(error).toBeInstanceOf(FlowCycle);
+    expect((error as FlowCycle).path).toEqual(["retry", "retry"]);
+  });
+
   it("throws InvalidFlowUse when a flow step names a parameter the flow does not declare", () => {
     const typo: FlowSpec = { name: "typo", params: ["email"], steps: [{ note: "${param.emial}" }] };
 

@@ -47,6 +47,34 @@ export class Unauthorized extends Error {
   }
 }
 
+/** The request never reached the server, as when the host refuses the connection or its name does not resolve. */
+export class ConnectionFailed extends Error {
+  constructor(target: string, reason: string, options?: ErrorOptions) {
+    super(`${target} got no answer: ${reason}`, options);
+    this.name = "ConnectionFailed";
+  }
+}
+
+// errors from before the request was sent; a connection dropped after that is the server's doing
+const CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+function connectFailure(target: string, error: unknown): ConnectionFailed | undefined {
+  // fetch rejects a failed connection with a TypeError whose cause is the socket error
+  if (!(error instanceof TypeError) || !(error.cause instanceof Error)) return undefined;
+  const cause = error.cause as NodeJS.ErrnoException;
+  if (cause.code === undefined || !CONNECT_ERROR_CODES.has(cause.code)) return undefined;
+  // a name with several addresses fails with an AggregateError whose message is empty but whose code is set
+  return new ConnectionFailed(target, cause.message || cause.code, { cause: error });
+}
+
 type Authorize = (request: HttpRequestDraft) => Promise<void>;
 
 export function guardedHttp(deps: GuardedHttpDeps): GuardedHttp {
@@ -87,7 +115,9 @@ async function sendHop(deps: GuardedHttpDeps, hop: HttpRequestDraft, authorize: 
   if (authorize !== undefined) await authorize(draft);
   // the copy is backed by an ArrayBuffer, which fetch takes; the draft's bytes may sit in a SharedArrayBuffer
   const body = draft.body === undefined ? null : new Uint8Array(draft.body);
-  const response = await fetch(draft.url, { method: draft.method, headers: draft.headers, body, redirect: "manual" });
+  const response = await fetch(draft.url, { method: draft.method, headers: draft.headers, body, redirect: "manual" }).catch((error: unknown) => {
+    throw connectFailure(describeRequest(draft), error) ?? error;
+  });
   deps.log(deps.redactor.text(`${describeRequest(draft)} ${response.status}`));
   return response;
 }
