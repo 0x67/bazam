@@ -46,6 +46,18 @@ export class Redactor {
     return out;
   }
 
+  /**
+   * True when the number's decimal text is a registered value, or a registered all-digit value without its leading
+   * zeros, since "012345" sent as a JSON number reads 12345. maskRegistered and text never mask that stripped form.
+   */
+  isRegisteredNumber(n: number): boolean {
+    const text = String(n);
+    if (this.#registered.includes(text)) return true;
+    // the stripped form needs four digits too, so an OTP such as "000042" leaves every 42 alone
+    if (text.length < MIN_REGISTERED_LENGTH) return false;
+    return this.#registered.some((value) => /^0+\d+$/.test(value) && value.replace(/^0+/, "") === text);
+  }
+
   value<T>(v: T): T {
     return this.#copy(v) as T;
   }

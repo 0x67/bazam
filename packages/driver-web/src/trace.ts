@@ -49,12 +49,20 @@ class TraceScrubber {
 
   // registered values are masked inside strings, so a value that is also a run of digits cannot break a JSON number
   #value(value: unknown): unknown {
-    if (typeof value === "string") return this.#redactor.maskRegistered(value);
+    if (typeof value === "string") return this.#redactor.maskRegistered(this.#jsonString(value));
     // a number goes only when it is a registered value whole, since timestamps may contain a short code
-    if (typeof value === "number") return this.#redactor.maskRegistered(String(value)) === MASK ? MASK : value;
+    if (typeof value === "number") return this.#redactor.isRegisteredNumber(value) ? MASK : value;
     if (Array.isArray(value)) return value.map((item) => this.#value(item));
     if (typeof value !== "object" || value === null) return value;
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.#value(this.#maskCredentials(key, item))]));
+  }
+
+  // a JSON body can sit in a string, such as the params name of one posted as form-urlencoded, where a number has
+  // lost its leading zeros; the string is rewritten only when scrubbing its parsed form masks something
+  #jsonString(text: string): string {
+    if (!/^\s*[[{]/.test(text)) return text;
+    const parsed = parseJson(text);
+    return parsed.ok ? this.#json(text, parsed.value) : text;
   }
 
   #maskCredentials(key: string, item: unknown): unknown {

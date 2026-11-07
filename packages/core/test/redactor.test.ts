@@ -123,4 +123,30 @@ describe("Redactor", () => {
       '{"value":"[redacted]","base64":"[redacted]","time":1731234567890,"to":"ops@mail.invalid","password":"x"}',
     );
   });
+
+  it("isRegisteredNumber matches a registered all-digit value without its leading zeros, which text keeps", () => {
+    const redactor = defaultRedactor();
+    redactor.register("012345");
+
+    expect(redactor.isRegisteredNumber(12345)).toBe(true);
+    expect(redactor.maskRegistered("order 12345")).toBe("order 12345");
+  });
+
+  it("isRegisteredNumber ignores the leading-zero form when fewer than four digits remain", () => {
+    const redactor = defaultRedactor();
+    redactor.register("000042");
+    redactor.register("00004321");
+
+    expect(redactor.isRegisteredNumber(42)).toBe(false);
+    expect(redactor.isRegisteredNumber(4321)).toBe(true);
+  });
+
+  it("isRegisteredNumber matches a registered value whole and no other number", () => {
+    const redactor = defaultRedactor();
+    redactor.register("739150");
+
+    expect(redactor.isRegisteredNumber(739150)).toBe(true);
+    expect(redactor.isRegisteredNumber(7391506)).toBe(false);
+    expect(redactor.isRegisteredNumber(424242)).toBe(false);
+  });
 });

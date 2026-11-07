@@ -103,6 +103,38 @@ describe("scrubTrace", () => {
     expect(strFromU8(scrubbed["resources/5c2e.json"]!)).toBe('{"code":"[redacted]","sentAt":7391506.2}');
   });
 
+  it("masks a JSON number that is a registered value without its leading zeros and keeps a timestamp that contains it", () => {
+    const redactor = new Redactor(defaultRedactionRules());
+    redactor.register("012345");
+    // a page that posts the OTP as a JSON number, as Playwright stores the request body
+    const zip = zipSync({ "resources/9a4d.json": strToU8('{"code":12345,"sentAt":7123450.2}') });
+
+    const scrubbed = unzipSync(scrubTrace(zip, redactor));
+
+    expect(strFromU8(scrubbed["resources/9a4d.json"]!)).toBe('{"code":"[redacted]","sentAt":7123450.2}');
+  });
+
+  it("masks a registered number inside a JSON body held as a string and keeps an unrelated JSON string as it was", () => {
+    const redactor = new Redactor(defaultRedactionRules());
+    redactor.register("012345");
+    // how Playwright records a JSON body posted as application/x-www-form-urlencoded: the body is a params name
+    const request = (params: { name: string; value: string }[]) =>
+      JSON.stringify({
+        type: "resource-snapshot",
+        snapshot: { request: { method: "POST", postData: { mimeType: "application/x-www-form-urlencoded", text: "", params } } },
+      });
+    const unrelated = { name: '{ "sentAt": 7123450.2, "page": [1, 2] }', value: "" };
+    const zip = zipSync({
+      "trace.network": strToU8(`${request([{ name: '{"code":12345}', value: "" }, unrelated])}\n${request([unrelated])}\n`),
+    });
+
+    const scrubbed = unzipSync(scrubTrace(zip, redactor));
+
+    expect(strFromU8(scrubbed["trace.network"]!)).toBe(
+      `${request([{ name: '{"code":"[redacted]"}', value: "" }, unrelated])}\n${request([unrelated])}\n`,
+    );
+  });
+
   it("attaches no trace when scrubbing fails", async () => {
     const root = await tempDir();
     const env = demoEnv();
