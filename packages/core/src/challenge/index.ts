@@ -5,3 +5,4 @@ export * from "./human.ts";
 export * from "./human-resolver.ts";
 export * from "./guided.ts";
 export * from "./service.ts";
+export * from "./client.ts";
