@@ -1,0 +1,132 @@
+name: Release
+
+# dispatched on the line it releases: main, or release/<major>.<minor> to patch an old line
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: What to release
+        type: choice
+        options: [rc, patch, minor, final]
+        required: true
+      dry-run:
+        description: Print the version and the notes without creating anything
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# one release at a time, so two runs never compute the same version
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      target: ${{ steps.plan.outputs.target }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+      latest: ${{ steps.plan.outputs.latest }}
+    steps:
+      # the full history brings every tag along
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # the runner's own Node runs the script, which needs no install
+      - name: Plan the release
+        id: plan
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: node scripts/release.ts plan --bump "$BUMP"
+
+      - name: Show the release notes
+        run: cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  ci:
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.target }}
+
+  # builds the target's code, so it never holds a write token
+  pack:
+    needs: [plan, ci]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # vp install runs the prepare script, which installs no Git hook dispatcher with this set
+      VP_GIT_HOOKS: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.target }}
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: false
+
+      - run: pnpm build
+
+      # the version goes into the workspace copy only; nothing is committed
+      - name: Stamp the version
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/release.ts stamp "$VERSION"
+
+      # the filter leaves out private projects such as the demo app, which pnpm -r pack would include
+      - run: pnpm --filter "./packages/*" pack --pack-destination release-assets
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: release-assets/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, pack]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: release-assets
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+
+      # the API answers 422 when the tag exists, so a tag pushed during the run fails the job
+      # instead of moving the release to another commit
+      - name: Create the tag and the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          TARGET: ${{ needs.plan.outputs.target }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          LATEST: ${{ needs.plan.outputs.latest }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$TARGET" --silent
+          gh release create "$TAG" --verify-tag --repo "$GITHUB_REPOSITORY" --title "$TAG" \
+            --notes-file release-notes.md --prerelease="$PRERELEASE" --latest="$LATEST" release-assets/*.tgz

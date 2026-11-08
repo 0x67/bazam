@@ -6,6 +6,10 @@
   "engines": {
     "node": ">=22.18"
   },
+  "files": [
+    "dist",
+    "!dist/tsconfig.tsbuildinfo"
+  ],
   "exports": {
     "./auth": {
       "development": "./src/auth/index.ts",
