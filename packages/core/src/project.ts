@@ -323,7 +323,7 @@ async function gitIgnoredStateDirs(root: string): Promise<Set<string> | undefine
     ({ stdout } = await execFileAsync(
       "git",
       ["check-ignore", "--no-index", "--verbose", ...STATE_DIRS.map((dir) => `${dir}/`)],
-      { cwd: root },
+      { cwd: root, env: await gitEnvForCwd() },
     ));
   } catch (error) {
     // exit code 1: git ignores none of them
@@ -338,6 +338,17 @@ async function gitIgnoredStateDirs(root: string): Promise<Set<string> | undefine
     if (posix.basename(source) === ".gitignore" && !pattern.startsWith("!")) ignored.add(path.replace(/\/$/, ""));
   }
   return ignored;
+}
+
+/**
+ * This process's environment without git's repository variables, such as the GIT_DIR a git hook exports
+ * in a linked worktree, which would make git ignore the working directory and read another repository.
+ */
+async function gitEnvForCwd(): Promise<NodeJS.ProcessEnv> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--local-env-vars"]);
+  const env = { ...process.env };
+  for (const name of stdout.split("\n")) if (name !== "") delete env[name];
+  return env;
 }
 
 // "/runs/", "**/runs" and "runs/*" all name the runs folder

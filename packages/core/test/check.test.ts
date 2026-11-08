@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
 import { humanResolver, type ChallengeKindSpec, type ChallengeResolver } from "../src/challenge/index.ts";
 import { builtinRules, checkProject, type CheckIssue } from "../src/check/index.ts";
@@ -13,6 +13,9 @@ import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project } from "../
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
 const run = promisify(execFile);
+// a git hook exports variables such as GIT_DIR, which would point these git calls at the repository running the hook
+const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")));
+const git = (args: readonly string[]) => run("git", args, { env: gitEnv });
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/check/${name}`, import.meta.url));
 const clean = fixture("clean");
 
@@ -227,7 +230,7 @@ describe("checkProject with the built-in rules", () => {
   });
 
   it("accepts state folders that a parent folder's .gitignore ignores", async () => {
-    await run("git", ["init", "--quiet", root]);
+    await git(["init", "--quiet", root]);
     await writeFile(join(root, ".gitignore"), `runs/\n${BRAND.stateDir}/\n`);
     const project = join(root, "examples");
     await cp(clean, project, { recursive: true });
@@ -236,8 +239,24 @@ describe("checkProject with the built-in rules", () => {
     expect(checkProject(await load(project), builtinRules)).toEqual([]);
   });
 
+  it("reads the project's own repository when GIT_DIR names another one, as a git hook in a worktree does", async () => {
+    const other = join(root, "other");
+    await git(["init", "--quiet", root]);
+    await git(["init", "--quiet", other]);
+    await writeFile(join(root, ".gitignore"), `runs/\n${BRAND.stateDir}/\nother/\n`);
+    const project = join(root, "examples");
+    await cp(clean, project, { recursive: true });
+    await rm(join(project, ".gitignore"));
+    vi.stubEnv("GIT_DIR", join(other, ".git"));
+    try {
+      expect(checkProject(await load(project), builtinRules)).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("does not count state folders that only .git/info/exclude ignores, since teammates lack that file", async () => {
-    await run("git", ["init", "--quiet", root]);
+    await git(["init", "--quiet", root]);
     await cp(clean, root, { recursive: true });
     await rm(join(root, ".gitignore"));
     await mkdir(join(root, ".git", "info"), { recursive: true });
