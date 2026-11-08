@@ -2,6 +2,88 @@
 
 exports[`renderJiraComment > matches the snapshot for a blocked result with media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Blocked",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Reason: the email code did not arrive within 60 seconds",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "Notes:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "The mailbox for customer@example.test stayed empty.",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-code-entry.png",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Blocked</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Reason: the email code did not arrive within 60 seconds</p><details><summary>Evidence</summary><p>Notes:</p><ul><li>The mailbox for customer@example.test stayed empty.</li></ul><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-code-entry-0002" data-alt="01-code-entry.png"></div><figcaption>code entry</figcaption></figure></details>",
   "markdown": "**Blocked** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -20,6 +102,88 @@ Attached files: 01-code-entry.png
 
 exports[`renderJiraComment > matches the snapshot for a blocked result without media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Blocked",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Reason: the email code did not arrive within 60 seconds",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "Notes:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "The mailbox for customer@example.test stayed empty.",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-code-entry.png",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Blocked</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Reason: the email code did not arrive within 60 seconds</p><details><summary>Evidence</summary><p>Notes:</p><ul><li>The mailbox for customer@example.test stayed empty.</li></ul><p>Attached files: 01-code-entry.png</p></details>",
   "markdown": "**Blocked** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -38,6 +202,267 @@ Attached files: 01-code-entry.png
 
 exports[`renderJiraComment > matches the snapshot for a fail result with media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Failed",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "code entry accepts the code",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "accepted",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "accepted",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "session endpoint returns the customer",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "{"status":200}",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "{"status":401}",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "not ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Notes:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "The code arrived 40 seconds after the request.",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Failed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>code entry accepts the code</td><td>accepted</td><td>accepted</td><td>ok</td></tr><tr><td>session endpoint returns the customer</td><td>{&quot;status&quot;:200}</td><td>{&quot;status&quot;:401}</td><td>not ok</td></tr></tbody></table><p>Notes:</p><ul><li>The code arrived 40 seconds after the request.</li></ul><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-code-entry-0002" data-alt="01-code-entry.png"></div><figcaption>code entry</figcaption></figure><p>Attached files: 02-trace.zip, 03-session.json</p></details>",
   "markdown": "**Failed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -59,6 +484,267 @@ Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json
 
 exports[`renderJiraComment > matches the snapshot for a fail result without media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Failed",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "code entry accepts the code",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "accepted",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "accepted",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "session endpoint returns the customer",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "{"status":200}",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "{"status":401}",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "not ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Notes:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "The code arrived 40 seconds after the request.",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Failed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>code entry accepts the code</td><td>accepted</td><td>accepted</td><td>ok</td></tr><tr><td>session endpoint returns the customer</td><td>{&quot;status&quot;:200}</td><td>{&quot;status&quot;:401}</td><td>not ok</td></tr></tbody></table><p>Notes:</p><ul><li>The code arrived 40 seconds after the request.</li></ul><p>Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json</p></details>",
   "markdown": "**Failed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -80,6 +766,267 @@ Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json
 
 exports[`renderJiraComment > matches the snapshot for a followup result with media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Needs follow-up",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Follow-up for a person:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "welcome email layout: open the welcome email and compare it with the design",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "dashboard shows the account",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "welcome email layout",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "checked by a person",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "not automated",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "follow-up",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-dashboard.png",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Needs follow-up</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Follow-up for a person:</p><ul><li>welcome email layout: open the welcome email and compare it with the design</li></ul><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr><tr><td>welcome email layout</td><td>checked by a person</td><td>not automated</td><td>follow-up</td></tr></tbody></table><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"></div><figcaption>dashboard</figcaption></figure></details>",
   "markdown": "**Needs follow-up** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -101,6 +1048,267 @@ Attached files: 01-dashboard.png
 
 exports[`renderJiraComment > matches the snapshot for a followup result without media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Needs follow-up",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Follow-up for a person:",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "welcome email layout: open the welcome email and compare it with the design",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "dashboard shows the account",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "welcome email layout",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "checked by a person",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "not automated",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "follow-up",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-dashboard.png",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Needs follow-up</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><p>Follow-up for a person:</p><ul><li>welcome email layout: open the welcome email and compare it with the design</li></ul><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr><tr><td>welcome email layout</td><td>checked by a person</td><td>not automated</td><td>follow-up</td></tr></tbody></table><p>Attached files: 01-dashboard.png</p></details>",
   "markdown": "**Needs follow-up** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -122,6 +1330,178 @@ Attached files: 01-dashboard.png
 
 exports[`renderJiraComment > matches the snapshot for a pass result with media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Passed",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "dashboard shows the account",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Passed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr></tbody></table><figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage"><div data-type="media" data-media-type="file" data-id="media-dashboard-0001" data-collection="contentId-10001" data-alt="01-dashboard.png"></div><figcaption>dashboard</figcaption></figure><p>Attached files: 02-trace.zip</p></details>",
   "markdown": "**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 
@@ -138,6 +1518,178 @@ Attached files: 01-dashboard.png, 02-trace.zip
 
 exports[`renderJiraComment > matches the snapshot for a pass result without media 1`] = `
 {
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Passed",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "dashboard shows the account",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "visible",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
   "html": "<p><strong>Passed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody><tr><td>dashboard shows the account</td><td>visible</td><td>visible</td><td>ok</td></tr></tbody></table><p>Attached files: 01-dashboard.png, 02-trace.zip</p></details>",
   "markdown": "**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
 

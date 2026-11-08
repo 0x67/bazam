@@ -1,5 +1,6 @@
 import { cellText, escapeMarkdown, STATUS_LABELS, type MediaRefs, type TrackerRenderer } from "@bazam/core/report";
 import type { CaseResult, CheckRecord } from "@bazam/core/result";
+import { checkResult, followupText, renderJiraAdf, resultSubject, type AdfDoc } from "./adf.ts";
 
 type MediaRef = MediaRefs[string];
 
@@ -7,10 +8,14 @@ type MediaRef = MediaRefs[string];
  * The comment opens with the result line, then follow-ups for a person, then the evidence.
  * The HTML folds the evidence and shows a screenshot inline when `media` holds its uploaded id.
  * Markdown has no fold or media embed (the Atlassian connector stores HTML tags in Markdown as
- * literal text), so its evidence goes under a heading and it lists every file by name.
+ * literal text), so its evidence goes under a heading and it lists every file by name. ADF, which
+ * the Jira client posts, follows the Markdown in that.
  */
-export function renderJiraComment(result: CaseResult, media: MediaRefs = {}): { markdown: string; html: string } {
-  return { markdown: markdownComment(result), html: htmlComment(result, media) };
+export function renderJiraComment(
+  result: CaseResult,
+  media: MediaRefs = {},
+): { markdown: string; html: string; adf: AdfDoc } {
+  return { markdown: markdownComment(result), html: htmlComment(result, media), adf: renderJiraAdf(result) };
 }
 
 export const jiraTracker: TrackerRenderer = { tracker: "jira", render: renderJiraComment };
@@ -60,19 +65,6 @@ function markdownComment(result: CaseResult): string {
   ]
     .filter((block) => block !== "")
     .join("\n\n")}\n`;
-}
-
-function resultSubject(result: CaseResult): string {
-  return `${result.env}: ${result.caseId} ${result.title} (run ${result.runId})`;
-}
-
-function followupText(followup: CaseResult["followups"][number]): string {
-  return followup.hint === "" ? followup.item : `${followup.item}: ${followup.hint}`;
-}
-
-function checkResult(check: CheckRecord): string {
-  if (check.kind === "followup") return "follow-up";
-  return check.ok ? "ok" : "not ok";
 }
 
 function htmlRow(check: CheckRecord): string {
