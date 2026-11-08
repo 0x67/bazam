@@ -78,6 +78,15 @@ describe("Redactor", () => {
     expect(input.accessToken).toBe("abc");
   });
 
+  it("masks a passkey's private key under either spelling", () => {
+    const input = { passkeys: [{ credentialId: "cred-1", privateKey: "fake-key-a" }], private_key: "fake-key-b" };
+
+    expect(defaultRedactor().value(input)).toEqual({
+      passkeys: [{ credentialId: "cred-1", privateKey: "[redacted]" }],
+      private_key: "[redacted]",
+    });
+  });
+
   it("keeps the replay seed and keys where a sensitive word is only part of another word", () => {
     const input = { seed: 1234, shipping: "express", mapping: "eu", typing: "fast" };
 

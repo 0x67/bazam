@@ -32,7 +32,10 @@ export const RedactionConfig = z.strictObject({
         }),
     )
     .default([]),
-  /** Playwright selectors, such as CSS, of the page elements masked in screenshots. */
+  /**
+   * Playwright selectors, such as CSS, of the page elements masked in screenshots. Also turns off DOM snapshots
+   * and network entries in traces, which these selectors cannot mask.
+   */
   screenshotSelectors: z.array(z.string().min(1)).default([]),
 });
 export type RedactionConfig = z.infer<typeof RedactionConfig>;
@@ -158,7 +161,7 @@ export function defaultRedactionRules(): RedactionRules {
     // Whole words only, so "shipping" holds no pin. api_key may follow anything, since "XAPIKey" reads
     // as "xapi_key". A bare "seed" is the run's replay seed and stays.
     sensitiveKeys:
-      /(?:^|_)(?:token|secret|password|passwd|cookie|authorization|otp|pin|session)s?(?:_|$)|api_?keys?(?:_|$)|_seed(?:_|$)/,
+      /(?:^|_)(?:token|secret|password|passwd|cookie|authorization|otp|pin|session)s?(?:_|$)|api_?keys?(?:_|$)|(?:^|_)private_?keys?(?:_|$)|_seed(?:_|$)/,
     patterns: [
       { pattern: /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu, mask: maskEmailLocalPart },
       // the date that starts a run id (YYYYMMDD-HHmmss-<4 hex>) stays readable

@@ -123,6 +123,7 @@ class Run {
       stateDir,
       secret: (key) => resolveSecret(key, providers, redactor),
       identityField: (identity, field) => this.#identityField(identity, field),
+      log: this.#log.line,
     };
     // logins and identity settings belong to no case
     const loginSources = placeholderSources(scope, options.runValues.forCase(""));

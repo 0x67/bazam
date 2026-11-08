@@ -41,7 +41,13 @@ const WebSettings = z
     browser: z.enum(["chromium", "firefox", "webkit"]).default("chromium"),
     channel: z.enum(["chrome", "msedge"]).optional(),
     headless: z.boolean().default(true),
-    testIdAttribute: z.string().min(1).default("data-testid"),
+    // the attribute goes unescaped into a CSS selector, where "." or ":" would break it
+    testIdAttribute: z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_-]*$/, {
+        error: 'testIdAttribute takes a letter or "_", then letters, digits, "_" or "-", as in "data-testid"',
+      })
+      .default("data-testid"),
   })
   .refine((settings) => settings.channel === undefined || settings.browser === "chromium", {
     path: ["channel"],
@@ -368,6 +374,7 @@ export class WebSession implements DriverSession {
       loadStorageState: (state) => loadStorageState(guarded.context, state),
       setExtraHeaders: (headers) => guarded.setHeaders(headers),
       setHttpCredentials: (credentials) => guarded.setCredentials(credentials),
+      onUnauthorized: (listener) => guarded.onUnauthorized(listener),
     };
   }
 
@@ -409,7 +416,12 @@ export class WebSession implements DriverSession {
   async #openCaseContext(): Promise<GuardedContext> {
     const context = await this.#browser.newContext();
     // screencast frames are images the scrubber cannot read, and sources would copy test files into the zip
-    await context.tracing.start({ snapshots: true, screenshots: false, sources: false });
+    await context.tracing.start({
+      // a DOM snapshot would show what screenshots mask; Playwright drops network entries along with it
+      snapshots: this.redactor.selectors().length === 0,
+      screenshots: false,
+      sources: false,
+    });
     return GuardedContext.open(context, this.#env, this.#refusals);
   }
 

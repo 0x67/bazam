@@ -51,6 +51,9 @@ describe("scrubTrace", () => {
         response.setHeader("content-type", "application/json");
         response.end('{"name":"Ops"}');
       },
+      "/order": html(
+        "<label>Code <input data-testid=\"otp\"></label><button onclick=\"console.log('checked order'); fetch('/api/me')\">Check</button>",
+      ),
     });
   });
 
@@ -184,6 +187,48 @@ describe("scrubTrace", () => {
     expect(strFromU8(scrubbed["trace.network"]!)).toBe(
       `${request([{ name: '{"code":"[redacted]"}', value: "" }, unrelated])}\n${request([unrelated])}\n`,
     );
+  });
+
+  it("leaves DOM snapshots and network entries out when a screenshot selector is set, and keeps actions and console messages", async () => {
+    const root = await tempDir();
+    const env = demoEnv();
+    /** The entries of the trace a failed case attaches, with the given screenshot selectors. */
+    const recordTrace = async (screenshotSelectors: string[]): Promise<Record<string, Uint8Array>> => {
+      const runDir = join(root, `runs-${screenshotSelectors.length}`);
+      const redactor = new Redactor({ ...defaultRedactionRules(), screenshotSelectors });
+      const session = await launch("chromium", { env, runDir, redactor });
+      const evidence = newEvidence(runDir, "WEB-TRACE-002");
+      await runSteps(stepContext(session, { env, evidence, root }), [
+        { open: `${site.origin}/order` },
+        { fill: { field: { id: "otp" }, value: OTP } },
+        { tap: { role: "button", name: "Check" } },
+        { wait: { ms: 300 } },
+      ]);
+      await session.close({ status: "fail", evidence });
+      return unzipSync(await readFile(join(runDir, "WEB-TRACE-002", "01-trace.zip")));
+    };
+    const lines = (entries: Record<string, Uint8Array>, name: string): Record<string, unknown>[] =>
+      strFromU8(entries[name] ?? new Uint8Array())
+        .split("\n")
+        .filter((line) => line !== "")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+    try {
+      const plain = await recordTrace([]);
+      const masked = await recordTrace(["[data-testid=otp]"]);
+
+      expect(lines(plain, "trace.trace").map((event) => event["type"])).toContain("frame-snapshot");
+      expect(lines(plain, "trace.network")).not.toEqual([]);
+      const events = lines(masked, "trace.trace");
+      expect(events.map((event) => event["type"])).not.toContain("frame-snapshot");
+      expect(lines(masked, "trace.network")).toEqual([]);
+      expect(Object.keys(masked).filter((name) => name.startsWith("resources/"))).toEqual([]);
+      const actions = events.filter((event) => event["type"] === "before").map((event) => event["method"]);
+      expect(actions).toEqual(expect.arrayContaining(["goto", "fill", "click"]));
+      const messages = events.filter((event) => event["type"] === "console").map((event) => event["text"]);
+      expect(messages).toEqual(["checked order"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("attaches no trace when scrubbing fails", async () => {

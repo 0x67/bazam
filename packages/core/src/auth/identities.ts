@@ -161,6 +161,18 @@ export class Identities {
     });
   }
 
+  /**
+   * Runs the strategy's probe on the credential this process holds for the surface. Undefined when the strategy
+   * has no probe, and false when nothing is held.
+   */
+  async probe(identity: string, surface: string): Promise<boolean | undefined> {
+    const slot = this.#slot(identity, surface);
+    if (slot.strategy.probe === undefined) return undefined;
+    const held = this.#held.get(slot.id);
+    if (held === undefined) return false;
+    return this.#passesProbe(slot, await this.#config(slot), held.credential);
+  }
+
   async #ensure(slot: Slot): Promise<Held> {
     const held = this.#held.get(slot.id);
     if (held !== undefined && !this.#isExpired(held)) return held;

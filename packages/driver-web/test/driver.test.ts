@@ -5,6 +5,7 @@ import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
+import type { StorageState } from "@bazam/core/auth";
 import { ConnectionFailed } from "@bazam/core/driver";
 import { HostNotAllowed, type Environment } from "@bazam/core/env";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
@@ -83,6 +84,50 @@ const LIVE = `
 </script>
 `;
 
+// each call shows its number and status, so a step can wait for the call it made
+const ACCOUNT = `
+<p data-testid="calls">none</p>
+<button type="button" data-testid="fetch" onclick="call(fetch('/api/account?token=fake-query-token-4c1d'))">Fetch</button>
+<button type="button" data-testid="xhr" onclick="call(xhr('/api/account'))">XHR</button>
+<button type="button" data-testid="gated" onclick="call(fetch('/gated/api'))">Gated</button>
+<button type="button" data-testid="elsewhere" onclick="call(fetch('{elsewhere}/api/account', { mode: 'no-cors' }))">Elsewhere</button>
+<script>
+  var calls = 0;
+  function call(answer) {
+    var number = ++calls;
+    answer.then(function (response) {
+      document.querySelector("[data-testid=calls]").textContent = "call " + number + ": " + response.status;
+    });
+  }
+  function xhr(url) {
+    return new Promise(function (done) {
+      var request = new XMLHttpRequest();
+      request.onload = function () { done(request); };
+      request.open("GET", url);
+      request.send();
+    });
+  }
+</script>
+`;
+
+function sessionCookie(value: string): StorageState {
+  return {
+    cookies: [
+      {
+        name: "sid",
+        value,
+        domain: "127.0.0.1",
+        path: "/",
+        expires: -1,
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+      },
+    ],
+    origins: [],
+  };
+}
+
 /** A port on 127.0.0.1 that was just free, so a connection to it is refused. */
 async function closedPort(): Promise<number> {
   const server = createServer();
@@ -97,6 +142,8 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   let env: Environment;
   let root: string;
   let session: WebSession | undefined;
+  // the session cookie value the account API takes
+  let accepted: string;
 
   beforeAll(async () => {
     site = await startSite({
@@ -147,6 +194,16 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         response.writeHead(307, { location: "/api/orders?moved" });
         response.end();
       },
+      "/account": html(ACCOUNT),
+      "/api/account": (request, response) => {
+        response.writeHead(request.headers.cookie === `sid=${accepted}` ? 200 : 401);
+        response.end();
+      },
+      "/gated/api": gated((_request, response) => response.end()),
+      "/denied": (_request, response) => {
+        response.writeHead(401, { "content-type": "text/html" });
+        response.end("<h1>Denied</h1>");
+      },
     });
     env = demoEnv();
   });
@@ -156,6 +213,7 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   beforeEach(async () => {
     root = await tempDir();
     site.requests.length = 0;
+    accepted = "fake-session-1";
   });
 
   afterEach(async () => {
@@ -550,6 +608,113 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     expect(site.requests.filter((request) => request.headers.authorization !== undefined)).toEqual([]);
   });
 
+  it("recovers after the page's 401 when the session cookie expires mid-case, and the next request passes", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    const browser = await session.browserFor("customer");
+    await browser.loadStorageState(sessionCookie("fake-session-1"));
+    const origins: string[] = [];
+    let recovery: Promise<void> | undefined;
+    // what the case run does after a 401: apply a new credential to the context
+    browser.onUnauthorized?.((origin) => {
+      origins.push(origin);
+      recovery ??= browser.loadStorageState(sessionCookie("fake-session-2"));
+    });
+    const ctx = stepContext(session, { env, evidence, root, identity: "customer" });
+    await runSteps(ctx, [
+      { open: `${site.origin}/account` },
+      { tap: { id: "fetch" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 1: 200" } } },
+    ]);
+
+    accepted = "fake-session-2";
+    await runSteps(ctx, [
+      { tap: { id: "fetch" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 2: 401" } } },
+    ]);
+    await vi.waitFor(() => expect(recovery).toBeDefined());
+    await recovery;
+    await runSteps(ctx, [
+      { tap: { id: "xhr" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 3: 200" } } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([
+      ["call 1: 200", true],
+      ["call 2: 401", true],
+      ["call 3: 200", true],
+    ]);
+    // the request carried a token in its query, and only the origin is reported
+    expect(origins).toEqual([site.origin]);
+  });
+
+  it("reports a 401 only for fetch and XHR requests to allowlisted hosts", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    const origins: string[] = [];
+    (await session.browserFor("customer")).onUnauthorized?.((origin) => origins.push(origin));
+    const ctx = stepContext(session, { env, evidence, root, identity: "customer" });
+
+    await runSteps(ctx, [
+      { open: `${site.origin}/denied` },
+      { open: `${site.origin}/account` },
+      { tap: { id: "elsewhere" } },
+      { expect: { text: { field: { id: "calls" }, contains: "call 1:" } } },
+      { tap: { id: "xhr" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 2: 401" } } },
+      { tap: { id: "fetch" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 3: 401" } } },
+    ]);
+    await vi.waitFor(() => expect(origins).toHaveLength(2));
+
+    expect(checks().every((check) => check.ok)).toBe(true);
+    expect(site.requests.map((request) => [request.host.split(":")[0], request.path])).toEqual(
+      expect.arrayContaining([
+        ["127.0.0.1", "/denied"],
+        ["localhost", "/api/account"],
+      ]),
+    );
+    expect(origins).toEqual([site.origin, site.origin]);
+  });
+
+  it("reports no 401 for a basic auth challenge the HTTP credentials answer", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    const browser = await session.browserFor("customer");
+    await browser.setHttpCredentials(BASIC);
+    const origins: string[] = [];
+    browser.onUnauthorized?.((origin) => origins.push(origin));
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/account` },
+      { tap: { id: "gated" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 1: 200" } } },
+      { wait: { ms: 300 } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["call 1: 200", true]]);
+    expect(origins).toEqual([]);
+  });
+
+  it("reports a 401 when the server rejects the basic credentials", async () => {
+    const { session, evidence } = await open();
+    const checks = recorded(evidence);
+    const browser = await session.browserFor("customer");
+    await browser.setHttpCredentials({ username: "ops", password: "fake-wrong-password" });
+    const origins: string[] = [];
+    browser.onUnauthorized?.((origin) => origins.push(origin));
+
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/account` },
+      { tap: { id: "gated" } },
+      { expect: { text: { field: { id: "calls" }, equals: "call 1: 401" } } },
+      { wait: { ms: 300 } },
+    ]);
+
+    expect(checks().map((check) => [check.observed, check.ok])).toEqual([["call 1: 401", true]]);
+    expect(origins).toEqual([site.origin]);
+  });
+
   it("blocks the next step in another identity's context when a navigation was refused after its step", async () => {
     const { session, evidence } = await open();
     await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
@@ -688,4 +853,20 @@ describe("playwrightDriver", () => {
       playwrightDriver.probe({ ...options, settings: { browser: "firefox", channel: "chrome" } }),
     ).rejects.toThrow(/target web: .*a channel needs browser: chromium/s);
   });
+
+  it.each(["data.qa", "data:qa", "1qa"])(
+    "refuses the testIdAttribute %s when the settings parse",
+    async (attribute) => {
+      const options = {
+        env: demoEnv(),
+        target: "web",
+        runDir: "runs",
+        redactor: new Redactor(defaultRedactionRules()),
+      };
+
+      await expect(playwrightDriver.probe({ ...options, settings: { testIdAttribute: attribute } })).rejects.toThrow(
+        /target web: .*testIdAttribute takes a letter or "_"/s,
+      );
+    },
+  );
 });

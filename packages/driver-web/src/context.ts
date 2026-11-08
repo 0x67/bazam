@@ -1,6 +1,6 @@
 import type { BrowserSession } from "@bazam/core/auth";
 import { assertHostAllowed, HostNotAllowed, type Environment } from "@bazam/core/env";
-import type { APIResponse, BrowserContext, Page, Request, Route } from "playwright";
+import type { APIResponse, BrowserContext, Page, Request, Response, Route } from "playwright";
 
 /** The first host refused in any of the contexts that share it, kept until a step throws it. */
 export class Refusals {
@@ -88,6 +88,32 @@ export class GuardedContext {
     }
     this.#credentialsSet = this.#applyCredentials(this.#credentials);
     await this.#credentialsSet;
+  }
+
+  /**
+   * Calls `listener` with the origin of each 401 answer to a fetch or XHR request to an allowlisted host; returns a
+   * function that stops it. Document navigations, which carry form answers, are left out.
+   */
+  onUnauthorized(listener: (origin: string) => void): () => void {
+    const onResponse = (response: Response): void => {
+      if (response.status() !== 401 || !FETCH_TYPES.has(response.request().resourceType())) return;
+      // Firefox reports the Basic challenge it then answers with the HTTP credentials; its retry carries the header,
+      // and a request sent from a route never shows it the challenge
+      if (
+        this.#engine === "firefox" &&
+        this.#credentials !== undefined &&
+        Object.keys(this.#headers).length === 0 &&
+        response.request().headers()["authorization"] === undefined &&
+        BASIC_SCHEME.test(response.headers()["www-authenticate"] ?? "")
+      )
+        return;
+      const url = new URL(response.url());
+      if (hostRefusal(this.#env, url) === undefined) listener(url.origin);
+    };
+    this.context.on("response", onResponse);
+    return () => {
+      this.context.off("response", onResponse);
+    };
   }
 
   /** Throws the navigation the guard refused here or in a context sharing its refusals, if there was one. */
@@ -205,6 +231,8 @@ interface PlaywrightClient {
   _wrapApiCall<T>(call: () => Promise<T>, options: { internal: boolean }): Promise<T>;
 }
 
+const FETCH_TYPES: ReadonlySet<string> = new Set(["fetch", "xhr"]);
+const BASIC_SCHEME = /(?:^|,)\s*basic\b/i;
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // the headers fetch drops when a redirect turns a request into a GET
 const BODY_HEADERS = ["content-encoding", "content-language", "content-length", "content-location", "content-type"];

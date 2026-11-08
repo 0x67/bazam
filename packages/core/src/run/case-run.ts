@@ -1,4 +1,5 @@
-import type { Identities } from "../auth/index.ts";
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { BrowserSession, Identities } from "../auth/index.ts";
 import { stepKind, type CaseSpec, type ChallengeStep, type GuidedStep, type Step } from "../case/index.ts";
 import {
   checkGuidedOutcome,
@@ -23,7 +24,7 @@ import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence } from "./case-evidence.ts";
-import { CaseBlocked, isBlocking, StepFailed } from "./outcome.ts";
+import { CaseBlocked, isBlocking, messageOf, StepFailed } from "./outcome.ts";
 import { caseSteps, FILL_STEP } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
@@ -47,6 +48,8 @@ export interface RunScope {
   secret(key: string): Promise<string>;
   /** The identity's field from the local fixtures file. */
   identityField(identity: string, field: string): string | undefined;
+  /** Adds a line to the log of the case that runs. */
+  log(line: string): void;
 }
 
 /** Placeholder sources for one case, or for logins, which belong to no case and see no `${case.X}`. */
@@ -81,6 +84,12 @@ export class CaseRun {
   readonly #sources: PlaceholderSources;
   /** Identities whose browser context is open and authorized. */
   readonly #browsers = new Set<string>();
+  /** Calls that remove the 401 listener from each browser context this case authorized. */
+  readonly #stops: (() => void)[] = [];
+  // the probe or recovery a 401 started; a 401 that arrives meanwhile adds nothing
+  #recovery: Promise<void> | undefined;
+  #recovered = false;
+  #notedLater = false;
 
   constructor(scope: RunScope, parts: CaseParts) {
     this.#scope = scope;
@@ -95,11 +104,19 @@ export class CaseRun {
   /** Runs the steps and then the checks in order; the first one that throws ends the case. */
   async run(): Promise<void> {
     const steps = caseSteps(this.#parts.spec, this.#scope.project.flows);
-    for (const [index, step] of steps.entries()) await this.#step(step, index + 1, step.as);
+    try {
+      for (const [index, step] of steps.entries()) await this.#step(step, index + 1, step.as);
+    } finally {
+      for (const stop of this.#stops) stop();
+      // the session closes after this returns, so never under a refresh
+      await this.#recovery;
+    }
   }
 
   /** `identity` is the step's `as`, or the one it inherits from the challenge or guided step it sits in. */
   async #step(step: Step, number: number, identity: string | undefined): Promise<void> {
+    // no step acts while a refresh replaces the credential under the page
+    await this.#recovery;
     this.#scope.signal.throwIfAborted();
     const kind = stepKind(step);
     const payload = step[kind];
@@ -198,8 +215,52 @@ export class CaseRun {
     const browser = await session.browserFor(identity);
     if (this.#scope.project.config.identities[identity]?.auth[driver.surface] !== undefined) {
       await this.#scope.credentials.authorize(identity, driver.surface, { kind: "browser", session: browser });
+      // a pooled browser calls back in the async context of the case that launched it, so bind runs the listener in this case's context
+      const listener = AsyncLocalStorage.bind((origin: string) =>
+        this.#unauthorized(identity, driver.surface, browser, origin),
+      );
+      const stop = browser.onUnauthorized?.(listener);
+      if (stop !== undefined) this.#stops.push(stop);
     }
     this.#browsers.add(identity);
+  }
+
+  /** Probes after a 401 until the case has had its one recovery; after that, one 401 more adds a note. */
+  #unauthorized(identity: string, surface: string, browser: BrowserSession, origin: string): void {
+    if (this.#recovery !== undefined) return;
+    if (this.#recovered) {
+      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after the refresh`);
+      this.#notedLater = true;
+      return;
+    }
+    this.#recovery = this.#recover(identity, surface, browser, origin).finally(() => {
+      this.#recovery = undefined;
+    });
+  }
+
+  /** Never throws, so the step that saw the 401 keeps its own outcome. */
+  async #recover(identity: string, surface: string, browser: BrowserSession, origin: string): Promise<void> {
+    const { identities, credentials } = this.#scope;
+    const { evidence } = this.#parts;
+    // a probe that throws counts as failing, so the refresh runs
+    const passes = await identities.probe(identity, surface).catch(() => false);
+    if (passes === true) {
+      this.#scope.log(`401 from ${origin}; the ${surface} credential of ${identity} still passes its probe`);
+      return;
+    }
+    this.#recovered = true;
+    try {
+      if (await identities.recoverFromUnauthorized(identity, surface)) {
+        await credentials.authorize(identity, surface, { kind: "browser", session: browser });
+        evidence.note(`refreshed ${identity}'s ${surface} credential after a 401 from ${origin}`);
+      } else {
+        evidence.note(`got a 401 from ${origin}; the ${surface} credential of ${identity} cannot be refreshed`);
+      }
+    } catch (error) {
+      evidence.note(
+        `refreshing ${identity}'s ${surface} credential after a 401 from ${origin} failed: ${messageOf(error)}`,
+      );
+    }
   }
 
   #context(identity: string | undefined): StepContext {
