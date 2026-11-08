@@ -1,5 +1,5 @@
 export type Status = "pass" | "fail" | "blocked" | "followup";
-export type CheckKind = "ui" | "api" | "guided" | "followup";
+export type CheckKind = "ui" | "api" | "guided" | "followup" | "external";
 
 export interface CheckRecord {
   name: string;

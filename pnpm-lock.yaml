@@ -166,6 +166,9 @@ importers:
 
   .:
     devDependencies:
+      '@bazam/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
@@ -221,6 +224,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@rgrove/parse-xml':
+        specifier: 5.1.0
+        version: 5.1.0
       libphonenumber-js:
         specifier: ^1.13.15
         version: 1.13.15
@@ -675,6 +681,10 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@rgrove/parse-xml@5.1.0':
+    resolution: {integrity: sha512-ExwK7gowU5XT/WFC81o/Ou7Zvi9zQwW4SmxqFM6UaADOr7gC44BGwKSpGe20OyRD9EjwnT3d8n4qMbnAdlt8PQ==}
+    engines: {node: '>=22.12.0'}
 
   '@simplewebauthn/server@14.0.3':
     resolution: {integrity: sha512-D39/0fiDiYmGV+nraY9s63D1Ho2AX/waMLy22/9gUadTUuvbAnstfb4bpbHYbwZuV5ZLDYN1SmzDKuiHzKAA4Q==}
@@ -2104,6 +2114,8 @@ snapshots:
       tsyringe: 4.10.0
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@rgrove/parse-xml@5.1.0': {}
 
   '@simplewebauthn/server@14.0.3':
     dependencies:

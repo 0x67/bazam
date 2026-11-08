@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vite-plus/test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
+import { BRAND } from "../src/brand.ts";
 import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema } from "../src/case/index.ts";
+import { loadProjectConfig, runnerOf, type ConfigLoad } from "../src/project.ts";
 
 const minimal = { id: "AUTH-LOGIN-001", title: "Customer signs in", stage: "draft", risk: "low", targets: ["web"] };
 
@@ -188,5 +193,190 @@ describe("caseJsonSchema", () => {
       ["tap"],
       ["use"],
     ]);
+  });
+});
+
+describe("runner targets and process plugin entries", () => {
+  const PLAIN_NAME_RULE = "letters, digits, dots, dashes and underscores, starting with a letter or digit";
+  const roots: string[] = [];
+  const runner = [
+    "envs: {}",
+    "identities:",
+    "  customer: {}",
+    "runners:",
+    "  shop-selenium:",
+    "    command: [mvn, -q, test]",
+    "    results: target/surefire-reports/*.xml",
+    "    format: junit",
+  ];
+
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  async function load(lines: readonly string[]): Promise<ConfigLoad> {
+    const root = await mkdtemp(join(tmpdir(), "schema-test-"));
+    roots.push(root);
+    await writeFile(join(root, BRAND.configFile), `${lines.join("\n")}\n`);
+    return loadProjectConfig(root);
+  }
+
+  /** [line, message] of each issue. */
+  async function issues(lines: readonly string[]): Promise<[number, string][]> {
+    return (await load(lines)).issues.map((issue) => [issue.line, issue.message]);
+  }
+
+  it("loads runners, runner targets, a process plugin entry and the new tracker fields", async () => {
+    const { config, issues } = await load([
+      ...runner,
+      "    identities: [customer]",
+      "targets:",
+      "  web: { driver: playwright, browser: chromium }",
+      "  shop-chrome: { runner: shop-selenium, env: { BROWSER: chrome } }",
+      "trackers:",
+      "  jira:",
+      "    site: example.atlassian.net",
+      "    api: https://api.atlassian.com/ex/jira/0f3e2d1c",
+      "    secrets: { email: JIRA_EMAIL, token: JIRA_API_TOKEN }",
+      "    projects:",
+      "      DEMO:",
+      "        bugs: { issueType: Bug, labels: [regression] }",
+      "        promoteOn: [Done, Released]",
+      "plugins:",
+      "  - ./plugins/local-steps.ts",
+      "  - { command: [python3, plugins/otp_hook.py], timeoutSeconds: 120 }",
+    ]);
+
+    if (config === undefined) throw new Error(`the config has issues: ${JSON.stringify(issues)}`);
+
+    expect(config.runners["shop-selenium"]?.prodSafe).toBe(false);
+    expect(config.targets["web"]).toEqual({ driver: "playwright", browser: "chromium" });
+    expect(runnerOf(config, "shop-chrome")).toEqual({
+      name: "shop-selenium",
+      runner: config.runners["shop-selenium"],
+      env: { BROWSER: "chrome" },
+    });
+    expect(runnerOf(config, "web")).toBeUndefined();
+    expect(config.plugins[1]).toEqual({
+      command: ["python3", "plugins/otp_hook.py"],
+      cwd: ".",
+      env: {},
+      timeoutSeconds: 120,
+    });
+    expect(config.trackers["jira"]?.projects["DEMO"]?.bugs).toEqual({
+      issueType: "Bug",
+      labels: ["regression"],
+      linkType: "Relates",
+    });
+  });
+
+  it("accepts only a boolean for prodSafe", async () => {
+    expect(await issues([...runner, "    prodSafe: yes"])).toEqual([
+      [9, "runners.shop-selenium.prodSafe: Invalid input: expected boolean, received string"],
+    ]);
+  });
+
+  it("refuses a runner identity the config does not define, on its line", async () => {
+    expect(await issues([...runner, "    identities:", "      - customer", "      - admin"])).toEqual([
+      [
+        11,
+        "runners.shop-selenium.identities[1]: runner shop-selenium lists identity admin, which identities does not define",
+      ],
+    ]);
+  });
+
+  it("refuses a target that names both a driver and a runner", async () => {
+    expect(await issues([...runner, "targets:", "  web: { driver: playwright, runner: shop-selenium }"])).toEqual([
+      [10, "targets.web: a target names a driver or a runner, not both"],
+    ]);
+  });
+
+  it.each([["shop-selenum"], ["toString"]])(
+    "refuses a runner target that names the unknown runner %s",
+    async (name) => {
+      expect(await issues([...runner, "targets:", `  shop-chrome: { runner: ${name} }`])).toEqual([
+        [10, `targets.shop-chrome.runner: runner ${name} is not defined under runners`],
+      ]);
+    },
+  );
+
+  it("refuses a runner identity named after an Object property", async () => {
+    expect(await issues([...runner, "    identities: [constructor]"])).toEqual([
+      [
+        9,
+        "runners.shop-selenium.identities[0]: runner shop-selenium lists identity constructor, which identities does not define",
+      ],
+    ]);
+  });
+
+  it("reports a runner target's env value that is not a string", async () => {
+    expect(
+      await issues([...runner, "targets:", "  shop-chrome: { runner: shop-selenium, env: { PORT: 8080 } }"]),
+    ).toEqual([[10, "targets.shop-chrome: env.PORT: Invalid input: expected string, received number"]]);
+  });
+
+  it.each([
+    ["runner", ["targets:", '  shop-chrome: { runner: "" }'], 10, "targets.shop-chrome.runner"],
+    ["identity", ['    identities: [""]'], 9, "runners.shop-selenium.identities[0]"],
+  ])("reports an empty %s once", async (_, lines, line, path) => {
+    expect(await issues([...runner, ...lines])).toEqual([
+      [line, `${path}: Too small: expected string to have >=1 characters`],
+    ]);
+  });
+
+  it.each([["{ command: python3 x.py }"], ["{ comand: [python3, x.py] }"]])(
+    "refuses the plugin entry %s",
+    async (entry) => {
+      expect(await issues(["envs: {}", "plugins:", `  - ${entry}`])).toEqual([
+        [
+          3,
+          "plugins[0]: a plugin entry is a module path, or an object whose command is an argv list such as [python3, plugins/otp_hook.py]",
+        ],
+      ]);
+    },
+  );
+
+  it.each([[".."], ["shop/chrome"]])("refuses a runner target named %s", async (name) => {
+    expect(await issues([...runner, "targets:", `  "${name}": { runner: shop-selenium }`])).toEqual([
+      [10, `targets.${name}: a runner target's name takes ${PLAIN_NAME_RULE}`],
+    ]);
+  });
+
+  it.each([["shop selenium"], ["../shop"]])("refuses a runner named %s", async (name) => {
+    expect(await issues(runner.map((line) => line.replace("shop-selenium:", `"${name}":`)))).toEqual([
+      [5, `runners.${name}: a runner name takes ${PLAIN_NAME_RULE}`],
+    ]);
+  });
+
+  it.each([
+    ["a scheme", "https://example.atlassian.net"],
+    ["a path", "example.atlassian.net/jira"],
+    ["a fragment", "example.atlassian.net#comments"],
+    ["a query", "example.atlassian.net?x=1"],
+    ["credentials", "ops@example.atlassian.net"],
+    ["no host", ""],
+    ["an uppercase host", "Example.atlassian.net"],
+    ["the default port", "example.atlassian.net:443"],
+  ])("refuses a tracker site with %s", async (_, site) => {
+    expect(await issues(["envs: {}", "trackers:", "  jira:", `    site: "${site}"`])).toEqual([
+      [
+        4,
+        "trackers.jira.site: site takes a lowercase host and an optional port other than 443, such as example.atlassian.net, with no scheme, credentials, path, query or fragment",
+      ],
+    ]);
+  });
+
+  it("allows an http api only on 127.0.0.1 or localhost with a port", async () => {
+    const api = (url: string) => ["envs: {}", "trackers:", "  jira:", "    site: 127.0.0.1:8080", `    api: ${url}`];
+    const refused = [
+      5,
+      "trackers.jira.api: api must be an https URL; http only for 127.0.0.1 or localhost with a port",
+    ];
+
+    expect(await issues(api("http://127.0.0.1:8080/rest"))).toEqual([]);
+    expect(await issues(api("http://localhost:8080"))).toEqual([]);
+    expect(await issues(api("http://127.0.0.1/rest"))).toEqual([refused]);
+    expect(await issues(api("http://api.example.test:8080"))).toEqual([refused]);
+    expect(await issues(api("not a url"))).toEqual([[5, "trackers.jira.api: Invalid URL"]]);
   });
 });

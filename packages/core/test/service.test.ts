@@ -7,6 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   answersFileChannel,
+  oneAtATime,
   startChallengeService,
   terminalChannel,
   type ChallengeResolver,
@@ -408,6 +409,30 @@ describe("startChallengeService", () => {
     await answer("222222");
     const values = (await Promise.all(replies)).map((reply) => reply.json["value"]);
     expect(new Set(values)).toEqual(new Set(["111111", "222222"]));
+  });
+
+  it("queues its prompts behind the other asks of a channel already queued with oneAtATime", async () => {
+    const channel = personAt([{ kind: "done" }, { kind: "value", value: "135790" }], 200);
+    const queued = oneAtATime(channel);
+    const { service } = await start({ channel: queued, timeoutMs: 300 });
+    const guided: PersonPrompt = {
+      id: "WEB-ORDER-001-2-guided",
+      runId: RUN_ID,
+      caseId: "WEB-ORDER-001",
+      ask: "action",
+      title: "Confirm the order in the app",
+      steps: ["Tap confirm."],
+      timeoutMs: 1_000,
+    };
+    const asked = queued.ask(guided, new AbortController().signal);
+
+    // the service's prompt is shown once the guided one is answered, and only then gets its 300 ms
+    expect(await post(service, { kind: "totp", caseId: "EXT-TOTP-001" })).toEqual({
+      status: 200,
+      json: { value: "135790" },
+    });
+    expect(await asked).toEqual({ kind: "done" });
+    expect(channel.prompts.map((prompt) => prompt.id)).toEqual([guided.id, "EXT-TOTP-001-1-totp"]);
   });
 
   it("gives the person the prompt's whole window from when it is shown, after a slow automated miss", async () => {

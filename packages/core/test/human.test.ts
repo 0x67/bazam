@@ -6,8 +6,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   answersFileChannel,
+  oneAtATime,
   parseVerdict,
   terminalChannel,
+  type HumanChannel,
   type PersonAnswer,
   type PersonPrompt,
 } from "../src/challenge/index.ts";
@@ -96,6 +98,45 @@ describe("terminalChannel", () => {
     const { channel } = terminal();
 
     expect(await channel.ask(prompt({ timeoutMs: 30 }), signal)).toEqual({ kind: "timeout" });
+  });
+});
+
+describe("oneAtATime", () => {
+  /** Answers done `afterMs` after each prompt is shown, and records when prompts were shown and answered. */
+  function person(afterMs: number): HumanChannel & { events: string[] } {
+    const events: string[] = [];
+    return {
+      events,
+      async ask(shown, abort) {
+        events.push(`shown ${shown.id}`);
+        await sleep(afterMs, undefined, { signal: abort });
+        events.push(`answered ${shown.id}`);
+        return { kind: "done" };
+      },
+    };
+  }
+
+  it("shows one prompt at a time, in the order asked, also when wrapped twice", async () => {
+    const channel = person(50);
+    const queued = oneAtATime(oneAtATime(channel));
+
+    await Promise.all([queued.ask(prompt({ id: "A-1" }), signal), queued.ask(prompt({ id: "B-1" }), signal)]);
+
+    expect(channel.events).toEqual(["shown A-1", "answered A-1", "shown B-1", "answered B-1"]);
+  });
+
+  it("starts the window of a prompt asked through a second wrap only when the prompt is shown", async () => {
+    const channel = person(200);
+    const queued = oneAtATime(channel);
+
+    // the second prompt waits 200 ms for the first, then needs 200 ms of its 300 ms window
+    const answers = await Promise.all([
+      queued.ask(prompt({ id: "A-1", timeoutMs: 1_000 }), signal),
+      oneAtATime(queued).ask(prompt({ id: "B-1", timeoutMs: 300 }), signal),
+    ]);
+
+    expect(answers).toEqual([{ kind: "done" }, { kind: "done" }]);
+    expect(channel.events).toEqual(["shown A-1", "answered A-1", "shown B-1", "answered B-1"]);
   });
 });
 

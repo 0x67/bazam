@@ -2,7 +2,12 @@ import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { join } from "node:path";
 import { BRAND } from "@bazam/core/brand";
-import { startChallengeService, type ChallengeServiceDeps } from "@bazam/core/challenge";
+import {
+  CHALLENGE_TOKEN_VAR,
+  CHALLENGE_URL_VAR,
+  startChallengeService,
+  type ChallengeServiceDeps,
+} from "@bazam/core/challenge";
 import { guardedHttp } from "@bazam/core/driver";
 import { newRunId } from "@bazam/core/result";
 import { resolveSecret } from "@bazam/core/secrets";
@@ -11,10 +16,6 @@ import type { CommandContext } from "../main.ts";
 import { envOf } from "./keepalive.ts";
 import { runDirOf } from "./plan.ts";
 
-/** The full endpoint, `http://127.0.0.1:<port>/challenge`. */
-export const CHALLENGE_URL_VAR = `${BRAND.envPrefix}CHALLENGE_URL`;
-/** The bearer token the endpoint wants. */
-export const CHALLENGE_TOKEN_VAR = `${BRAND.envPrefix}CHALLENGE_TOKEN`;
 const DEFAULT_CHANNEL = "terminal";
 // what shells and env(1) exit with for a command that is not found or that cannot be run
 const SPAWN_FAILURES: Readonly<Record<string, number>> = { ENOENT: 127, EACCES: 126 };

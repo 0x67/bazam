@@ -39,6 +39,10 @@
       "development": "./src/env/index.ts",
       "default": "./dist/env/index.js"
     },
+    "./ingest": {
+      "development": "./src/ingest/index.ts",
+      "default": "./dist/ingest/index.js"
+    },
     "./plugin": {
       "development": "./src/plugin/index.ts",
       "default": "./dist/plugin/index.js"
@@ -72,6 +76,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
+    "@rgrove/parse-xml": "5.1.0",
     "libphonenumber-js": "^1.13.15",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"

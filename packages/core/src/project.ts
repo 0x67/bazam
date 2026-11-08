@@ -30,46 +30,208 @@ const execFileAsync = promisify(execFile);
 /** Folders that stay out of git: run results and local state such as cached credentials. */
 export const STATE_DIRS: readonly string[] = ["runs", BRAND.stateDir];
 
-const TrackerConfig = z.strictObject({
-  projects: z
-    .record(
-      z.string().min(1),
-      z.strictObject({
-        transitions: z.partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1)),
-      }),
-    )
-    .default({}),
+// a runner target's name names its folder runs/<run-id>/runner-<target>/, and a runner's name goes into a prompt id
+const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const PLAIN_NAME_RULE = "letters, digits, dots, dashes and underscores, starting with a letter or digit";
+const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:[0-9]+)?$/;
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost"]);
+
+/** An external suite that runs for the targets that name it. */
+export const RunnerConfig = z.strictObject({
+  /** The argv, run without a shell. */
+  command: z.array(z.string().min(1)).min(1),
+  /** Relative to the project root. */
+  cwd: z.string().min(1).default("."),
+  /** A glob relative to `cwd`. */
+  results: z.string().min(1),
+  /** A result format the registry knows. */
+  format: z.string().min(1),
+  /** Relative to the project root. */
+  mapping: z.string().min(1).optional(),
+  env: z.record(z.string().min(1), z.string()).default({}),
+  timeoutMinutes: z.number().positive().default(60),
+  /**
+   * Runs it in a production env without asking. Without it the run asks first, because it cannot hold the suite's
+   * process to the host allowlist or the write guard.
+   */
+  prodSafe: z.boolean().default(false),
+  /** The identities its tests act as; every identity in the config when left out. */
+  identities: z.array(z.string().min(1)).optional(),
+});
+export type RunnerConfig = z.infer<typeof RunnerConfig>;
+
+const DriverTarget = z.object({ driver: z.string().min(1) }).catchall(z.json());
+const RunnerTarget = z.strictObject({
+  runner: z.string().min(1),
+  env: z.record(z.string().min(1), z.string()).default({}),
 });
 
-/** The project config file. */
-export const ProjectConfig = z.strictObject({
-  envs: EnvsConfig,
-  secrets: z
-    .strictObject({
-      /** Provider names in the order they are asked. */
-      providers: z.array(z.string().min(1)).default(["env", "dotenv"]),
-      /** The secret names cases may use as `${secret.NAME}`. */
-      names: z.array(z.string().min(1)).default([]),
-      /** 1Password references by secret name. */
-      refs: z.record(z.string(), z.string().min(1)).default({}),
-    })
-    .prefault({}),
-  identities: IdentitiesConfig.default({}),
-  challenges: z
-    .strictObject({
-      /** Kinds that only a person may answer, such as an MPIN on a real account. */
-      humanOnly: z.array(z.string().min(1)).default([]),
-    })
-    .prefault({}),
-  /** Per case target: `driver` names its driver, which gets the other settings, such as browser and headless. */
-  targets: z.record(z.string().min(1), z.object({ driver: z.string().min(1) }).catchall(z.json())).default({}),
-  /** Default transitions per tracker project. */
-  trackers: z.record(z.string().min(1), TrackerConfig).default({}),
-  plugins: z.array(z.string().min(1)).default([]),
-  /** Patterns and screenshot selectors masked on top of the built-in rules. */
-  redaction: RedactionConfig.prefault({}),
+/** A plugin that runs as its own process and talks to the host over stdio. */
+export const ProcessPluginEntry = z.strictObject({
+  command: z.array(z.string().min(1)).min(1),
+  /** Relative to the project root. */
+  cwd: z.string().min(1).default("."),
+  /** Added to this process's environment. */
+  env: z.record(z.string().min(1), z.string()).default({}),
+  /** Per call, from the host's side. */
+  timeoutSeconds: z.int().positive().default(600),
 });
+export type ProcessPluginEntry = z.infer<typeof ProcessPluginEntry>;
+
+const TrackerProject = z.strictObject({
+  transitions: z.partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1)).default({}),
+  bugs: z
+    .strictObject({
+      issueType: z.string().min(1),
+      labels: z.array(z.string().min(1)).default([]),
+      onPass: z.string().min(1).optional(),
+      linkType: z.string().min(1).default("Relates"),
+    })
+    .optional(),
+  promoteOn: z.array(z.string().min(1)).default([]),
+});
+
+export const TrackerConfig = z.strictObject({
+  /** `host[:port]`; https is implied, except for a 127.0.0.1 or localhost site with a port, which tests use. */
+  site: z
+    .string()
+    .refine(isSiteHost, {
+      error:
+        "site takes a lowercase host and an optional port other than 443, such as example.atlassian.net, with no scheme, credentials, path, query or fragment",
+    })
+    .optional(),
+  /** The REST base when it is not `https://<site>`, such as a scoped token's. */
+  api: z
+    .url({ abort: true })
+    .refine(isTrackerApi, { error: "api must be an https URL; http only for 127.0.0.1 or localhost with a port" })
+    .optional(),
+  /** Secret names, read through `secrets.providers`. */
+  secrets: z.record(z.string().min(1), z.string().min(1)).default({}),
+  projects: z.record(z.string().min(1), TrackerProject).default({}),
+});
+export type TrackerConfig = z.infer<typeof TrackerConfig>;
+
+/** The project config file. */
+export const ProjectConfig = z
+  .strictObject({
+    envs: EnvsConfig,
+    secrets: z
+      .strictObject({
+        /** Provider names in the order they are asked. */
+        providers: z.array(z.string().min(1)).default(["env", "dotenv"]),
+        /** The secret names cases may use as `${secret.NAME}`. */
+        names: z.array(z.string().min(1)).default([]),
+        /** 1Password references by secret name. */
+        refs: z.record(z.string(), z.string().min(1)).default({}),
+      })
+      .prefault({}),
+    identities: IdentitiesConfig.default({}),
+    challenges: z
+      .strictObject({
+        /** Kinds that only a person may answer, such as an MPIN on a real account. */
+        humanOnly: z.array(z.string().min(1)).default([]),
+      })
+      .prefault({}),
+    runners: z.record(z.string().min(1), RunnerConfig).default({}),
+    /**
+     * Per case target: `driver` names its driver, which gets the other settings, such as browser and headless;
+     * `runner` names a runner, whose env the target's `env` extends.
+     */
+    targets: z
+      .record(
+        z.string().min(1),
+        z.union([RunnerTarget, DriverTarget], {
+          // a runner target with a bad field fails both options, so report the runner option's own issue
+          error: (issue) => {
+            const own =
+              issue.code === "invalid_union" &&
+              typeof issue.input === "object" &&
+              issue.input !== null &&
+              "runner" in issue.input
+                ? issue.errors[0]?.[0]
+                : undefined;
+            return own === undefined ? "a target needs driver or runner" : `${own.path.join(".")}: ${own.message}`;
+          },
+        }),
+      )
+      .default({}),
+    /** Where results are posted, and the default transitions per tracker project. */
+    trackers: z.record(z.string().min(1), TrackerConfig).default({}),
+    plugins: z
+      .array(
+        z.union([z.string().min(1), ProcessPluginEntry], {
+          error:
+            "a plugin entry is a module path, or an object whose command is an argv list such as [python3, plugins/otp_hook.py]",
+        }),
+      )
+      .default([]),
+    /** Patterns and screenshot selectors masked on top of the built-in rules. */
+    redaction: RedactionConfig.prefault({}),
+  })
+  .superRefine((config, ctx) => {
+    for (const [name, runner] of Object.entries(config.runners)) {
+      if (!PLAIN_NAME.test(name)) {
+        ctx.addIssue({ code: "custom", path: ["runners", name], message: `a runner name takes ${PLAIN_NAME_RULE}` });
+      }
+      runner.identities?.forEach((identity, index) => {
+        if (identity === "" || Object.hasOwn(config.identities, identity)) return;
+        ctx.addIssue({
+          code: "custom",
+          path: ["runners", name, "identities", index],
+          message: `runner ${name} lists identity ${identity}, which identities does not define`,
+        });
+      });
+    }
+    for (const [name, target] of Object.entries(config.targets)) {
+      if ("driver" in target) {
+        if ("runner" in target) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["targets", name],
+            message: "a target names a driver or a runner, not both",
+          });
+        }
+        continue;
+      }
+      if (!PLAIN_NAME.test(name)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targets", name],
+          message: `a runner target's name takes ${PLAIN_NAME_RULE}`,
+        });
+      }
+      if (target.runner !== "" && !Object.hasOwn(config.runners, target.runner)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targets", name, "runner"],
+          message: `runner ${target.runner} is not defined under runners`,
+        });
+      }
+    }
+  });
 export type ProjectConfig = z.infer<typeof ProjectConfig>;
+
+/** The runner a runner target names, with the target's env; undefined for a driver target or an unknown target. */
+export function runnerOf(
+  config: ProjectConfig,
+  target: string,
+): { name: string; runner: RunnerConfig; env: Record<string, string> } | undefined {
+  const entry = Object.hasOwn(config.targets, target) ? config.targets[target] : undefined;
+  if (entry === undefined || "driver" in entry) return undefined;
+  const runner = Object.hasOwn(config.runners, entry.runner) ? config.runners[entry.runner] : undefined;
+  return runner === undefined ? undefined : { name: entry.runner, runner, env: entry.env };
+}
+
+function isSiteHost(site: string): boolean {
+  // a port over 65535 matches the pattern but does not parse
+  return SITE_HOST.test(site) && URL.canParse(`https://${site}`) && new URL(`https://${site}`).host === site;
+}
+
+function isTrackerApi(api: string): boolean {
+  if (!URL.canParse(api)) return false;
+  const url = new URL(api);
+  return url.protocol === "https:" || (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname) && url.port !== "");
+}
 
 export const FIXTURES_FILE = "fixtures/identities.example.yaml";
 

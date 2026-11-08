@@ -13,11 +13,12 @@ import {
   type CaseEnding,
   type DriverSession,
   type LaunchOptions,
+  type StepEvidence,
   type StepHandler,
 } from "@bazam/core/driver";
 import { assertHostAllowed, HostNotAllowed, type Environment } from "@bazam/core/env";
 import type { Redactor } from "@bazam/core/redact";
-import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
+import type { CheckRecord } from "@bazam/core/result";
 import {
   chromium,
   firefox,
@@ -460,7 +461,7 @@ interface StepScope {
   env: Environment;
   testIdAttribute: string;
   redactor: Redactor;
-  evidence: EvidenceStore | undefined;
+  evidence: StepEvidence | undefined;
   signal: AbortSignal | undefined;
 }
 
@@ -489,7 +490,7 @@ function field(scope: StepScope, selector: Selector): Locator {
   return locate(scope.page, selector, scope.testIdAttribute);
 }
 
-function caseEvidence(scope: StepScope, kind: string): EvidenceStore {
+function caseEvidence(scope: StepScope, kind: string): StepEvidence {
   if (scope.evidence === undefined) throw new Error(`a ${kind} step runs only inside a case, not in a browser login`);
   return scope.evidence;
 }
@@ -686,7 +687,7 @@ export class WebSession implements DriverSession {
   }
 
   /** Attaches the scrubbed trace; when stopping or scrubbing fails, notes why and attaches nothing. */
-  async #keepTrace(context: BrowserContext, label: string, evidence: EvidenceStore): Promise<void> {
+  async #keepTrace(context: BrowserContext, label: string, evidence: StepEvidence): Promise<void> {
     // outside runs/, so the unscrubbed zip never sits beside the evidence
     const dir = await mkdtemp(join(tmpdir(), `${BRAND.name}-trace-`));
     try {

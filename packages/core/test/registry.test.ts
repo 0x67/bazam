@@ -18,6 +18,7 @@ import {
 import type { CheckRule } from "../src/check/index.ts";
 import { builtinRules } from "../src/check/index.ts";
 import type { Environment } from "../src/env/index.ts";
+import type { ResultFormat } from "../src/ingest/index.ts";
 import {
   definePlugin,
   PLUGIN_API_VERSION,
@@ -27,7 +28,7 @@ import {
   type PluginManifest,
 } from "../src/plugin/index.ts";
 import { ProjectConfig } from "../src/project.ts";
-import { markdownTracker, type TrackerRenderer } from "../src/report/index.ts";
+import { markdownTracker, type TrackerClient, type TrackerRenderer } from "../src/report/index.ts";
 import type { CaseResult } from "../src/result/index.ts";
 import type { SecretProvider } from "../src/secrets/index.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
@@ -75,6 +76,19 @@ function slackChannel(): { name: string; create(runDir: string): HumanChannel } 
 
 function trackerRenderer(tracker: string): TrackerRenderer {
   return { tracker, render: () => ({ markdown: `${tracker} comment` }) };
+}
+
+function resultFormat(name: string): ResultFormat {
+  return { name, parse: async () => [] };
+}
+
+function trackerClient(tracker: string): TrackerClient {
+  return {
+    tracker,
+    connect: async () => {
+      throw new Error(`${tracker} is not reachable from this test`);
+    },
+  };
 }
 
 function checkRule(id: string): CheckRule {
@@ -153,6 +167,18 @@ describe("PluginRegistry.load", () => {
       { trackers: [trackerRenderer("jira")] },
       'tracker renderer "jira"',
     ],
+    [
+      "two result formats with one name",
+      { resultFormats: [resultFormat("ctrf")] },
+      { resultFormats: [resultFormat("ctrf")] },
+      'result format "ctrf"',
+    ],
+    [
+      "two clients for one tracker",
+      { trackerClients: [trackerClient("jira")] },
+      { trackerClients: [trackerClient("jira")] },
+      'tracker client "jira"',
+    ],
   ])("PluginConflict also covers %s", async (_, first, second, contribution) => {
     const failure = await loadFailure([plugin("first", first), plugin("second", second)]);
 
@@ -197,6 +223,14 @@ describe("PluginRegistry.load", () => {
 
     expect((failure as Error).message).toBe(
       `plugin "${entry}" is neither a package name nor a path that starts with "."`,
+    );
+  });
+
+  it("refuses a process plugin entry until process plugins load", async () => {
+    const entry = { command: ["python3", "plugins/otp_hook.py"] };
+
+    await expect(PluginRegistry.load(config({ plugins: [entry] }), projectRoot, [])).rejects.toThrow(
+      "process plugins are not supported yet",
     );
   });
 
@@ -385,6 +419,26 @@ describe("PluginRegistry.tracker", () => {
 
     expect(notion.tracker).toBe("notion");
     expect(notion.render(passed)).toEqual(markdownTracker("notion").render(passed));
+  });
+});
+
+describe("PluginRegistry.resultFormat and trackerClient", () => {
+  const ctrf = resultFormat("ctrf");
+  const jira = trackerClient("jira");
+  const defaults = [plugin("interop-plugin", { resultFormats: [ctrf], trackerClients: [jira] })];
+
+  it("returns the result format and the tracker client a plugin registered", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
+
+    expect(registry.resultFormat("ctrf")).toBe(ctrf);
+    expect(registry.trackerClient("jira")).toBe(jira);
+  });
+
+  it("throws on a name no plugin registered", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, defaults);
+
+    expect(() => registry.resultFormat("ctfr")).toThrow('unknown result format "ctfr"');
+    expect(() => registry.trackerClient("notion")).toThrow('unknown tracker client "notion"; known: jira');
   });
 });
 

@@ -19,6 +19,7 @@
     "eval:drafting": "node evals/drafting/run.ts"
   },
   "devDependencies": {
+    "@bazam/core": "workspace:*",
     "@types/node": "^22.20.5",
     "bazam": "workspace:*",
     "typescript": "^7.0.2",

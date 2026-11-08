@@ -17,6 +17,11 @@ export interface BrowserSession {
   setExtraHeaders(headers: Record<string, string>): Promise<void>;
   /** The browser answers HTTP authentication challenges from hosts in the env's allowlist with these credentials; other hosts never get them. */
   setHttpCredentials(credentials: { username: string; password: string }): Promise<void>;
+  /**
+   * Calls `listener` with the origin of each 401 response to a fetch or XHR request that the context gets from
+   * a host in the env's allowlist; returns a function that stops it.
+   */
+  onUnauthorized?(listener: (origin: string) => void): () => void;
 }
 
 /** The login is done when this cookie is set, or when the page URL matches this pattern. */

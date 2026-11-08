@@ -378,7 +378,7 @@ describe("loadProjectConfig", () => {
 
       expect(config).toBeUndefined();
       expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([
-        [BRAND.configFile, 3, "targets.web.driver: Invalid input: expected string, received undefined"],
+        [BRAND.configFile, 3, "targets.web: a target needs driver or runner"],
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -31,6 +31,71 @@ export interface HumanChannel {
   ask(prompt: PersonPrompt, signal: AbortSignal): Promise<PersonAnswer>;
 }
 
+// the channels oneAtATime returned, so wrapping one again keeps its single queue
+const queuedChannels = new WeakSet<HumanChannel>();
+
+/**
+ * Shows the person one prompt at a time, in the order asked, and starts each prompt's window when it is
+ * shown. A channel that `oneAtATime` returned comes back unchanged.
+ */
+export function oneAtATime(channel: HumanChannel): HumanChannel {
+  if (queuedChannels.has(channel)) return channel;
+  const queue = new PersonQueue();
+  const queued: HumanChannel = {
+    async ask(prompt, signal) {
+      const done = await queue.turn(signal);
+      // also bounds a channel that does not keep the prompt's window itself
+      const window = AbortSignal.timeout(prompt.timeoutMs);
+      try {
+        return await channel.ask(prompt, AbortSignal.any([signal, window]));
+      } catch (error) {
+        if (!window.aborted || signal.aborted) throw error;
+        return { kind: "timeout" };
+      } finally {
+        done();
+      }
+    },
+  };
+  queuedChannels.add(queued);
+  return queued;
+}
+
+/**
+ * Asks in the order they came, one at a time. Neither channel can tell which open prompt a typed line
+ * answers, and two requests of one case, kind and step share a prompt id.
+ */
+class PersonQueue {
+  #last: Promise<void> = Promise.resolve();
+
+  /** Waits until every earlier ask has ended and returns the call that ends this one; rejects once `signal` aborts. */
+  async turn(signal: AbortSignal): Promise<() => void> {
+    const earlier = this.#last;
+    const ended = Promise.withResolvers<void>();
+    this.#last = earlier.then(() => ended.promise);
+    try {
+      await untilAborted(earlier, signal);
+    } catch (error) {
+      // the asks behind this one then wait only for the earlier ones
+      ended.resolve();
+      throw error;
+    }
+    return () => ended.resolve();
+  }
+}
+
+/** Rejects with the signal's reason when it aborts first. */
+async function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  const aborted = Promise.withResolvers<never>();
+  const abort = (): void => aborted.reject(signal.reason);
+  if (signal.aborted) abort();
+  else signal.addEventListener("abort", abort, { once: true });
+  try {
+    return await Promise.race([work, aborted.promise]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
+}
+
 /** Reads `p`, `pass`, `f`, `fail`, `b` or `blocked`, in any case, and an optional note after a space. */
 export function parseVerdict(line: string): VerdictAnswer | null {
   const match = /^\s*(p|pass|f|fail|b|blocked)(?:\s+(.*))?$/i.exec(line);

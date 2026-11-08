@@ -12,8 +12,10 @@ import {
 import type { CheckRule } from "../check/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
+import type { ResultFormat } from "../ingest/index.ts";
 import type { ProjectConfig } from "../project.ts";
-import { markdownTracker, type TrackerRenderer } from "../report/index.ts";
+import type { Redactor } from "../redact/index.ts";
+import { markdownTracker, type TrackerClient, type TrackerRenderer } from "../report/index.ts";
 import type { SecretProvider } from "../secrets/index.ts";
 import { builtinContributions } from "./builtin.ts";
 
@@ -37,6 +39,8 @@ export interface PluginManifest {
   channels?: { name: string; create(runDir: string): HumanChannel }[];
   trackers?: TrackerRenderer[];
   checkRules?: CheckRule[];
+  resultFormats?: ResultFormat[];
+  trackerClients?: TrackerClient[];
 }
 
 export function definePlugin(manifest: PluginManifest): PluginManifest {
@@ -89,6 +93,8 @@ const contributionLists: { [K in ContributionKey]: ContributionList<Contribution
   channels: { noun: "human channel", name: (channel) => channel.name },
   trackers: { noun: "tracker renderer", name: (renderer) => renderer.tracker },
   checkRules: { noun: "check rule", name: (rule) => rule.id },
+  resultFormats: { noun: "result format", name: (format) => format.name },
+  trackerClients: { noun: "tracker client", name: (client) => client.tracker },
 };
 const CONTRIBUTION_KEYS = Object.keys(contributionLists) as ContributionKey[];
 
@@ -118,12 +124,16 @@ export class PluginRegistry {
     config: ProjectConfig,
     projectRoot: string,
     defaults: readonly PluginManifest[],
+    _options?: { log?(line: string): void; redactor?: Redactor },
   ): Promise<PluginRegistry> {
     const root = resolve(projectRoot);
     const registry = new PluginRegistry(new Set(config.challenges.humanOnly));
     registry.#add({ name: CORE_PLUGIN, apiVersion: PLUGIN_API_VERSION, ...builtinContributions(config, root) });
     for (const manifest of defaults) registry.#add(manifest);
-    for (const entry of config.plugins) registry.#add(manifestOf(await importPlugin(entry, root), entry));
+    for (const entry of config.plugins) {
+      if (typeof entry !== "string") throw new Error("process plugins are not supported yet");
+      registry.#add(manifestOf(await importPlugin(entry, root), entry));
+    }
     return registry;
   }
 
@@ -177,6 +187,14 @@ export class PluginRegistry {
   /** The renderer a plugin registered for the tracker, or plain Markdown when none did. */
   tracker(name: string): TrackerRenderer {
     return this.#registrations.trackers.get(name)?.item ?? markdownTracker(name);
+  }
+
+  resultFormat(name: string): ResultFormat {
+    return this.#get("resultFormats", name);
+  }
+
+  trackerClient(name: string): TrackerClient {
+    return this.#get("trackerClients", name);
   }
 
   /** One handler per kind; a kind that several drivers offer comes from the first of them. */

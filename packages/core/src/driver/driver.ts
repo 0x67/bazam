@@ -8,12 +8,15 @@ import type { GuardedHttp } from "./http.ts";
 /** An open name for what a driver can do on its device, such as "webauthn.virtual" or "camera.inject". */
 export type Capability = string;
 
+/** The part of a case's evidence that steps and `close` use, which a process plugin can also offer. */
+export type StepEvidence = Pick<EvidenceStore, "record" | "note" | "followup" | "attach">;
+
 export interface StepContext {
   session: DriverSession;
   /** The identity the step runs as; undefined when neither the step nor its flow names one. */
   identity?: string;
   env: Environment;
-  evidence: EvidenceStore;
+  evidence: StepEvidence;
   identities: Identities;
   /** What `${case.<name>}` reads: the case id and title, plus what steps save, such as a request step's `save:`. */
   values: Map<string, string>;
@@ -52,7 +55,7 @@ export interface DriverSession {
 /** How the case ended, decided before the session closes. */
 export interface CaseEnding {
   status: Status;
-  evidence: EvidenceStore;
+  evidence: StepEvidence;
 }
 
 export interface Driver {

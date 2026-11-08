@@ -2,11 +2,12 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { z } from "zod";
+import { BRAND } from "../brand.ts";
 import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import type { Redactor } from "../redact/index.ts";
-import type { HumanChannel, PersonPrompt } from "./human.ts";
+import { oneAtATime, type HumanChannel, type PersonPrompt } from "./human.ts";
 import type { ChallengeKindSpec } from "./kinds.ts";
 import {
   ChallengeBlocked,
@@ -15,6 +16,15 @@ import {
   type ChallengeResolver,
   type ResolverContext,
 } from "./resolver.ts";
+
+/** The full endpoint, `http://127.0.0.1:<port>/challenge`. */
+export const CHALLENGE_URL_VAR = `${BRAND.envPrefix}CHALLENGE_URL`;
+/** The bearer token the endpoint wants. */
+export const CHALLENGE_TOKEN_VAR = `${BRAND.envPrefix}CHALLENGE_TOKEN`;
+export const RUN_ID_VAR = `${BRAND.envPrefix}RUN_ID`;
+export const ENV_VAR = `${BRAND.envPrefix}ENV`;
+/** The selected case ids of a runner target, comma separated. */
+export const CASES_VAR = `${BRAND.envPrefix}CASES`;
 
 const HOST = "127.0.0.1";
 const PATH = "/challenge";
@@ -89,7 +99,7 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
   const tokenDigest = digest(token);
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const closing = new AbortController();
-  const personQueue = new PersonQueue();
+  const queued = oneAtATime(deps.channel);
   const log = (line: string): void => deps.log?.(deps.redactor.text(line));
 
   const authorized = (header: string | undefined): boolean => {
@@ -135,7 +145,7 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
     const ctx: ResolverContext = {
       env: deps.env,
       http: deps.http,
-      channel: personChannel(deps.channel, personQueue, deps.redactor, person),
+      channel: personChannel(queued, deps.redactor, person),
       prompt: { runId: deps.runId, timeoutMs },
       stateDir: deps.stateDir,
       secrets: (key) => deps.secrets(key),
@@ -237,16 +247,8 @@ function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   });
 }
 
-/**
- * Shows the person one prompt at a time and starts its window then, masks the prompt the caller wrote into,
- * and counts a timeout, which humanResolver reports only as text.
- */
-function personChannel(
-  channel: HumanChannel,
-  queue: PersonQueue,
-  redactor: Redactor,
-  person: { timedOut: boolean },
-): HumanChannel {
+/** Masks the prompt the caller wrote into, and counts a timeout, which humanResolver reports only as text. */
+function personChannel(queued: HumanChannel, redactor: Redactor, person: { timedOut: boolean }): HumanChannel {
   return {
     async ask(prompt, signal) {
       const masked: PersonPrompt = {
@@ -254,45 +256,11 @@ function personChannel(
         title: redactor.text(prompt.title),
         steps: prompt.steps.map((step) => redactor.text(step)),
       };
-      const done = await queue.turn(signal);
-      // also bounds a channel that does not keep the prompt's window itself
-      const window = AbortSignal.timeout(prompt.timeoutMs);
-      try {
-        const answer = await channel.ask(masked, AbortSignal.any([signal, window]));
-        if (answer.kind === "timeout") person.timedOut = true;
-        return answer;
-      } catch (error) {
-        if (!window.aborted || signal.aborted) throw error;
-        person.timedOut = true;
-        return { kind: "timeout" };
-      } finally {
-        done();
-      }
+      const answer = await queued.ask(masked, signal);
+      if (answer.kind === "timeout") person.timedOut = true;
+      return answer;
     },
   };
-}
-
-/**
- * Asks in the order they came, one at a time. Neither channel can tell which open prompt a typed line
- * answers, and two requests of one case, kind and step share a prompt id.
- */
-class PersonQueue {
-  #last: Promise<void> = Promise.resolve();
-
-  /** Waits until every earlier ask has ended and returns the call that ends this one; rejects once `signal` aborts. */
-  async turn(signal: AbortSignal): Promise<() => void> {
-    const earlier = this.#last;
-    const ended = Promise.withResolvers<void>();
-    this.#last = earlier.then(() => ended.promise);
-    try {
-      await untilAborted(earlier, signal);
-    } catch (error) {
-      // the asks behind this one then wait only for the earlier ones
-      ended.resolve();
-      throw error;
-    }
-    return () => ended.resolve();
-  }
 }
 
 /** A copy without arm: the caller's test ran the trigger before it asked. */

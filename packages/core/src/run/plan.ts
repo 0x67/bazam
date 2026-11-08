@@ -88,6 +88,7 @@ export function targetDriver(
 ): { driver: Driver; settings: Record<string, JsonValue> } {
   const entry = project.config.targets[target];
   if (entry === undefined) throw new Error(`target ${target} is not defined under targets in ${BRAND.configFile}`);
+  if (!("driver" in entry)) throw new Error(`target ${target} names runner ${entry.runner}, not a driver`);
   const { driver, ...settings } = entry;
   return { driver: registry.driver(driver), settings };
 }

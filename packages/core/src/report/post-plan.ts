@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { JsonValue } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import { stagePolicy, type CaseSpec } from "../case/index.ts";
 import type { CaseResult, Status } from "../result/index.ts";
@@ -16,7 +17,7 @@ export interface PostPlanItem {
   ticket: TicketRef;
   caseId: string;
   status: Status;
-  comment: { markdown: string; html?: string };
+  comment: RenderedComment;
   /** The comment to edit instead of posting a new one, from a receipt when the case sets `report.comment: update`. */
   edit?: { url: string };
   /** Paths relative to the run directory. */
@@ -46,9 +47,16 @@ export type TransitionMap = Readonly<
   Record<string, { projects: Readonly<Record<string, { transitions: Partial<Record<Status, string>> }>> }>
 >;
 
+/** One result as a tracker comment; `adf` is the Atlassian Document Format body, for Jira. */
+export interface RenderedComment {
+  markdown: string;
+  html?: string;
+  adf?: JsonValue;
+}
+
 export interface TrackerRenderer {
   tracker: string;
-  render(result: CaseResult, media?: MediaRefs): { markdown: string; html?: string };
+  render(result: CaseResult, media?: MediaRefs): RenderedComment;
 }
 
 export interface PostPlanInputs {
