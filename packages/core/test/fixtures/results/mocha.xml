@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Mocha Tests" time="3.2140" tests="3" failures="1">
+  <testsuite name="Root Suite" timestamp="2026-11-08T09:20:01" tests="0" file="cypress/e2e/cart.cy.ts" time="0.0000" failures="0">
+  </testsuite>
+  <testsuite name="cart" timestamp="2026-11-08T09:20:01" tests="3" time="3.2140" failures="1">
+    <testcase name="cart adds an item [SHOP-CART-002]" time="1.1020" classname="adds an item [SHOP-CART-002]">
+    </testcase>
+    <testcase name="cart removes an item [SHOP-CART-003]" time="2.1120" classname="removes an item [SHOP-CART-003]">
+      <failure message="Timed out retrying after 4000ms: expected &apos;&lt;span.count&gt;&apos; to have text &apos;0&apos;, but the text was &apos;1&apos;" type="AssertionError"><![CDATA[AssertionError: Timed out retrying after 4000ms: expected '<span.count>' to have text '0', but the text was '1'
+    at Context.eval (webpack://shop/./cypress/e2e/cart.cy.ts:18:30)]]></failure>
+      <system-out>[[ATTACHMENT|/home/ci/shop/cypress/screenshots/cart.cy.ts/cart -- removes an item [SHOP-CART-003] (failed).png]]</system-out>
+    </testcase>
+    <testcase name="cart shows the total [SHOP-CART-004]" time="0.0000" classname="shows the total [SHOP-CART-004]">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

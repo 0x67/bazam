@@ -1,0 +1,561 @@
+{
+  "config": {
+    "configFile": "/home/ci/shop-web/playwright.config.ts",
+    "rootDir": "/home/ci/shop-web/tests",
+    "version": "1.65.0",
+    "workers": 1
+  },
+  "suites": [
+    {
+      "title": "auth/login.spec.ts",
+      "file": "auth/login.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "login",
+          "file": "auth/login.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "signs in with an email code [AUTH-LOGIN-001]",
+              "ok": true,
+              "tags": [
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "inbox",
+                          "contentType": "text/plain",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-in-with-an-email-code-AUTH-LOGIN-001--chromium/attachments/inbox-53bcbe78812fcbf91e126efc726f7ad521ad9e9f.txt"
+                        },
+                        {
+                          "name": "note",
+                          "contentType": "text/plain",
+                          "body": "aW5saW5l"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                },
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "inbox",
+                          "contentType": "text/plain",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-in-with-an-email-code-AUTH-LOGIN-001--firefox/attachments/inbox-54da8c73070a0715e9eb5f501131cb32c7e4d8b8.txt"
+                        },
+                        {
+                          "name": "note",
+                          "contentType": "text/plain",
+                          "body": "aW5saW5l"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "231ca1f0f4db3e4958c3-ef2174ea4529a7ff3c21",
+              "file": "auth/login.spec.ts",
+              "line": 5,
+              "column": 3
+            },
+            {
+              "title": "keeps the session after reload [AUTH-LOGIN-002]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 2,
+                      "errors": [
+                        {
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m1\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\n  10 |   });\n  11 |   test(\"keeps the session after reload [AUTH-LOGIN-002]\", async ({}, testInfo) => {\n> 12 |     if (testInfo.project.name === \"chromium\") expect(testInfo.retry).toBe(1);\n     |                                                                      ^\n  13 |   });\n  14 |   test.describe(\"lockout\", () => {\n  15 |     test(\"locks after five tries [AUTH-LOGIN-003]\", async () => {\n    at /home/ci/shop-web/tests/auth/login.spec.ts:12:70"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-keeps-the-bf645-fter-reload-AUTH-LOGIN-002--chromium/error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2,
+                      "errors": [],
+                      "retry": 1,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "flaky"
+                },
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 0,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "231ca1f0f4db3e4958c3-9eb295dee41f774965d3",
+              "file": "auth/login.spec.ts",
+              "line": 11,
+              "column": 3
+            },
+            {
+              "title": "signs out [AUTH-LOGIN-004]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1,
+                      "errors": [
+                        {
+                          "message": "Error: session store unavailable\n\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n> 20 |     throw new Error(\"session store unavailable\");\n     |           ^\n  21 |   });\n  22 |   test(\"resets the password [AUTH-LOGIN-005]\", async () => {\n  23 |     test.skip(true, \"needs a mail server\");\n    at /home/ci/shop-web/tests/auth/login.spec.ts:20:11"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium/error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1,
+                      "errors": [
+                        {
+                          "message": "Error: session store unavailable\n\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n> 20 |     throw new Error(\"session store unavailable\");\n     |           ^\n  21 |   });\n  22 |   test(\"resets the password [AUTH-LOGIN-005]\", async () => {\n  23 |     test.skip(true, \"needs a mail server\");\n    at /home/ci/shop-web/tests/auth/login.spec.ts:20:11"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium-retry1/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                },
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1,
+                      "errors": [
+                        {
+                          "message": "Error: session store unavailable\n\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n> 20 |     throw new Error(\"session store unavailable\");\n     |           ^\n  21 |   });\n  22 |   test(\"resets the password [AUTH-LOGIN-005]\", async () => {\n  23 |     test.skip(true, \"needs a mail server\");\n    at /home/ci/shop-web/tests/auth/login.spec.ts:20:11"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-out-AUTH-LOGIN-004--firefox/error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1,
+                      "errors": [
+                        {
+                          "message": "Error: session store unavailable\n\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n> 20 |     throw new Error(\"session store unavailable\");\n     |           ^\n  21 |   });\n  22 |   test(\"resets the password [AUTH-LOGIN-005]\", async () => {\n  23 |     test.skip(true, \"needs a mail server\");\n    at /home/ci/shop-web/tests/auth/login.spec.ts:20:11"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/ci/shop-web/test-results/auth-login-login-signs-out-AUTH-LOGIN-004--firefox-retry1/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "231ca1f0f4db3e4958c3-c24ce4cabfd693a3a4a8",
+              "file": "auth/login.spec.ts",
+              "line": 19,
+              "column": 3
+            },
+            {
+              "title": "resets the password [AUTH-LOGIN-005]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "needs a mail server"
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "needs a mail server"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                },
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "needs a mail server"
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2026-11-08T09:30:00.000Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "needs a mail server"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "231ca1f0f4db3e4958c3-06a75231eaac996e9100",
+              "file": "auth/login.spec.ts",
+              "line": 22,
+              "column": 3
+            }
+          ],
+          "suites": [
+            {
+              "title": "lockout",
+              "file": "auth/login.spec.ts",
+              "line": 14,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "locks after five tries [AUTH-LOGIN-003]",
+                  "ok": false,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 0,
+                          "status": "failed",
+                          "duration": 1,
+                          "errors": [
+                            {
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m5\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n\n  14 |   test.describe(\"lockout\", () => {\n  15 |     test(\"locks after five tries [AUTH-LOGIN-003]\", async () => {\n> 16 |       expect(1).toBe(5);\n     |                 ^\n  17 |     });\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n    at /home/ci/shop-web/tests/auth/login.spec.ts:16:17"
+                            }
+                          ],
+                          "retry": 0,
+                          "startTime": "2026-11-08T09:30:00.000Z",
+                          "annotations": [],
+                          "attachments": [
+                            {
+                              "name": "error-context",
+                              "contentType": "text/markdown",
+                              "path": "/home/ci/shop-web/test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium/error-context.md"
+                            }
+                          ]
+                        },
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 0,
+                          "status": "failed",
+                          "duration": 3,
+                          "errors": [
+                            {
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m5\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n\n  14 |   test.describe(\"lockout\", () => {\n  15 |     test(\"locks after five tries [AUTH-LOGIN-003]\", async () => {\n> 16 |       expect(1).toBe(5);\n     |                 ^\n  17 |     });\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n    at /home/ci/shop-web/tests/auth/login.spec.ts:16:17"
+                            }
+                          ],
+                          "retry": 1,
+                          "startTime": "2026-11-08T09:30:00.000Z",
+                          "annotations": [],
+                          "attachments": [
+                            {
+                              "name": "error-context",
+                              "contentType": "text/markdown",
+                              "path": "/home/ci/shop-web/test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium-retry1/error-context.md"
+                            }
+                          ]
+                        }
+                      ],
+                      "status": "unexpected"
+                    },
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "firefox",
+                      "projectName": "firefox",
+                      "results": [
+                        {
+                          "workerIndex": 6,
+                          "parallelIndex": 0,
+                          "status": "failed",
+                          "duration": 2,
+                          "errors": [
+                            {
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m5\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n\n  14 |   test.describe(\"lockout\", () => {\n  15 |     test(\"locks after five tries [AUTH-LOGIN-003]\", async () => {\n> 16 |       expect(1).toBe(5);\n     |                 ^\n  17 |     });\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n    at /home/ci/shop-web/tests/auth/login.spec.ts:16:17"
+                            }
+                          ],
+                          "retry": 0,
+                          "startTime": "2026-11-08T09:30:00.000Z",
+                          "annotations": [],
+                          "attachments": [
+                            {
+                              "name": "error-context",
+                              "contentType": "text/markdown",
+                              "path": "/home/ci/shop-web/test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--firefox/error-context.md"
+                            }
+                          ]
+                        },
+                        {
+                          "workerIndex": 7,
+                          "parallelIndex": 0,
+                          "status": "failed",
+                          "duration": 2,
+                          "errors": [
+                            {
+                              "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m5\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n\n  14 |   test.describe(\"lockout\", () => {\n  15 |     test(\"locks after five tries [AUTH-LOGIN-003]\", async () => {\n> 16 |       expect(1).toBe(5);\n     |                 ^\n  17 |     });\n  18 |   });\n  19 |   test(\"signs out [AUTH-LOGIN-004]\", async () => {\n    at /home/ci/shop-web/tests/auth/login.spec.ts:16:17"
+                            }
+                          ],
+                          "retry": 1,
+                          "startTime": "2026-11-08T09:30:00.000Z",
+                          "annotations": [],
+                          "attachments": [
+                            {
+                              "name": "error-context",
+                              "contentType": "text/markdown",
+                              "path": "/home/ci/shop-web/test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--firefox-retry1/error-context.md"
+                            }
+                          ]
+                        }
+                      ],
+                      "status": "unexpected"
+                    }
+                  ],
+                  "id": "231ca1f0f4db3e4958c3-f6439e037eace4e42979",
+                  "file": "auth/login.spec.ts",
+                  "line": 15,
+                  "column": 5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "home.spec.ts",
+      "file": "home.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "home page loads [WEB-HOME-001]",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 0,
+                  "errors": [],
+                  "retry": 0,
+                  "startTime": "2026-11-08T09:30:00.000Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            },
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "firefox",
+              "projectName": "firefox",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 0,
+                  "errors": [],
+                  "retry": 0,
+                  "startTime": "2026-11-08T09:30:00.000Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "d318381359a9b96acb1e-90616962dc3d5b131268",
+          "file": "home.spec.ts",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-08T09:30:00.000Z",
+    "duration": 1014.2,
+    "expected": 5,
+    "skipped": 2,
+    "unexpected": 4,
+    "flaky": 1
+  }
+}

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.2.xsd" version="3.0.2" name="com.shop.CartTest" time="2.315" tests="5" errors="1" skipped="1" failures="1">
+  <properties>
+    <property name="java.version" value="21.0.5"/>
+    <property name="surefire.rerunFailingTestsCount" value="2"/>
+  </properties>
+  <testcase name="keepsItemsAfterSignIn" classname="com.shop.CartTest" time="0.412"/>
+  <testcase name="mergesGuestCart" classname="com.shop.CartTest" time="0.731">
+    <flakyFailure message="expected: &lt;2&gt; but was: &lt;1&gt;" type="org.opentest4j.AssertionFailedError">
+      <stackTrace><![CDATA[org.opentest4j.AssertionFailedError: expected: <2> but was: <1>
+	at com.shop.CartTest.mergesGuestCart(CartTest.java:41)
+]]></stackTrace>
+    </flakyFailure>
+    <flakyError message="Connection reset" type="java.net.SocketException">
+      <stackTrace><![CDATA[java.net.SocketException: Connection reset
+	at com.shop.CartClient.merge(CartClient.java:77)
+]]></stackTrace>
+    </flakyError>
+  </testcase>
+  <testcase name="removesItem" classname="com.shop.CartTest" time="0.201">
+    <failure type="java.lang.AssertionError"><![CDATA[java.lang.AssertionError
+	at com.shop.CartTest.removesItem(CartTest.java:58)
+]]></failure>
+    <rerunFailure type="java.lang.AssertionError">
+      <stackTrace><![CDATA[java.lang.AssertionError
+	at com.shop.CartTest.removesItem(CartTest.java:58)
+]]></stackTrace>
+    </rerunFailure>
+  </testcase>
+  <testcase name="checksStock" classname="com.shop.CartTest" time="0.004">
+    <error message="Connection refused" type="java.net.ConnectException"><![CDATA[java.net.ConnectException: Connection refused
+	at com.shop.StockClient.check(StockClient.java:22)
+]]></error>
+  </testcase>
+  <testcase name="appliesCoupon" classname="com.shop.CartTest" time="0">
+    <skipped message="coupons are off in this env"/>
+  </testcase>
+</testsuite>

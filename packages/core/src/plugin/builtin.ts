@@ -10,6 +10,8 @@ import { BRAND } from "../brand.ts";
 import { answersFileChannel, builtinKinds, humanResolver, terminalChannel } from "../challenge/index.ts";
 import { builtinRules } from "../check/index.ts";
 import { httpSteps } from "../driver/http.ts";
+import { junitFormat } from "../ingest/junit.ts";
+import { playwrightJsonFormat } from "../ingest/playwright.ts";
 import { dotenvProvider, envProvider, onePasswordProvider } from "../secrets/index.ts";
 import type { PluginManifest } from "./registry.ts";
 
@@ -40,5 +42,6 @@ export function builtinContributions(
       { name: "answers-file", create: (runDir) => answersFileChannel(runDir) },
     ],
     checkRules: [...builtinRules],
+    resultFormats: [junitFormat, playwrightJsonFormat],
   };
 }

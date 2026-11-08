@@ -1,0 +1,118 @@
+<testsuites id="" name="" tests="6" failures="1" skipped="1" errors="1" time="1.014">
+<testsuite name="auth/login.spec.ts" timestamp="2026-11-08T09:30:00.000Z" hostname="chromium" tests="5" failures="1" skipped="1" time="0.014" errors="1">
+<testcase name="login › signs in with an email code [AUTH-LOGIN-001]" classname="auth/login.spec.ts" time="0.004">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/auth-login-login-signs-in-with-an-email-code-AUTH-LOGIN-001--chromium/attachments/inbox-53bcbe78812fcbf91e126efc726f7ad521ad9e9f.txt]]
+]]>
+</system-out>
+</testcase>
+<testcase name="login › keeps the session after reload [AUTH-LOGIN-002]" classname="auth/login.spec.ts" time="0.004">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/auth-login-login-keeps-the-bf645-fter-reload-AUTH-LOGIN-002--chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="login › lockout › locks after five tries [AUTH-LOGIN-003]" classname="auth/login.spec.ts" time="0.003">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium/error-context.md]]
+
+[[ATTACHMENT|../test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium-retry1/error-context.md]]
+]]>
+</system-out>
+<failure message="expect(received).toBe(expected) // Object.is equality" type="expect.toBe">
+<![CDATA[  [chromium] › auth/login.spec.ts:15:5 › login › lockout › locks after five tries [AUTH-LOGIN-003] ─
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 5
+    Received: 1
+
+      14 |   test.describe("lockout", () => {
+      15 |     test("locks after five tries [AUTH-LOGIN-003]", async () => {
+    > 16 |       expect(1).toBe(5);
+         |                 ^
+      17 |     });
+      18 |   });
+      19 |   test("signs out [AUTH-LOGIN-004]", async () => {
+        at /home/ci/shop-web/tests/auth/login.spec.ts:16:17
+
+    Error Context: ../test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 5
+    Received: 1
+
+      14 |   test.describe("lockout", () => {
+      15 |     test("locks after five tries [AUTH-LOGIN-003]", async () => {
+    > 16 |       expect(1).toBe(5);
+         |                 ^
+      17 |     });
+      18 |   });
+      19 |   test("signs out [AUTH-LOGIN-004]", async () => {
+        at /home/ci/shop-web/tests/auth/login.spec.ts:16:17
+
+    Error Context: ../test-results/auth-login-login-lockout-l-ce6a9--five-tries-AUTH-LOGIN-003--chromium-retry1/error-context.md
+]]>
+</failure>
+</testcase>
+<testcase name="login › signs out [AUTH-LOGIN-004]" classname="auth/login.spec.ts" time="0.002">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium/error-context.md]]
+
+[[ATTACHMENT|../test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium-retry1/error-context.md]]
+]]>
+</system-out>
+<error message="session store unavailable" type="Error">
+<![CDATA[  [chromium] › auth/login.spec.ts:19:3 › login › signs out [AUTH-LOGIN-004] ────────────────────────
+
+    Error: session store unavailable
+
+      18 |   });
+      19 |   test("signs out [AUTH-LOGIN-004]", async () => {
+    > 20 |     throw new Error("session store unavailable");
+         |           ^
+      21 |   });
+      22 |   test("resets the password [AUTH-LOGIN-005]", async () => {
+      23 |     test.skip(true, "needs a mail server");
+        at /home/ci/shop-web/tests/auth/login.spec.ts:20:11
+
+    Error Context: ../test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: session store unavailable
+
+      18 |   });
+      19 |   test("signs out [AUTH-LOGIN-004]", async () => {
+    > 20 |     throw new Error("session store unavailable");
+         |           ^
+      21 |   });
+      22 |   test("resets the password [AUTH-LOGIN-005]", async () => {
+      23 |     test.skip(true, "needs a mail server");
+        at /home/ci/shop-web/tests/auth/login.spec.ts:20:11
+
+    Error Context: ../test-results/auth-login-login-signs-out-AUTH-LOGIN-004--chromium-retry1/error-context.md
+]]>
+</error>
+</testcase>
+<testcase name="login › resets the password [AUTH-LOGIN-005]" classname="auth/login.spec.ts">
+<properties>
+<property name="skip" value="needs a mail server">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="home.spec.ts" timestamp="2026-11-08T09:30:00.000Z" hostname="chromium" tests="1" failures="0" skipped="0" time="0" errors="0">
+<testcase name="home page loads [WEB-HOME-001]" classname="home.spec.ts" time="0">
+</testcase>
+</testsuite>
+</testsuites>

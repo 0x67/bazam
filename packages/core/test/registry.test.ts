@@ -19,6 +19,8 @@ import type { CheckRule } from "../src/check/index.ts";
 import { builtinRules } from "../src/check/index.ts";
 import type { Environment } from "../src/env/index.ts";
 import type { ResultFormat } from "../src/ingest/index.ts";
+import { junitFormat } from "../src/ingest/junit.ts";
+import { playwrightJsonFormat } from "../src/ingest/playwright.ts";
 import {
   definePlugin,
   PLUGIN_API_VERSION,
@@ -439,6 +441,20 @@ describe("PluginRegistry.resultFormat and trackerClient", () => {
 
     expect(() => registry.resultFormat("ctfr")).toThrow('unknown result format "ctfr"');
     expect(() => registry.trackerClient("notion")).toThrow('unknown tracker client "notion"; known: jira');
+  });
+
+  it("registers the built-in junit and playwright-json formats", async () => {
+    const registry = await PluginRegistry.load(config(), projectRoot, []);
+
+    expect(registry.resultFormat("junit")).toBe(junitFormat);
+    expect(registry.resultFormat("playwright-json")).toBe(playwrightJsonFormat);
+  });
+
+  it("refuses a plugin result format with the name of a built-in one", async () => {
+    const failure = await loadFailure([plugin("junit-plugin", { resultFormats: [resultFormat("junit")] })]);
+
+    expect(failure).toBeInstanceOf(PluginConflict);
+    expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "junit-plugin"]);
   });
 });
 

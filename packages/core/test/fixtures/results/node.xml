@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="health answers ok [DEMO-API-001]" time="0.00036" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs"/>
+	<testsuite name="checkout" time="0.00099" disabled="0" errors="0" tests="5" failures="1" skipped="2" hostname="ci-runner-1">
+		<testcase name="smoke test" time="0.00008" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs"/>
+		<testcase name="rejects an expired card [DEMO-PAY-002]" time="0.00007" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs" failure="boom [31mred[0m">
+			<failure type="testCodeFailure" message="boom [31mred[0m">
+Error [ERR_TEST_FAILURE]: boom [31mred[0m
+    at async Promise.all (index 0) {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: Error: boom [31mred[0m
+      at TestContext.&lt;anonymous> (file:///home/ci/shop-api/test/checkout.test.mjs:6:62)
+      at async Promise.all (index 0)
+}
+			</failure>
+		</testcase>
+		<testcase name="refunds [DEMO-PAY-003]" time="0.00004" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs">
+			<skipped type="skipped" message="needs a sandbox"/>
+		</testcase>
+		<testcase name="splits a payment [DEMO-PAY-004]" time="0.00004" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs">
+			<skipped type="todo" message="true"/>
+		</testcase>
+		<testsuite name="vouchers" time="0.00055" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="ci-runner-1">
+			<testcase name="applies a voucher [DEMO-PAY-005]" time="0.0123" classname="test" file="/home/ci/shop-api/test/checkout.test.mjs"/>
+		</testsuite>
+	</testsuite>
+	<!-- tests 6 -->
+	<!-- suites 2 -->
+	<!-- pass 3 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 1 -->
+	<!-- todo 1 -->
+	<!-- duration_ms 31.4 -->
+</testsuites>
