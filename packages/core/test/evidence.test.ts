@@ -295,6 +295,51 @@ describe("writeRunSummary", () => {
       ].join("\n"),
     );
   });
+
+  it("lists unmapped tests in summary.json and in a table at the end of summary.md", async () => {
+    const unmapped = [
+      { target: "shop-chrome", title: "CartTest › keeps | items", reason: "no case SHOP-CART-009" },
+      {
+        target: "shop-chrome",
+        title: "[chromium] checkout › pays",
+        reason: "no case id in the test name, its tags or the mapping file",
+      },
+    ];
+
+    await writeRunSummary(runDir, [caseResult("SHOP-CART-001", "pass", { target: "shop-chrome" })], unmapped);
+
+    expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).toMatchObject({ unmapped });
+    const markdown = await readFile(join(runDir, "summary.md"), "utf8");
+    expect(markdown.slice(markdown.indexOf("## Follow-up"))).toBe(
+      [
+        "## Follow-up",
+        "",
+        "None.",
+        "",
+        "## Unmapped tests",
+        "",
+        "| Target | Test | Reason |",
+        "| --- | --- | --- |",
+        "| shop-chrome | CartTest › keeps \\| items | no case SHOP-CART-009 |",
+        "| shop-chrome | [chromium] checkout › pays | no case id in the test name, its tags or the mapping file |",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("leaves both files as they were when the unmapped list is empty", async () => {
+    const results = [caseResult("AUTH-LOGIN-001", "pass")];
+    await writeRunSummary(runDir, results);
+    const before = await Promise.all(
+      ["summary.json", "summary.md"].map((name) => readFile(join(runDir, name), "utf8")),
+    );
+
+    await writeRunSummary(runDir, results, []);
+    const after = await Promise.all(["summary.json", "summary.md"].map((name) => readFile(join(runDir, name), "utf8")));
+
+    expect(after).toEqual(before);
+    expect(JSON.parse(after[0]!)).not.toHaveProperty("unmapped");
+  });
 });
 
 describe("writeRunStatus", () => {

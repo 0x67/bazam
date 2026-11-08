@@ -1,5 +1,6 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import type { UnmappedTest } from "../ingest/mapping.ts";
 import type { CaseResult } from "./evidence.ts";
 import type { Status } from "./status.ts";
 
@@ -29,8 +30,15 @@ export async function writeRunStatus(runDir: string, progress: RunProgress): Pro
   await rename(`${file}.tmp`, file);
 }
 
-/** Writes summary.json and summary.md from the results `EvidenceStore.finish` returned, which are already masked. */
-export async function writeRunSummary(runDir: string, results: readonly CaseResult[]): Promise<void> {
+/**
+ * Writes summary.json and summary.md from the results `EvidenceStore.finish` returned, which are already masked.
+ * The caller masks `unmapped`; with none, neither file mentions it.
+ */
+export async function writeRunSummary(
+  runDir: string,
+  results: readonly CaseResult[],
+  unmapped: readonly UnmappedTest[] = [],
+): Promise<void> {
   const runId = basename(runDir);
   const count = (status: Status) => results.filter((result) => result.status === status).length;
   const counts = {
@@ -48,14 +56,18 @@ export async function writeRunSummary(runDir: string, results: readonly CaseResu
     ...(reason === undefined ? {} : { reason }),
   }));
   await mkdir(runDir, { recursive: true });
-  await writeFile(join(runDir, "summary.json"), toJson({ runId, counts, cases }));
-  await writeFile(join(runDir, "summary.md"), summaryMarkdown(runId, results, counts));
+  await writeFile(
+    join(runDir, "summary.json"),
+    toJson({ runId, counts, cases, ...(unmapped.length === 0 ? {} : { unmapped }) }),
+  );
+  await writeFile(join(runDir, "summary.md"), summaryMarkdown(runId, results, counts, unmapped));
 }
 
 function summaryMarkdown(
   runId: string,
   results: readonly CaseResult[],
   counts: Record<Status | "total", number>,
+  unmapped: readonly UnmappedTest[],
 ): string {
   const followups = results.flatMap((result) => result.followups.map((f) => row([result.caseId, f.item, f.hint])));
   return [
@@ -71,6 +83,16 @@ function summaryMarkdown(
     "",
     ...(followups.length === 0 ? ["None."] : ["| Case | Item | Hint |", "| --- | --- | --- |", ...followups]),
     "",
+    ...(unmapped.length === 0
+      ? []
+      : [
+          "## Unmapped tests",
+          "",
+          "| Target | Test | Reason |",
+          "| --- | --- | --- |",
+          ...unmapped.map((test) => row([test.target, test.title, test.reason])),
+          "",
+        ]),
   ].join("\n");
 }
 
