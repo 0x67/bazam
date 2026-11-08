@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { BrowserLogin, BrowserLoginRequest, StorageState } from "../auth/index.ts";
 import { expandFlows, type FlowSpec } from "../case/index.ts";
 import type { HumanChannel, PersonAnswer, PersonPrompt } from "../challenge/index.ts";
@@ -18,26 +19,35 @@ export interface LoginScope {
 
 type LoginResult = { state: StorageState; finalUrl: URL };
 
+type SessionProvider = () => Promise<DriverSession>;
+
 /**
  * The one BrowserLogin a run gives Identities. Each login runs in the driver session the runner points it at:
- * the preflight session before the first case, then the session of the case that is running.
+ * the session of the case whose async context starts the login, else the preflight session.
  */
 export class RunBrowserLogin implements BrowserLogin {
   readonly #scope: LoginScope;
-  #session: (() => Promise<DriverSession>) | undefined;
+  readonly #caseSession = new AsyncLocalStorage<SessionProvider>();
+  #session: SessionProvider | undefined;
 
   constructor(scope: LoginScope) {
     this.#scope = scope;
   }
 
-  /** Points later logins at a session; the function may launch it on first use. */
-  use(session: (() => Promise<DriverSession>) | undefined): void {
+  /** Points later logins outside `within` at a session; the function may launch it on first use. */
+  use(session: SessionProvider | undefined): void {
     this.#session = session;
+  }
+
+  /** Runs `fn` with the logins started in its async context pointed at `session`. */
+  within<T>(session: SessionProvider, fn: () => Promise<T>): Promise<T> {
+    return this.#caseSession.run(session, fn);
   }
 
   /** Expands and resolves the flow, then shows the prompt while the driver waits; a refusal aborts the login. */
   async login(request: BrowserLoginRequest): Promise<LoginResult> {
-    const browserLogin = (await this.#session?.())?.browserLogin;
+    const session = this.#caseSession.getStore() ?? this.#session;
+    const browserLogin = (await session?.())?.browserLogin;
     if (browserLogin === undefined) throw new Error("no open driver session offers browser.login");
     const stop = new AbortController();
     const signals = [stop.signal, this.#scope.signal, ...(request.signal === undefined ? [] : [request.signal])];

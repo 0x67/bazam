@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { parse } from "yaml";
@@ -5,7 +6,7 @@ import { z } from "zod";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import type { LoadedCase } from "../case/index.ts";
-import type { HumanChannel } from "../challenge/index.ts";
+import { oneAtATime, type HumanChannel } from "../challenge/index.ts";
 import { guardedHttp, type Capability, type Driver, type DriverSession, type LaunchOptions } from "../driver/index.ts";
 import { resolvePlaceholders, type CaseRunValues, type Environment, type RunValues } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
@@ -37,6 +38,7 @@ import {
   type RunPlan,
 } from "./plan.ts";
 import { preflight } from "./preflight.ts";
+import { runUnits, type WorkUnit } from "./schedule.ts";
 
 export interface RunOptions {
   project: Project;
@@ -53,6 +55,8 @@ export interface RunOptions {
   signal: AbortSignal;
   /** The targets the run is limited to; a case runs on the first of its own targets listed here. */
   targets?: readonly string[];
+  /** How many cases run at once; 1 by default, which runs them one after another in plan order. */
+  workers?: number;
 }
 
 const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
@@ -65,20 +69,16 @@ export async function planCases(options: RunOptions): Promise<RunPlan> {
 }
 
 /**
- * Plans, gets every credential up front in preflight, then runs each case in order in its own driver session.
- * Writes each case's evidence, status.json after each case and prompt, and finally summary.json, summary.md and
- * post-plan.json. Throws when the run cannot start, as when the first driver session cannot launch.
+ * Plans, gets every credential up front in preflight, then runs each case in its own driver session, up to
+ * `workers` at once and never two that share an identity. Writes each case's evidence, status.json after each
+ * case and prompt, and finally summary.json, summary.md and post-plan.json in plan order. Throws when the run
+ * cannot start, as when the first driver session cannot launch.
  */
 export async function runCases(options: RunOptions): Promise<CaseResult[]> {
   const run = await Run.open(options);
   const plan = await run.plan();
   const loginsBlocked = await run.start(plan);
-  const results: CaseResult[] = [];
-  for (const [index, planned] of plan.cases.entries()) {
-    const loaded = options.cases[index];
-    if (loaded === undefined) throw new Error(`the plan lists case ${planned.caseId}, which the run was not given`);
-    results.push(await run.runCase(loaded, planned, loginsBlocked));
-  }
+  const results = await run.runPlan(plan, loginsBlocked);
   await run.finish(results);
   return results;
 }
@@ -92,6 +92,8 @@ class Run {
   readonly #logins: RunBrowserLogin;
   readonly #scope: RunScope;
   readonly #probes = new Map<string, Promise<ReadonlySet<Capability>>>();
+  // aborted when a case throws, so the cases still running end blocked "run cancelled"
+  readonly #stop = new AbortController();
   #caseStarted = false;
 
   static async open(options: RunOptions): Promise<Run> {
@@ -99,7 +101,8 @@ class Run {
   }
 
   private constructor(options: RunOptions, fixtures: IdentityFixtures | undefined) {
-    const { project, env, registry, redactor, signal, runDir } = options;
+    const { project, env, registry, redactor, runDir } = options;
+    const signal = AbortSignal.any([options.signal, this.#stop.signal]);
     this.#options = options;
     this.#runId = basename(runDir);
     this.#fixtures = fixtures;
@@ -107,7 +110,8 @@ class Run {
     this.#progress = new ProgressFile(runDir, this.#runId);
     const stateDir = join(project.root, BRAND.stateDir);
     const providers = registry.secretProviders(project.config.secrets.providers);
-    const channel = trackPrompts(options.channel, this.#progress);
+    // counts a prompt as pending only once it is shown
+    const channel = oneAtATime(trackPrompts(options.channel, this.#progress));
     const scope: Omit<RunScope, "identities" | "credentials" | "http"> = {
       runId: this.#runId,
       project,
@@ -207,6 +211,25 @@ class Run {
     return blocked;
   }
 
+  /** Runs the cases up to `workers` at once, never two that share an identity; returns the results in plan order. */
+  runPlan(plan: RunPlan, loginsBlocked: ReadonlyMap<string, string>): Promise<CaseResult[]> {
+    const units = plan.cases.map((planned, position) => ({ positions: [position], locks: caseLocks(planned) }));
+    const runUnit = async ({ positions }: WorkUnit): Promise<CaseResult[]> => {
+      // each case is a unit of its own
+      const position = positions[0]!;
+      const planned = plan.cases[position]!;
+      const loaded = this.#options.cases[position];
+      try {
+        if (loaded === undefined) throw new Error(`the plan lists case ${planned.caseId}, which the run was not given`);
+        return [await this.#log.apart(() => this.runCase(loaded, planned, loginsBlocked))];
+      } catch (error) {
+        this.#stop.abort();
+        throw error;
+      }
+    };
+    return runUnits(units, this.#options.workers ?? 1, runUnit, this.#stop.signal);
+  }
+
   async runCase(
     loaded: LoadedCase,
     planned: PlannedCase,
@@ -276,7 +299,7 @@ class Run {
     planned: PlannedCase,
     parts: { evidence: CaseEvidence; runValues: CaseRunValues; loginsBlocked: ReadonlyMap<string, string> },
   ): Promise<CaseOutcome> {
-    const { signal } = this.#options;
+    const { signal } = this.#scope;
     const reason = signal.aborted ? "run cancelled" : (planned.blocked ?? loginReason(planned, parts.loginsBlocked));
     if (reason !== undefined) return { kind: "blocked", reason };
     const { driver, options } = this.#target(planned.target);
@@ -290,20 +313,21 @@ class Run {
     }
     this.#caseStarted = true;
     let outcome: CaseOutcome = { kind: "completed" };
-    this.#logins.use(async () => session);
     try {
-      await new CaseRun(this.#scope, {
-        spec: loaded.spec,
-        driver,
-        session,
-        evidence: parts.evidence,
-        runValues: parts.runValues,
-      }).run();
+      await this.#logins.within(
+        async () => session,
+        () =>
+          new CaseRun(this.#scope, {
+            spec: loaded.spec,
+            driver,
+            session,
+            evidence: parts.evidence,
+            runValues: parts.runValues,
+          }).run(),
+      );
     } catch (error) {
       outcome = outcomeOf(error, signal.aborted);
       if (outcome.kind === "errored" && outcome.source === "harness") this.#log.line(stackOf(error));
-    } finally {
-      this.#logins.use(undefined);
     }
     // the session needs the status first, so a case that did not pass keeps its trace
     const failure = await this.#close(session, {
@@ -373,6 +397,12 @@ class Run {
   }
 }
 
+/** The identities a case acts as, which no other case acts as while it runs; a blocked case holds none. */
+function caseLocks(planned: PlannedCase): string[] {
+  if (planned.blocked !== undefined) return [];
+  return [...new Set([...planned.identities, ...planned.logins.map((login) => login.identity)])];
+}
+
 function loginReason(planned: PlannedCase, loginsBlocked: ReadonlyMap<string, string>): string | undefined {
   return planned.logins.map((login) => loginsBlocked.get(loginKey(login))).find((reason) => reason !== undefined);
 }
@@ -413,26 +443,39 @@ function stackOf(error: unknown): string {
   return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }
 
-/** Collects log lines and appends them, masked, to the run log or the case log. */
+/**
+ * Collects log lines and appends them, masked, to the run log or a case log. A line goes to the buffer of the
+ * `apart` call whose async context logs it, else to the run's.
+ */
 class RunLog {
   readonly #redactor: Redactor;
-  #lines: string[] = [];
+  readonly #runLines: string[] = [];
+  readonly #caseLines = new AsyncLocalStorage<string[]>();
 
   constructor(redactor: Redactor) {
     this.#redactor = redactor;
   }
 
   readonly line = (text: string): void => {
-    this.#lines.push(text);
+    this.#lines().push(text);
   };
 
-  /** Masks at write time, so a secret registered after its line was logged is masked too. */
+  /** Runs `fn` with a buffer of its own, which `flush` inside it writes. */
+  apart<T>(fn: () => Promise<T>): Promise<T> {
+    return this.#caseLines.run([], fn);
+  }
+
+  /** Writes the current buffer. Masks at write time, so a secret registered after its line was logged is masked too. */
   async flush(file: string): Promise<void> {
-    if (this.#lines.length === 0) return;
-    const text = this.#redactor.text(`${this.#lines.join("\n")}\n`);
-    this.#lines = [];
+    const lines = this.#lines().splice(0);
+    if (lines.length === 0) return;
+    const text = this.#redactor.text(`${lines.join("\n")}\n`);
     await mkdir(dirname(file), { recursive: true });
     await appendFile(file, text);
+  }
+
+  #lines(): string[] {
+    return this.#caseLines.getStore() ?? this.#runLines;
   }
 }
 

@@ -1,19 +1,11 @@
 import type { Selector } from "@bazam/core/case";
-import { selectors, type Locator, type Page } from "playwright";
+import type { Locator, Page } from "playwright";
 
 type AriaRole = Parameters<Page["getByRole"]>[0];
 
-// Playwright reads the test id attribute from one process-wide setting when getByTestId builds its selector
-let testIdAttribute = "data-testid";
-
 export function locate(page: Page, selector: Selector, idAttribute: string): Locator {
-  if ("id" in selector) {
-    if (idAttribute !== testIdAttribute) {
-      selectors.setTestIdAttribute(idAttribute);
-      testIdAttribute = idAttribute;
-    }
-    return page.getByTestId(selector.id);
-  }
+  // getByTestId reads one process-wide attribute, so two targets with different attributes would race over it
+  if ("id" in selector) return page.locator(`[${idAttribute}="${cssString(selector.id)}"]`);
   if ("role" in selector) {
     // an unknown role matches nothing, which the step then reports
     const role = selector.role as AriaRole;
@@ -30,4 +22,9 @@ export function describeSelector(selector: Selector): string {
     return selector.name === undefined ? `role=${selector.role}` : `role=${selector.role}[name="${selector.name}"]`;
   if ("text" in selector) return `text="${selector.text}"`;
   return `css=${selector.css}`;
+}
+
+/** The text escaped for a double-quoted CSS string. */
+function cssString(text: string): string {
+  return text.replace(/["\\]/g, "\\$&").replace(/[\n\r\f]/g, (end) => `\\${end.charCodeAt(0).toString(16)} `);
 }

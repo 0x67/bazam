@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
@@ -44,6 +45,8 @@ let otpAnswer: string;
 let statusSeen: RunProgress[];
 // the run's signal, which the fake driver's cancel step aborts
 let cancel: AbortController;
+// how many cases reached the meet step; the second one lets both go on
+let meeting: { arrived: number; met: PromiseWithResolvers<void> };
 
 beforeEach(() => {
   events = [];
@@ -52,6 +55,7 @@ beforeEach(() => {
   otpAnswer = OTP;
   statusSeen = [];
   cancel = new AbortController();
+  meeting = { arrived: 0, met: Promise.withResolvers() };
 });
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -147,6 +151,27 @@ function webSteps(): StepHandler[] {
     }),
     step("cancel", async () => {
       cancel.abort();
+    }),
+    step("meet", async () => {
+      meeting.arrived += 1;
+      if (meeting.arrived === 2) meeting.met.resolve();
+      // a case that runs alone fails here instead of waiting for ever
+      const alone = sleep(5_000, undefined, { ref: false }).then(() => {
+        throw new Error("no other case reached meet");
+      });
+      await Promise.race([meeting.met.promise, alone]);
+    }),
+    step("hold", async (_payload, ctx) => {
+      await sleep(20);
+      events.push(`${ctx.values.get("id")} held`);
+    }),
+    step("await-result", async (_payload, ctx) => {
+      const { runDir } = (ctx.session as FakeSession).options;
+      const deadline = Date.now() + 5_000;
+      while (readStatus(runDir).results.length === 0) {
+        if (Date.now() > deadline) throw new Error("no other case finished");
+        await sleep(5);
+      }
     }),
   ];
 }
@@ -297,6 +322,7 @@ interface RunSetup {
   files?: Record<string, unknown>;
   /** Written into the run directory before the run starts. */
   before?: (runDir: string) => Promise<void>;
+  workers?: number;
 }
 
 interface Ran {
@@ -363,6 +389,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     seed: 7,
     redactor: new Redactor(defaultRedactionRules()),
     signal: cancel.signal,
+    ...(setup.workers === undefined ? {} : { workers: setup.workers }),
   });
   return { results, runDir, driver, phone };
 }
@@ -980,5 +1007,139 @@ describe("runCases error outcomes", () => {
     expect(await readFile(join(runDir, "SHOP-BROKEN-001", "case.log"), "utf8")).toMatch(
       /^TypeError: cannot read the answer\n\s+at /,
     );
+  });
+});
+
+describe("runCases with workers", () => {
+  it("never runs two cases that share an identity at once", async () => {
+    const steps = [{ open: "${env.API_URL}/home", as: "customer" }, { hold: {} }, expectVisible];
+    const { results } = await runProject([testCase("SHOP-A-001", { steps }), testCase("SHOP-B-001", { steps })], {
+      workers: 2,
+    });
+    expect(events).toEqual([
+      "SHOP-A-001 open as customer",
+      "SHOP-A-001 hold",
+      "SHOP-A-001 held",
+      "SHOP-A-001 expect",
+      "SHOP-B-001 open as customer",
+      "SHOP-B-001 hold",
+      "SHOP-B-001 held",
+      "SHOP-B-001 expect",
+    ]);
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
+  });
+
+  it("runs two cases that share no identity at once", async () => {
+    const { results } = await runProject(
+      [
+        testCase("SHOP-A-001", {
+          steps: [{ open: "${env.API_URL}/home", as: "customer" }, { meet: {} }, expectVisible],
+        }),
+        testCase("SHOP-B-001", { steps: [{ meet: {} }, expectVisible] }),
+      ],
+      { workers: 2 },
+    );
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-A-001", status: "pass", reason: undefined },
+      { caseId: "SHOP-B-001", status: "pass", reason: undefined },
+    ]);
+  });
+
+  it("writes each case's log lines to its own case.log", async () => {
+    const { results, runDir } = await runProject(
+      [
+        testCase("SHOP-A-001", {
+          steps: [{ request: { method: "GET", url: "${env.API_URL}/orders/42" } }, { meet: {} }, expectVisible],
+        }),
+        testCase("SHOP-B-001", {
+          steps: [{ request: { method: "GET", url: "${env.API_URL}/skewed" } }, { meet: {} }, expectVisible],
+        }),
+      ],
+      { workers: 2 },
+    );
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
+    const first = await readFile(join(runDir, "SHOP-A-001", "case.log"), "utf8");
+    const second = await readFile(join(runDir, "SHOP-B-001", "case.log"), "utf8");
+    expect(first).toContain("/orders/42 200");
+    expect(first).not.toContain("/skewed");
+    expect(second).toContain("/skewed 200");
+    expect(second).not.toContain("/orders/42");
+  });
+
+  it("lists results in status.json as they finish and in summary.json in plan order", async () => {
+    const { results, runDir } = await runProject(
+      [
+        testCase("SHOP-A-001", { steps: [{ "await-result": {} }, expectVisible] }),
+        testCase("SHOP-B-001", { steps: [expectVisible] }),
+      ],
+      { workers: 2 },
+    );
+    expect(results.map((result) => result.caseId)).toEqual(["SHOP-A-001", "SHOP-B-001"]);
+    expect(readStatus(runDir).results.map((result) => result.caseId)).toEqual(["SHOP-B-001", "SHOP-A-001"]);
+    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as { cases: { caseId: string }[] };
+    expect(summary.cases.map((entry) => entry.caseId)).toEqual(["SHOP-A-001", "SHOP-B-001"]);
+  });
+
+  it("stops the run and cancels the cases still launching when the first session to launch fails", async () => {
+    const inner = webDriver({ failingLaunches: [1] });
+    const held = Promise.withResolvers<void>();
+    let launches = 0;
+    const driver: FakeDriver = {
+      ...inner,
+      launch: async (options) => {
+        launches += 1;
+        // the first case's launch goes on only after the second case's launch failed
+        if (launches === 1) await held.promise;
+        try {
+          return await inner.launch(options);
+        } catch (error) {
+          setImmediate(held.resolve);
+          throw error;
+        }
+      },
+    };
+    let runDir = "";
+    const cases = ["SHOP-A-001", "SHOP-B-001", "SHOP-C-001"].map((id) => testCase(id, { steps: [expectVisible] }));
+    const before = async (dir: string) => {
+      runDir = dir;
+    };
+    await expect(runProject(cases, { driver, workers: 2, before })).rejects.toThrow(
+      "could not launch target web: fake launch 1 failed",
+    );
+    expect(launches).toBe(2);
+    expect(events).toEqual([]);
+    expect(driver.sessions.map((session) => session.closedWith?.status)).toEqual(["blocked"]);
+    const first = JSON.parse(await readFile(join(runDir, "SHOP-A-001", "result.json"), "utf8")) as CaseResult;
+    expect(first).toMatchObject({ status: "blocked", reason: "run cancelled" });
+    expect(existsSync(join(runDir, "SHOP-C-001"))).toBe(false);
+  });
+
+  it("shows the prompts of two cases that ask a person at the same time one at a time", async () => {
+    let showing = 0;
+    let most = 0;
+    const channel: HumanChannel = {
+      ask: async (prompt) => {
+        showing += 1;
+        most = Math.max(most, showing);
+        events.push(`ask ${prompt.id}`);
+        await sleep(20);
+        showing -= 1;
+        return { kind: "verdict", verdict: "pass", note: "" };
+      },
+    };
+    const guided = { guided: { title: "Look at the cart", steps: ["Open the cart"] } };
+    const { results } = await runProject(
+      [
+        testCase("SHOP-A-001", { steps: [{ meet: {} }, guided] }),
+        testCase("SHOP-B-001", { steps: [{ meet: {} }, guided] }),
+      ],
+      { channel, workers: 2 },
+    );
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
+    expect(events.filter((event) => event.startsWith("ask")).sort()).toEqual([
+      "ask SHOP-A-001-2-guided",
+      "ask SHOP-B-001-2-guided",
+    ]);
+    expect(most).toBe(1);
   });
 });
