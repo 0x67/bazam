@@ -125,12 +125,12 @@ function ownEntry<T>(record: Readonly<Record<string, T>>, key: string): T | unde
 }
 
 // a Jira key TD-246 belongs to project TD
-function trackerProject(key: string): string {
+export function trackerProject(key: string): string {
   return key.replace(/-\d+$/, "");
 }
 
 // links are validated as `<tracker>:<key>` when the case loads
-function ticketRef(link: string): TicketRef {
+export function ticketRef(link: string): TicketRef {
   const colon = link.indexOf(":");
   return { tracker: link.slice(0, colon), key: link.slice(colon + 1) };
 }
