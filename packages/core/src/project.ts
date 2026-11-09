@@ -12,6 +12,7 @@ import {
   loadCases,
   SuitesFile,
   type CaseFilter,
+  type CaseSpec,
   type FlowSpec,
   type LoadedCase,
   type LoadIssue,
@@ -19,11 +20,13 @@ import {
   type Step,
 } from "./case/index.ts";
 import type { ChallengeKindSpec, ChallengeResolver } from "./challenge/index.ts";
-import { EnvsConfig } from "./env/index.ts";
+import { EnvsConfig, findPlaceholders } from "./env/index.ts";
+import { MappingFile } from "./ingest/mapping.ts";
 import type { PluginRegistry } from "./plugin/index.ts";
 import { RedactionConfig } from "./redact/index.ts";
 
 const SUITES_FILE = "suites.yaml";
+const MAPPING_RULE = "runner-mapping-valid";
 const SYNTAX_FIX = "Fix the YAML syntax on this line.";
 const execFileAsync = promisify(execFile);
 
@@ -222,6 +225,47 @@ export function runnerOf(
   return runner === undefined ? undefined : { name: entry.runner, runner, env: entry.env };
 }
 
+/**
+ * Why a case that lists a runner target cannot run: it also lists a driver target, or it has steps or checks.
+ * `field` names the case field at fault. Undefined for a case with no runner target.
+ */
+export function externalCaseProblem(
+  config: ProjectConfig,
+  spec: CaseSpec,
+): { field: "targets" | "steps" | "checks"; message: string } | undefined {
+  const runnerTargets = spec.targets.filter((target) => runnerOf(config, target) !== undefined);
+  if (runnerTargets.length === 0) return undefined;
+  const driverTargets = spec.targets.filter(
+    (target) => Object.hasOwn(config.targets, target) && "driver" in config.targets[target]!,
+  );
+  if (driverTargets.length > 0) {
+    return {
+      field: "targets",
+      message: `${spec.id} lists runner targets (${runnerTargets.join(", ")}) and driver targets (${driverTargets.join(", ")})`,
+    };
+  }
+  const field = spec.steps.length > 0 ? "steps" : spec.checks.length > 0 ? "checks" : undefined;
+  if (field === undefined) return undefined;
+  return { field, message: `${spec.id} runs on runner target ${runnerTargets[0]} but has ${field}` };
+}
+
+const SECRET_PLACEHOLDER = /^\$\{secret\.(.+)\}$/;
+
+/**
+ * The secret names whose inherited environment values the redactor masks before a child process starts:
+ * `secrets.names`, every value of `trackers.<t>.secrets`, then each `${secret.NAME}` under `identities`, each once.
+ */
+export function declaredSecretNames(config: ProjectConfig): string[] {
+  const names = new Set(config.secrets.names);
+  for (const tracker of Object.values(config.trackers))
+    for (const name of Object.values(tracker.secrets)) names.add(name);
+  for (const placeholder of findPlaceholders(config.identities)) {
+    const name = SECRET_PLACEHOLDER.exec(placeholder)?.[1];
+    if (name !== undefined) names.add(name);
+  }
+  return [...names];
+}
+
 function isSiteHost(site: string): boolean {
   // a port over 65535 matches the pattern but does not parse
   return SITE_HOST.test(site) && URL.canParse(`https://${site}`) && new URL(`https://${site}`).host === site;
@@ -260,6 +304,9 @@ export interface ProjectFile {
   lines: LineCounter;
 }
 
+/** A runner's mapping file: test title, without the project prefix, to case id. */
+export type RunnerMapping = z.infer<typeof MappingFile>;
+
 export interface LoadedFlow extends FlowSpec {
   source: SourceSpan;
 }
@@ -278,6 +325,10 @@ export interface Project {
   challengeKinds: ReadonlyMap<string, ChallengeKindSpec>;
   /** Every resolver an env chain names that a plugin registered, as the registry defines it. */
   resolvers: ReadonlyMap<string, ChallengeResolver>;
+  /** The result formats `runners` name that a plugin registered. */
+  resultFormats: ReadonlySet<string>;
+  /** The runner mapping files that loaded, by runner name. */
+  mappings: ReadonlyMap<string, RunnerMapping>;
   /** Every YAML file that was read, by path. */
   files: ReadonlyMap<string, ProjectFile>;
   /** The `STATE_DIRS` that a `.gitignore` ignores, in the root or, inside a git repository, a parent folder. */
@@ -313,7 +364,8 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
   const suites = await readSuites(root);
   const fixtures = await readFixtures(root);
   const kinds = challengeKinds(config, configFile, registry);
-  const files = [configFile, ...caseFiles, ...flows.files, suites.file, fixtures.file].filter(
+  const mappings = await readMappings(root, config, configFile);
+  const files = [configFile, ...caseFiles, ...flows.files, suites.file, fixtures.file, ...mappings.files].filter(
     (file) => file !== undefined,
   );
   return {
@@ -326,10 +378,19 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
     retiredIds: caseLoad.retiredIds,
     challengeKinds: kinds.kinds,
     resolvers: chainResolvers(config, registry),
+    resultFormats: runnerFormats(config, registry),
+    mappings: mappings.mappings,
     files: new Map(files.map((file) => [file.path, file])),
     ignoredStateDirs:
       (await gitIgnoredStateDirs(root)) ?? rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
-    issues: [...caseLoad.issues, ...flows.issues, ...suites.issues, ...fixtures.issues, ...kinds.issues],
+    issues: [
+      ...caseLoad.issues,
+      ...flows.issues,
+      ...suites.issues,
+      ...fixtures.issues,
+      ...kinds.issues,
+      ...mappings.issues,
+    ],
   };
 }
 
@@ -473,6 +534,55 @@ function chainResolvers(config: ProjectConfig, registry: PluginRegistry): Map<st
     }
   }
   return resolvers;
+}
+
+function runnerFormats(config: ProjectConfig, registry: PluginRegistry): Set<string> {
+  const known = new Set<string>();
+  for (const { format } of Object.values(config.runners)) {
+    try {
+      registry.resultFormat(format);
+      known.add(format);
+    } catch {
+      // resultFormat() throws only for a name no plugin registered, which runner-format-known reports
+    }
+  }
+  return known;
+}
+
+/** Reads each runner's mapping file once; a missing or invalid one is an issue under runner-mapping-valid. */
+async function readMappings(
+  root: string,
+  config: ProjectConfig,
+  configFile: ProjectFile,
+): Promise<{ mappings: Map<string, RunnerMapping>; files: ProjectFile[]; issues: LoadIssue[] }> {
+  const mappings = new Map<string, RunnerMapping>();
+  const parsed = new Map<string, { file: ProjectFile; data: RunnerMapping | undefined }>();
+  const issues: LoadIssue[] = [];
+  for (const [name, { mapping }] of Object.entries(config.runners)) {
+    if (mapping === undefined) continue;
+    let entry = parsed.get(mapping);
+    if (entry === undefined) {
+      const file = await readProjectFile(root, mapping);
+      if (file === undefined) {
+        issues.push({
+          ...schemaIssue(
+            configFile.path,
+            lineAt(configFile, ["runners", name, "mapping"]),
+            `mapping file ${mapping} of runner ${name} is missing`,
+            "Create the mapping file, or set mapping to its path relative to the project root.",
+          ),
+          ruleId: MAPPING_RULE,
+        });
+        continue;
+      }
+      const result = parseFile(file, MappingFile, "Give the mapping file a tests map of test titles to case ids.");
+      issues.push(...result.issues.map((issue) => ({ ...issue, ruleId: MAPPING_RULE })));
+      entry = { file, data: result.data };
+      parsed.set(mapping, entry);
+    }
+    if (entry.data !== undefined) mappings.set(name, entry.data);
+  }
+  return { mappings, files: [...parsed.values()].map(({ file }) => file), issues };
 }
 
 /**

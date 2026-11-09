@@ -1,0 +1,25 @@
+cases:
+  - id: AUTH-EXT-001
+    title: Cart keeps items after sign-in
+    stage: draft
+    risk: low
+    targets: [shop-chrome]
+  - id: AUTH-EXT-002
+    title: External case with a step
+    stage: draft
+    risk: low
+    targets: [shop-chrome]
+    steps:
+      - note: opens the cart
+  - id: AUTH-EXT-003
+    title: External case with a check
+    stage: draft
+    risk: low
+    targets: [shop-chrome]
+    checks:
+      - note: the cart holds one item
+  - id: AUTH-EXT-004
+    title: Case on a runner and a browser
+    stage: draft
+    risk: low
+    targets: [shop-chrome, web]

@@ -48,9 +48,21 @@ describe("parseVerdict", () => {
     expect(parseVerdict("p")).toEqual({ kind: "verdict", verdict: "pass", note: "" });
   });
 
-  it.each(["", "passed", "maybe", "x pass"])("returns null for a line that is not a verdict: %j", (line) => {
-    expect(parseVerdict(line)).toBeNull();
+  it.each([
+    ["y", "pass", ""],
+    ["Yes go ahead", "pass", "go ahead"],
+    ["n", "fail", ""],
+    ["NO not in production", "fail", "not in production"],
+  ] as const)("reads y and yes as pass, n and no as fail: %s", (line, verdict, note) => {
+    expect(parseVerdict(line)).toEqual({ kind: "verdict", verdict, note });
   });
+
+  it.each(["", "passed", "maybe", "x pass", "nope", "yesterday"])(
+    "returns null for a line that is not a verdict: %j",
+    (line) => {
+      expect(parseVerdict(line)).toBeNull();
+    },
+  );
 });
 
 describe("terminalChannel", () => {
@@ -74,7 +86,16 @@ describe("terminalChannel", () => {
     expect(text).toContain("  1. Choose MPIN, enter it\n  2. Complete the face check");
     expect(text).toContain("Expected: Dashboard with holdings");
     expect(text).toContain(`Screenshot: runs/${RUN_ID}/AUTH-PIN-001/03-login.png`);
-    expect(text.split("Result? p (pass)").length - 1).toBe(2);
+    expect(text.split("Result? p or y (pass)").length - 1).toBe(2);
+  });
+
+  it("prints the title alone for a prompt that belongs to no case", async () => {
+    const { input, printed, channel } = terminal();
+    input.write("y\n");
+
+    await channel.ask(prompt({ caseId: "", title: "Run runner shop against production env live?" }), signal);
+
+    expect(printed()).toMatch(/^\nRun runner shop against production env live\?\n/);
   });
 
   it("reads a value for a value prompt and d for an action prompt", async () => {

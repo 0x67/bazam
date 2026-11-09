@@ -8,6 +8,7 @@ import { HumanOnlyViolation, type ChallengeResolver } from "../src/challenge/ind
 import type { Capability } from "../src/driver/index.ts";
 import { RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
+import type { Project } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { loginKey, planCases, planLogins, planRun, type PlanInputs, type RunPlan } from "../src/run/index.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
@@ -69,10 +70,26 @@ const config = {
     partner: { auth: { api: { strategy: "api-key", with: { key: "fake-partner-key-0001", header: "x-api-key" } } } },
     visitor: {},
   },
+  runners: {
+    "shop-suite": { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" },
+    "safe-suite": { command: ["node", "safe.js"], results: "safe/*.xml", format: "junit", prodSafe: true },
+    "ctrf-suite": { command: ["node", "ctrf.js"], results: "ctrf/*.json", format: "ctrf" },
+    "mapped-suite": {
+      command: ["node", "mapped.js"],
+      results: "mapped/*.xml",
+      format: "junit",
+      mapping: "interop/mapped.yaml",
+    },
+  },
   targets: {
     web: { driver: "fake", browser: "chromium" },
     "web-alt": { driver: "fake" },
     phone: { driver: "fake-phone" },
+    "shop-chrome": { runner: "shop-suite", env: { BROWSER: "chrome" } },
+    "shop-firefox": { runner: "shop-suite", env: { BROWSER: "firefox" } },
+    safe: { runner: "safe-suite" },
+    ctrf: { runner: "ctrf-suite" },
+    mapped: { runner: "mapped-suite" },
   },
 };
 
@@ -104,13 +121,21 @@ interface PlanOptions {
   targets?: readonly string[];
   blockedIdentities?: ReadonlyMap<string, string>;
   flows?: unknown;
+  /** Changes the loaded project, as for a mapping file that did not load, which the loader would refuse. */
+  adjust?: (project: Project) => Project;
 }
 
 async function planFor(cases: readonly CaseFields[], options: PlanOptions = {}): Promise<RunPlan> {
-  const files: Record<string, unknown> = { [BRAND.configFile]: config, "cases/auth/plan.yaml": { cases } };
+  const files: Record<string, unknown> = {
+    [BRAND.configFile]: config,
+    "cases/auth/plan.yaml": { cases },
+    "interop/mapped.yaml": { tests: {} },
+  };
   if (options.flows !== undefined) files["flows/flows.yaml"] = options.flows;
-  const { root, project, registry } = await loadTestProject(files, [plugin()]);
-  roots.push(root);
+  const loaded = await loadTestProject(files, [plugin()]);
+  roots.push(loaded.root);
+  const { registry } = loaded;
+  const project = options.adjust?.(loaded.project) ?? loaded.project;
   const env = project.config.envs[options.env ?? "demo"]!;
   const capabilities = new Set(options.capabilities ?? []);
   const inputs: Omit<PlanInputs, "credentials"> = {
@@ -314,6 +339,89 @@ describe("planRun", () => {
   });
 });
 
+describe("planRun with external cases", () => {
+  const external = (id: string, fields: CaseFields = {}) => testCase(id, { targets: ["shop-chrome"], ...fields });
+
+  it("plans an external case on its runner, with no identity, login or challenge", async () => {
+    const plan = await planFor([external("AUTH-EXT-001")]);
+    expect(plan).toEqual({
+      env: "demo",
+      cases: [
+        {
+          caseId: "AUTH-EXT-001",
+          target: "shop-chrome",
+          stage: "acceptance",
+          runner: "shop-suite",
+          identities: [],
+          logins: [],
+          challenges: [],
+        },
+      ],
+      confirmations: [],
+      personSteps: 0,
+    });
+  });
+
+  it("applies the stage, production and target rules to an external case", async () => {
+    const retired = await planFor([external("AUTH-OLD-001", { stage: "retired" })]);
+    const live = await planFor([external("AUTH-EXT-001")], { env: "live" });
+    const elsewhere = await planFor([external("AUTH-EXT-001")], { targets: ["web"] });
+    expect([retired, live, elsewhere].map((plan) => plan.cases[0]?.blocked)).toEqual([
+      "stage retired does not run",
+      "case AUTH-EXT-001 is not prod_safe and env live is production",
+      "none of the case's targets (shop-chrome) is selected (web)",
+    ]);
+  });
+
+  it("asks once per runner in a production env, unless the runner sets prodSafe", async () => {
+    const plan = await planFor(
+      [
+        external("AUTH-EXT-001", { prod_safe: true }),
+        external("AUTH-EXT-002", { prod_safe: true, targets: ["shop-firefox"] }),
+        external("AUTH-EXT-003", { prod_safe: true, targets: ["safe"] }),
+      ],
+      { env: "live" },
+    );
+    expect(plan.cases.map(({ caseId, blocked, confirm }) => ({ caseId, blocked, confirm }))).toEqual([
+      { caseId: "AUTH-EXT-001", blocked: undefined, confirm: "shop-suite" },
+      { caseId: "AUTH-EXT-002", blocked: undefined, confirm: "shop-suite" },
+      { caseId: "AUTH-EXT-003", blocked: undefined, confirm: undefined },
+    ]);
+    expect(plan.confirmations).toEqual([{ runner: "shop-suite", command: "node suite.js" }]);
+    expect(plan.personSteps).toBe(1);
+  });
+
+  it.each([
+    [
+      "a runner format no plugin registers",
+      external("AUTH-EXT-001", { targets: ["ctrf"] }),
+      {},
+      "runner ctrf-suite uses format ctrf, which no plugin registers",
+    ],
+    [
+      "a mapping file that did not load",
+      external("AUTH-EXT-001", { targets: ["mapped"] }),
+      { adjust: (project: Project) => ({ ...project, mappings: new Map() }) },
+      "mapping file interop/mapped.yaml of runner mapped-suite did not load",
+    ],
+    [
+      "steps in an external case",
+      external("AUTH-EXT-001", { steps: [{ note: "opens the cart" }] }),
+      {},
+      "AUTH-EXT-001 runs on runner target shop-chrome but has steps",
+    ],
+    [
+      "runner and driver targets in one case",
+      testCase("AUTH-MIX-001", { targets: ["web", "shop-chrome"], steps: [{ note: "opens the cart" }] }),
+      {},
+      "AUTH-MIX-001 lists runner targets (shop-chrome) and driver targets (web)",
+    ],
+  ] as const)("blocks a case for %s, naming the cause", async (_label, fields, options, reason) => {
+    const plan = await planFor([fields], options);
+    expect(plan.cases[0]?.blocked).toBe(reason);
+  });
+});
+
 describe("planCases", () => {
   it("plan uses the fake driver's probed capabilities", async () => {
     const driver = fakeDriver({ steps: webSteps, capabilities: ["webauthn.virtual"] });
@@ -321,7 +429,11 @@ describe("planCases", () => {
       steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "visitor" }],
     });
     const { root, project, registry } = await loadTestProject(
-      { [BRAND.configFile]: config, "cases/auth/plan.yaml": { cases: [passkey] } },
+      {
+        [BRAND.configFile]: config,
+        "cases/auth/plan.yaml": { cases: [passkey] },
+        "interop/mapped.yaml": { tests: {} },
+      },
       [plugin(driver)],
     );
     roots.push(root);
@@ -338,5 +450,31 @@ describe("planCases", () => {
       signal: new AbortController().signal,
     });
     expect(plan.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
+  });
+
+  it("probes no runner target, which has no driver", async () => {
+    const cart = testCase("AUTH-EXT-001", { targets: ["shop-chrome"] });
+    const { root, project, registry } = await loadTestProject(
+      {
+        [BRAND.configFile]: config,
+        "cases/auth/plan.yaml": { cases: [cart] },
+        "interop/mapped.yaml": { tests: {} },
+      },
+      [plugin()],
+    );
+    roots.push(root);
+    const plan = await planCases({
+      project,
+      env: project.config.envs["demo"]!,
+      cases: project.cases,
+      registry,
+      channel: { ask: async () => ({ kind: "timeout" }) },
+      runDir: join(root, "runs", "20261107-101500-0a1b"),
+      runValues: new RunValues("20261107-101500-0a1b", new Date("2026-11-07T10:15:00Z"), 7),
+      seed: 7,
+      redactor: new Redactor(defaultRedactionRules()),
+      signal: new AbortController().signal,
+    });
+    expect([plan.cases[0]?.runner, plan.cases[0]?.blocked]).toEqual(["shop-suite", undefined]);
   });
 });

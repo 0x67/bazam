@@ -1,0 +1,4 @@
+tests:
+  "CartTest › keepsItems": AUTH-EXT-001
+  "CartTest › oldTest": AUTH-GONE-001
+  "LoginTest › signsIn": AUTH-LOGIN-001

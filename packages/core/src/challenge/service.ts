@@ -7,6 +7,7 @@ import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import type { Redactor } from "../redact/index.ts";
+import type { CaseResult } from "../result/index.ts";
 import { oneAtATime, type HumanChannel, type PersonPrompt } from "./human.ts";
 import type { ChallengeKindSpec } from "./kinds.ts";
 import {
@@ -76,6 +77,8 @@ export interface ChallengeService {
   url: URL;
   /** The bearer token every request must carry. */
   token: string;
+  /** The requests answered with a value or done so far, by case id, in the order answered. */
+  answered(): ReadonlyMap<string, CaseResult["challenges"]>;
   /** Cancels the requests still waiting, closes their connections and stops listening. */
   close(): Promise<void>;
 }
@@ -101,6 +104,7 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
   const closing = new AbortController();
   const queued = oneAtATime(deps.channel);
   const log = (line: string): void => deps.log?.(deps.redactor.text(line));
+  const answered = new Map<string, CaseResult["challenges"]>();
 
   const authorized = (header: string | undefined): boolean => {
     const given = /^Bearer (\S+)$/i.exec(header ?? "")?.[1];
@@ -155,6 +159,9 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
     try {
       const resolved = await untilAborted(resolveChallenge(request, kind, chain, ctx, noTrigger), signal);
       log(`challenge ${request.kind} for ${request.caseId}: answered by ${resolved.resolver}`);
+      const challenges = answered.get(request.caseId) ?? [];
+      challenges.push({ step: request.step, kind: request.kind, resolver: resolved.resolver });
+      answered.set(request.caseId, challenges);
       if (resolved.answer.kind === "done") return { status: 200, body: { done: true } };
       deps.redactor.register(resolved.answer.value);
       return { status: 200, body: { value: resolved.answer.value } };
@@ -197,6 +204,7 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
   return {
     url: new URL(`http://${address}:${port}${PATH}`),
     token,
+    answered: () => answered,
     async close() {
       closing.abort(new Error("the challenge service is stopping"));
       // a request waiting on a person holds its connection for minutes, so close would wait that long

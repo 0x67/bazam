@@ -143,6 +143,28 @@ const failing: [string, Expected][] = [
       ["cases/auth/selectors.yaml", 11, 'selector { text: "Welcome back" }'],
     ],
   ],
+  [
+    "external-case-shape",
+    [
+      ["cases/auth/external.yaml", 12, "AUTH-EXT-002 runs on runner target shop-chrome but has steps"],
+      ["cases/auth/external.yaml", 19, "AUTH-EXT-003 runs on runner target shop-chrome but has checks"],
+      ["cases/auth/external.yaml", 25, "AUTH-EXT-004 lists runner targets (shop-chrome) and driver targets (web)"],
+    ],
+  ],
+  ["runner-format-known", [[BRAND.configFile, 26, "runner shop-suite uses format ctrf, which no plugin registers"]]],
+  [
+    "runner-mapping-valid",
+    [
+      [BRAND.configFile, 32, "mapping file interop/api-suite.yaml of runner api-suite is missing"],
+      ["interop/old-suite.yaml", 1, "tests: Invalid input: expected record"],
+      ["interop/shop-suite.yaml", 3, 'test "CartTest › oldTest" maps to AUTH-GONE-001, which no case declares'],
+      [
+        "interop/shop-suite.yaml",
+        4,
+        'test "LoginTest › signsIn" maps to case AUTH-LOGIN-001, which does not run on a target of runner shop-suite',
+      ],
+    ],
+  ],
 ];
 
 describe("checkProject with the built-in rules", () => {
@@ -181,6 +203,40 @@ describe("checkProject with the built-in rules", () => {
       expect(issue.message).toContain(expected[index]?.[2]);
       expect(issue.fix).not.toBe("");
     });
+  });
+
+  it("leaves an external case with no steps and no checks out of case-has-check, but not a native one", async () => {
+    await cp(clean, root, { recursive: true });
+    await cp(fixture("failing/external-case-shape/bazam.config.yaml"), join(root, BRAND.configFile));
+    const cases = ["shop-chrome", "web"].map((target, index) =>
+      [
+        `  - id: AUTH-BARE-00${index + 1}`,
+        `    title: Case on ${target} with nothing to check`,
+        "    stage: draft",
+        "    risk: low",
+        `    targets: [${target}]`,
+      ].join("\n"),
+    );
+    await writeFile(join(root, "cases/auth/bare.yaml"), `cases:\n${cases.join("\n")}\n`);
+
+    expect(checkProject(await load(root), builtinRules).map((issue) => [issue.ruleId, issue.message])).toEqual([
+      ["case-has-check", "AUTH-BARE-002 has no check"],
+    ]);
+  });
+
+  it("leaves a runner mapping file out of no-literal-secret, since its keys are test titles", async () => {
+    await cp(clean, root, { recursive: true });
+    await cp(fixture("failing/runner-mapping-valid"), root, { recursive: true });
+    await writeFile(
+      join(root, "interop/shop-suite.yaml"),
+      'tests:\n  "com.shop.PaymentTest › PaymentGatewayRejectsExpiredVisaCard": AUTH-EXT-001\n',
+    );
+
+    const issues = checkProject(await load(root), builtinRules);
+
+    expect(
+      issues.filter((issue) => issue.ruleId === "no-literal-secret" && issue.file === "interop/shop-suite.yaml"),
+    ).toEqual([]);
   });
 
   it("tells a trigger whose flow has several steps to name a one-step flow", async () => {
@@ -340,6 +396,35 @@ describe("loadProject", () => {
         ["human", humanResolver],
       ]),
     );
+  });
+
+  it("keeps the mapping files that loaded and the runner formats a plugin registered", async () => {
+    const root = await mkdtemp(join(tmpdir(), "check-test-"));
+    try {
+      await cp(clean, root, { recursive: true });
+      await cp(fixture("failing/runner-mapping-valid"), root, { recursive: true });
+
+      const project = await load(root);
+
+      expect(project.mappings).toEqual(
+        new Map([
+          [
+            "shop-suite",
+            {
+              tests: {
+                "CartTest › keepsItems": "AUTH-EXT-001",
+                "CartTest › oldTest": "AUTH-GONE-001",
+                "LoginTest › signsIn": "AUTH-LOGIN-001",
+              },
+            },
+          ],
+        ]),
+      );
+      expect([...project.resultFormats]).toEqual(["junit"]);
+      expect(project.files.has("interop/shop-suite.yaml")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("leaves out of resolvers a name no plugin registered", async () => {

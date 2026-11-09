@@ -16,7 +16,7 @@ import { chooseResolver, takesValue, type ChallengeResolver } from "../challenge
 import type { Capability, Driver } from "../driver/index.ts";
 import { assertProdSafe, findPlaceholders, ProdCaseRefused, type Environment } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
-import type { Project } from "../project.ts";
+import { externalCaseProblem, runnerOf, type Project, type RunnerConfig } from "../project.ts";
 
 // request steps and api checks send as the identity's api surface (see driver/http.ts::httpSteps)
 const API_SURFACE = "api";
@@ -30,18 +30,24 @@ export interface PlannedCase {
   caseId: string;
   target: string;
   stage: Stage;
+  /** The runner of an external case, whose identities, logins and challenges stay empty in the plan. */
+  runner?: string;
   identities: string[];
   /** Empty for a blocked case, which logs in nowhere. */
   logins: { identity: string; surface: string; mode: LoginMode }[];
   /** `step` counts the case's expanded steps and then its checks from 1. */
   challenges: { step: number; kind: string; resolver: string | null }[];
   blocked?: string;
+  /** The runner that needs a person's yes before this case runs in a production env. */
+  confirm?: string;
 }
 
 export interface RunPlan {
   env: string;
   cases: PlannedCase[];
-  /** Guided steps, challenges a person answers and person logins, over the cases that are not blocked. */
+  /** The runners that need a person's yes before they run in a production env, once each, in plan order. */
+  confirmations: { runner: string; command: string }[];
+  /** Guided steps, challenges a person answers, person logins and confirmations, over the cases that are not blocked. */
   personSteps: number;
 }
 
@@ -97,7 +103,17 @@ export function targetDriver(
 export function planRun(inputs: PlanInputs): RunPlan {
   const analyses = inputs.cases.map((loaded) => analyseCase(loaded, inputs));
   const cases = analyses.map((analysis) => plannedCase(analysis, inputs.credentials));
-  return { env: inputs.env.name, cases, personSteps: personSteps(analyses, cases) };
+  const confirmations = new Map<string, string>();
+  for (const { confirm } of cases) {
+    const runner = confirm === undefined ? undefined : inputs.project.config.runners[confirm];
+    if (confirm !== undefined && runner !== undefined) confirmations.set(confirm, runner.command.join(" "));
+  }
+  return {
+    env: inputs.env.name,
+    cases,
+    confirmations: [...confirmations].map(([runner, command]) => ({ runner, command })),
+    personSteps: personSteps(analyses, cases) + confirmations.size,
+  };
 }
 
 /** The logins of the cases that are not blocked, once each, whose LoginMode planRun needs in `credentials`. */
@@ -113,6 +129,8 @@ interface CaseAnalysis {
   caseId: string;
   target: string;
   stage: Stage;
+  runner?: string;
+  confirm?: string;
   identities: Set<string>;
   logins: Map<string, Login>;
   challenges: { step: number; kind: string; resolver: ChallengeResolver | undefined }[];
@@ -134,9 +152,19 @@ function analyseCase(loaded: LoadedCase, inputs: Omit<PlanInputs, "credentials">
     guidedSteps: 0,
     reasons: [],
   };
-  const refusal = caseRefusal(spec, target, inputs);
+  const external = target === undefined ? undefined : runnerOf(inputs.project.config, target);
+  if (external !== undefined) analysis.runner = external.name;
+  const refusal =
+    caseRefusal(spec, target, inputs) ??
+    externalCaseProblem(inputs.project.config, spec)?.message ??
+    (external === undefined ? undefined : runnerRefusal(external.name, external.runner, inputs.project));
   if (refusal !== undefined) {
     analysis.reasons.push(refusal);
+    return analysis;
+  }
+  // an external case runs no step of its own, so it needs no driver, identity or login
+  if (external !== undefined) {
+    if (inputs.env.production && !external.runner.prodSafe) analysis.confirm = external.name;
     return analysis;
   }
   const planner = new StepPlanner(analysis, inputs);
@@ -161,6 +189,19 @@ function caseRefusal(
   }
   if (target === undefined)
     return `none of the case's targets (${spec.targets.join(", ")}) is selected (${inputs.targets?.join(", ")})`;
+  return undefined;
+}
+
+/** Why the runner cannot run here: no plugin reads its format, or its mapping file did not load. */
+function runnerRefusal(
+  name: string,
+  runner: RunnerConfig,
+  project: Pick<Project, "resultFormats" | "mappings">,
+): string | undefined {
+  if (!project.resultFormats.has(runner.format))
+    return `runner ${name} uses format ${runner.format}, which no plugin registers`;
+  if (runner.mapping !== undefined && !project.mappings.has(name))
+    return `mapping file ${runner.mapping} of runner ${name} did not load`;
   return undefined;
 }
 
@@ -286,6 +327,7 @@ function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, Lo
     caseId: analysis.caseId,
     target: analysis.target,
     stage: analysis.stage,
+    ...(analysis.runner === undefined ? {} : { runner: analysis.runner }),
     identities: [...analysis.identities],
     logins:
       blocked === undefined
@@ -298,6 +340,7 @@ function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, Lo
     })),
   };
   if (blocked !== undefined) planned.blocked = blocked;
+  else if (analysis.confirm !== undefined) planned.confirm = analysis.confirm;
   return planned;
 }
 

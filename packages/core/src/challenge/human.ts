@@ -96,17 +96,20 @@ async function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T
   }
 }
 
-/** Reads `p`, `pass`, `f`, `fail`, `b` or `blocked`, in any case, and an optional note after a space. */
+/**
+ * Reads `p`, `pass`, `y` or `yes` as pass, `f`, `fail`, `n` or `no` as fail, and `b` or `blocked` as blocked, in any
+ * case, with an optional note after a space.
+ */
 export function parseVerdict(line: string): VerdictAnswer | null {
-  const match = /^\s*(p|pass|f|fail|b|blocked)(?:\s+(.*))?$/i.exec(line);
+  const match = /^\s*(p|pass|y|yes|f|fail|n|no|b|blocked)(?:\s+(.*))?$/i.exec(line);
   if (match === null) return null;
   const letter = match[1]!.charAt(0).toLowerCase();
-  const verdict = letter === "p" ? "pass" : letter === "f" ? "fail" : "blocked";
+  const verdict = letter === "p" || letter === "y" ? "pass" : letter === "f" || letter === "n" ? "fail" : "blocked";
   return { kind: "verdict", verdict, note: (match[2] ?? "").trim() };
 }
 
 const QUESTIONS: Record<PersonPrompt["ask"], string> = {
-  verdict: "Result? p (pass), f (fail) or b (blocked), then an optional note: ",
+  verdict: "Result? p or y (pass), f or n (fail), or b (blocked), then an optional note: ",
   action: "Type d (done) when finished, or b (blocked) and a note: ",
   value: "Type the value, or b (blocked) and a note: ",
 };
@@ -178,7 +181,7 @@ class LineQueue {
 function promptText(prompt: PersonPrompt): string {
   const lines = [
     "",
-    `${prompt.caseId}: ${prompt.title}`,
+    `${prompt.caseId === "" ? "" : `${prompt.caseId}: `}${prompt.title}`,
     ...prompt.steps.map((step, index) => `  ${index + 1}. ${step}`),
   ];
   if (prompt.expected !== undefined) lines.push(`  Expected: ${prompt.expected}`);

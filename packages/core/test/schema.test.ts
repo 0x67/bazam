@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { BRAND } from "../src/brand.ts";
 import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema } from "../src/case/index.ts";
-import { loadProjectConfig, runnerOf, type ConfigLoad } from "../src/project.ts";
+import { declaredSecretNames, loadProjectConfig, runnerOf, type ConfigLoad } from "../src/project.ts";
 
 const minimal = { id: "AUTH-LOGIN-001", title: "Customer signs in", stage: "draft", risk: "low", targets: ["web"] };
 
@@ -225,6 +225,26 @@ describe("runner targets and process plugin entries", () => {
   async function issues(lines: readonly string[]): Promise<[number, string][]> {
     return (await load(lines)).issues.map((issue) => [issue.line, issue.message]);
   }
+
+  it("lists the declared secret names once: secrets.names, tracker secrets, then identity references", async () => {
+    const { config, issues } = await load([
+      "envs: {}",
+      "secrets:",
+      "  names: [SHOP_PASSWORD, JIRA_EMAIL]",
+      "identities:",
+      "  customer:",
+      "    auth:",
+      "      web:",
+      "        strategy: cookie",
+      '        with: { password: "${secret.CUSTOMER_PASSWORD}", note: "${env.APP_URL} ${secret.SHOP_PASSWORD}" }',
+      "trackers:",
+      "  jira:",
+      "    secrets: { email: JIRA_EMAIL, token: JIRA_API_TOKEN }",
+    ]);
+
+    if (config === undefined) throw new Error(`the config has issues: ${JSON.stringify(issues)}`);
+    expect(declaredSecretNames(config)).toEqual(["SHOP_PASSWORD", "JIRA_EMAIL", "JIRA_API_TOKEN", "CUSTOMER_PASSWORD"]);
+  });
 
   it("loads runners, runner targets, a process plugin entry and the new tracker fields", async () => {
     const { config, issues } = await load([

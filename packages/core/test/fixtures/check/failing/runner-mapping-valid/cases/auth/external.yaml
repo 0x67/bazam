@@ -1,0 +1,6 @@
+cases:
+  - id: AUTH-EXT-001
+    title: Cart keeps items after sign-in
+    stage: draft
+    risk: low
+    targets: [shop-chrome]

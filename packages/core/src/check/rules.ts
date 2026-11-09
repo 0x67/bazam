@@ -15,7 +15,15 @@ import {
 } from "../case/index.ts";
 import { humanResolver } from "../challenge/index.ts";
 import { findPlaceholders, isPhoneForm, phoneForm } from "../env/index.ts";
-import { FIXTURES_FILE, lineAt, STATE_DIRS, type Project, type ProjectFile } from "../project.ts";
+import {
+  externalCaseProblem,
+  FIXTURES_FILE,
+  lineAt,
+  runnerOf,
+  STATE_DIRS,
+  type Project,
+  type ProjectFile,
+} from "../project.ts";
 import type { CheckIssue, CheckRule } from "./check.ts";
 
 interface Finding {
@@ -54,11 +62,19 @@ export const builtinRules: readonly CheckRule[] = [
   rule("prod-safe", "error", writesWithoutFlag),
   rule("state-ignored", "error", stateDirsNotIgnored),
   rule("selector-test-id", "warning", selectorsWithoutTestId),
+  rule("external-case-shape", "error", misshapenExternalCases),
+  rule("runner-format-known", "error", unknownRunnerFormats),
+  withLoaderIssues(rule("runner-mapping-valid", "error", unplacedMappingEntries)),
 ];
 
 /** The project loader already reports these issues. */
 function loaderRule(id: string): CheckRule {
   return { id, check: (project) => project.issues.filter((issue) => issue.ruleId === id) };
+}
+
+/** The loader's issues under the rule's id, then the rule's own. */
+function withLoaderIssues(own: CheckRule): CheckRule {
+  return { id: own.id, check: (project) => [...loaderRule(own.id).check(project), ...own.check(project)] };
 }
 
 function rule(id: string, severity: CheckIssue["severity"], find: (project: Project) => Finding[]): CheckRule {
@@ -76,8 +92,10 @@ function rule(id: string, severity: CheckIssue["severity"], find: (project: Proj
   };
 }
 
+/** An external case gets its checks from the runner's tests at run time. */
 function casesWithoutCheck(project: Project): Finding[] {
   return project.cases
+    .filter(({ spec }) => !spec.targets.some((target) => runnerOf(project.config, target) !== undefined))
     .filter(({ spec }) => spec.checks.length === 0 && !spec.steps.some(isCheckStep))
     .map(({ spec, source }) => ({
       at: source,
@@ -221,7 +239,10 @@ function identityProblem(project: Project, placeholder: string, path: string): O
 }
 
 function literalSecrets(project: Project): Finding[] {
-  return [...project.files.values()].flatMap(fileLines).flatMap(({ at, text }) => {
+  // mapping keys are test titles and its values are case ids
+  const mappings = new Set(Object.values(project.config.runners).flatMap(({ mapping }) => mapping ?? []));
+  const files = [...project.files.values()].filter((file) => !mappings.has(file.path));
+  return files.flatMap(fileLines).flatMap(({ at, text }) => {
     if (text.includes(ALLOW_SECRET)) return [];
     const secret = secretIn(text);
     if (secret === undefined) return [];
@@ -319,6 +340,61 @@ function requestsIn(step: Step, path: readonly PropertyKey[]): { request: Reques
 function caseIndex(project: Project, loaded: LoadedCase): number {
   const cases = project.files.get(loaded.source.file)?.doc.get("cases");
   return isSeq(cases) ? cases.items.findIndex((item) => isMap(item) && item.get("id") === loaded.spec.id) : -1;
+}
+
+function misshapenExternalCases(project: Project): Finding[] {
+  return project.cases.flatMap((loaded) => {
+    const problem = externalCaseProblem(project.config, loaded.spec);
+    if (problem === undefined) return [];
+    const fix =
+      problem.field === "targets"
+        ? "List only runner targets or only driver targets, and split the case in two if it needs both."
+        : `Remove the ${problem.field}: an external case gets its checks from the runner's tests.`;
+    const at = spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), problem.field]);
+    return [{ at, message: problem.message, fix }];
+  });
+}
+
+function unknownRunnerFormats(project: Project): Finding[] {
+  return Object.entries(project.config.runners)
+    .filter(([, runner]) => !project.resultFormats.has(runner.format))
+    .map(([name, runner]) => ({
+      at: spanAt(project, BRAND.configFile, ["runners", name, "format"]),
+      message: `runner ${name} uses format ${runner.format}, which no plugin registers`,
+      fix: "Use junit or playwright-json, or add the plugin that registers this format.",
+    }));
+}
+
+/** Mapping entries whose case no case file declares, or whose case runs on no target of the runner. */
+function unplacedMappingEntries(project: Project): Finding[] {
+  const cases = new Map(project.cases.map(({ spec }) => [spec.id, spec]));
+  return [...project.mappings].flatMap(([name, mapping]) => {
+    const file = project.config.runners[name]?.mapping ?? "";
+    const targets = Object.keys(project.config.targets).filter(
+      (target) => runnerOf(project.config, target)?.name === name,
+    );
+    return Object.entries(mapping.tests).flatMap(([title, id]): Finding[] => {
+      const spec = cases.get(id);
+      const at = spanAt(project, file, ["tests", title]);
+      if (spec === undefined) {
+        return [
+          {
+            at,
+            message: `test "${title}" maps to ${id}, which no case declares`,
+            fix: "Map the test to the id of a case that exists, or add that case.",
+          },
+        ];
+      }
+      if (spec.targets.some((target) => targets.includes(target))) return [];
+      return [
+        {
+          at,
+          message: `test "${title}" maps to case ${id}, which does not run on a target of runner ${name}`,
+          fix: `Add a target of runner ${name} to the case, or map the test to a case that has one.`,
+        },
+      ];
+    });
+  });
 }
 
 function stateDirsNotIgnored(project: Project): Finding[] {

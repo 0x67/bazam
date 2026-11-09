@@ -1,27 +1,33 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
 import {
   answersFileChannel,
+  CASES_VAR,
+  CHALLENGE_TOKEN_VAR,
+  CHALLENGE_URL_VAR,
   type ChallengeRequest,
   type ChallengeResolver,
   type HumanChannel,
   type PersonAnswer,
   type PersonPrompt,
 } from "../src/challenge/index.ts";
-import type { StepContext, StepHandler } from "../src/driver/index.ts";
+import type { DriverSession, StepContext, StepHandler } from "../src/driver/index.ts";
 import { HostNotAllowed, RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import type { CaseResult, RunProgress } from "../src/result/index.ts";
 import { runCases } from "../src/run/index.ts";
+import { FakeBrowserSession } from "./support/fake-browser.ts";
 import { fakeDriver, type FakeDriver, type FakeDriverOptions, type FakeSession } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
@@ -29,6 +35,8 @@ const RUN_ID = "20261107-101500-0a1b";
 const BEARER_TOKEN = "fake-bearer-token-7f3a9c";
 const OTP = "482913";
 const API_PASSWORD = "fake-api-password-9d4e";
+const SUITE = fileURLToPath(new URL("./fixtures/runners/suite.ts", import.meta.url));
+const SUITE_COMMAND = [process.execPath, SUITE, CASES_VAR, CHALLENGE_URL_VAR, CHALLENGE_TOKEN_VAR];
 const SESSION_COOKIE = {
   name: "session",
   value: "fake-session-cookie-0001",
@@ -47,6 +55,9 @@ let statusSeen: RunProgress[];
 let cancel: AbortController;
 // how many cases reached the meet step; the second one lets both go on
 let meeting: { arrived: number; met: PromiseWithResolvers<void> };
+// the tokens of fake-expiring that the app still takes
+let liveTokens: Set<string>;
+let issuedTokens: number;
 
 beforeEach(() => {
   events = [];
@@ -56,6 +67,8 @@ beforeEach(() => {
   statusSeen = [];
   cancel = new AbortController();
   meeting = { arrived: 0, met: Promise.withResolvers() };
+  liveTokens = new Set();
+  issuedTokens = 0;
 });
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -77,6 +90,8 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       return json(res, 201, { id: 42 });
     case "GET /orders/42":
       return json(res, 200, { status: "PAID" });
+    case "POST /token":
+      return json(res, 200, {});
     case "GET /skewed":
       res.setHeader("date", new Date(Date.now() - 3_600_000).toUTCString());
       return json(res, 200, {});
@@ -165,6 +180,17 @@ function webSteps(): StepHandler[] {
       await sleep(20);
       events.push(`${ctx.values.get("id")} held`);
     }),
+    // notes when the case starts and ends in suite.log, where the fixture suite notes its own
+    step("mark", async (_payload, ctx) => {
+      const log = join(projectRoot(ctx), "suite.log");
+      await appendFile(log, `${ctx.values.get("id")} start\n`);
+      await sleep(50);
+      await appendFile(log, `${ctx.values.get("id")} end\n`);
+    }),
+    // the solo suite waits for this file
+    step("touch", async (_payload, ctx) => {
+      await writeFile(join(projectRoot(ctx), "native.marker"), "");
+    }),
     step("await-result", async (_payload, ctx) => {
       const { runDir } = (ctx.session as FakeSession).options;
       const deadline = Date.now() + 5_000;
@@ -175,6 +201,35 @@ function webSteps(): StepHandler[] {
     }),
   ];
 }
+
+function projectRoot(ctx: StepContext): string {
+  return join((ctx.session as FakeSession).options.runDir, "..", "..");
+}
+
+function issueToken(): { token: string } {
+  issuedTokens += 1;
+  const token = `fake-expiring-token-${issuedTokens}`;
+  liveTokens.add(token);
+  return { token };
+}
+
+// its probe fails once the app stops taking the token, and its refresh sends a request of its own
+const expiringStrategy = defineAuthStrategy<object, { token: string }>({
+  name: "fake-expiring",
+  config: z.object({}),
+  cacheable: false,
+  acquire: async () => issueToken(),
+  probe: async (credential) => liveTokens.has(credential.token),
+  refresh: async (_credential, _config, ctx) => {
+    await ctx.http.send({ method: "POST", url: new URL(`${origin}/token`), headers: new Headers() });
+    return issueToken();
+  },
+  apply: async (credential, target) => {
+    if (target.kind === "browser")
+      await target.session.setExtraHeaders({ authorization: `Bearer ${credential.token}` });
+  },
+  secrets: (credential) => [credential.token],
+});
 
 const bearerStrategy = defineAuthStrategy<object, { token: string }>({
   name: "fake-bearer",
@@ -286,8 +341,31 @@ function configFor(): object {
       },
       rejected: { auth: { api: { strategy: "fake-rejected" } } },
       waiting: { auth: { api: { strategy: "fake-locked" } } },
+      rider: { auth: { web: { strategy: "fake-expiring" } } },
     },
-    targets: { web: { driver: "fake", headless: true }, mobile: { driver: "fake-phone" } },
+    runners: {
+      shop: {
+        command: SUITE_COMMAND,
+        results: "reports/*.xml",
+        format: "junit",
+        env: { SUITE_LOG: "suite.log", SUITE_HOLD_MS: "100" },
+      },
+      // holds no identity, so a native case can run beside it
+      solo: {
+        command: SUITE_COMMAND,
+        results: "solo/*.xml",
+        format: "junit",
+        identities: [],
+        env: { SUITE_RESULTS: "solo/results.xml", SUITE_WAIT_FOR: "native.marker" },
+      },
+    },
+    targets: {
+      web: { driver: "fake", headless: true },
+      mobile: { driver: "fake-phone" },
+      "shop-a": { runner: "shop", env: { SUITE_NAME: "shop-a" } },
+      "shop-b": { runner: "shop", env: { SUITE_NAME: "shop-b" } },
+      solo: { runner: "solo" },
+    },
   };
 }
 
@@ -355,7 +433,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     name: "test-run",
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver, phone],
-    authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy],
+    authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy],
     resolvers: [otpResolver, stuckResolver],
   });
   const files: Record<string, unknown> = {
@@ -1141,5 +1219,255 @@ describe("runCases with workers", () => {
       "ask SHOP-B-001-2-guided",
     ]);
     expect(most).toBe(1);
+  });
+});
+
+type Launched = ReturnType<typeof AsyncLocalStorage.snapshot>;
+
+/** A context of a pooled browser, which calls its 401 listeners in the async context where the browser launched, as Playwright does. */
+class PooledContext extends FakeBrowserSession {
+  readonly #launched: Launched;
+  readonly #listeners = new Set<(origin: string) => void>();
+
+  constructor(launched: Launched) {
+    super();
+    this.#launched = launched;
+  }
+
+  onUnauthorized(listener: (origin: string) => void): () => void {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  }
+
+  /** The page got a 401 from the app. */
+  unauthorized(): void {
+    for (const listener of this.#listeners) this.#launched(() => listener(origin));
+  }
+}
+
+/** A driver whose sessions share one browser, launched by the first case that runs, with one context per identity. */
+function pooledDriver(): FakeDriver {
+  let pool: { launched: Launched; contexts: Map<string, PooledContext> } | undefined;
+  const sessions: FakeSession[] = [];
+  const contextOf = async (ctx: StepContext): Promise<PooledContext> => {
+    const browser = await ctx.session.browserFor?.(ctx.identity ?? "");
+    if (!(browser instanceof PooledContext)) throw new Error("the step runs without the identity's browser context");
+    return browser;
+  };
+  return {
+    name: "fake",
+    surface: "web",
+    probe: async () => new Set(),
+    launch: async (options): Promise<DriverSession> => {
+      pool ??= { launched: AsyncLocalStorage.snapshot(), contexts: new Map() };
+      const { launched, contexts } = pool;
+      const session: FakeSession = {
+        options,
+        capabilities: new Set(),
+        browsers: new Map(),
+        closedWith: undefined,
+        close: async (ending) => {
+          session.closedWith = ending;
+        },
+        browserFor: async (identity) => {
+          const context = contexts.get(identity) ?? new PooledContext(launched);
+          contexts.set(identity, context);
+          return context;
+        },
+      };
+      sessions.push(session);
+      return session;
+    },
+    steps: [
+      step("look"),
+      // the login flow of the shared config uses it
+      step("fill"),
+      // the app stops taking every token issued so far
+      step("expire", async () => {
+        liveTokens.clear();
+      }),
+      step("unauthorized", async (_payload, ctx) => {
+        (await contextOf(ctx)).unauthorized();
+      }),
+    ],
+    sessions,
+  };
+}
+
+describe("runCases with workers and a pooled browser", () => {
+  it.each([1, 2])(
+    "logs the refresh after a 401 in case B only in B's case.log, though case A launched the browser (workers: %i)",
+    async (workers) => {
+      const look = { look: {}, as: "rider" };
+      const { results, runDir, driver } = await runProject(
+        [
+          testCase("SHOP-A-001", { steps: [look] }),
+          testCase("SHOP-B-001", { steps: [look, { expire: {} }, { unauthorized: {}, as: "rider" }, look] }),
+        ],
+        { driver: pooledDriver(), workers },
+      );
+      expect(driver.sessions).toHaveLength(2);
+      expect(results.map((result) => result.notes)).toEqual([
+        [],
+        [`refreshed rider's web credential after a 401 from ${origin}`],
+      ]);
+      expect(await readFile(join(runDir, "SHOP-B-001", "case.log"), "utf8")).toContain(`POST ${origin}/token 200`);
+      const first = join(runDir, "SHOP-A-001", "case.log");
+      expect(existsSync(first) ? await readFile(first, "utf8") : "").not.toContain("/token");
+    },
+  );
+});
+
+describe("runCases with external suites", () => {
+  const external = (id: string, target: string, fields: CaseFields = {}) =>
+    testCase(id, { targets: [target], ...fields });
+  const suiteLog = async (runDir: string) =>
+    (await readFile(join(runDir, "..", "..", "suite.log"), "utf8")).trim().split("\n");
+
+  it("never runs an external suite and a native case that share an identity at once", async () => {
+    const { results, runDir } = await runProject(
+      [
+        external("SHOP-SUITE-001", "shop-a"),
+        testCase("SHOP-NATIVE-001", {
+          steps: [{ open: "${env.API_URL}/home", as: "customer" }, { mark: {} }, expectVisible],
+        }),
+      ],
+      { workers: 2 },
+    );
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
+    expect(await suiteLog(runDir)).toEqual([
+      "shop-a start",
+      "shop-a end",
+      "SHOP-NATIVE-001 start",
+      "SHOP-NATIVE-001 end",
+    ]);
+  });
+
+  it("never runs two targets of one runner at once", async () => {
+    const { results, runDir } = await runProject(
+      [external("SHOP-SUITE-001", "shop-a"), external("SHOP-SUITE-002", "shop-b")],
+      { workers: 2 },
+    );
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
+      { caseId: "SHOP-SUITE-002", status: "pass", reason: undefined },
+    ]);
+    expect(await suiteLog(runDir)).toEqual(["shop-a start", "shop-a end", "shop-b start", "shop-b end"]);
+  });
+
+  it("does not read again a result file that a suite of another target already read", async () => {
+    const config = configFor() as { targets: Record<string, unknown> };
+    const { results, runDir } = await runProject(
+      [external("SHOP-CART-001", "shop-a"), external("SHOP-CART-002", "shop-b")],
+      {
+        files: {
+          [BRAND.configFile]: {
+            ...config,
+            targets: {
+              ...config.targets,
+              "shop-a": { runner: "shop", env: { SUITE_NAME: "shop-a", SUITE_WRITE: "SHOP-CART-001,SHOP-CART-002" } },
+              "shop-b": { runner: "shop", env: { SUITE_NAME: "shop-b", SUITE_NO_RESULTS: "1", SUITE_EXIT: "1" } },
+            },
+          },
+        },
+      },
+    );
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-CART-001", status: "pass", reason: undefined },
+      {
+        caseId: "SHOP-CART-002",
+        status: "blocked",
+        reason: "runner shop exited 1 and wrote no results matching reports/*.xml",
+      },
+    ]);
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
+      "[shop-b] skipped reports/results.xml: written before this run's runner started",
+    );
+  });
+
+  it("gives an external suite one worker, however many cases it runs", async () => {
+    // the suite finishes only once the native case, which needs the second worker, has written its marker
+    const { results } = await runProject(
+      [
+        external("SHOP-SOLO-001", "solo"),
+        external("SHOP-SOLO-002", "solo"),
+        testCase("SHOP-MEET-001", { steps: [{ touch: {} }, expectVisible] }),
+      ],
+      { workers: 2 },
+    );
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass", "pass"]);
+  });
+
+  it("blocks only its own case when a launch fails after an external suite finished", async () => {
+    const { results, runDir } = await runProject(
+      [external("SHOP-SUITE-001", "shop-a"), testCase("SHOP-HOME-001", { steps: [expectVisible] })],
+      { driver: webDriver({ failingLaunches: [1] }) },
+    );
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
+      { caseId: "SHOP-HOME-001", status: "blocked", reason: "could not launch target web: fake launch 1 failed" },
+    ]);
+    expect(existsSync(join(runDir, "summary.json"))).toBe(true);
+    expect(existsSync(join(runDir, "post-plan.json"))).toBe(true);
+  });
+});
+
+describe("runCases production confirmation", () => {
+  const external = testCase("SHOP-SUITE-001", { targets: ["shop-a"], prod_safe: true });
+  const pass: PersonAnswer = { kind: "verdict", verdict: "pass", note: "" };
+
+  it("runs a runner without prodSafe after a yes", async () => {
+    const channel = person(() => pass);
+    const { results } = await runProject([external], { env: "live", channel });
+    expect(outcomes(results)).toEqual([{ caseId: "SHOP-SUITE-001", status: "pass", reason: undefined }]);
+    expect(channel.prompts).toEqual([
+      {
+        id: "preflight-shop-confirm",
+        runId: RUN_ID,
+        caseId: "",
+        ask: "verdict",
+        title: "Run runner shop against production env live?",
+        steps: [
+          `It runs \`${SUITE_COMMAND.join(" ")}\`, its whole suite`,
+          `${BRAND.name} cannot hold it to the host allowlist or the production write guard`,
+        ],
+        expected: "Answer y to run it, n to skip it",
+        timeoutMs: 300_000,
+      },
+    ]);
+  });
+
+  it.each([
+    ["no", { kind: "verdict", verdict: "fail", note: "not during the sale" }, ": not during the sale"],
+    ["no answer in time", { kind: "timeout" }, ""],
+  ] as const)("blocks the runner's cases and starts no process on %s", async (_label, answer, note) => {
+    const { results, runDir } = await runProject([external], { env: "live", channel: person(() => answer) });
+    expect(outcomes(results)).toEqual([
+      {
+        caseId: "SHOP-SUITE-001",
+        status: "blocked",
+        reason: `production run of runner shop was not confirmed${note}`,
+      },
+    ]);
+    expect(existsSync(join(runDir, "..", "..", "suite.log"))).toBe(false);
+    expect(existsSync(join(runDir, "runner-shop-a"))).toBe(false);
+  });
+
+  it("asks before the person logins", async () => {
+    const channel = person((prompt) => (prompt.ask === "verdict" ? pass : { kind: "done" }));
+    const { results } = await runProject(
+      [
+        testCase("SHOP-LOGIN-001", {
+          prod_safe: true,
+          steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+        }),
+        external,
+      ],
+      { env: "live", channel },
+    );
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
+    expect(events.slice(0, 2)).toEqual(["ask preflight-shop-confirm", "ask shopper-session-cookie-login"]);
   });
 });

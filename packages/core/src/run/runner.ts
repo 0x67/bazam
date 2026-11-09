@@ -1,31 +1,32 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import type { LoadedCase } from "../case/index.ts";
-import { oneAtATime, type HumanChannel } from "../challenge/index.ts";
+import { oneAtATime, startChallengeService, type ChallengeService, type HumanChannel } from "../challenge/index.ts";
 import { guardedHttp, type Capability, type Driver, type DriverSession, type LaunchOptions } from "../driver/index.ts";
 import { resolvePlaceholders, type CaseRunValues, type Environment, type RunValues } from "../env/index.ts";
+import type { UnmappedTest } from "../ingest/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
-import { IdentityFixtures, type Project } from "../project.ts";
-import type { Redactor } from "../redact/index.ts";
-import { buildPostPlans, loadReceipts, PeopleRegistry } from "../report/index.ts";
 import {
-  deriveStatus,
-  EvidenceStore,
-  writeRunStatus,
-  writeRunSummary,
-  type CaseOutcome,
-  type CaseResult,
-  type RunProgress,
-} from "../result/index.ts";
+  declaredSecretNames,
+  IdentityFixtures,
+  runnerOf,
+  type Project,
+  type ProjectConfig,
+  type RunnerConfig,
+} from "../project.ts";
+import type { Redactor } from "../redact/index.ts";
+import { deriveStatus, EvidenceStore, type CaseOutcome, type CaseResult } from "../result/index.ts";
 import { resolveSecret } from "../secrets/index.ts";
-import { RunBrowserLogin } from "./browser-login.ts";
+import { maskPrompt, RunBrowserLogin } from "./browser-login.ts";
 import { CaseEvidence } from "./case-evidence.ts";
 import { CaseRun, placeholderSources, type RunScope } from "./case-run.ts";
+import { runExternalSuite, type ExternalSuiteRun } from "./external.ts";
+import { finishRun, ProgressFile, progressEntry, RunLog } from "./finish.ts";
+import { recordSuite } from "./ingest.ts";
 import { CaseBlocked, isBlocking, messageOf, outcomeOf } from "./outcome.ts";
 import {
   caseTarget,
@@ -62,6 +63,8 @@ export interface RunOptions {
 const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 // a login trace from preflight lands here; a case id never has this shape
 const PREFLIGHT_DIR = "preflight";
+// as long as a person has to answer a challenge prompt
+const CONFIRM_PROMPT_TIMEOUT_MS = 5 * 60_000;
 
 /** The plan runCases follows, with the targets probed and the cached credentials read. Runs no step and logs in nowhere. */
 export async function planCases(options: RunOptions): Promise<RunPlan> {
@@ -78,9 +81,15 @@ export async function runCases(options: RunOptions): Promise<CaseResult[]> {
   const run = await Run.open(options);
   const plan = await run.plan();
   const loginsBlocked = await run.start(plan);
-  const results = await run.runPlan(plan, loginsBlocked);
-  await run.finish(results);
-  return results;
+  // started outside every unit's log context, so its lines go to the run log
+  await run.startService(plan);
+  try {
+    const results = await run.runPlan(plan, loginsBlocked);
+    await run.finish(results);
+    return results;
+  } finally {
+    await run.closeService();
+  }
 }
 
 class Run {
@@ -95,6 +104,11 @@ class Run {
   // aborted when a case throws, so the cases still running end blocked "run cancelled"
   readonly #stop = new AbortController();
   #caseStarted = false;
+  #service: ChallengeService | undefined;
+  // by the plan position of each external suite unit, so the summary lists them in plan order
+  readonly #unmapped = new Map<number, UnmappedTest[]>();
+  // the mtime of each result file, by absolute path, when a suite of this run read it
+  readonly #readResults = new Map<string, number>();
 
   static async open(options: RunOptions): Promise<Run> {
     return new Run(options, await readLocalFixtures(options.project.root));
@@ -165,8 +179,9 @@ class Run {
     const capabilities = new Map<string, ReadonlySet<Capability>>();
     for (const { spec } of cases) {
       const target = caseTarget(spec, targets);
-      // planRun names a target that config lacks, for the cases that would run on it
+      // planRun names a target that config lacks, for the cases that would run on it; a runner has no driver to probe
       if (target === undefined || project.config.targets[target] === undefined) continue;
+      if (runnerOf(project.config, target) !== undefined) continue;
       capabilities.set(target, await this.#probe(target));
     }
     const inputs: Omit<PlanInputs, "credentials"> = {
@@ -185,11 +200,15 @@ class Run {
     return planRun({ ...inputs, credentials });
   }
 
-  /** Writes the first status.json and runs preflight; returns the reasons of the logins that failed. */
+  /**
+   * Writes the first status.json, asks for each runner that needs a yes in a production env, and runs preflight.
+   * Blocks the cases of a runner the person did not confirm; returns the reasons of the logins that failed.
+   */
   async start(plan: RunPlan): Promise<ReadonlyMap<string, string>> {
     await this.#progress.update((progress) => {
       progress.total = plan.cases.length;
     });
+    for (const { runner, command } of plan.confirmations) await this.#confirm(plan, runner, command);
     const withLogins = plan.cases.filter((planned) => planned.blocked === undefined && planned.logins.length > 0);
     if (withLogins.length === 0) return new Map();
     // logins run in a session of their own, launched once and only when a login needs a browser
@@ -212,22 +231,52 @@ class Run {
     return blocked;
   }
 
+  /**
+   * When some external suite will run: registers the inherited values of the declared secrets with the redactor,
+   * so the runner's output masks them, and starts the run's challenge service.
+   */
+  async startService(plan: RunPlan): Promise<void> {
+    if (!plan.cases.some((planned) => planned.runner !== undefined && planned.blocked === undefined)) return;
+    const { project, env, registry, redactor } = this.#options;
+    for (const name of declaredSecretNames(project.config)) {
+      const value = process.env[name];
+      if (value !== undefined && value !== "") redactor.register(value);
+    }
+    this.#service = await startChallengeService({
+      env,
+      registry,
+      channel: this.#scope.channel,
+      http: guardedHttp({ env, redactor, log: this.#log.line }),
+      stateDir: this.#scope.stateDir,
+      secrets: (key) => this.#scope.secret(key),
+      redactor,
+      runId: this.#runId,
+      log: this.#log.line,
+    });
+  }
+
+  /** Stops the challenge service, if it started, and writes what the run log still holds. */
+  async closeService(): Promise<void> {
+    await this.#service?.close();
+    await this.#log.flush(join(this.#options.runDir, "run.log"));
+  }
+
   /** Runs the cases up to `workers` at once, never two that share an identity; returns the results in plan order. */
   runPlan(plan: RunPlan, loginsBlocked: ReadonlyMap<string, string>): Promise<CaseResult[]> {
-    const units = plan.cases.map((planned, position) => ({ positions: [position], locks: caseLocks(planned) }));
     const runUnit = async ({ positions }: WorkUnit): Promise<CaseResult[]> => {
-      // each case is a unit of its own
       const position = positions[0]!;
       const planned = plan.cases[position]!;
-      const loaded = this.#options.cases[position];
       try {
-        if (loaded === undefined) throw new Error(`the plan lists case ${planned.caseId}, which the run was not given`);
+        if (planned.runner !== undefined && planned.blocked === undefined) return await this.#runSuite(plan, positions);
+        // every other case is a unit of its own
+        const loaded = this.#loaded(plan, position);
         return [await this.#log.apart(() => this.runCase(loaded, planned, loginsBlocked))];
       } catch (error) {
         this.#stop.abort();
         throw error;
       }
     };
+    const units = workUnits(plan, this.#options.project.config);
     return runUnits(units, this.#options.workers ?? 1, runUnit, this.#stop.signal);
   }
 
@@ -260,39 +309,153 @@ class Run {
     );
     await this.#log.flush(join(runDir, spec.id, "case.log"));
     await this.#progress.update((progress) => {
-      progress.results.push({
-        caseId: result.caseId,
-        status: result.status,
-        ...(result.reason === undefined ? {} : { reason: result.reason }),
-      });
+      progress.results.push(progressEntry(result));
     });
     return result;
   }
 
   async finish(results: readonly CaseResult[]): Promise<void> {
     const { runDir, project, registry, env, cases, redactor } = this.#options;
-    await writeRunSummary(runDir, results);
-    const postPlan = buildPostPlans({
+    const unmapped = [...this.#unmapped].sort(([a], [b]) => a - b).flatMap(([, tests]) => tests);
+    await finishRun(runDir, results, unmapped, {
       runId: this.#runId,
-      env: env.name,
-      results,
-      specs: new Map(cases.map(({ spec }) => [spec.id, spec])),
-      people: await PeopleRegistry.load(project.root),
-      receipts: await loadReceipts(this.#scope.stateDir),
-      trackers: (name) => registry.tracker(name),
-      transitions: project.config.trackers,
-      now: new Date(),
+      project,
+      env,
+      cases,
+      registry,
+      redactor,
+      stateDir: this.#scope.stateDir,
+      progress: this.#progress,
+      log: this.#log,
     });
-    // only the comments go through the redactor again: its digit rule would break account ids and receipt URLs
-    const masked = {
-      ...postPlan,
-      items: postPlan.items.map((item) => ({ ...item, comment: redactor.value(item.comment) })),
-    };
-    await writeFile(join(runDir, "post-plan.json"), `${JSON.stringify(masked, null, 2)}\n`);
+  }
+
+  /** Asks the person whether the runner may run in this production env; a no or no answer blocks its cases. */
+  async #confirm(plan: RunPlan, runner: string, command: string): Promise<void> {
+    const { env, redactor } = this.#options;
+    const prompt = maskPrompt(
+      {
+        id: `preflight-${runner}-confirm`,
+        runId: this.#runId,
+        caseId: "",
+        ask: "verdict",
+        title: `Run runner ${runner} against production env ${env.name}?`,
+        steps: [
+          `It runs \`${command}\`, its whole suite`,
+          `${BRAND.name} cannot hold it to the host allowlist or the production write guard`,
+        ],
+        expected: "Answer y to run it, n to skip it",
+        timeoutMs: CONFIRM_PROMPT_TIMEOUT_MS,
+      },
+      redactor,
+    );
+    const answer = await this.#scope.channel.ask(prompt, this.#scope.signal);
+    if (answer.kind === "verdict" && answer.verdict === "pass") return;
+    const note = answer.kind === "verdict" && answer.note !== "" ? `: ${answer.note}` : "";
+    for (const planned of plan.cases) {
+      if (planned.confirm === runner && planned.blocked === undefined)
+        planned.blocked = `production run of runner ${runner} was not confirmed${note}`;
+    }
+  }
+
+  /** Runs the selected cases of one runner target as one suite and records them from its result files. */
+  async #runSuite(plan: RunPlan, positions: readonly number[]): Promise<CaseResult[]> {
+    const { project, runDir, redactor, env, seed } = this.#options;
+    const { signal } = this.#scope;
+    const { target } = plan.cases[positions[0]!]!;
+    // the plan sets runner only on a case whose target names one
+    const { name, runner, env: targetEnv } = runnerOf(project.config, target)!;
+    const cases = positions.map((position) => this.#loaded(plan, position).spec);
+    const cwd = resolve(project.root, runner.cwd);
+    const startedAt = new Date();
+    let failure = signal.aborted ? "run cancelled" : undefined;
+    let suiteEnv: Record<string, string> = {};
+    try {
+      if (failure === undefined) suiteEnv = await this.#resolveSuiteEnv({ ...runner.env, ...targetEnv });
+    } catch (error) {
+      failure = messageOf(error);
+    }
+    let run: ExternalSuiteRun | undefined;
+    if (failure === undefined) {
+      if (this.#service === undefined) throw new Error("the challenge service did not start before the suite");
+      run = await runExternalSuite(
+        { target, runnerName: name, runner, env: suiteEnv, caseIds: cases.map((spec) => spec.id) },
+        {
+          root: project.root,
+          runDir,
+          runId: this.#runId,
+          envName: env.name,
+          service: this.#service,
+          redactor,
+          signal,
+          now: () => new Date(),
+          withheldVars: Object.values(project.config.trackers).flatMap((tracker) => Object.values(tracker.secrets)),
+          log: this.#log.line,
+        },
+      );
+      // a later launch failure then blocks only its own case
+      if (run.exit.spawnError === undefined) this.#caseStarted = true;
+      run.files = await this.#unreadResults(target, cwd, run.files);
+      failure = suiteFailure(name, runner, run, signal.aborted);
+    }
+    const { results, unmapped } = await recordSuite({
+      project,
+      registry: this.#options.registry,
+      redactor,
+      log: this.#log.line,
+      target,
+      runDir,
+      runId: this.#runId,
+      envName: env.name,
+      seed,
+      cases,
+      files: (run?.files ?? []).map((path) => ({
+        path,
+        read: () => readFile(join(cwd, path), "utf8"),
+      })),
+      ...(failure === undefined ? {} : { failure }),
+      ...(run === undefined ? {} : { spawnedAt: run.spawnedAt }),
+      challenges: this.#service?.answered() ?? new Map(),
+      startedAt,
+    });
+    this.#unmapped.set(positions[0]!, unmapped);
     await this.#progress.update((progress) => {
-      progress.state = "finished";
+      progress.results.push(...results.map(progressEntry));
     });
     await this.#log.flush(join(runDir, "run.log"));
+    return results;
+  }
+
+  /**
+   * Leaves out the files an earlier suite of this run read and that have not changed since, so a suite that
+   * writes nothing cannot take another target's results. Notes the mtime of each file it keeps.
+   */
+  async #unreadResults(target: string, cwd: string, files: readonly string[]): Promise<string[]> {
+    const unread: string[] = [];
+    for (const file of files) {
+      const path = join(cwd, file);
+      const mtimeMs = (await stat(path).catch(() => undefined))?.mtimeMs;
+      if (mtimeMs !== undefined && this.#readResults.get(path) === mtimeMs) {
+        this.#log.line(`[${target}] skipped ${file}: written before this run's runner started`);
+        continue;
+      }
+      if (mtimeMs !== undefined) this.#readResults.set(path, mtimeMs);
+      unread.push(file);
+    }
+    return unread;
+  }
+
+  /** Resolves `env`, `secret` and `run` placeholders; a suite belongs to no case and acts as no identity. */
+  #resolveSuiteEnv(env: Record<string, string>): Promise<Record<string, string>> {
+    const sources = placeholderSources(this.#scope, this.#options.runValues.forCase(""));
+    return resolvePlaceholders(env, { ...sources, identity: () => undefined });
+  }
+
+  #loaded(plan: RunPlan, position: number): LoadedCase {
+    const loaded = this.#options.cases[position];
+    if (loaded === undefined)
+      throw new Error(`the plan lists case ${plan.cases[position]?.caseId}, which the run was not given`);
+    return loaded;
   }
 
   async #caseOutcome(
@@ -398,6 +561,55 @@ class Run {
   }
 }
 
+/**
+ * One unit per case, except that the cases of one runner target that are not blocked share one, placed where the
+ * first of them sits in the plan.
+ */
+function workUnits(plan: RunPlan, config: ProjectConfig): WorkUnit[] {
+  const units: WorkUnit[] = [];
+  const suites = new Map<string, number[]>();
+  plan.cases.forEach((planned, position) => {
+    if (planned.runner === undefined || planned.blocked !== undefined) {
+      units.push({ positions: [position], locks: caseLocks(planned) });
+      return;
+    }
+    const positions = suites.get(planned.target);
+    if (positions !== undefined) {
+      positions.push(position);
+      return;
+    }
+    const suite = [position];
+    suites.set(planned.target, suite);
+    units.push({ positions: suite, locks: suiteLocks(config, planned.runner) });
+  });
+  return units;
+}
+
+/**
+ * The identities the runner lists, or every identity when it lists none, and the runner itself, since its targets
+ * share one results folder.
+ */
+function suiteLocks(config: ProjectConfig, runner: string): string[] {
+  const identities = config.runners[runner]?.identities ?? Object.keys(config.identities);
+  return [...identities, `runner:${runner}`];
+}
+
+/** Why the suite gave no results to read, or ended early; undefined when its files decide. */
+function suiteFailure(
+  name: string,
+  runner: RunnerConfig,
+  run: ExternalSuiteRun,
+  cancelled: boolean,
+): string | undefined {
+  const { exit } = run;
+  if (cancelled) return "run cancelled";
+  if (exit.spawnError !== undefined) return `runner ${name} could not start: ${exit.spawnError}`;
+  if (exit.timedOut) return `runner ${name} timed out after ${runner.timeoutMinutes} min`;
+  if (run.files.length > 0) return undefined;
+  const ended = exit.signal === null ? `exited ${exit.code}` : `was stopped by ${exit.signal}`;
+  return `runner ${name} ${ended} and wrote no results matching ${runner.results}`;
+}
+
 /** The identities a case acts as, which no other case acts as while it runs; a blocked case holds none. */
 function caseLocks(planned: PlannedCase): string[] {
   if (planned.blocked !== undefined) return [];
@@ -442,64 +654,6 @@ async function readLocalFixtures(root: string): Promise<IdentityFixtures | undef
 
 function stackOf(error: unknown): string {
   return error instanceof Error ? (error.stack ?? error.message) : String(error);
-}
-
-/**
- * Collects log lines and appends them, masked, to the run log or a case log. A line goes to the buffer of the
- * `apart` call whose async context logs it, else to the run's.
- */
-class RunLog {
-  readonly #redactor: Redactor;
-  readonly #runLines: string[] = [];
-  readonly #caseLines = new AsyncLocalStorage<string[]>();
-
-  constructor(redactor: Redactor) {
-    this.#redactor = redactor;
-  }
-
-  readonly line = (text: string): void => {
-    this.#lines().push(text);
-  };
-
-  /** Runs `fn` with a buffer of its own, which `flush` inside it writes. */
-  apart<T>(fn: () => Promise<T>): Promise<T> {
-    return this.#caseLines.run([], fn);
-  }
-
-  /** Writes the current buffer. Masks at write time, so a secret registered after its line was logged is masked too. */
-  async flush(file: string): Promise<void> {
-    const lines = this.#lines().splice(0);
-    if (lines.length === 0) return;
-    const text = this.#redactor.text(`${lines.join("\n")}\n`);
-    await mkdir(dirname(file), { recursive: true });
-    await appendFile(file, text);
-  }
-
-  #lines(): string[] {
-    return this.#caseLines.getStore() ?? this.#runLines;
-  }
-}
-
-/** The run's progress and its status.json, rewritten after each change. */
-class ProgressFile {
-  readonly #runDir: string;
-  readonly #progress: RunProgress;
-  #writing: Promise<void> = Promise.resolve();
-
-  constructor(runDir: string, runId: string) {
-    this.#runDir = runDir;
-    this.#progress = { runId, state: "running", total: 0, pendingPrompts: 0, results: [] };
-  }
-
-  /** Writes one at a time, since a prompt can end while the runner writes after a case. */
-  update(change: (progress: RunProgress) => void): Promise<void> {
-    change(this.#progress);
-    const snapshot = structuredClone(this.#progress);
-    const write = this.#writing.then(() => writeRunStatus(this.#runDir, snapshot));
-    // the caller of a failed write gets its error; the next write still goes ahead
-    this.#writing = write.catch(() => undefined);
-    return write;
-  }
 }
 
 /** Counts the prompts waiting for a person in status.json. */
