@@ -19,6 +19,8 @@ export interface FakeDriverOptions {
   loginCookies?: StorageState["cookies"];
   /** How long each browser login takes; see FakeLoginOptions. */
   loginDelayMs?: number;
+  /** What each browser login also waits for; see FakeLoginOptions. */
+  loginWaitsFor?: Promise<unknown>;
   /** Launches that throw, counted from 1, as when the browser cannot start. */
   failingLaunches?: readonly number[];
   /** What every session's close throws after it records the ending, as a driver that reports a late problem does. */
@@ -56,10 +58,10 @@ export function fakeDriver(options: FakeDriverOptions = {}): FakeDriver {
     launch: async (launchOptions) => {
       launches += 1;
       if (options.failingLaunches?.includes(launches) === true) throw new Error(`fake launch ${launches} failed`);
-      const login = new FakeBrowserLogin(
-        options.loginCookies ?? [],
-        options.loginDelayMs === undefined ? {} : { delayMs: options.loginDelayMs },
-      );
+      const login = new FakeBrowserLogin(options.loginCookies ?? [], {
+        ...(options.loginDelayMs === undefined ? {} : { delayMs: options.loginDelayMs }),
+        ...(options.loginWaitsFor === undefined ? {} : { waitsFor: options.loginWaitsFor }),
+      });
       const session = fakeSession(launchOptions, capabilities, login, options.closeError);
       sessions.push(session);
       return session;

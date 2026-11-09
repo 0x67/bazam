@@ -484,13 +484,18 @@ const expectVisible = { expect: { visible: "dashboard" } };
 
 describe("runCases", () => {
   it("asks person logins before the first case", async () => {
-    const channel = person();
+    // the login lasts until the person answers, so the run cannot drop its prompt
+    const answered = Promise.withResolvers<void>();
+    const channel = person(() => {
+      answered.resolve();
+      return { kind: "done" };
+    });
     const { results, driver } = await runProject(
       [
         testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
         testCase("SHOP-SECOND-001", { steps: [{ open: "${env.API_URL}/cart", as: "shopper" }, expectVisible] }),
       ],
-      { channel, driver: webDriver({ loginDelayMs: 20 }) },
+      { channel, driver: webDriver({ loginWaitsFor: answered.promise }) },
     );
     expect(events).toEqual([
       "ask shopper-session-cookie-login",
@@ -1456,7 +1461,13 @@ describe("runCases production confirmation", () => {
   });
 
   it("asks before the person logins", async () => {
-    const channel = person((prompt) => (prompt.ask === "verdict" ? pass : { kind: "done" }));
+    // the login lasts until the person answers, so the run cannot drop its prompt
+    const answered = Promise.withResolvers<void>();
+    const channel = person((prompt) => {
+      if (prompt.ask === "verdict") return pass;
+      answered.resolve();
+      return { kind: "done" };
+    });
     const { results } = await runProject(
       [
         testCase("SHOP-LOGIN-001", {
@@ -1465,7 +1476,7 @@ describe("runCases production confirmation", () => {
         }),
         external,
       ],
-      { env: "live", channel },
+      { env: "live", channel, driver: webDriver({ loginWaitsFor: answered.promise }) },
     );
     expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
     expect(events.slice(0, 2)).toEqual(["ask preflight-shop-confirm", "ask shopper-session-cookie-login"]);
