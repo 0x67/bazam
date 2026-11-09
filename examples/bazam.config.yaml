@@ -120,11 +120,35 @@ identities:
           sign: hooks/sign-demo.ts
           probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
 
+runners:
+  # the node:test suite in external/node-test; it signs in new addresses only, so it holds no identity's lock
+  demo-node-test:
+    # spec output for runner.log, and JUnit XML into the cwd, since Node does not create a missing folder
+    command:
+      - node
+      - --test
+      - --test-reporter=spec
+      - --test-reporter-destination=stdout
+      - --test-reporter=junit
+      - --test-reporter-destination=junit.xml
+      - email-code.test.ts
+    cwd: external/node-test
+    results: junit.xml
+    format: junit
+    env:
+      APP_URL: ${env.APP_URL}
+      MAILPIT_URL: ${env.MAILPIT_URL}
+    # the two tests take seconds; the default of 60 would outlast CI's job timeout
+    timeoutMinutes: 5
+    identities: []
+
 targets:
   web: { driver: playwright, browser: chromium }
   web-chrome: { driver: playwright, browser: chromium, channel: chrome }
   web-firefox: { driver: playwright, browser: firefox }
   web-webkit: { driver: playwright, browser: webkit }
+  # the cases of cases/api/email-code.yaml, run by the suite above
+  node-test: { runner: demo-node-test }
 
 trackers:
   jira:

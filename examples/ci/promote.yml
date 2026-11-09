@@ -1,0 +1,197 @@
+# Every week and by hand: runs the acceptance suite, promotes each acceptance case whose linked tickets are done,
+# and opens a pull request with the stage changes on a new bazam/promote-<date and time> branch for review.
+# Copy it to .github/workflows/ in your project and change:
+#   1. staging, the env name, in the acceptance and promote jobs, to an env in your bazam.config.yaml
+#   2. acceptance, the suite, if yours has another name
+# Scheduled runs start on the default branch, and the pull request targets it.
+# docs/ci-regression.md in the bazam repository lists the install, the secrets and the repository settings it needs.
+name: Promote
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      empty: ${{ steps.run.outputs.empty }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      # the bazam release tarballs and playwright from package.json; none of them needs an install script
+      - run: npm ci --ignore-scripts
+
+      # later steps call bazam and playwright from this install; npx bazam would fetch whatever npm package has the name
+      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - run: playwright install --with-deps chromium
+
+      # the identity fixtures and app secrets that git never holds
+      - name: Prepare the project
+        env:
+          IDENTITIES: ${{ secrets.BAZAM_IDENTITIES }}
+          SECRETS_ENV: ${{ secrets.BAZAM_SECRETS_ENV }}
+        run: |
+          mkdir -p fixtures .bazam
+          printf '%s\n' "$IDENTITIES" > fixtures/identities.local.yaml
+          printf '%s\n' "$SECRETS_ENV" > .bazam/secrets.env
+
+      # failed and blocked cases (exit codes 1 and 3) stay in acceptance while the others can still be promoted;
+      # a stage with no case left exits 2 with the message below, which ends green and skips promotion
+      - name: Run the acceptance suite
+        id: run
+        run: |
+          status=0
+          bazam run --env staging --suite acceptance --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --channel answers-file --json > "$RUNNER_TEMP/run.json" || status=$?
+          error=$(jq -r '.error // empty' "$RUNNER_TEMP/run.json" 2> /dev/null || true)
+          if [ "$status" -eq 2 ] && [ "$error" = "no case matches the selection" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$status" in
+            0 | 1 | 3) ;;
+            *) exit "$status" ;;
+          esac
+
+      # the promote job reads the result.json files minutes later
+      - name: Upload the acceptance runs
+        if: steps.run.outputs.empty != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: acceptance-runs
+          path: runs/
+          retention-days: 1
+          if-no-files-found: error
+
+  promote:
+    needs: acceptance
+    if: needs.acceptance.outputs.empty != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # holds the tracker secrets; only the default branch may use it
+    environment: tracker
+    # bazam and its dependencies run here, so the token can only read; the pull-request job pushes the change
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # no cache restore in the job that holds the tracker secrets
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - run: npm ci --ignore-scripts
+
+      - name: Download the acceptance runs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: acceptance-runs
+          path: runs
+
+      # node_modules/.bin stays off PATH in this job, so an installed bin cannot shadow git or jq by name;
+      # the pull request body goes to a file, so no text from the tracker reaches a command line
+      - name: Promote the cases whose tickets are done
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          node_modules/.bin/bazam promote --from-tracker --env staging --json > "$RUNNER_TEMP/promote.json"
+          mkdir -p "$RUNNER_TEMP/promotion"
+          jq -r '
+            (if (.promoted | length) > 0
+              then "Promoted to regression:", "", (.promoted[] | "- \(.)"), ""
+              else empty end),
+            (if (.stayed | length) > 0
+              then "Stayed in acceptance:", "", (.stayed[] | "- \(.caseId): \(.reason)")
+              else empty end)
+          ' "$RUNNER_TEMP/promote.json" > "$RUNNER_TEMP/promotion/promote-pr.md"
+
+      # git diff leaves runs/ out, since it lists only tracked files
+      - name: Write the patch
+        id: patch
+        run: |
+          if ! git diff --quiet; then
+            git diff --binary > "$RUNNER_TEMP/promotion/promote.patch"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the patch and the pull request body
+        if: steps.patch.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: promotion
+          path: ${{ runner.temp }}/promotion/
+          retention-days: 1
+          if-no-files-found: error
+
+  # holds the write token, so it runs no npm code (no Node, no install, no bazam): any code in a job can read the
+  # job's token from the runner's memory; it applies the patch the promote job wrote and opens the pull request
+  pull-request:
+    needs: promote
+    if: needs.promote.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the patch and the pull request body
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: promotion
+          path: ${{ runner.temp }}/promotion
+
+      # the patch comes from a job that runs npm code, so it may change case files and nothing else;
+      # --no-renames lists both sides of a rename, so moving a file into cases/ does not pass;
+      # core.quotePath=false prints non-ASCII names raw; git still quotes a name with a tab, newline, quote or backslash, and the check refuses it
+      - name: Commit the stage changes
+        run: |
+          git apply --index "$RUNNER_TEMP/promotion/promote.patch"
+          paths=$(git -c core.quotePath=false diff --cached --name-only --no-renames)
+          if printf '%s\n' "$paths" | grep -Ev '^cases/.+\.ya?ml$'; then
+            echo "refusing the patch: it changes the paths above, which are not YAML files under cases/" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "bazam/promote-$(date -u +%Y-%m-%d-%H%M%S)"
+          git commit -m "Promote acceptance cases to regression"
+
+      # gh auth setup-git makes git push read GH_TOKEN, so the push and the pull request share this step
+      - name: Open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh auth setup-git
+          git push -u origin HEAD
+          gh pr create --title "Promote acceptance cases to regression" --body-file "$RUNNER_TEMP/promotion/promote-pr.md"

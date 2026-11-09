@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { constants, tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { isDeepStrictEqual } from "node:util";
 import { BRAND } from "../../packages/core/src/brand.ts";
 
 const REPO = join(import.meta.dirname, "..", "..");
@@ -55,11 +56,13 @@ const DEFAULT_AGENT_CMD = [
   "--no-session-persistence",
 ].join(" ");
 
-// what a draft or a run writes; Node refuses to import any of these, so no plugin or hook can hide in one
+// what a draft or a run writes; the bare import() that loads plugins and hooks refuses each of these (JSON needs a
+// type attribute), but a YAML config can still start a process, which the config guard checks
 const DATA_EXTENSIONS = new Set([
   ".yaml",
   ".yml",
   ".json",
+  ".xml",
   ".md",
   ".txt",
   ".log",
@@ -70,6 +73,9 @@ const DATA_EXTENSIONS = new Set([
   ".webm",
   ".zip",
 ]);
+
+// the config keys that can start a process: an object plugins entry, a runner, and a target that names one
+const CODE_KEYS = ["plugins", "runners", "targets"] as const;
 
 // what the harness answers for the person in the graded run, by the prompt's ask
 const ANSWERS = {
@@ -422,6 +428,31 @@ async function codeFiles(project: string): Promise<Map<string, string>> {
   return files;
 }
 
+/**
+ * The keys of `CODE_KEYS` whose values differ between the baseline and the config the agent left, or why that config
+ * cannot be compared: it is missing or unreadable, or it does not parse.
+ */
+async function changedConfigKeys(project: string, baseline: unknown): Promise<string[]> {
+  let text: string;
+  try {
+    text = await readFile(join(project, BRAND.configFile), "utf8");
+  } catch (error) {
+    return [(error as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "unreadable"];
+  }
+  let drafted: unknown;
+  try {
+    drafted = parseYaml(text);
+  } catch {
+    return ["does not parse"];
+  }
+  return CODE_KEYS.filter((key) => !isDeepStrictEqual(configKey(baseline, key), configKey(drafted, key)));
+}
+
+/** A document that parses to null or a scalar has none of the keys. */
+function configKey(document: unknown, key: string): unknown {
+  return typeof document === "object" && document !== null ? (document as Record<string, unknown>)[key] : undefined;
+}
+
 /** The steps and checks of each case by id, to tell a drafted case from one that only gained a link. */
 async function caseBodies(project: string): Promise<Map<string, string>> {
   const bodies = new Map<string, string>();
@@ -580,9 +611,14 @@ async function runAgent(command: string, dir: string, project: string, ticket: T
   return { exit, signal, timedOut, seconds, models: modelsOf(exited.stdout) };
 }
 
-/** The grades of a draft the harness does not load, because the agent added or changed files Node could run. */
-function refused(agent: AgentRecord, ticket: Ticket, files: readonly string[]): Attempt {
-  const error = `the agent added or changed files Node could run, which the harness never loads: ${files.join(", ")}`;
+/**
+ * The grades of a draft the harness does not load, because the agent added or changed files Node could run or config
+ * keys that start processes.
+ */
+function refused(agent: AgentRecord, ticket: Ticket, changes: readonly string[]): Attempt {
+  const error =
+    "the agent added or changed files Node could run or config keys that start processes, which the harness never " +
+    `loads: ${changes.join(", ")}`;
   return {
     agent,
     check: { pass: false, errors: 0, warnings: 0, issues: [], error },
@@ -600,11 +636,19 @@ async function attempt(command: string, ticket: Ticket): Promise<Attempt> {
     const before = await freshCopy(project);
     const bodies = await caseBodies(project);
     const code = await codeFiles(project);
+    // freshCopy ran check on this config, so it parses
+    const config = parseYaml(await readFile(join(project, BRAND.configFile), "utf8"));
     const agent = await runAgent(command, dir, project, ticket);
     await stopLeftoverRuns(project);
-    // the CLI imports a project's plugins and hooks, so it never opens a copy with code the agent wrote
-    const changed = [...(await codeFiles(project))].filter(([path, hash]) => code.get(path) !== hash);
-    if (changed.length > 0) return refused(agent, ticket, changed.map(([path]) => path).sort());
+    // the CLI imports a project's plugins and hooks and starts its process plugins and runners, so the harness never
+    // opens a copy with code or code keys the agent wrote
+    const changed = [...(await codeFiles(project))]
+      .filter(([path, hash]) => code.get(path) !== hash)
+      .map(([path]) => path)
+      .sort();
+    const keys = await changedConfigKeys(project, config);
+    if (keys.length > 0) changed.push(`${BRAND.configFile} (${keys.join(", ")})`);
+    if (changed.length > 0) return refused(agent, ticket, changed);
     const check = await gradeCheck(project);
     const ids = gradeIds(ticket, before, await caseIds(project));
     const after = await caseBodies(project);

@@ -1,0 +1,16 @@
+cases:
+  - id: API-OTP-001
+    title: Customer signs in over HTTP with the code mailed to them
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-205]
+    targets: [node-test]
+    tags: [api]
+
+  - id: API-OTP-002
+    title: A mailed sign-in code works only once
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-206]
+    targets: [node-test]
+    tags: [api]

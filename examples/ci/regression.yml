@@ -1,0 +1,85 @@
+# Runs the regression suite on a push to the default branch, every night and by hand, then posts the results to
+# the tracker. Copy it to .github/workflows/ in your project and change:
+#   1. staging, the env name, to an env in your bazam.config.yaml
+#   2. regression, the suite, if yours has another name
+#   3. main, the branch the push filter names, to your default branch
+# docs/ci-regression.md in the bazam repository lists the install, the tracker environment and the secrets it needs.
+name: Regression
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# one run per branch at a time, so two runs never file the same bug; a run that started finishes its posts
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # holds the tracker secrets; only the default branch may use it
+    environment: tracker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      # the bazam release tarballs and playwright from package.json; none of them needs an install script
+      - run: npm ci --ignore-scripts
+
+      # later steps call bazam and playwright from this install; npx bazam would fetch whatever npm package has the name
+      - run: echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - run: playwright install --with-deps chromium
+
+      # the identity fixtures and app secrets that git never holds
+      - name: Prepare the project
+        env:
+          IDENTITIES: ${{ secrets.BAZAM_IDENTITIES }}
+          SECRETS_ENV: ${{ secrets.BAZAM_SECRETS_ENV }}
+        run: |
+          mkdir -p fixtures .bazam
+          printf '%s\n' "$IDENTITIES" > fixtures/identities.local.yaml
+          printf '%s\n' "$SECRETS_ENV" > .bazam/secrets.env
+
+      # a re-run gets a new run id, so a fresh folder and a fresh marker
+      - name: Run the regression suite
+        id: run
+        continue-on-error: true
+        run: >-
+          bazam run --env staging --suite regression --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          --workers 4 --channel answers-file
+
+      - name: Post the results
+        if: ${{ !cancelled() }}
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: bazam report post --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+
+      # failure() stays false after a step with continue-on-error, so the last two steps read the run step's outcome
+      - name: Upload the run evidence
+        if: ${{ !cancelled() && steps.run.outcome == 'failure' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: regression-runs
+          path: runs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Fail the job when the run failed
+        if: ${{ steps.run.outcome == 'failure' }}
+        run: exit 1

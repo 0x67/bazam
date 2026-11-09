@@ -168,6 +168,11 @@ jobs:
           node packages/cli/dist/main.js run --root examples --env demo --suite acceptance --target web-webkit
           --channel answers-file --answers examples/fixtures/answers
 
+      # the example's node:test suite, through runner demo-node-test; before the scan, so it covers this run
+      - name: External suite on node:test
+        if: ${{ !cancelled() && steps.demo.outcome == 'success' }}
+        run: node packages/cli/dist/main.js run --root examples --env demo --target node-test --channel answers-file
+
       # also after a failed run, whose traces are the evidence most likely to hold a value; besides the secrets
       # above it looks for the cached credentials, the TOTP codes of the seed and the codes the demo mailed
       - name: Scan the runs for secrets

@@ -13,6 +13,7 @@
     "examples/demo-app/src",
     "examples/demo-app/test",
     "examples/plugins",
+    "examples/external",
     "vite.config.ts"
   ]
 }

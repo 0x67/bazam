@@ -8,7 +8,8 @@
  * 1. With the default agent command. A `claude` stub first on PATH starts this file as the agent, which checks the
  *    command's flags and the agent contract, drafts by ticket key (see actAsAgent), and prints a result with
  *    `modelUsage` as `claude -p` does. The grades must match, and the eval must stop the run the agent left behind
- *    before it grades, leave alone the processes other run records name, and never load the plugin the agent wrote.
+ *    before it grades, leave alone the processes other run records name, never load the plugin the agent wrote, and
+ *    refuse the draft that adds a process plugin entry to the config, so that plugin never starts.
  * 2. With EVAL_AGENT_CMD set, stopped with SIGINT while the agent works on DEMO-502. The agent and the copy must be
  *    gone, and the result file must hold the DEMO-501 attempt with the inline key masked.
  * 3. With a ticket that extends a case examples/ does not have, which must stop the eval before any agent starts.
@@ -37,6 +38,8 @@ const BROKEN_ID = "AUTH-SESSION-002";
 const LINK_ONLY = "DEMO-502";
 const LINKED_ID = "API-KEY-001";
 const PLUGIN = "DEMO-503";
+// the agent adds a process plugin entry to the config, which starts its command once anything loads the copy
+const CONFIG_PLUGIN = "DEMO-504";
 const STUB_MODEL = "stub-agent";
 const CLAUDE_MODELS = ["stub-model-large", "stub-model-small"];
 const FAKE_KEY = "fake-key-for-self-test";
@@ -47,6 +50,7 @@ const LEFTOVER_PID = "leftover.pid";
 const LEFTOVER_STOPPED = "leftover.stopped";
 const DECOY_PID = "decoy.pid";
 const PLUGIN_MARK = "plugin.imported";
+const CONFIG_PLUGIN_MARK = "config-plugin.started";
 const WORKING = "working";
 
 // a run the agent started: it says once it listens for SIGTERM, then records whether the eval stopped it before the
@@ -105,6 +109,9 @@ const BROKEN_CASE = [
   "",
 ].join("\n");
 
+// the config file's name as a regular expression
+const CONFIG_FILE = BRAND.configFile.replaceAll(".", "\\.");
+
 const quote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
 async function actAsAgent(ticketFile: string, args: readonly string[]): Promise<void> {
@@ -137,6 +144,7 @@ async function actAsAgent(ticketFile: string, args: readonly string[]): Promise<
   if (key === BROKEN) await writeFile(join("cases", "auth", "no-session.yaml"), BROKEN_CASE);
   if (key === LINK_ONLY) await linkOnly(key);
   if (key === PLUGIN) await addPlugin(scratch);
+  if (key === CONFIG_PLUGIN) await addConfigPlugin(scratch);
   const modelUsage = Object.fromEntries(CLAUDE_MODELS.map((model) => [model, { inputTokens: 1, outputTokens: 1 }]));
   console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "drafted", modelUsage }));
 }
@@ -214,6 +222,13 @@ async function addPlugin(scratch: string): Promise<void> {
   ];
   await writeFile("stub-plugin.ts", plugin.join("\n"));
   await appendFile(BRAND.configFile, "\nplugins: [./stub-plugin.ts]\n");
+}
+
+/** A process plugin entry that leaves a mark once it starts, run by `process.execPath` so it never fails to spawn. */
+async function addConfigPlugin(scratch: string): Promise<void> {
+  const script = `require("node:fs").writeFileSync(${JSON.stringify(join(scratch, CONFIG_PLUGIN_MARK))}, "started")`;
+  // JSON is YAML flow syntax, so the command needs no quoting
+  await appendFile(BRAND.configFile, `\nplugins: [{ command: ${JSON.stringify([process.execPath, "-e", script])} }]\n`);
 }
 
 /** Says where it works, then works until the eval stops it. */
@@ -306,7 +321,18 @@ function checkReport(report: Report, version: string): void {
       assert.deepEqual(first.run.drafted, []);
     } else if (ticket.key === PLUGIN) {
       assert.deepEqual(rates(ticket), [0, 0, null], ticket.key);
-      assert.match(first.check.error ?? "", /stub-plugin\.ts/, "the grade names the file the harness refused");
+      assert.match(
+        first.check.error ?? "",
+        new RegExp(`: stub-plugin\\.ts, ${CONFIG_FILE} \\(plugins\\)$`),
+        "the grade names the file and the config key the harness refused",
+      );
+    } else if (ticket.key === CONFIG_PLUGIN) {
+      assert.deepEqual(rates(ticket), [0, 0, 0], ticket.key);
+      assert.match(
+        first.check.error ?? "",
+        new RegExp(`: ${CONFIG_FILE} \\(plugins\\)$`),
+        "the grade names the config key the harness refused",
+      );
     } else {
       // a ticket the stub leaves alone has no case that links it
       assert.deepEqual(rates(ticket), [1, 0, ticket.kind === "extend" ? 1 : null], ticket.key);
@@ -364,12 +390,16 @@ async function defaultCommandRun(scratch: string, version: string): Promise<void
     : "never";
   const decoy = Number(await readFile(join(scratch, DECOY_PID), "utf8"));
   await checked(file, (report) => {
+    assert.ok(!existsSync(join(scratch, PLUGIN_MARK)), "the eval never loaded the plugin the agent wrote");
+    assert.ok(
+      !existsSync(join(scratch, CONFIG_PLUGIN_MARK)),
+      "the eval never started the process plugin the agent added to the config",
+    );
     checkReport(report, version);
     assert.equal(spawnSync("git", ["check-ignore", "-q", file], { cwd: REPO }).status, 0, "git ignores the file");
     assert.ok(ended, "the eval stopped the run the agent left behind");
     assert.equal(stopped, "before grading", "the eval stopped the run before it graded");
     assert.ok(isAlive(decoy), "the eval left alone a process whose command line does not name the copy");
-    assert.ok(!existsSync(join(scratch, PLUGIN_MARK)), "the eval never loaded the plugin the agent wrote");
   });
 }
 
