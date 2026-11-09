@@ -32,7 +32,11 @@ export async function reportCommand(ctx: CommandContext): Promise<ExitCode> {
   if (action === "plan") return reportPlan(ctx);
   if (action === "post") return reportPost(ctx);
   if (action === "ack") return reportAck(ctx);
-  throw new CommandError(`report takes plan, post or ack, not ${action === undefined ? "nothing" : `"${action}"`}`);
+  throw new CommandError(
+    action === undefined
+      ? "report needs an action: plan, post or ack"
+      : `report takes plan, post or ack, not "${action}"`,
+  );
 }
 
 /** The run's post plan, built again with its comments masked, and what it was built from. */
@@ -71,8 +75,8 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     ...(media === undefined ? {} : { media }),
     now: new Date(),
   });
-  // only the comments go through the redactor whole, as the runner does: its digit rule would break account ids
-  // and receipt URLs
+  // only the comments go through the redactor whole, as a run does when it writes post-plan.json: its digit rule
+  // would break account ids and receipt URLs
   const masked = { ...plan, items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })) };
   return { project, registry, runId: flags.run, runDir, results, media, plan: masked };
 }
@@ -106,7 +110,9 @@ async function reportPost(ctx: CommandContext): Promise<ExitCode> {
   for (const result of results) {
     const filed = result.stage === "regression" && (result.status === "fail" || result.status === "pass");
     if (filed && !intents.some((bug) => bug.caseId === result.caseId))
-      ctx.out.log(`no bug project for ${result.caseId}`);
+      ctx.out.log(
+        `no bug project for ${result.caseId}: it links no ticket whose project sets bugs under trackers in ${BRAND.configFile}`,
+      );
   }
   if (ctx.flags["dry-run"] === true) {
     const items = describeDirectPost(plan, config);
@@ -190,7 +196,7 @@ async function reportAck(ctx: CommandContext): Promise<ExitCode> {
   return ExitCode.Pass;
 }
 
-/** The results of the run's cases in the order they started; preflight, prompts and answers are no case. */
+/** The results of the run's cases in the order they started; the preflight, prompts and answers folders hold no case. */
 async function readResults(runDir: string): Promise<CaseResult[]> {
   let entries;
   try {

@@ -8,7 +8,7 @@ export interface CliIo {
   stderr: { write(text: string): unknown };
   /** Path flags such as --root resolve against it. */
   cwd: string;
-  /** Aborts on Ctrl-C in the bin; a run then ends the running case and every later one blocked. */
+  /** Aborts on Ctrl-C in the bin; a run then ends its running cases and every later one blocked. */
   signal: AbortSignal;
 }
 

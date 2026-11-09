@@ -1,3 +1,4 @@
+import { BRAND } from "@bazam/core/brand";
 import { promoteCase, type CaseSpec, type LoadedCase, type PromoteDecision } from "@bazam/core/case";
 import type { Project, ProjectConfig } from "@bazam/core/project";
 import {
@@ -11,6 +12,7 @@ import {
 import { resolveSecret } from "@bazam/core/secrets";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext, Workspace } from "../main.ts";
+import { known } from "./keepalive.ts";
 import { selection } from "./plan.ts";
 
 /**
@@ -30,7 +32,8 @@ export async function promoteCommand(ctx: CommandContext): Promise<ExitCode> {
 
 /**
  * Promotes each selected acceptance case whose linked tickets are all in a status their project's `promoteOn`
- * lists and whose latest result in the env passed. Every other case stays, with the reason. Exits 0 when it ran.
+ * lists and whose latest result in the env passed. Every other acceptance case stays, with the reason; cases in
+ * other stages are skipped. Exits 0 when it ran.
  */
 async function promoteFromTracker(ctx: CommandContext): Promise<ExitCode> {
   if (ctx.args.length > 0) {
@@ -90,7 +93,10 @@ function ticketReader(ctx: CommandContext, { project, registry }: Workspace): Ti
   };
 }
 
-/** Reads the case's linked tickets in link order, up to one whose project is not listed, which is never read. */
+/**
+ * Reads the case's linked tickets in link order, stopping before the first whose tracker is not in `trackers`
+ * or whose project is not in `trackers.<tracker>.projects`.
+ */
 async function trackerVerdict(spec: CaseSpec, config: ProjectConfig, read: TicketReader): Promise<TicketVerdict> {
   const states = new Map<string, TicketState>();
   for (const link of spec.links) {
@@ -109,8 +115,14 @@ async function trackerVerdict(spec: CaseSpec, config: ProjectConfig, read: Ticke
 
 function envName(ctx: CommandContext, project: Project): string {
   const env = ctx.flags.env;
-  if (env === undefined) throw new CommandError("--env is required: promote looks at the latest result in that env");
-  if (project.config.envs[env] === undefined) throw new CommandError(`unknown env "${env}"`);
+  if (env === undefined) {
+    throw new CommandError(
+      `--env is required: promote looks at the latest result in that env; envs: ${known(project.config.envs)}`,
+    );
+  }
+  if (project.config.envs[env] === undefined) {
+    throw new CommandError(`unknown env "${env}"; envs: ${known(project.config.envs)}`);
+  }
   return env;
 }
 
@@ -119,6 +131,7 @@ export function namedCase(ctx: CommandContext, project: Project): LoadedCase {
   const [id] = ctx.args;
   if (id === undefined) throw new CommandError("name the case id");
   const found = project.cases.find((loaded) => loaded.spec.id === id);
-  if (found === undefined) throw new CommandError(`no case ${id} loaded; check reports cases that do not load`);
+  if (found === undefined)
+    throw new CommandError(`no case ${id} loaded; run ${BRAND.name} check to see the cases that do not load`);
   return found;
 }

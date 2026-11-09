@@ -18,7 +18,7 @@ export const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export interface RunStart extends Workspace {
   env: Environment;
   cases: LoadedCase[];
-  /** The --target flag and the suite's targets; undefined when neither names one. */
+  /** Targets named by both --target and the suite, or by whichever one names any; undefined when neither does. */
   targets: string[] | undefined;
   channel: string;
   seed: number;
@@ -35,7 +35,7 @@ export async function planCommand(ctx: CommandContext): Promise<ExitCode> {
 
 /**
  * Loads the project and settles the env, the selection, the channel and the seed. Refuses to start, as a run
- * does, when the project has load issues, a name is unknown or no case is selected.
+ * does, when the project has load errors, a name is unknown or no case is selected.
  */
 export async function startRun(ctx: CommandContext): Promise<RunStart> {
   const { flags } = ctx;
@@ -43,7 +43,7 @@ export async function startRun(ctx: CommandContext): Promise<RunStart> {
   const { project, registry } = workspace;
   const loadErrors = project.issues.filter((issue) => issue.severity === "error");
   if (loadErrors.length > 0)
-    throw new CommandError("the project has load issues; fix them and start again", loadErrors);
+    throw new CommandError("the project has load errors; fix them and start again", loadErrors);
   const envs = Object.keys(project.config.envs);
   if (flags.env === undefined) throw new CommandError(`--env is required; envs: ${known(envs)}`);
   const env = project.config.envs[flags.env];
@@ -76,15 +76,19 @@ export function runOptions(ctx: CommandContext, start: RunStart, runId: string, 
 
 /** `runs/<run-id>` under the root, refusing an id that is not a plain file name, so it cannot climb out of runs/. */
 export function runDirOf(root: string, runId: string): string {
-  if (!PLAIN_NAME.test(runId)) throw new CommandError(`run id "${runId}" is not a plain file name`);
+  if (!PLAIN_NAME.test(runId)) {
+    throw new CommandError(
+      `run id "${runId}" is not a plain file name; use letters, digits, dots, dashes and underscores, starting with a letter or digit`,
+    );
+  }
   return join(root, "runs", runId);
 }
 
 /**
- * The cases that match the suite and the flags both. A pass that names no stages falls back to the stages that
- * run and would drop a stage the other names, such as retired, so both passes take the stages the suite and
- * --stage name together. --target also selects: a case none of whose targets the filter keeps is left out
- * instead of planned as blocked.
+ * The cases that match both the suite and the flags. Each selectCases pass filters by the stages the suite and
+ * --stage have in common (or by whichever of the two names stages), since a pass with no stages keeps only the
+ * stages that run and would drop one the other names, such as retired. --target also selects: a case none of whose
+ * targets the filter keeps is left out instead of planned as blocked.
  */
 export function selection(workspace: Workspace, flags: Flags): { cases: LoadedCase[]; targets: string[] | undefined } {
   const { project } = workspace;

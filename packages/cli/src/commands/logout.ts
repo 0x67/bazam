@@ -23,7 +23,10 @@ interface LoggedOut {
   revoked: boolean;
   /** Why revoke failed; the cached credential is deleted all the same. */
   error?: string;
-  /** The config no longer names its env, identity or strategy, so it was deleted without a revoke. */
+  /**
+   * The config no longer has its env, identity or surface, or that surface now logs in with another strategy or
+   * reuses another surface's credential with `from:`, so it was deleted without a revoke.
+   */
   stale?: true;
 }
 

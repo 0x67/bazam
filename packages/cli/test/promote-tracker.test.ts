@@ -128,8 +128,8 @@ describe("promote --from-tracker", () => {
     ];
     expect(runs.map((run) => run.code)).toEqual(Array(3).fill(ExitCode.CouldNotStart));
     expect(runs.map((run) => run.stderr.split("\n")[0])).toEqual([
-      "error: --env is required: promote looks at the latest result in that env",
-      'error: unknown env "nope"',
+      "error: --env is required: promote looks at the latest result in that env; envs: demo",
+      'error: unknown env "nope"; envs: demo',
       "error: promote --from-tracker takes selection flags, such as --case <id>, not a case id",
     ]);
   });

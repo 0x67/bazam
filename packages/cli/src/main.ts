@@ -90,7 +90,7 @@ interface Command {
   run(ctx: CommandContext): Promise<number>;
 }
 
-// a later command adds one entry here
+// one entry per command; usage lists them in this order
 const COMMANDS: ReadonlyMap<string, Command> = new Map([
   ["init", { usage: "init", run: initCommand }],
   ["schema", { usage: "schema", run: schemaCommand }],
@@ -117,7 +117,7 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
     "report",
     {
       usage:
-        "report plan --run <id> [--media <file>] | report post --run <id> [--media <file>] [--dry-run] [--json] | report ack <marker> --url <comment-url> [--ticket <tracker>:<key>]",
+        "report plan --run <id> [--media <file>] | report post --run <id> [--media <file>] [--dry-run] [--json] | report ack <marker> --url <comment-url> [--ticket <tracker>:<key>] [--run <id>]",
       run: reportCommand,
     },
   ],
@@ -132,7 +132,7 @@ function usage(): string {
     "Commands:",
     ...[...COMMANDS.values()].map((command) => `  ${command.usage}`),
     "",
-    "Selection: --case <id> --domain <d> --stage <s> --target <t> --link <tracker:key> --tag <t> (each repeatable), --suite <name>",
+    "Selection: --case <id> --domain <d> --stage <s> --target <t> --link <tracker>:<key> --tag <t> (each repeatable), --suite <name>",
     "Common: --root <dir> (default: the current directory), --json (one JSON document on stdout, logs on stderr)",
     "",
   ].join("\n");

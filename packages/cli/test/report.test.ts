@@ -91,7 +91,7 @@ describe("report", () => {
     expect(runs.map((run) => run.stderr.split("\n")[0])).toEqual([
       "error: --url is required: the URL of the posted comment",
       `error: "SHOP-OK-001" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`,
-      'error: run id "../r1" is not a plain file name',
+      'error: run id "../r1" is not a plain file name; use letters, digits, dots, dashes and underscores, starting with a letter or digit',
       `error: run r1 has no item ${MARKER} for jira:DEMO-9`,
     ]);
   });

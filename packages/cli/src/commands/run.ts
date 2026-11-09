@@ -14,7 +14,7 @@ const MAX_WORKERS = 16;
 /** Runs the selected cases; exits 0, 1 or 3 by their statuses, and 2 when the run cannot start. */
 export async function runCommand(ctx: CommandContext): Promise<ExitCode> {
   const { flags } = ctx;
-  // without the flag nothing is copied, so a real project never answers person steps from fixtures by accident
+  // only --answers copies answers in, so a real project never answers person steps from fixtures by accident
   if (flags.answers !== undefined && flags.channel !== ANSWERS_CHANNEL) {
     throw new CommandError(`--answers works only with --channel ${ANSWERS_CHANNEL}, which reads the copied answers`);
   }
@@ -77,7 +77,7 @@ async function copyAnswers(files: readonly string[], to: string): Promise<void> 
   for (const file of files) await copyFile(file, join(to, basename(file)), constants.COPYFILE_EXCL);
 }
 
-/** The shape of summary.json: counts and one line per case. */
+/** The shape of summary.json without its `unmapped` list: counts and one line per case. */
 export function summary(runId: string, results: readonly CaseResult[]) {
   const count = (status: CaseResult["status"]) => results.filter((result) => result.status === status).length;
   return {

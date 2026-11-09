@@ -14,7 +14,7 @@ import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 import { runDirOf } from "./plan.ts";
 
-// the runner reads identity fields from it
+// mirrors LOCAL_FIXTURES_FILE in core run/runner.ts, so credentialScope reads the identity fields a run reads
 const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 const DEFAULT_KEEPALIVE_MS = 2 * 60_000;
 const DEFAULT_CHANNEL = "terminal";
@@ -28,7 +28,7 @@ export interface KeepaliveDeps {
   log(line: string): void;
 }
 
-/** Thrown when keepalive would save a credential that is no longer cached, so a logout stays done. */
+/** Thrown when keepalive finds the credential gone from the cache, on a check or on a save, so a logout stays done. */
 class LoggedOut extends Error {}
 
 /**
@@ -74,7 +74,7 @@ export async function keepalive(
       if (!refreshed) {
         if (!(await deps.isCached())) throw new LoggedOut();
         throw new CommandError(
-          `the ${surface} credential of ${identity} cannot refresh; give its auth settings a refresh in ${BRAND.configFile}`,
+          `the ${surface} credential of ${identity} cannot refresh; for session-cookie, add a refresh request to identities.${identity}.auth.${surface}.with in ${BRAND.configFile}; oauth2 needs a token with a refresh token, or the client-credentials grant`,
         );
       }
       deps.log(`refreshed ${identity}/${surface}`);

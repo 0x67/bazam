@@ -216,7 +216,7 @@ describe("keepalive", () => {
     const declined = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
     expect(declined.code).toBe(ExitCode.CouldNotStart);
     expect(declined.stderr).toContain(
-      `the web credential of customer cannot refresh; give its auth settings a refresh in ${BRAND.configFile}`,
+      `the web credential of customer cannot refresh; for session-cookie, add a refresh request to identities.customer.auth.web.with in ${BRAND.configFile}; oauth2 needs a token with a refresh token, or the client-credentials grant`,
     );
     expect(declined.stderr).not.toContain("was logged out");
 

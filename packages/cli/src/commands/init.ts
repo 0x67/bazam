@@ -5,7 +5,7 @@ import { FIXTURES_FILE, STATE_DIRS } from "@bazam/core/project";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 
-// the runner reads it; git must never see it
+// a run reads identity fields from it (core run/runner.ts); git must never see it
 const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 const GITIGNORE = ".gitignore";
 const AGENTS_FILE = "AGENTS.md";
@@ -68,8 +68,8 @@ customer:
 ];
 
 /**
- * Lays out a project in `root`. Never overwrites a file: it writes only the files that are missing, adds the
- * .gitignore lines that are missing, and adds or replaces the marked section of AGENTS.md.
+ * Lays out a project in `root` and changes no existing text outside the marked section of AGENTS.md: it writes only
+ * the files that are missing, adds the .gitignore lines that are missing, and adds or replaces that section.
  */
 export async function initProject(root: string): Promise<InitResult> {
   const result: InitResult = { created: [], updated: [], kept: [] };
@@ -141,7 +141,9 @@ async function writeAgentsSection(file: string): Promise<Change> {
   }
   // replacing up to some later end marker could swallow text the user wrote
   if (start === -1 || end === -1) {
-    throw new CommandError(`${AGENTS_FILE} has one of ${SECTION_START} and ${SECTION_END} without the other; fix it`);
+    throw new CommandError(
+      `${AGENTS_FILE} needs ${SECTION_START} followed by ${SECTION_END}, or neither; fix the markers and run ${BRAND.name} init again`,
+    );
   }
   const replaced = `${text.slice(0, start)}${section}${text.slice(end + SECTION_END.length)}`;
   if (replaced === text) return "kept";

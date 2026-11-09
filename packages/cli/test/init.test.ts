@@ -107,7 +107,7 @@ describe("init", () => {
     await writeFile(join(root, "AGENTS.md"), `${START}\nhalf a section\n`);
     const refused = await cli(["init"], root);
     expect(refused.code).toBe(ExitCode.CouldNotStart);
-    expect(refused.stderr).toContain("without the other");
+    expect(refused.stderr).toContain("or neither");
     expect(await read("AGENTS.md")).toBe(`${START}\nhalf a section\n`);
   });
 });
