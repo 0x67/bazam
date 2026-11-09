@@ -134,10 +134,17 @@ export class GuardedContext {
   }
 
   async close(): Promise<void> {
+    // a navigation the page started can reach the browser only after the route is gone, as when WebKit loads another
+    // site in a new process; offline it then fails without a route, and only its request event shows it
+    this.context.on("request", (request) => {
+      if (isMainFrameNavigation(request)) this.#checkNavigation(request.url());
+    });
     // WebKit sends a request still paused in a route once its page goes, and unrouting lets the rest through
     await this.context.setOffline(true);
     // a request still in a route handler would fail once the context is gone
     await this.context.unrouteAll({ behavior: "ignoreErrors" });
+    // that navigation's new process resumes as unrouting ends, and answers this call only after it sends the request
+    await this.context.setOffline(true);
     await this.context.close();
   }
 

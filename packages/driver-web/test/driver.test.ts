@@ -4,7 +4,6 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
-import { setTimeout as sleep } from "node:timers/promises";
 import type { StorageState } from "@bazam/core/auth";
 import { ConnectionFailed } from "@bazam/core/driver";
 import { HostNotAllowed, type Environment } from "@bazam/core/env";
@@ -718,28 +717,33 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("blocks the next step in another identity's context when a navigation was refused after its step", async () => {
     const { session, evidence } = await open();
-    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
-      { open: `${site.origin}/` },
-      { tap: { role: "button", name: "Pay" } },
-    ]);
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [{ open: `${site.origin}/` }]);
+    const customer = await session.contextFor("customer");
+    // clicked outside a step, so no step of the customer can throw the refusal first
+    await (await customer.page()).getByRole("button", { name: "Pay" }).click();
 
-    const refused = runSteps(stepContext(session, { env, evidence, root, identity: "agent" }), [{ wait: { ms: 500 } }]);
+    const refused = runUntilThrown(stepContext(session, { env, evidence, root, identity: "agent" }), [
+      { wait: { ms: 500 } },
+    ]);
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
   });
 
   it("throws from close a navigation refused after the last step, and keeps the trace of a passing case", async () => {
     const { session: opened, evidence } = await open();
-    await runSteps(stepContext(opened, { env, evidence, root }), [
-      { open: `${site.origin}/` },
-      { tap: { role: "button", name: "Pay" } },
-    ]);
-    await sleep(500);
+    await runSteps(stepContext(opened, { env, evidence, root }), [{ open: `${site.origin}/` }]);
+    const guarded = await opened.contextFor(undefined);
+    // the route that refuses the navigation runs after this event, so close starts before the refusal lands
+    const navigation = guarded.context.waitForEvent("request", (request) => request.url().endsWith("/away"));
+    // clicked outside a step, so no step can throw the refusal first
+    await (await guarded.page()).getByRole("button", { name: "Pay" }).click();
+    await navigation;
     session = undefined;
 
     await expect(opened.close({ status: "pass", evidence })).rejects.toThrow(new HostNotAllowed("localhost", env.name));
 
     expect(await readdir(join(root, "runs", CASE_ID))).toEqual(["01-trace.zip"]);
+    expect(site.requests.map((request) => request.path)).not.toContain("/away");
   });
 
   it("attaches one scrubbed trace per context when the case does not pass", async () => {

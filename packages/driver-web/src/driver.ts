@@ -394,18 +394,23 @@ export class WebSession implements DriverSession {
 
   /** Throws a navigation refused after the last web step that could have thrown it, once the traces are kept. */
   async close(ending: CaseEnding): Promise<void> {
+    const saved: SavedTrace[] = [];
     try {
-      const keepTraces = ending.status !== "pass" || this.#refusals.unthrown() !== undefined;
       const several = this.#contexts.size > 1;
       for (const [identity, opening] of this.#contexts) {
         // a context that failed to open already failed the step that asked for it
         const guarded = await opening.catch(() => undefined);
         if (guarded === undefined) continue;
         const label = several ? `trace-${identity ?? "anonymous"}` : "trace";
-        if (keepTraces) await this.#keepTrace(guarded.context, label, ending.evidence);
+        // closing can still refuse a navigation the page started, so the trace waits until every context has closed
+        saved.push(await this.#saveTrace(guarded.context, label));
         await guarded.close();
       }
     } finally {
+      if (ending.status !== "pass" || this.#refusals.unthrown() !== undefined) {
+        for (const trace of saved) await this.#attachTrace(trace, ending.evidence);
+      }
+      await Promise.all(saved.map((trace) => rm(trace.dir, { recursive: true, force: true })));
       this.#contexts.clear();
       this.#lease.release();
     }
@@ -425,19 +430,30 @@ export class WebSession implements DriverSession {
     return GuardedContext.open(context, this.#env, this.#refusals);
   }
 
-  /** Attaches the scrubbed trace; when stopping or scrubbing fails, notes why and attaches nothing. */
-  async #keepTrace(context: BrowserContext, label: string, evidence: StepEvidence): Promise<void> {
+  /** Stops the trace into a temporary folder the caller removes; a failure to stop is kept for the note. */
+  async #saveTrace(context: BrowserContext, label: string): Promise<SavedTrace> {
     // outside runs/, so the unscrubbed zip never sits beside the evidence
     const dir = await mkdtemp(join(tmpdir(), `${BRAND.name}-trace-`));
     try {
-      const file = join(dir, "trace.zip");
-      await context.tracing.stop({ path: file });
-      await evidence.attach(label, scrubTrace(await readFile(file), this.redactor), "zip");
+      await context.tracing.stop({ path: join(dir, "trace.zip") });
+      return { label, dir, failure: undefined };
     } catch (error) {
-      evidence.note(`${label}.zip was left out: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
+      return { label, dir, failure: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  /** Attaches the scrubbed trace; when stopping or scrubbing failed, notes why and attaches nothing. */
+  async #attachTrace(trace: SavedTrace, evidence: StepEvidence): Promise<void> {
+    let failure = trace.failure;
+    if (failure === undefined) {
+      try {
+        const zip = await readFile(join(trace.dir, "trace.zip"));
+        await evidence.attach(trace.label, scrubTrace(zip, this.redactor), "zip");
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (failure !== undefined) evidence.note(`${trace.label}.zip was left out: ${failure}`);
   }
 
   async #openLoginTab(request: BrowserLoginRequest): Promise<LoginTab> {
@@ -465,6 +481,14 @@ export class WebSession implements DriverSession {
       throw error;
     }
   }
+}
+
+/** A context's trace, saved until the case's outcome says whether to attach it. */
+interface SavedTrace {
+  label: string;
+  dir: string;
+  /** Why stopping the trace failed, if it did. */
+  failure: string | undefined;
 }
 
 function webSession(session: DriverSession): WebSession {
