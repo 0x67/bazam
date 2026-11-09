@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { basename, join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
@@ -76,6 +78,56 @@ const CODE_CASE = [
   "",
 ].join("\n");
 
+/** An external case on a runner target; it may run in production, so a runner without prodSafe needs a yes there. */
+const CART_CASE = [
+  "cases:",
+  "  - id: CART-KEEP-001",
+  "    title: The cart keeps items after sign-in",
+  "    stage: regression",
+  "    risk: low",
+  "    prod_safe: true",
+  "    targets: [shop-chrome]",
+  "",
+].join("\n");
+
+/** Two cases that pass only when both their requests reach the gate at once. */
+const GATE_CASES = [
+  "cases:",
+  ...["GATE-ONE-001", "GATE-TWO-001"].flatMap((id) => [
+    `  - id: ${id}`,
+    "    title: The gate opens for two",
+    "    stage: regression",
+    "    risk: low",
+    "    targets: [t]",
+    "    checks:",
+    '      - api: { request: "GET ${env.GATE_URL}/gate", status: 200 }',
+  ]),
+  "",
+].join("\n");
+
+/** Answers 200 to two requests in flight together, and 500 to one left waiting for a second. */
+async function startGate(): Promise<{ url: string; close(): Promise<void> }> {
+  const waiting: ServerResponse[] = [];
+  const server = createServer((_req, res) => {
+    waiting.push(res);
+    if (waiting.length === 2) {
+      for (const open of waiting.splice(0)) open.writeHead(200, { "content-type": "application/json" }).end("{}");
+      return;
+    }
+    setTimeout(() => {
+      const index = waiting.indexOf(res);
+      if (index === -1) return;
+      waiting.splice(index, 1);
+      res.writeHead(500).end();
+    }, 2_000);
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  return {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    close: () => new Promise((done) => server.close(() => done())),
+  };
+}
+
 async function planOf(project: Fixture, ...argv: string[]): Promise<RunPlan> {
   const { code, stdout, stderr } = await project.cli("plan", "--env", "demo", "--json", ...argv);
   expect(code, stderr).toBe(ExitCode.Pass);
@@ -150,6 +202,42 @@ describe("plan", () => {
     expect(plan.cases.map((planned) => [planned.caseId, planned.target, planned.blocked])).toEqual([
       ["DESK-PHONE-001", "u", undefined],
     ]);
+  });
+
+  it("names the runner of an external case and the yes a production run needs", async () => {
+    const project = await fixtureProject(api);
+    const config = JSON.parse(await project.read(BRAND.configFile)) as {
+      envs: Record<string, unknown>;
+      targets: Record<string, unknown>;
+    };
+    config.envs["live"] = { production: true, hosts: ["127.0.0.1"] };
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({
+        ...config,
+        runners: {
+          shop: { command: ["node", "suite.js", "--reporter", "junit"], results: "reports/*.xml", format: "junit" },
+        },
+        targets: { ...config.targets, "shop-chrome": { runner: "shop" } },
+      }),
+    );
+    await project.write("cases/cart/cases.yaml", CART_CASE);
+    const demo = await project.cli("plan", "--env", "demo", "--domain", "cart");
+    expect(demo.stdout).toBe(
+      "Plan for env demo: 1 case, 0 person steps.\n  CART-KEEP-001 on shop-chrome\n    runner shop: node suite.js --reporter junit\n",
+    );
+    const live = await project.cli("plan", "--env", "live", "--domain", "cart");
+    expect(live.stdout).toBe(
+      [
+        "Plan for env live: 1 case, 1 person step.",
+        "  CART-KEEP-001 on shop-chrome",
+        "    runner shop: node suite.js --reporter junit",
+        "  needs a yes before it runs in production env live: runner shop",
+        "",
+      ].join("\n"),
+    );
+    const plan = await planOf(project, "--domain", "cart");
+    expect(plan.cases).toMatchObject([{ caseId: "CART-KEEP-001", runner: "shop" }]);
   });
 
   it("exits 2 for an unknown suite, stage or channel, a bad seed, a missing env and an empty selection", async () => {
@@ -231,6 +319,46 @@ describe("run", () => {
       );
       expect(missing.code).toBe(ExitCode.CouldNotStart);
       expect(missing.stderr).toContain("cannot read the answers folder");
+    }
+    expect(existsSync(join(project.root, "runs"))).toBe(false);
+  });
+
+  it("runs cases on several workers at once with --workers", async () => {
+    const gate = await startGate();
+    try {
+      const project = await fixtureProject(api);
+      const config = JSON.parse(await project.read(BRAND.configFile)) as {
+        envs: Record<string, { vars: Record<string, string> }>;
+      };
+      const demo = config.envs["demo"]!;
+      demo.vars = { ...demo.vars, GATE_URL: gate.url };
+      await project.write(BRAND.configFile, JSON.stringify(config));
+      await project.write("cases/gate/cases.yaml", GATE_CASES);
+      const { code, stdout, stderr } = await project.cli(
+        "run",
+        "--env",
+        "demo",
+        "--domain",
+        "gate",
+        "--workers",
+        "2",
+        "--json",
+      );
+      expect(code, stderr).toBe(ExitCode.Pass);
+      expect(JSON.parse(stdout)).toMatchObject({ cases: [{ caseId: "GATE-ONE-001" }, { caseId: "GATE-TWO-001" }] });
+    } finally {
+      await gate.close();
+    }
+  });
+
+  it("refuses --workers outside 1 to 16, in a dry run too", async () => {
+    const project = await fixtureProject(api);
+    for (const workers of ["0", "17", "two", "1.5"]) {
+      for (const dryRun of [[], ["--dry-run"]]) {
+        const { code, stderr } = await project.cli("run", "--env", "demo", "--workers", workers, ...dryRun);
+        expect(code).toBe(ExitCode.CouldNotStart);
+        expect(stderr.split("\n")[0]).toBe(`error: --workers takes a whole number from 1 to 16, not "${workers}"`);
+      }
     }
     expect(existsSync(join(project.root, "runs"))).toBe(false);
   });

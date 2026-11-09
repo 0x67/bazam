@@ -2,33 +2,55 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { BRAND } from "@bazam/core/brand";
 import { CASE_ID } from "@bazam/core/case";
+import type { PluginRegistry } from "@bazam/core/plugin";
+import type { Project, ProjectConfig, TrackerConfig } from "@bazam/core/project";
 import {
+  applyBugs,
   buildPostPlans,
+  describeDirectPost,
   loadReceipts,
   MediaRefs,
   PeopleRegistry,
+  planBugs,
+  postPlanDirect,
   recordReceipt,
+  type BugIntent,
+  type BugOutcome,
+  type ItemOutcome,
   type PostPlan,
   type PostPlanItem,
 } from "@bazam/core/report";
 import type { CaseResult } from "@bazam/core/result";
+import { resolveSecret } from "@bazam/core/secrets";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 import { runDirOf } from "./plan.ts";
 
-/** `report plan` and `report ack`. */
+/** `report plan`, `report post` and `report ack`. */
 export async function reportCommand(ctx: CommandContext): Promise<ExitCode> {
   const [action] = ctx.args;
   if (action === "plan") return reportPlan(ctx);
+  if (action === "post") return reportPost(ctx);
   if (action === "ack") return reportAck(ctx);
-  throw new CommandError(`report takes plan or ack, not ${action === undefined ? "nothing" : `"${action}"`}`);
+  throw new CommandError(`report takes plan, post or ack, not ${action === undefined ? "nothing" : `"${action}"`}`);
+}
+
+/** The run's post plan, built again with its comments masked, and what it was built from. */
+interface RebuiltPlan {
+  project: Project;
+  registry: PluginRegistry;
+  runId: string;
+  runDir: string;
+  results: CaseResult[];
+  media: MediaRefs | undefined;
+  plan: PostPlan;
 }
 
 /**
  * Builds the run's post plan again from its results and the receipts recorded since, so an item for a case with
- * `report.comment: update` carries the comment to edit. Prints it and leaves post-plan.json as the run wrote it.
+ * `report.comment: update` carries the comment to edit. Leaves post-plan.json as the run wrote it.
  */
-async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
+async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
   const { flags } = ctx;
   if (flags.run === undefined) throw new CommandError("--run is required: name the run to report");
   const { project, registry } = await ctx.load();
@@ -52,8 +74,104 @@ async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
   // only the comments go through the redactor whole, as the runner does: its digit rule would break account ids
   // and receipt URLs
   const masked = { ...plan, items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })) };
-  ctx.out.result(masked, `${JSON.stringify(masked, null, 2)}\n`, "registered");
+  return { project, registry, runId: flags.run, runDir, results, media, plan: masked };
+}
+
+/** Prints the rebuilt post plan. */
+async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
+  const { plan } = await rebuildPlan(ctx);
+  ctx.out.result(plan, `${JSON.stringify(plan, null, 2)}\n`, "registered");
   return ExitCode.Pass;
+}
+
+/**
+ * Posts the rebuilt post plan through each tracker's client, then files or comments on the bugs of regression
+ * results. Exits 1 when any item or bug action failed, and 2 before posting anything when a tracker it needs has
+ * no `site` or no client. `--dry-run` prints the same actions and reads no secret.
+ */
+async function reportPost(ctx: CommandContext): Promise<ExitCode> {
+  const { project, registry, runId, runDir, results, media, plan } = await rebuildPlan(ctx);
+  const { config } = project;
+  const { redactor } = ctx;
+  const intents = planBugs({
+    results,
+    config,
+    renderer: (tracker) => registry.tracker(tracker),
+    runDir,
+    ...(media === undefined ? {} : { media }),
+    redactor,
+  });
+  const trackers = new Set([...plan.items.map((item) => item.ticket.tracker), ...intents.map((bug) => bug.tracker)]);
+  for (const tracker of trackers) trackerToPost(config, registry, tracker);
+  for (const result of results) {
+    const filed = result.stage === "regression" && (result.status === "fail" || result.status === "pass");
+    if (filed && !intents.some((bug) => bug.caseId === result.caseId))
+      ctx.out.log(`no bug project for ${result.caseId}`);
+  }
+  if (ctx.flags["dry-run"] === true) {
+    const items = describeDirectPost(plan, config);
+    const bugs = intents.map(bugIntentLine);
+    ctx.out.result({ runId, dryRun: true, items, bugs }, lines([...items, ...bugs]), "registered");
+    return ExitCode.Pass;
+  }
+  const providers = registry.secretProviders(config.secrets.providers);
+  const secret = (name: string): Promise<string> => resolveSecret(name, providers, redactor);
+  const { signal } = ctx.io;
+  const log = (line: string): void => ctx.out.log(line);
+  const items = await postPlanDirect(plan, {
+    runDir,
+    stateDir: join(project.root, BRAND.stateDir),
+    config,
+    registry,
+    secret,
+    redactor,
+    signal,
+    now: () => new Date(),
+    log,
+  });
+  const applied = await applyBugs(intents, (tracker) =>
+    registry
+      .trackerClient(tracker)
+      .connect({ config: trackerToPost(config, registry, tracker), secret, redactor, signal, log }),
+  );
+  const bugs = applied.map((bug) => (bug.error === undefined ? bug : { ...bug, error: redactor.text(bug.error) }));
+  ctx.out.result({ runId, items, bugs }, lines([...items.map(itemLine), ...bugs.map(bugLine)]), "registered");
+  return items.every((item) => item.ok) && bugs.every((bug) => bug.ok) ? ExitCode.Pass : ExitCode.Fail;
+}
+
+/** The tracker's config, refusing to start without its `site` or its client. */
+function trackerToPost(config: ProjectConfig, registry: PluginRegistry, tracker: string): TrackerConfig {
+  // tracker names come from case links
+  const settings = Object.hasOwn(config.trackers, tracker) ? config.trackers[tracker] : undefined;
+  if (settings?.site === undefined) {
+    throw new CommandError(`cannot post to ${tracker}: trackers.${tracker}.site is not set`);
+  }
+  try {
+    registry.trackerClient(tracker);
+  } catch (error) {
+    throw new CommandError(`cannot post to ${tracker}: ${(error as Error).message}`);
+  }
+  return settings;
+}
+
+function itemLine(outcome: ItemOutcome): string {
+  const { key } = outcome.ticket;
+  return outcome.ok ? `posted ${key} ${outcome.url ?? ""}` : `failed ${key}: ${outcome.error ?? ""}`;
+}
+
+function bugLine(outcome: BugOutcome): string {
+  if (!outcome.ok) return `failed ${outcome.caseId}: ${outcome.action}: ${outcome.error ?? ""}`;
+  return `${outcome.caseId}: ${outcome.action}${outcome.url === undefined ? "" : ` ${outcome.url}`}`;
+}
+
+function bugIntentLine(intent: BugIntent): string {
+  const head = `${intent.tracker}:${intent.project} ${intent.caseId}: comment on the open bug labelled ${intent.label}`;
+  if (intent.kind === "file") return `${head}, or file "${intent.draft.summary}"`;
+  return intent.transition === undefined ? head : `${head} and move it to ${intent.transition}`;
+}
+
+function lines(text: readonly string[]): string {
+  return text.map((line) => `${line}\n`).join("");
 }
 
 /** Records the comment URL for the item the marker names, so the next plan for that case and ticket edits it. */

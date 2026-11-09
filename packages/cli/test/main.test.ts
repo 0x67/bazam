@@ -56,6 +56,29 @@ const GHOST_CASE = [
 ].join("\n");
 
 const DESK_TOKEN = "not-a-real-desk-token";
+const PLUGIN_SECRET = "not-a-real-plugin-secret";
+
+/** A process plugin that offers nothing; it writes its pid and a line with an inherited secret, and ends with stdin. */
+const QUIET_PLUGIN = `import { writeFileSync } from "node:fs";
+import { createInterface } from "node:readline";
+writeFileSync(process.env.QUIET_PID_FILE, String(process.pid));
+process.stderr.write("started with " + process.env.DEMO_PLUGIN_SECRET + "\\n");
+createInterface({ input: process.stdin }).on("line", (line) => {
+  const { id, method } = JSON.parse(line);
+  const answer = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+  if (method === "initialize") answer({ protocolVersion: 1, name: "quiet", apiVersion: 1, contributions: {} });
+  if (method === "shutdown") answer(null);
+});
+`;
+
+function running(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The first title holds a value the second case only later reads as a secret. */
 const TOKEN_CASES = [
@@ -163,7 +186,40 @@ describe("main", () => {
     expect((await project.cli("run", "--colour")).code).toBe(ExitCode.CouldNotStart);
     const help = await project.cli("--help");
     expect(help.code).toBe(ExitCode.Pass);
-    expect(help.stdout).toContain("report plan --run <id>");
+    for (const usage of [
+      "report plan --run <id>",
+      "report post --run <id> [--media <file>] [--dry-run] [--json]",
+      "[--run <id>] [--workers <n>] [--dry-run]",
+      "promote --from-tracker --env <env> [selection]",
+      "ingest --env <env> --target <target> [selection] [--run <id>] <files...>",
+    ]) {
+      expect(help.stdout).toContain(usage);
+    }
+  });
+
+  it("ends process plugins after the command and masks their stderr", async () => {
+    const project = await fixtureProject(api);
+    const config = JSON.parse(await project.read(BRAND.configFile)) as { plugins: unknown[] };
+    const pidFile = join(project.root, "quiet.pid");
+    const quiet = { command: [process.execPath, join(project.root, "quiet.mjs")], env: { QUIET_PID_FILE: pidFile } };
+    await project.write("quiet.mjs", QUIET_PLUGIN);
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, plugins: [...config.plugins, quiet], secrets: { names: ["DEMO_PLUGIN_SECRET"] } }),
+    );
+    process.env["DEMO_PLUGIN_SECRET"] = PLUGIN_SECRET;
+    let pid = 0;
+    try {
+      const { code, stderr } = await project.cli("plan", "--env", "demo");
+      pid = Number(await project.read("quiet.pid"));
+      expect(code, stderr).toBe(ExitCode.Pass);
+      expect(running(pid)).toBe(false);
+      expect(stderr).toContain("started with ");
+      expect(stderr).not.toContain(PLUGIN_SECRET);
+    } finally {
+      delete process.env["DEMO_PLUGIN_SECRET"];
+      if (pid > 0 && running(pid)) process.kill(pid, "SIGKILL");
+    }
   });
 
   it("masks long digit runs in what it prints", async () => {

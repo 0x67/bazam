@@ -111,13 +111,13 @@ describe("report", () => {
     const runs = [
       await project.cli("report", "plan"),
       await project.cli("report", "plan", "--run", "nope"),
-      await project.cli("report", "post"),
+      await project.cli("report", "send"),
     ];
     expect(runs.map((run) => run.code)).toEqual(Array(3).fill(ExitCode.CouldNotStart));
     expect(runs.map((run) => run.stderr.split("\n")[0])).toEqual([
       "error: --run is required: name the run to report",
       expect.stringContaining("error: cannot read the run folder"),
-      'error: report takes plan or ack, not "post"',
+      'error: report takes plan, post or ack, not "send"',
     ]);
   });
 });

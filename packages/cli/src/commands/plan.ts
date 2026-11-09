@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { selectCases, Stage, type CaseFilter, type LoadedCase } from "@bazam/core/case";
 import { RunValues, type Environment } from "@bazam/core/env";
+import type { ProjectConfig } from "@bazam/core/project";
 import { newRunId } from "@bazam/core/result";
 import { planCases, type RunOptions, type RunPlan } from "@bazam/core/run";
 import { CommandError, ExitCode } from "../exit.ts";
@@ -28,7 +29,7 @@ export async function planCommand(ctx: CommandContext): Promise<ExitCode> {
   const start = await startRun(ctx);
   const startedAt = new Date();
   const plan = await planCases(runOptions(ctx, start, newRunId(startedAt, Math.random), startedAt));
-  ctx.out.result(plan, planText(plan));
+  ctx.out.result(plan, planText(plan, start.project.config));
   return ExitCode.Pass;
 }
 
@@ -85,7 +86,7 @@ export function runDirOf(root: string, runId: string): string {
  * --stage name together. --target also selects: a case none of whose targets the filter keeps is left out
  * instead of planned as blocked.
  */
-function selection(workspace: Workspace, flags: Flags): { cases: LoadedCase[]; targets: string[] | undefined } {
+export function selection(workspace: Workspace, flags: Flags): { cases: LoadedCase[]; targets: string[] | undefined } {
   const { project } = workspace;
   const suite = flags.suite === undefined ? undefined : project.suites.get(flags.suite);
   if (flags.suite !== undefined && suite === undefined) {
@@ -141,7 +142,7 @@ function known(names: readonly string[]): string {
   return names.length === 0 ? "none" : names.join(", ");
 }
 
-function planText(plan: RunPlan): string {
+function planText(plan: RunPlan, config: ProjectConfig): string {
   const lines = [
     `Plan for env ${plan.env}: ${plural(plan.cases.length, "case")}, ${plural(plan.personSteps, "person step")}.`,
   ];
@@ -151,10 +152,15 @@ function planText(plan: RunPlan): string {
       continue;
     }
     lines.push(`  ${planned.caseId} on ${planned.target}`);
+    const runner = planned.runner === undefined ? undefined : config.runners[planned.runner];
+    if (runner !== undefined) lines.push(`    runner ${planned.runner}: ${runner.command.join(" ")}`);
     for (const login of planned.logins) lines.push(`    login ${login.identity}/${login.surface}: ${login.mode}`);
     for (const challenge of planned.challenges) {
       lines.push(`    step ${challenge.step} ${challenge.kind}: ${challenge.resolver ?? "no resolver"}`);
     }
+  }
+  for (const { runner } of plan.confirmations) {
+    lines.push(`  needs a yes before it runs in production env ${plan.env}: runner ${runner}`);
   }
   return `${lines.join("\n")}\n`;
 }

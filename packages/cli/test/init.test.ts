@@ -46,9 +46,18 @@ describe("init", () => {
     expect(agents.startsWith(`${START}\n`)).toBe(true);
     expect(agents.endsWith(`${END}\n`)).toBe(true);
     expect(agents).toContain(BRAND.skillName);
-    for (const command of ["check", "run --env", "exec --env <env> -- <command>", "keepalive --env", "logout --as"]) {
+    for (const command of [
+      "check",
+      "run --env",
+      "exec --env <env> -- <command>",
+      "ingest --env",
+      "keepalive --env",
+      "logout --as",
+      "report post --run",
+    ]) {
       expect(agents).toContain(`${BRAND.name} ${command}`);
     }
+    expect(agents).toContain("`report_plan`");
     // every starter file parses and the project passes its own check
     const check = await cli(["check"], root);
     expect(check.stdout).toBe("0 errors, 0 warnings\n");

@@ -34,7 +34,8 @@ envs:
       APP_URL: https://app.example.test
     # resolvers per challenge kind, tried in order, such as otp-email: [otp-mailpit, human]
     challenges: {}
-# where a case runs; driver names the driver, which gets the other settings
+# where a case runs; driver names the driver, which gets the other settings. A target with
+# runner: <name> runs a test suite listed under runners instead, and ${BRAND.name} reads its result files
 targets:
   chromium: { driver: playwright, browser: chromium }
 # who cases act as, and how each one logs in per surface
@@ -162,8 +163,10 @@ function agentsSection(): string {
     `2. \`${cli} plan --env <env>\` shows what a run would do, without running a step.`,
     `3. \`${cli} run --env <env> [--case <id>]\` runs cases and writes the evidence to \`runs/<run-id>/\`.`,
     `4. \`${cli} exec --env <env> -- <command>\` runs another test command with the challenge service, which answers OTP and other challenges.`,
-    `5. \`${cli} keepalive --env <env> --as <identity>\` keeps a logged-in identity's session fresh between runs.`,
-    `6. \`${cli} logout --as <identity>\` deletes the identity's cached credentials and revokes them where the strategy can.`,
+    `5. \`${cli} ingest --env <env> --target <target> <files...>\` records the result files, such as JUnit XML, of a suite that ran outside ${cli} as a run of the runner target's cases.`,
+    `6. \`${cli} keepalive --env <env> --as <identity>\` keeps a logged-in identity's session fresh between runs.`,
+    `7. \`${cli} logout --as <identity>\` deletes the identity's cached credentials and revokes them where the strategy can.`,
+    `8. \`${cli} report post --run <id>\` posts a run's results to the tracker from CI. An agent posts through the \`report_plan\` MCP tool and the tracker connector instead.`,
     "",
     `Never commit \`runs/\`, \`${BRAND.stateDir}/\` or \`${LOCAL_FIXTURES_FILE}\`: they hold evidence, cached credentials and real test account values.`,
     SECTION_END,

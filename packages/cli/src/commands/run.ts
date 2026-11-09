@@ -9,6 +9,7 @@ import type { CommandContext } from "../main.ts";
 import { PLAIN_NAME, planCommand, runDirOf, runOptions, startRun } from "./plan.ts";
 
 const ANSWERS_CHANNEL = "answers-file";
+const MAX_WORKERS = 16;
 
 /** Runs the selected cases; exits 0, 1 or 3 by their statuses, and 2 when the run cannot start. */
 export async function runCommand(ctx: CommandContext): Promise<ExitCode> {
@@ -19,20 +20,36 @@ export async function runCommand(ctx: CommandContext): Promise<ExitCode> {
   }
   // read before a dry run returns, so it refuses the folder the run would refuse
   const answers = flags.answers === undefined ? undefined : await answerFiles(ctx, resolve(ctx.io.cwd, flags.answers));
+  const workers = workersOf(flags.workers);
   if (flags["dry-run"] === true) return planCommand(ctx);
   const start = await startRun(ctx);
   const startedAt = new Date();
   const runId = flags.run ?? newRunId(startedAt, Math.random);
-  const runDir = runDirOf(start.project.root, runId);
+  const runDir = newRunDir(start.project.root, runId);
+  if (answers !== undefined) await copyAnswers(answers, join(runDir, "answers"));
+  ctx.out.log(`run ${runId}: ${plural(start.cases.length, "case")} on env ${start.env.name}, seed ${start.seed}`);
+  const results = await runCases({ ...runOptions(ctx, start, runId, startedAt), workers });
+  ctx.out.result(summary(runId, results), summaryText(runId, results, relative(ctx.io.cwd, runDir)));
+  return exitCodeFor(results.map((result) => result.status));
+}
+
+/** The run's folder, refusing one whose run has started. */
+export function newRunDir(root: string, runId: string): string {
+  const runDir = runDirOf(root, runId);
   // a caller that picks the id, such as the MCP supervisor, may have put files in the folder; a started run has status.json
   if (existsSync(join(runDir, "status.json"))) {
     throw new CommandError(`run ${runId} has already started; pick another --run id`);
   }
-  if (answers !== undefined) await copyAnswers(answers, join(runDir, "answers"));
-  ctx.out.log(`run ${runId}: ${plural(start.cases.length, "case")} on env ${start.env.name}, seed ${start.seed}`);
-  const results = await runCases(runOptions(ctx, start, runId, startedAt));
-  ctx.out.result(summary(runId, results), summaryText(runId, results, relative(ctx.io.cwd, runDir)));
-  return exitCodeFor(results.map((result) => result.status));
+  return runDir;
+}
+
+function workersOf(value: string | undefined): number {
+  if (value === undefined) return 1;
+  const workers = Number(value);
+  if (!/^\d+$/.test(value) || workers < 1 || workers > MAX_WORKERS) {
+    throw new CommandError(`--workers takes a whole number from 1 to ${MAX_WORKERS}, not "${value}"`);
+  }
+  return workers;
 }
 
 /** The paths of the regular `<prompt-id>.json` files directly in `from`, skipping folders, links and other names. */
@@ -61,7 +78,7 @@ async function copyAnswers(files: readonly string[], to: string): Promise<void> 
 }
 
 /** The shape of summary.json: counts and one line per case. */
-function summary(runId: string, results: readonly CaseResult[]) {
+export function summary(runId: string, results: readonly CaseResult[]) {
   const count = (status: CaseResult["status"]) => results.filter((result) => result.status === status).length;
   return {
     runId,
@@ -82,7 +99,7 @@ function summary(runId: string, results: readonly CaseResult[]) {
   };
 }
 
-function summaryText(runId: string, results: readonly CaseResult[], dir: string): string {
+export function summaryText(runId: string, results: readonly CaseResult[], dir: string): string {
   const { counts } = summary(runId, results);
   return [
     `Run ${runId}: ${counts.pass} pass, ${counts.fail} fail, ${counts.blocked} blocked, ${counts.followup} followup.`,

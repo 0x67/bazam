@@ -11,6 +11,7 @@ import resolvers from "@bazam/resolvers";
 import jira from "@bazam/tracker-jira";
 import { checkCommand } from "./commands/check.ts";
 import { execCommand } from "./commands/exec.ts";
+import { ingestCommand } from "./commands/ingest.ts";
 import { initCommand } from "./commands/init.ts";
 import { keepaliveCommand } from "./commands/keepalive.ts";
 import { logoutCommand } from "./commands/logout.ts";
@@ -43,6 +44,8 @@ const OPTIONS = {
   json: { type: "boolean" },
   run: { type: "string" },
   "dry-run": { type: "boolean" },
+  workers: { type: "string" },
+  "from-tracker": { type: "boolean" },
   answers: { type: "string" },
   media: { type: "string" },
   ticket: { type: "string" },
@@ -97,11 +100,15 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
     "run",
     {
       usage:
-        "run --env <env> [selection] [--seed <n>] [--channel terminal|answers-file] [--answers <dir>] [--run <id>] [--dry-run]",
+        "run --env <env> [selection] [--seed <n>] [--channel terminal|answers-file] [--answers <dir>] [--run <id>] [--workers <n>] [--dry-run]",
       run: runCommand,
     },
   ],
-  ["promote", { usage: "promote <case-id> --env <env>", run: promoteCommand }],
+  ["ingest", { usage: "ingest --env <env> --target <target> [selection] [--run <id>] <files...>", run: ingestCommand }],
+  [
+    "promote",
+    { usage: "promote <case-id> --env <env> | promote --from-tracker --env <env> [selection]", run: promoteCommand },
+  ],
   ["retire", { usage: "retire <case-id>", run: retireCommand }],
   ["exec", { usage: "exec --env <env> [--channel terminal|answers-file] -- <command> [args]", run: execCommand }],
   ["keepalive", { usage: "keepalive --env <env> --as <identity>", run: keepaliveCommand }],
@@ -110,7 +117,7 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
     "report",
     {
       usage:
-        "report plan --run <id> [--media <file>] | report ack <marker> --url <comment-url> [--ticket <tracker>:<key>]",
+        "report plan --run <id> [--media <file>] | report post --run <id> [--media <file>] [--dry-run] [--json] | report ack <marker> --url <comment-url> [--ticket <tracker>:<key>]",
       run: reportCommand,
     },
   ],
@@ -156,12 +163,19 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     return ExitCode.CouldNotStart;
   }
   const root = resolve(io.cwd, flags.root ?? ".");
+  // closed after the command, so no process plugin outlives it
+  const registries: PluginRegistry[] = [];
   const loadPlugins = async () => {
     const { config, issues } = await loadProjectConfig(root);
     if (config === undefined) throw new CommandError(`the project config in ${root} does not load`, issues);
     // output written before this point is masked by the default rules only
     redactor.configure(config.redaction);
-    return { config, registry: await PluginRegistry.load(config, root, DEFAULT_PLUGINS) };
+    const registry = await PluginRegistry.load(config, root, DEFAULT_PLUGINS, {
+      log: (line) => out.log(line),
+      redactor,
+    });
+    registries.push(registry);
+    return { config, registry };
   };
   const ctx: CommandContext = {
     io,
@@ -181,6 +195,8 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   } catch (error) {
     out.error(error);
     return ExitCode.CouldNotStart;
+  } finally {
+    await Promise.all(registries.map((registry) => registry.close()));
   }
 }
 

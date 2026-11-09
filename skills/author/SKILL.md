@@ -45,13 +45,22 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 
 **5. Write checks that observe outcomes**
 
-1. Every case needs a check: a `checks` entry, an `expect` step, or a guided step with `expected` (`case-has-check`).
+1. Every case needs a check: a `checks` entry, an `expect` step, or a guided step with `expected` (`case-has-check`). An external case is the exception: the tests of its suite are its checks.
 2. Check the outcome the ticket promises: the confirmation shown, the value saved, the state an endpoint reports. A tap that went through proves nothing on its own.
 3. When the page shows a value, prefer `expect: { text: { field: ..., equals: ... } }` to `visible`. Use `expect: { url: <glob> }` for where a page ends up.
 4. Back a page outcome with an `api` check when an endpoint exposes the same state, such as `api: { request: "GET ${env.APP_URL}/api/session/me", as: customer, status: 200, body: { email: ... } }`.
 5. To carry a value from one response to a later step, use `request` with `save:` and read it back as `${case.<name>}`, as `API-HMAC-001` does.
 
-**6. Decide when a step must be guided**
+**6. Cover a behavior another test suite already tests**
+
+1. When a test in another framework, such as Selenium, pytest or Playwright Test, already checks the behavior, write an external case instead of steps. Its `targets` name only runner targets, the targets with `runner:` in the config (`external-case-shape`).
+2. A runner runs its command whenever a run selects a case on one of its targets, so treat runners and runner targets as code: when none fits, ask the person to add it.
+3. An external case has no `steps` and no `checks`. Each test that names the case becomes one of its checks.
+4. `SHOP-CART-001` below is a made-up external case, not one in `examples/`. A test names its case with the id in brackets in the test name, such as `[SHOP-CART-001] keeps items after sign-in`, or with a tag `@SHOP-CART-001`. When the test names cannot change, map the test's title to the case in the runner's mapping file, such as `tests: { "com.shop.CartTest › keepsItemsAfterSignIn": SHOP-CART-001 }` (`runner-mapping-valid`).
+5. Stage, links, risk and `prod_safe` work as for any other case. A skipped test leaves the case blocked, never passed.
+6. The runner's `format` names a result format the harness reads, such as `junit` or `playwright-json` (`runner-format-known`).
+
+**7. Decide when a step must be guided**
 
 1. Write a `guided` step only when a person has to act or judge: a face scan, a physical device, how a page looks. Anything a driver can do stays automated.
 2. Give the person numbered `steps` they can follow without the ticket, and an `expected` line they can confirm or reject.
@@ -60,7 +69,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 5. Write a face or biometric step as a `challenge` with that kind; the environment's chain sends it to a person. A kind listed under `challenges.humanOnly` may only go to a person (`human-only-chain`).
 6. `AUTH-FACE-001` shows a face challenge, a guided step and its `observe` together.
 
-**7. Use placeholders instead of literals**
+**8. Use placeholders instead of literals**
 
 1. Keep URLs, credentials, tokens and personal data out of case files. `placeholder-resolves`, `no-literal-secret` and `fixture-domain` catch most slips.
 2. `${env.NAME}` holds base URLs and other values that differ per environment. Every environment defines the name.
@@ -72,29 +81,29 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 8. New fixture data goes in `fixtures/identities.example.yaml`, with addresses under `example.test` and phone numbers from fictional ranges such as `+44 7700 900123`.
 9. End a line with `# bazam: allow-secret` only when it holds no secret and `no-literal-secret` flags it anyway.
 
-**8. Word the evidence**
+**9. Word the evidence**
 
 1. Write the title as the behavior in the ticket reader's words, such as "Customer confirms a transfer with their PIN". Leave step lists and ids out of it.
 2. Name a screenshot after what it shows, such as `dashboard` or `transfer-confirmed`.
 3. Write guided steps and `expected` for someone who has never seen the case, using the labels the app shows.
 4. Keep notes short and factual. Results reach the ticket as a comment.
 
-**9. Check, plan, run and report**
+**10. Check, plan, run and report**
 
 1. Write a new case file with `case_draft`, which writes the file only when it has no errors. After any other edit, run `case_check` and fix every error by its rule id. A warning stays only with a reason.
 2. Run `run_plan` for the selection and the environment before any run. It lists the logins, the resolver for each challenge, the person steps and the reason a case would be blocked. Fix what blocks a case first, or tell the person what it needs, such as a missing secret or fixture.
 3. Start the run with `run_start` and follow it with `run_status`. The run goes on after the call returns.
 4. When `run_status` reports pending prompts, read them with `prompt_list` and relay each one to the person as written, with its screenshot. Send their answer back with `prompt_answer`. Answer a prompt only with what the person said.
 5. Read each outcome with `evidence_get`: `result.json`, its checks, attachments and screenshots. Report a failed or blocked case with its reason. Rerun it only after a change that could fix it.
-6. To post results, get the post plan with `report_plan` and post each item through the tracker connector. Then confirm each comment with `report_ack` and its URL, so a later run can edit that comment. Pass the ticket too when several items share a marker.
+6. To post results, get the post plan with `report_plan` and post each item through the tracker connector, with the `html` field of the item's comment as the body; the reply holds no `adf`. Then confirm each comment with `report_ack` and its URL, so a later run can edit that comment. Pass the ticket too when several items share a marker.
 
-**10. Rules the tool enforces**
+**11. Rules the tool enforces**
 
 `case_check` reports each of these by id, with the file, the line and a fix. Cite the id when you explain a change.
 
 1. `schema`: case, flow, suite and config shapes, including unknown step kinds.
 2. `id-format`, `id-domain`, `id-unique`, `id-retired`: case ids.
-3. `case-has-check`: every case checks something.
+3. `case-has-check`: every case checks something, except an external case, whose suite's tests are its checks.
 4. `stage-link`: acceptance and once cases link a ticket.
 5. `flow-expands`: `use:` steps and their parameters.
 6. `placeholder-resolves`: env, secret and identity placeholders.
@@ -105,3 +114,6 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 11. `state-ignored`: git ignores `runs/` and the state folder.
 12. `selector-test-id` (warning): selectors without a test id or role.
 13. `pin-secret-declared`: the secret a `pin` challenge reads.
+14. `external-case-shape`: a case on runner targets has no steps or checks and lists no driver targets.
+15. `runner-format-known`: the result format of each runner.
+16. `runner-mapping-valid`: a runner's mapping file, and the case ids it maps tests to.
