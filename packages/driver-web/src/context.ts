@@ -36,7 +36,8 @@ export class GuardedContext {
   // allowlisted origins, written as URL.origin writes them, whose challenges the credentials answer
   readonly #credentialOrigins = new Set<string>();
   #credentialsSet: Promise<void> = Promise.resolve();
-  // the Basic header WebKit sends to allowlisted hosts, since it answers no challenge from http on 80 or https on 443
+  // the Basic header the route adds to WebKit's requests to allowlisted hosts, since WebKit answers no challenge
+  // from http on 80 or https on 443
   #authorization: string | undefined;
 
   private constructor(context: BrowserContext, env: Environment, refusals: Refusals) {
@@ -163,7 +164,7 @@ export class GuardedContext {
       });
     }
     if (isMainFrameNavigation(request)) return this.#refuse(route, refusal);
-    // a page may load fonts or scripts from other hosts; they just never get the extra headers
+    // a page may load fonts or scripts from other hosts, which never get the extra headers or the Basic credentials
     return route.continue();
   }
 

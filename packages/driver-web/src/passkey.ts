@@ -71,7 +71,7 @@ async function identityContext(
   return { context: (await session.contextFor(request.identity)).context, session };
 }
 
-/** The passkeys once one was registered or signed with since the resolver armed, or undefined when none was in time. */
+/** The passkeys once one was registered or signed with since the resolver armed, or undefined after USE_TIMEOUT_MS. */
 async function waitForUse(
   context: BrowserContext,
   armed: ReadonlyMap<string, number>,

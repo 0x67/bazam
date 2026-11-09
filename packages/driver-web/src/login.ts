@@ -17,7 +17,7 @@ export interface LoginTab {
 }
 
 /**
- * Runs the flow it is given, already expanded and resolved, then waits for `until`.
+ * Opens `url`, runs the flow it is given, already expanded and resolved, then waits for `until`.
  * Whoever shows the person's prompt does so around this call; the login itself never asks anyone.
  */
 export class PlaywrightLogin implements BrowserLogin {
@@ -36,7 +36,7 @@ export class PlaywrightLogin implements BrowserLogin {
     } catch (error) {
       if (timeout.aborted && request.signal?.aborted !== true) {
         throw new Error(
-          `the login at ${request.url.origin}${request.url.pathname} did not reach ${describeDone(request.until)} within ${request.timeoutMs} ms`,
+          `the login at ${request.url.origin}${request.url.pathname} did not reach ${describeDone(request.until)} within ${request.timeoutMs} ms; check that the login can get there, or raise timeoutMs in the identity's auth settings (login.timeoutMs for session-cookie)`,
         );
       }
       throw error;

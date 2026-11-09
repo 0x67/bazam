@@ -39,7 +39,7 @@ class TraceScrubber {
   }
 
   #text(text: string): string {
-    // trace.trace and trace.network hold one JSON event per line; lines go first so their line breaks stay
+    // trace.trace and trace.network hold one JSON event per line; parsing line by line first keeps the line breaks
     const lines = text.split("\n").map((line) => ({ line, parsed: parseJson(line) }));
     const isJsonLines =
       lines.some(({ line }) => line !== "") && lines.every(({ line, parsed }) => line === "" || parsed.ok);
@@ -63,7 +63,7 @@ class TraceScrubber {
   // registered values are masked inside strings, so a value that is also a run of digits cannot break a JSON number
   #value(value: unknown): unknown {
     if (typeof value === "string") return this.#mask(this.#jsonString(value));
-    // a number goes only when it is a registered value whole, since timestamps may contain a short code
+    // a number is masked only when it is a registered value whole, since timestamps may contain a short code
     if (typeof value === "number") return this.#redactor.isRegisteredNumber(value) ? MASK : value;
     if (Array.isArray(value)) return value.map((item) => this.#value(item));
     if (typeof value !== "object" || value === null) return value;
@@ -72,8 +72,9 @@ class TraceScrubber {
     );
   }
 
-  // a JSON body can sit in a string, such as the params name of one posted as form-urlencoded, where a number has
-  // lost its leading zeros; the string is rewritten only when scrubbing its parsed form masks something
+  // a string can hold a JSON body, such as one posted as form-urlencoded, which Playwright records as a params name,
+  // where a registered value sent as a number has lost its leading zeros; the string is rewritten only when scrubbing
+  // its parsed form masks something
   #jsonString(text: string): string {
     if (!/^\s*[[{]/.test(text)) return text;
     const parsed = parseJson(text);

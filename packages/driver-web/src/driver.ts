@@ -29,7 +29,7 @@ import { scrubTrace } from "./trace.ts";
 // every Playwright in the peer range has BrowserContext.credentials, a virtual authenticator that works on every engine
 const CAPABILITIES: ReadonlySet<Capability> = new Set(["browser.login", "webauthn.virtual"]);
 const ENGINES = { chromium, firefox, webkit };
-// cases run one after another, so a browser unused for this long is closed and the process can exit
+// an unused browser closes after this long so the process can exit; a case or login that starts before then reuses it
 const BROWSER_IDLE_MS = 2_000;
 // the default of Playwright's own expect
 const EXPECT_TIMEOUT_MS = 5_000;
@@ -142,7 +142,7 @@ async function assertMaskSelectorsParse(browser: Browser, selectors: readonly st
 function launchBrowser(kind: BrowserKind): Promise<Browser> {
   return ENGINES[kind.browser].launch({
     headless: kind.headless,
-    // Playwright's own handler would exit 130 on Ctrl-C before the run ends its cases cancelled
+    // Playwright's own handler would exit 130 on Ctrl-C before the run can record its cases as cancelled
     handleSIGINT: false,
     ...(kind.channel === undefined ? {} : { channel: kind.channel }),
   });
@@ -402,7 +402,7 @@ export class WebSession implements DriverSession {
         const guarded = await opening.catch(() => undefined);
         if (guarded === undefined) continue;
         const label = several ? `trace-${identity ?? "anonymous"}` : "trace";
-        // closing can still refuse a navigation the page started, so the trace waits until every context has closed
+        // closing can still refuse a navigation the page started, so the traces are held until every context has closed
         saved.push(await this.#saveTrace(guarded.context, label));
         await guarded.close();
       }
