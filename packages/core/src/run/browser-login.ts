@@ -48,7 +48,10 @@ export class RunBrowserLogin implements BrowserLogin {
   async login(request: BrowserLoginRequest): Promise<LoginResult> {
     const session = this.#caseSession.getStore() ?? this.#session;
     const browserLogin = (await session?.())?.browserLogin;
-    if (browserLogin === undefined) throw new Error("no open driver session offers browser.login");
+    if (browserLogin === undefined)
+      throw new Error(
+        "no driver session offers browser.login; run the cases that need this login on a target whose driver offers it, such as one with driver: playwright",
+      );
     const stop = new AbortController();
     const signals = [stop.signal, this.#scope.signal, ...(request.signal === undefined ? [] : [request.signal])];
     const forDriver: BrowserLoginRequest = {

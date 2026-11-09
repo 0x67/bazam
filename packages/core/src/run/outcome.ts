@@ -13,7 +13,7 @@ export class CaseBlocked extends Error {
   }
 }
 
-/** A step handler threw something other than a blocking error, which the product caused. */
+/** A step handler threw something other than a blocking error; outcomeOf counts it as the product's error. */
 export class StepFailed extends Error {
   constructor(step: number, kind: string, cause: unknown) {
     super(`step ${step} (${kind}): ${messageOf(cause)}`, { cause });

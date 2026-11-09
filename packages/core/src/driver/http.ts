@@ -39,7 +39,7 @@ export interface GuardedHttpDeps {
   identities?: Pick<Identities, "authorize" | "recoverFromUnauthorized">;
 }
 
-/** The server answered 401 to an identity's credential, also after a refresh where one was possible. */
+/** The server answered 401 to an identity's credential, even after a refresh where one was possible. */
 export class Unauthorized extends Error {
   constructor(identity: string, surface: string, target: string) {
     super(`${target} answered 401 to the ${surface} credential of ${identity}`);

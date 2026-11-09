@@ -263,7 +263,7 @@ describe("trackerHttp", () => {
       status: 401,
       message:
         "GET /rest/api/3/myself answered 401: Client must be authenticated to access this resource; " +
-        "check that the API token has not expired, and for a scoped token set the tracker's api",
+        "check that the API token has not expired, and for a scoped token set trackers.<tracker>.api",
     });
   });
 

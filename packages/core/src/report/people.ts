@@ -4,7 +4,7 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 const PEOPLE_FILE = "people.yaml";
-// each ticket names its own
+// each ticket names its own assignee and reporter, so people.yaml cannot map these roles
 const TICKET_ROLES: readonly string[] = ["assignee", "reporter"];
 
 /** `people.yaml`: tracker account ids by role and tracker. */
@@ -12,7 +12,7 @@ export const PeopleFile = z.strictObject({
   roles: z
     .record(z.string().regex(/^[a-z][a-z0-9-]*$/), z.record(z.string().min(1), z.string().min(1)))
     .refine((roles) => !TICKET_ROLES.some((role) => Object.hasOwn(roles, role)), {
-      error: "assignee and reporter come from the ticket, so people.yaml cannot map them",
+      error: "assignee and reporter come from the ticket; remove them from roles in people.yaml",
     })
     .default({}),
 });

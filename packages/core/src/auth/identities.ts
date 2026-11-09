@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BRAND } from "../brand.ts";
 import type { HumanChannel } from "../challenge/index.ts";
 import { guardedHttp, type GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
@@ -44,7 +45,7 @@ const IdentityConfig = z
         ctx.addIssue({
           code: "custom",
           path,
-          message: `surface "${auth.from}" uses strategy ${source.strategy}, not ${auth.strategy}`,
+          message: `surface "${auth.from}" uses strategy ${source.strategy}, not ${auth.strategy}; give surface "${surface}" strategy: ${source.strategy} or point its from: at a surface that uses strategy ${auth.strategy}`,
         });
       }
     }
@@ -59,7 +60,7 @@ export interface IdentitiesDeps {
   configs: IdentitiesConfig;
   /** Fields by fixture entry name. */
   fixtures: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  /** Looks strategies up by name; PluginRegistry is the one runs pass. */
+  /** Looks strategies up by name; a run passes its PluginRegistry. */
   registry: { strategy(name: string): AuthStrategy<unknown, JsonValue> };
   cache: CredentialCache;
   /** `<stateDir>/locks`. */
@@ -81,7 +82,9 @@ export interface IdentitiesDeps {
 /** A credential that came back from a login or a refresh failed the strategy's probe. */
 export class CredentialRejected extends Error {
   constructor(slot: string, strategy: string) {
-    super(`the new ${strategy} credential for ${slot} failed its probe`);
+    super(
+      `the new ${strategy} credential for ${slot} failed its probe; check the probe request and the credential settings in the with: block of that surface`,
+    );
     this.name = "CredentialRejected";
   }
 }
@@ -114,7 +117,7 @@ export class Identities {
     this.#http = guardedHttp({ env: deps.env, redactor: deps.redactor, log: (line) => deps.log(line) });
   }
 
-  /** Probes, refreshes, acquires and resolves nothing, so it fetches no secret; reads only the cache. */
+  /** Reads only the cache: it never probes, refreshes, acquires or resolves, so it fetches no secret. */
   async credentialState(identity: string, surface: string): Promise<LoginMode> {
     const slot = this.#slot(identity, surface);
     if (!slot.strategy.cacheable) return "static";
@@ -125,7 +128,7 @@ export class Identities {
   }
 
   /**
-   * Leaves the identity with an unexpired credential for the surface that passed the probe. A cached one is
+   * Leaves the identity with an unexpired credential for the surface, one that passed the probe. A cached one is
    * probed once per process; a stale one is refreshed or acquired under the refresh lock.
    */
   async ensureCredential(identity: string, surface: string): Promise<void> {
@@ -282,7 +285,11 @@ export class Identities {
       throw new Error(`unknown identity "${identity}"; known: ${Object.keys(this.#deps.configs).join(", ") || "none"}`);
     }
     const auth = config.auth[surface];
-    if (auth === undefined) throw new Error(`identity "${identity}" has no auth for surface "${surface}"`);
+    if (auth === undefined) {
+      throw new Error(
+        `identity "${identity}" has no auth for surface "${surface}"; add ${surface}: under identities.${identity}.auth in ${BRAND.configFile}`,
+      );
+    }
     const owner = "from" in auth ? auth.from : surface;
     const settings = config.auth[owner];
     if (settings === undefined || "from" in settings) {
@@ -318,7 +325,7 @@ export class Identities {
     if (fixture === undefined) return {};
     const fields = this.#deps.fixtures[fixture];
     if (fields === undefined)
-      throw new Error(`identity "${identity}" names fixture "${fixture}", which the fixtures do not have`);
+      throw new Error(`identity "${identity}" names fixture "${fixture}", which the local fixtures file does not have`);
     return fields;
   }
 }

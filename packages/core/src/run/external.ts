@@ -52,7 +52,7 @@ export interface ExternalSuiteDeps {
   now(): Date;
   /** The variable names in `trackers.<t>.secrets`, left out of the child's environment. */
   withheldVars: readonly string[];
-  /** The run log's line, called outside any case's log context. */
+  /** Writes a line to the run log; runExternalSuite calls it outside any case's log context. */
   log(line: string): void;
 }
 
@@ -76,7 +76,7 @@ export async function runExternalSuite(suite: ExternalSuite, deps: ExternalSuite
   await mkdir(dirname(logFile), { recursive: true });
   const runnerLog = createWriteStream(logFile, { flags: "a" });
   const written = finished(runnerLog);
-  // awaited once the runner has exited
+  // awaited once the runner has exited; this handler keeps a write error before then from counting as unhandled
   written.catch(() => undefined);
   const env: NodeJS.ProcessEnv = {
     ...process.env,

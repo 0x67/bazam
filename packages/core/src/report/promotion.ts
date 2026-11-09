@@ -6,8 +6,8 @@ import { ticketRef, trackerProject } from "./post-plan.ts";
 export type TicketVerdict = { ready: true } | { ready: false; reason: string };
 
 /**
- * Ready when the case has a link and every linked ticket's status is in its project's `promoteOn`, compared
- * without case. `states` is keyed by link, as `jira:DEMO-12`. The reason names the first link that is not ready.
+ * Ready when the case has a link and every linked ticket's status is in its project's `promoteOn`, ignoring
+ * letter case. `states` is keyed by link, as `jira:DEMO-12`. The reason names the first link that is not ready.
  */
 export function ticketsReadyForPromotion(
   spec: CaseSpec,

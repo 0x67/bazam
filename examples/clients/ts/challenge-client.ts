@@ -34,7 +34,7 @@ export interface ChallengeClientOptions {
   url?: string;
   /** Read from BAZAM_CHALLENGE_TOKEN when left out. */
   token?: string;
-  /** No limit when left out, since the service bounds each request; it counts the time a prompt waits in the queue. */
+  /** No limit when left out, since the service bounds each request. A limit also counts the time a prompt waits in the queue. */
   timeoutMs?: number;
   signal?: AbortSignal;
 }

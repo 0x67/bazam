@@ -305,7 +305,7 @@ describe("CaseRun after a 401 in a browser context", () => {
     ]);
     expect(notes).toEqual([
       `refreshed customer's web credential after a 401 from ${ORIGIN}`,
-      `another 401 from ${ORIGIN} after the refresh`,
+      `another 401 from ${ORIGIN} after the refresh attempt`,
     ]);
     expect(lines).toEqual([]);
   });
@@ -397,7 +397,7 @@ describe("CaseRun after a 401 in a browser context", () => {
       "look with Bearer fake-token-1",
       "look with Bearer fake-token-1",
     ]);
-    expect(notes).toEqual([expected, `another 401 from ${ORIGIN} after the refresh`]);
+    expect(notes).toEqual([expected, `another 401 from ${ORIGIN} after the refresh attempt`]);
   });
 
   it("refreshes when the probe throws", async () => {

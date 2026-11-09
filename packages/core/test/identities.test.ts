@@ -531,7 +531,10 @@ describe("IdentitiesConfig", () => {
     });
 
     expect(result.error?.issues.map((issue) => [issue.path.join("."), issue.message])).toEqual([
-      ["customer.auth.api.from", 'surface "web" uses strategy cookie, not token'],
+      [
+        "customer.auth.api.from",
+        'surface "web" uses strategy cookie, not token; give surface "api" strategy: cookie or point its from: at a surface that uses strategy token',
+      ],
       ["customer.auth.mobile.from", 'from: "api" must name a surface of this identity with its own settings'],
     ]);
   });

@@ -1,4 +1,5 @@
-// The one place the product name is written; scripts/rename.ts rewrites it.
+// The one place package source writes the product name, apart from import specifiers; pnpm brand:check
+// enforces that, and scripts/rename.ts rewrites the name across the repository.
 export const BRAND = {
   name: "bazam",
   scope: "@bazam",

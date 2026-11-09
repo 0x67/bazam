@@ -62,8 +62,9 @@ export function bugLabel(caseId: string): string {
 }
 
 /**
- * One intent per regression result that fails or passes, in the project of its first link whose tracker config
- * sets `bugs`. Blocked and follow-up results get none, since neither says the product broke.
+ * One intent per regression result that fails or passes, in the first linked project whose entry under
+ * `trackers.<tracker>.projects` sets `bugs`. Blocked and follow-up results get none, since neither says the
+ * product broke.
  */
 export function planBugs(inputs: BugInputs): BugIntent[] {
   const { config, redactor } = inputs;

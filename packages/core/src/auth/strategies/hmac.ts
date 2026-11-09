@@ -32,14 +32,17 @@ const HmacConfig = z
     }),
     timestamp: z.enum(["unix-seconds", "unix-millis", "iso-8601"]).default("unix-seconds"),
     maxSkewSeconds: z.number().positive().optional(),
-    /** A request whose Date header the clock is compared with; signed like any other. */
+    /**
+     * A request that checks the credential, signed like any other. With maxSkewSeconds, the Date header of its
+     * answer is also compared with the local clock.
+     */
     probe: RequestCheck.optional(),
     /** A project module whose default export returns the headers; replaces stringToSign and headers. */
     sign: z.string().min(1).optional(),
   })
   .refine((config) => config.maxSkewSeconds === undefined || config.probe !== undefined, {
     path: ["probe"],
-    error: "maxSkewSeconds needs a probe request, whose Date header the local clock is compared with",
+    error: "maxSkewSeconds needs a probe request, since the local clock is compared with the Date header of its answer",
   });
 type HmacConfig = z.infer<typeof HmacConfig>;
 
@@ -143,7 +146,10 @@ function formatTimestamp(now: Date, mode: HmacConfig["timestamp"]): string {
 
 function assertClockSkew(response: HttpResponse, maxSkewSeconds: number, now: Date, url: URL): void {
   const date = Date.parse(response.headers.get("date") ?? "");
-  if (Number.isNaN(date)) throw new Error(`${url.origin} sent no Date header, so the clock skew cannot be checked`);
+  if (Number.isNaN(date))
+    throw new Error(
+      `${url.origin} sent no readable Date header, so the clock skew cannot be checked; point probe at a request whose answer has one, or remove maxSkewSeconds`,
+    );
   const skewSeconds = Math.abs(date - now.getTime()) / 1000;
   if (skewSeconds > maxSkewSeconds) {
     throw new Error(

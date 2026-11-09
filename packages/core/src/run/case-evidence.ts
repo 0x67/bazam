@@ -14,7 +14,7 @@ export class CaseEvidence extends EvidenceStore {
     this.#dir = join(runDir, caseId);
   }
 
-  /** The checks recorded so far, followups included, from which the status the session closes with is derived. */
+  /** The checks recorded so far, followups included; the runner derives from them the status it closes the driver session with. */
   get checks(): readonly CheckRecord[] {
     return this.#checks;
   }

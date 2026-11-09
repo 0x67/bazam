@@ -119,7 +119,7 @@ function casesWithoutLink(project: Project): Finding[] {
     }));
 }
 
-/** The run expands each step on its own the same way, so a case step points at its own problem. */
+/** Expands each case step alone, as the run does, so each finding points at the step that causes it. */
 function flowUsesThatFail(project: Project): Finding[] {
   return project.cases.flatMap((loaded) =>
     (["steps", "checks"] as const).flatMap((list) =>
@@ -151,7 +151,7 @@ function expansionProblem(step: Step, project: Project): Omit<Finding, "at"> | u
     if (error instanceof InvalidFlowUse) {
       return {
         message: error.message,
-        fix: "Use a flow defined under flows/, and pass in with: exactly the params it declares.",
+        fix: "Use a flow defined under flows/, pass in with: exactly the params it declares, and make each ${param.NAME} in the flow's steps name one of those params.",
       };
     }
     throw error;
@@ -239,7 +239,7 @@ function identityProblem(project: Project, placeholder: string, path: string): O
 }
 
 function literalSecrets(project: Project): Finding[] {
-  // mapping keys are test titles and its values are case ids
+  // skip runner mapping files: their keys are test titles and their values are case ids, not secrets
   const mappings = new Set(Object.values(project.config.runners).flatMap(({ mapping }) => mapping ?? []));
   const files = [...project.files.values()].filter((file) => !mappings.has(file.path));
   return files.flatMap(fileLines).flatMap(({ at, text }) => {
@@ -250,7 +250,7 @@ function literalSecrets(project: Project): Finding[] {
       {
         at,
         message: `line holds ${secret}`,
-        fix: `Move the value to a secret provider and write \${secret.NAME}; end a line that holds no secret with "${ALLOW_SECRET}".`,
+        fix: `Move the value to a secret provider, declare NAME under secrets.names in ${BRAND.configFile} and write \${secret.NAME}; end a line that holds no secret with "${ALLOW_SECRET}".`,
       },
     ];
   });

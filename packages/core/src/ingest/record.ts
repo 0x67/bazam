@@ -101,7 +101,7 @@ interface AttachmentPlaces {
   excluded: readonly string[];
 }
 
-// a file's realpath is compared with these folders, so they are realpaths too; a missing one stays as given
+// a file's realpath is compared with these folders, so they are realpaths too; a missing one is only made absolute
 async function attachmentPlaces(inputs: ExternalRecordInputs): Promise<AttachmentPlaces> {
   const real = (path: string) => realpath(path).catch(() => resolve(path));
   return {

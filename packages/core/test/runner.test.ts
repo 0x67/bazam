@@ -868,7 +868,12 @@ describe("runCases error outcomes", () => {
     ]);
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-VAR-001", status: "blocked", reason: "unresolved placeholder ${env.MISSING_URL}" },
-      { caseId: "SHOP-SECRET-001", status: "blocked", reason: "secret NOT_SET: no value from providers [dotenv]" },
+      {
+        caseId: "SHOP-SECRET-001",
+        status: "blocked",
+        reason:
+          "secret NOT_SET: no value from providers [dotenv]; set it in one of them or add the provider that holds it to secrets.providers",
+      },
     ]);
   });
 
@@ -921,8 +926,8 @@ describe("runCases error outcomes", () => {
       testCase("SHOP-SKEW-001", { steps: [request("partner")] }),
     ]);
     expect(results.map((result) => result.reason)).toEqual([
-      "login of rejected on api failed: the new fake-rejected credential for rejected/api failed its probe",
-      "login of waiting on api failed: refresh lock held by pid 4242",
+      "login of rejected on api failed: the new fake-rejected credential for rejected/api failed its probe; check the probe request and the credential settings in the with: block of that surface",
+      "login of waiting on api failed: timed out waiting for the refresh lock held by pid 4242; wait for that process to finish or stop it",
       expect.stringMatching(
         /^login of partner on api failed: the local clock is 360\d s away from the Date of http:\/\/127\.0\.0\.1:\d+, more than maxSkewSeconds 30$/,
       ),
@@ -1388,7 +1393,7 @@ describe("runCases with external suites", () => {
       },
     ]);
     expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
-      "[shop-b] skipped reports/results.xml: written before this run's runner started",
+      "[shop-b] skipped reports/results.xml: another target of this run already read it, and it has not changed since",
     );
   });
 

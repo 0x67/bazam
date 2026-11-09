@@ -6,7 +6,7 @@ import type { PostPlanItem } from "./post-plan.ts";
 
 const RECEIPTS_FILE = "receipts.json";
 
-/** A comment the agent posted for a post plan item. */
+/** The comment posted for a post plan item, recorded by `report post`, `report ack` or the MCP `report_ack` tool. */
 export interface Receipt {
   marker: string;
   url: string;

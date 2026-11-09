@@ -18,7 +18,9 @@ const EnvironmentConfig = z.strictObject({
   production: z.boolean(),
   vars: z
     .record(
-      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: "a var name is letters, digits and underscores" }),
+      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, {
+        error: "a var name is letters, digits and underscores, starting with a letter or underscore",
+      }),
       z.string(),
     )
     .default({}),

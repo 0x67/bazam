@@ -72,10 +72,11 @@ export async function planCases(options: RunOptions): Promise<RunPlan> {
 }
 
 /**
- * Plans, gets every credential up front in preflight, then runs each case in its own driver session, up to
- * `workers` at once and never two that share an identity. Writes each case's evidence, status.json after each
- * case and prompt, and finally summary.json, summary.md and post-plan.json in plan order. Throws when the run
- * cannot start, as when the first driver session cannot launch.
+ * Plans, gets every credential up front in preflight, then runs up to `workers` cases or suites at once, never two
+ * that share an identity. Each case gets its own driver session, except that the cases of one runner target run
+ * together as one external suite. Writes each case's evidence, status.json after each case, suite and prompt, and
+ * finally summary.json, summary.md and post-plan.json in plan order. Throws when the run cannot start, as when the
+ * first driver session cannot launch.
  */
 export async function runCases(options: RunOptions): Promise<CaseResult[]> {
   const run = await Run.open(options);
@@ -101,7 +102,8 @@ class Run {
   readonly #logins: RunBrowserLogin;
   readonly #scope: RunScope;
   readonly #probes = new Map<string, Promise<ReadonlySet<Capability>>>();
-  // aborted when a case throws, so the cases still running end blocked "run cancelled"
+  // aborted when a work unit throws, as when a driver session fails to launch before any case has started,
+  // so the cases still running end blocked "run cancelled"
   readonly #stop = new AbortController();
   #caseStarted = false;
   #service: ChallengeService | undefined;
@@ -179,7 +181,7 @@ class Run {
     const capabilities = new Map<string, ReadonlySet<Capability>>();
     for (const { spec } of cases) {
       const target = caseTarget(spec, targets);
-      // planRun names a target that config lacks, for the cases that would run on it; a runner has no driver to probe
+      // planLogins and planRun throw for a target that config lacks only when a case would run on it; a runner has no driver to probe
       if (target === undefined || project.config.targets[target] === undefined) continue;
       if (runnerOf(project.config, target) !== undefined) continue;
       capabilities.set(target, await this.#probe(target));
@@ -330,7 +332,7 @@ class Run {
     });
   }
 
-  /** Asks the person whether the runner may run in this production env; a no or no answer blocks its cases. */
+  /** Asks the person whether the runner may run in this production env; a no, or no answer in time, blocks its cases. */
   async #confirm(plan: RunPlan, runner: string, command: string): Promise<void> {
     const { env, redactor } = this.#options;
     const prompt = maskPrompt(
@@ -436,7 +438,9 @@ class Run {
       const path = join(cwd, file);
       const mtimeMs = (await stat(path).catch(() => undefined))?.mtimeMs;
       if (mtimeMs !== undefined && this.#readResults.get(path) === mtimeMs) {
-        this.#log.line(`[${target}] skipped ${file}: written before this run's runner started`);
+        this.#log.line(
+          `[${target}] skipped ${file}: another target of this run already read it, and it has not changed since`,
+        );
         continue;
       }
       if (mtimeMs !== undefined) this.#readResults.set(path, mtimeMs);
@@ -501,7 +505,7 @@ class Run {
     if (failure === undefined || outcome.kind !== "completed") return outcome;
     // a driver may report on close what its guard refused after the last step, such as a navigation to another host
     if (isBlocking(failure)) return { kind: "blocked", reason: failure.message };
-    return { kind: "errored", source: "harness", message: "closing the driver session failed" };
+    return { kind: "errored", source: "harness", message: "closing the driver session failed; case.log has the error" };
   }
 
   /** Returns what closing threw, if anything; the error also goes to the log. */

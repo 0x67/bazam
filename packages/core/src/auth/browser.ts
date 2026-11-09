@@ -29,7 +29,7 @@ export type LoginDone = { cookie: string } | { urlMatches: string };
 
 export interface BrowserLoginRequest {
   url: URL;
-  /** Scripted steps that run before the person acts. */
+  /** Scripted steps that run once `url` is open; with a `prompt`, they run before the person acts. */
   flow?: Step[];
   until: LoginDone;
   /** What the person is asked to do once the flow has run. */

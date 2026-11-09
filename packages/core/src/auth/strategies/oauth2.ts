@@ -125,7 +125,7 @@ async function authorizationCode(config: AuthorizationCode, ctx: AuthContext): P
     prompt: loginPrompt(
       "oauth2",
       ctx.identity,
-      { steps: [`Sign in as ${ctx.identity} and allow access.`] },
+      { steps: [`Log in as ${ctx.identity} and allow access.`] },
       config.timeoutMs,
     ),
     timeoutMs: config.timeoutMs,
@@ -180,7 +180,7 @@ async function requestToken(
     // only the OAuth error code: the rest of the body may echo what was sent
     const error = OAuthError.safeParse(response.body);
     throw new Error(
-      `the token endpoint answered ${response.status} to the ${form.get("grant_type")} grant${error.success ? ` (${error.data.error})` : ""}`,
+      `the token endpoint answered ${response.status} to the ${form.get("grant_type")} grant${error.success ? ` (${error.data.error})` : ""} with no usable token`,
     );
   }
   const token: Token = { accessToken: parsed.data.access_token };

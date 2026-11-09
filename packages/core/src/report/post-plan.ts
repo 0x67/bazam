@@ -88,7 +88,8 @@ export function buildPostPlans(inputs: PostPlanInputs): PostPlan {
 }
 
 function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInputs): PostPlanItem {
-  // the stage and links come from the result, so a case promoted or edited after the run still reports what ran
+  // the stage and links come from the result, so a case promoted or edited after the run still reports what ran;
+  // only the report settings come from the current spec
   const report = inputs.specs.get(result.caseId)?.report;
   const action = report?.on[result.status];
   const mentions = (action?.mention ?? []).map((mention) => {

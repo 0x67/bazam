@@ -33,7 +33,7 @@ const execFileAsync = promisify(execFile);
 /** Folders that stay out of git: run results and local state such as cached credentials. */
 export const STATE_DIRS: readonly string[] = ["runs", BRAND.stateDir];
 
-// a runner target's name names its folder runs/<run-id>/runner-<target>/, and a runner's name goes into a prompt id
+// a runner target's name goes into its folder runs/<run-id>/runner-<target>/, and a runner's name goes into a prompt id
 const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PLAIN_NAME_RULE = "letters, digits, dots, dashes and underscores, starting with a letter or digit";
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:[0-9]+)?$/;
@@ -54,8 +54,8 @@ export const RunnerConfig = z.strictObject({
   env: z.record(z.string().min(1), z.string()).default({}),
   timeoutMinutes: z.number().positive().default(60),
   /**
-   * Runs it in a production env without asking. Without it the run asks first, because it cannot hold the suite's
-   * process to the host allowlist or the write guard.
+   * Runs the suite in a production env without asking. When false, the run asks first, because it cannot hold the
+   * suite's process to the host allowlist or the write guard.
    */
   prodSafe: z.boolean().default(false),
   /** The identities its tests act as; every identity in the config when left out. */
@@ -74,9 +74,9 @@ export const ProcessPluginEntry = z.strictObject({
   command: z.array(z.string().min(1)).min(1),
   /** Relative to the project root. */
   cwd: z.string().min(1).default("."),
-  /** Added to this process's environment. */
+  /** Added to the environment the plugin process inherits from the host. */
   env: z.record(z.string().min(1), z.string()).default({}),
-  /** Per call, from the host's side. */
+  /** How long the host waits for each call before it cancels the call. */
   timeoutSeconds: z.int().positive().default(600),
 });
 export type ProcessPluginEntry = z.infer<typeof ProcessPluginEntry>;
@@ -181,7 +181,7 @@ export const ProjectConfig = z
         ctx.addIssue({
           code: "custom",
           path: ["runners", name, "identities", index],
-          message: `runner ${name} lists identity ${identity}, which identities does not define`,
+          message: `runner ${name} lists identity ${identity}, which is not defined under identities`,
         });
       });
     }
@@ -333,12 +333,12 @@ export interface Project {
   files: ReadonlyMap<string, ProjectFile>;
   /** The `STATE_DIRS` that a `.gitignore` ignores, in the root or, inside a git repository, a parent folder. */
   ignoredStateDirs: ReadonlySet<string>;
-  /** Problems found while loading, under the schema and id rules. */
+  /** Problems found while loading, under the schema, id and runner-mapping-valid rules. */
   issues: readonly LoadIssue[];
 }
 
 export interface ConfigLoad {
-  /** Undefined when the file is missing or does not match the schema. */
+  /** Undefined when the file is missing, is not valid YAML or does not match the schema. */
   config: ProjectConfig | undefined;
   issues: LoadIssue[];
 }
@@ -349,13 +349,13 @@ export async function loadProjectConfig(root: string): Promise<ConfigLoad> {
   return { config, issues };
 }
 
-/** Throws when the config has issues; `loadProjectConfig` reports them with their lines. */
+/** Throws when the config has issues; `loadProjectConfig` returns them as issues, each with its fix. */
 export async function loadProject(root: string, registry: PluginRegistry): Promise<Project> {
   const configLoad = await readConfig(root);
   const { config, file: configFile } = configLoad;
   if (config === undefined || configFile === undefined) {
     const lines = configLoad.issues.map((issue) => `${issue.file}:${issue.line}: ${issue.message}`);
-    throw new Error(`${BRAND.configFile} does not match the config schema:\n${lines.join("\n")}`);
+    throw new Error(`${BRAND.configFile} does not load:\n${lines.join("\n")}`);
   }
   const steps = registry.stepHandlers();
   const caseLoad = await loadCases(root, buildCaseSchema(steps));
@@ -417,7 +417,7 @@ export function lineAt(file: ProjectFile, path: readonly PropertyKey[]): number 
 async function readConfig(root: string): Promise<ConfigLoad & { file: ProjectFile | undefined }> {
   const file = await readProjectFile(root, BRAND.configFile);
   if (file === undefined) {
-    const fix = `Run ${BRAND.name} init in the project root, or point at the folder that holds ${BRAND.configFile}.`;
+    const fix = `Run ${BRAND.name} init in the project root, or pass --root with the folder that holds ${BRAND.configFile}.`;
     return {
       file,
       config: undefined,

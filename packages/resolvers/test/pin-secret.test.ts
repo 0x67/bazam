@@ -80,7 +80,7 @@ describe("pinSecretResolver", () => {
     expect(errors.map((error) => error.message)).toEqual([
       MISSING_PARAM,
       MISSING_PARAM,
-      "secret DEMO_PN: no value from providers [dotenv]",
+      "secret DEMO_PN: no value from providers [dotenv]; set it in one of them or add the provider that holds it to secrets.providers",
     ]);
     for (const error of errors) expect(error.message).not.toContain(DEMO_PIN);
   });

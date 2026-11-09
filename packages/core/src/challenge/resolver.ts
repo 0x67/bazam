@@ -48,7 +48,7 @@ export interface ChallengeResolver {
   ): Promise<ChallengeAnswer | undefined>;
 }
 
-/** The case cannot go on: no resolver could run, or the chain gave no answer. */
+/** The case cannot go on: no resolver could run or arm, or the chain gave no answer. */
 export class ChallengeBlocked extends Error {
   constructor(reason: string) {
     super(reason);

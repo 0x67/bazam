@@ -50,9 +50,10 @@ export function firstIssue(error: z.ZodError): string {
 }
 
 /**
- * Serves an in-process manifest as a process plugin until `input` ends; by default `input` and `output` are stdin
- * and stdout, which then carry nothing but the protocol. Rejects at start a manifest that offers a type a process
- * plugin cannot, or a step schema that JSON Schema cannot represent, naming the step kind.
+ * Serves an in-process manifest as a process plugin until `input` ends. By default `input` and `output` are stdin and
+ * stdout, so the plugin must keep stdout for the protocol and write its own logs to stderr. Rejects at start a
+ * manifest that offers a type a process plugin cannot, or a step schema that JSON Schema cannot represent, naming the
+ * step kind.
  */
 export async function serveProcessPlugin(
   manifest: PluginManifest,

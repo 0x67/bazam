@@ -15,7 +15,7 @@ export class SecretMissing extends Error {
   }
 }
 
-// A run has one redactor, so a cached value is always registered with the redactor it goes back to.
+// Keyed by redactor, and a run has one, so a cached value goes back only to the run whose redactor registered it.
 const resolvedByRun = new WeakMap<Redactor, Map<string, string>>();
 
 /** The first provider that returns a non-empty value wins. */
@@ -39,5 +39,8 @@ export async function resolveSecret(
     resolved.set(key, value);
     return value;
   }
-  throw new SecretMissing(key, `no value from providers [${providers.map((provider) => provider.name).join(", ")}]`);
+  throw new SecretMissing(
+    key,
+    `no value from providers [${providers.map((provider) => provider.name).join(", ")}]; set it in one of them or add the provider that holds it to secrets.providers`,
+  );
 }

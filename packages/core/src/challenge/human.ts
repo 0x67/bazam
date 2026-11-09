@@ -61,8 +61,9 @@ export function oneAtATime(channel: HumanChannel): HumanChannel {
 }
 
 /**
- * Asks in the order they came, one at a time. Neither channel can tell which open prompt a typed line
- * answers, and two requests of one case, kind and step share a prompt id.
+ * Lets asks through one at a time, in the order they came: terminalChannel cannot tell which open prompt a
+ * typed line answers, and answersFileChannel names its files by prompt id, which two requests of one case,
+ * kind and step share.
  */
 class PersonQueue {
   #last: Promise<void> = Promise.resolve();
@@ -110,8 +111,8 @@ export function parseVerdict(line: string): VerdictAnswer | null {
 
 const QUESTIONS: Record<PersonPrompt["ask"], string> = {
   verdict: "Result? p or y (pass), f or n (fail), or b (blocked), then an optional note: ",
-  action: "Type d (done) when finished, or b (blocked) and a note: ",
-  value: "Type the value, or b (blocked) and a note: ",
+  action: "Type d (done) when finished, or b (blocked) and an optional note: ",
+  value: "Type the value, or b (blocked) and an optional note: ",
 };
 
 /**
@@ -158,7 +159,7 @@ class LineQueue {
     this.#reader.pause();
   }
 
-  /** Undefined once the input has closed or `signal` aborted. */
+  /** Undefined once `signal` aborts, or once the input has closed and every line is taken. */
   async next(signal: AbortSignal): Promise<string | undefined> {
     while (this.#lines.length === 0 && !this.#closed && !signal.aborted) {
       const woken = Promise.withResolvers<void>();

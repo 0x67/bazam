@@ -300,7 +300,7 @@ describe("runner targets and process plugin entries", () => {
     expect(await issues([...runner, "    identities:", "      - customer", "      - admin"])).toEqual([
       [
         11,
-        "runners.shop-selenium.identities[1]: runner shop-selenium lists identity admin, which identities does not define",
+        "runners.shop-selenium.identities[1]: runner shop-selenium lists identity admin, which is not defined under identities",
       ],
     ]);
   });
@@ -324,7 +324,7 @@ describe("runner targets and process plugin entries", () => {
     expect(await issues([...runner, "    identities: [constructor]"])).toEqual([
       [
         9,
-        "runners.shop-selenium.identities[0]: runner shop-selenium lists identity constructor, which identities does not define",
+        "runners.shop-selenium.identities[0]: runner shop-selenium lists identity constructor, which is not defined under identities",
       ],
     ]);
   });

@@ -41,7 +41,7 @@ A runner name takes letters, digits, dots, dashes and underscores, starting with
 3. `bazam check` refuses, with these messages:
    1. `a target names a driver or a runner, not both`
    2. `runner <name> is not defined under runners`
-   3. `runner <name> lists identity <id>, which identities does not define`
+   3. `runner <name> lists identity <id>, which is not defined under identities`
    4. `a runner target's name takes letters, digits, dots, dashes and underscores, starting with a letter or digit`, because the name becomes the folder `runs/<run-id>/runner-<target>/`
 
 **External cases**
@@ -65,7 +65,7 @@ cases:
 1. The run starts the challenge service before the first suite, then starts each runner target's command once, with every selected case of that target that the plan did not block. A runner whose selected cases are all blocked never starts.
 2. The suite's environment is the run's own environment, then the runner's `env`, then the target's `env`, then five variables: `BAZAM_CHALLENGE_URL`, `BAZAM_CHALLENGE_TOKEN`, `BAZAM_RUN_ID`, `BAZAM_ENV` and `BAZAM_CASES`. Every variable named in a `trackers.<tracker>.secrets` value is removed. A placeholder that does not resolve blocks the target's cases with `unresolved placeholder <placeholder>`, and nothing starts.
 3. Before the suite starts, the run registers with its redactor the inherited value of each declared secret: `secrets.names`, each tracker's `secrets` and each `${secret.NAME}` the identities use. The challenge service registers every answer it gives. Each line the suite writes to stdout or stderr is masked, appended to `runs/<run-id>/runner-<target>/runner.log` and written to `run.log` as `[<target>] <line>`. The suite gets no stdin.
-4. After the suite exits, the run expands `results` in `cwd` and reads the regular files written since the start, less 2 seconds for file systems with coarse timestamps. Older matches stay where they are, since they belong to the suite, and `run.log` lists each as `skipped <file>: written before this run's runner started`. A file that another target of the same run already read, and that has not changed since, is skipped the same way, so two targets of one runner never read each other's results.
+4. After the suite exits, the run expands `results` in `cwd` and reads the regular files written since the start, less 2 seconds for file systems with coarse timestamps. Older matches stay where they are, since they belong to the suite, and `run.log` lists each as `skipped <file>: written before this run's runner started`. A file that another target of the same run already read, and that has not changed since, is skipped as `skipped <file>: another target of this run already read it, and it has not changed since`, so two targets of one runner never read each other's results.
 5. Once the suite wrote result files, its exit code decides nothing, since a suite with failing tests exits nonzero. The tests in the files decide each case:
    1. one check per test that did not skip, named by the test's title, with `observed` set to `passed`, `failed` or `errored`, or to `passed after 1 retry` (`passed after <N> retries`) for a test that passed on a rerun;
    2. any failed or errored test fails the case;

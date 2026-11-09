@@ -34,7 +34,7 @@ describe("promote", () => {
     const before = await project.read(CASES_FILE);
     const { code, stdout } = await project.cli("promote", "SHOP-OK-001", "--env", "demo");
     expect(code).toBe(ExitCode.Fail);
-    expect(stdout).toBe("not promoted: SHOP-OK-001 has no result in this environment\n");
+    expect(stdout).toBe("not promoted: SHOP-OK-001 has no result in this environment; run it there first\n");
     expect(await project.read(CASES_FILE)).toBe(before);
   });
 

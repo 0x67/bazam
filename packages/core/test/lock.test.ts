@@ -118,7 +118,9 @@ describe("withRefreshLock", () => {
     const failure = await withRefreshLock(lockDir, key, async () => "refreshed", 200).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(RefreshLockTimeout);
-    expect((failure as RefreshLockTimeout).message).toBe(`refresh lock held by pid ${process.pid}`);
+    expect((failure as RefreshLockTimeout).message).toBe(
+      `timed out waiting for the refresh lock held by pid ${process.pid}; wait for that process to finish or stop it`,
+    );
   });
 });
 

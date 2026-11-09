@@ -238,7 +238,7 @@ describe("oauth2Strategy", () => {
     expect(request?.prompt).toMatchObject({
       ask: "action",
       title: "Log in as customer",
-      steps: ["Sign in as customer and allow access."],
+      steps: ["Log in as customer and allow access."],
     });
     // a public client names itself in the form and sends no Authorization header
     expect(tokenRequests().at(-1)?.get("client_id")).toBe(PUBLIC_CLIENT);
@@ -263,7 +263,7 @@ describe("oauth2Strategy", () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toBe(
-      "the token endpoint answered 401 to the client_credentials grant (invalid_client)",
+      "the token endpoint answered 401 to the client_credentials grant (invalid_client) with no usable token",
     );
   });
 

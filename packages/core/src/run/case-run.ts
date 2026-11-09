@@ -53,7 +53,7 @@ export interface RunScope {
   log(line: string): void;
 }
 
-/** Placeholder sources for one case, or for logins, which belong to no case and see no `${case.X}`. */
+/** Placeholder sources for one case, or for logins and external suites, which belong to no case and see no `${case.X}`. */
 export function placeholderSources(
   scope: Pick<RunScope, "env" | "secret" | "identityField">,
   runValues: CaseRunValues,
@@ -83,7 +83,7 @@ export class CaseRun {
   readonly #parts: CaseParts;
   readonly #values: Map<string, string>;
   readonly #sources: PlaceholderSources;
-  /** Identities whose browser context is open and authorized. */
+  /** Identities whose browser context this case has opened, authorized when the identity has auth for the driver's surface. */
   readonly #browsers = new Set<string>();
   /** Calls that remove the 401 listener from each browser context this case authorized. */
   readonly #stops: (() => void)[] = [];
@@ -231,7 +231,7 @@ export class CaseRun {
   #unauthorized(identity: string, surface: string, browser: BrowserSession, origin: string): void {
     if (this.#recovery !== undefined) return;
     if (this.#recovered) {
-      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after the refresh`);
+      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after the refresh attempt`);
       this.#notedLater = true;
       return;
     }

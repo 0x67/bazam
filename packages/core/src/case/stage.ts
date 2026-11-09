@@ -35,7 +35,8 @@ export function canPromote(spec: CaseSpec, latest: CaseResult | undefined): Prom
   if (spec.stage !== "acceptance") {
     return { ok: false, reason: `${spec.id} is in stage ${spec.stage}; only acceptance cases are promoted` };
   }
-  if (latest === undefined) return { ok: false, reason: `${spec.id} has no result in this environment` };
+  if (latest === undefined)
+    return { ok: false, reason: `${spec.id} has no result in this environment; run it there first` };
   if (latest.status !== "pass") {
     return {
       ok: false,

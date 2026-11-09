@@ -14,7 +14,7 @@
 6. `env`: `{}` when left out. Values take `${env.NAME}`, `${secret.NAME}` and `${run.…}` placeholders: `${run.id}`, `${run.time}` and `${run.random(min, max, decimals)}`.
 7. `timeoutMinutes`: 60 when left out.
 8. `prodSafe`: `false` when left out. Without it, a run in an env with `production: true` asks before it starts the runner.
-9. `identities`: every identity in the config when left out. A runner that names an unknown one gets `runner <name> lists identity <id>, which identities does not define`.
+9. `identities`: every identity in the config when left out. A runner that names an unknown one gets `runner <name> lists identity <id>, which is not defined under identities`.
 
 A runner name takes letters, digits, dots, dashes and underscores, starting with a letter or digit.
 

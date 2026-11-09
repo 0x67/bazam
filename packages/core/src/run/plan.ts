@@ -18,7 +18,7 @@ import { assertProdSafe, findPlaceholders, ProdCaseRefused, type Environment } f
 import type { PluginRegistry } from "../plugin/index.ts";
 import { externalCaseProblem, runnerOf, type Project, type RunnerConfig } from "../project.ts";
 
-// request steps and api checks send as the identity's api surface (see driver/http.ts::httpSteps)
+// request steps and api checks send with the identity's credential for the api surface (see driver/http.ts::httpSteps)
 const API_SURFACE = "api";
 const HTTP_KINDS: ReadonlySet<string> = new Set(["request", "api"]);
 /** The step of the target's driver that a challenge's value answer is filled with. */

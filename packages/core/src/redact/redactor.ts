@@ -68,7 +68,7 @@ export class Redactor {
     };
   }
 
-  /** Also masks the value's URL-encoded, form-encoded and base64 forms. */
+  /** Masks the value and its URL-encoded, form-encoded and base64 forms from now on, if it has 4 characters or more. */
   register(value: string): void {
     if (value.length < MIN_REGISTERED_LENGTH) return;
     const forms = [value, encodeURIComponent(value), formEncoded(value), Buffer.from(value, "utf8").toString("base64")];
@@ -184,7 +184,7 @@ function patternError(source: string): string | undefined {
 }
 
 interface Repeats {
-  /** Holds a repeat whose count can vary by more than one, such as +, * or {1,4}. */
+  /** Holds a repeat whose count can vary and can go above one, such as +, * or {1,4}; ? does not count. */
   varies: boolean;
   /** Holds a repeat with no upper bound. */
   unbounded: boolean;
@@ -192,7 +192,7 @@ interface Repeats {
 
 /**
  * True when a group that holds a varying repeat is itself repeated without bound, or a group that holds an unbounded
- * repeat is repeated more than once: the shapes that backtrack exponentially, as in (\\w+\\s?)+ or (\\d{1,4})+.
+ * repeat is repeated more than once: the shapes that backtrack exponentially, as in (\w+\s?)+ or (\d{1,4})+.
  * The source must be a valid regular expression with the u flag.
  */
 function repeatsARepeat(source: string): boolean {
@@ -267,7 +267,7 @@ interface Stretch {
   configured: boolean;
 }
 
-// a match counts when its mask changes it, so an email at a test domain or an empty match is none
+// a match counts when it is not empty and its mask changes it, so an email at a test domain is none
 function matchesOf(text: string, rules: readonly PatternRule[], configured: boolean): Stretch[] {
   return rules.flatMap((rule) =>
     [...text.matchAll(rule.pattern)]

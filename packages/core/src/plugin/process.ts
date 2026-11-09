@@ -41,7 +41,10 @@ export class PluginCallFailed extends Error {
 /** The plugin's process ended; every pending and later call fails with this. */
 export class PluginProcessExited extends PluginCallFailed {}
 
-/** The plugin did not answer within the entry's `timeoutSeconds`; the host sent `$/cancelRequest`. */
+/**
+ * The plugin did not answer within the entry's `timeoutSeconds`, or within 30 s for `initialize`; the host sent
+ * `$/cancelRequest`.
+ */
 export class PluginCallTimedOut extends PluginCallFailed {}
 
 /** A started process plugin, whose manifest holds proxies that call the process. */
@@ -67,7 +70,10 @@ export interface ProcessPluginOptions {
   root: string;
   /** The plugin API version the registry provides, sent in `initialize`. */
   apiVersion: number;
-  /** The caller's masking log; gets each stderr line and `host.log` line as `plugin <name>: <line>`. */
+  /**
+   * The caller's masking log; gets each stderr line and `host.log` line as `plugin <name>: <line>`, with the command
+   * line as the name until the host accepts the plugin's `initialize` answer.
+   */
   log(line: string): void;
   /** Masks the stderr lines a failed load quotes. */
   redactor: Redactor;
@@ -75,8 +81,9 @@ export interface ProcessPluginOptions {
 
 /**
  * Spawns the entry's command, sends `initialize` and returns the plugin with its contributions as proxies. Throws when
- * the process cannot start, exits or stalls before it answers, speaks another protocol version or offers a type a
- * process plugin cannot; the process is ended first.
+ * the process cannot start, exits or stalls before it answers, speaks another protocol version, answers with a result
+ * that does not match the protocol, offers a type a process plugin cannot, or gives a step a schema that cannot be
+ * read; the process is ended first.
  */
 export async function startProcessPlugin(
   entry: ProcessPluginEntry,

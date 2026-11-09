@@ -13,7 +13,7 @@ export type StepEvidence = Pick<EvidenceStore, "record" | "note" | "followup" | 
 
 export interface StepContext {
   session: DriverSession;
-  /** The identity the step runs as; undefined when neither the step nor its flow names one. */
+  /** The identity the step runs as, its own or one inherited from a `use`, challenge or guided step; else undefined. */
   identity?: string;
   env: Environment;
   evidence: StepEvidence;
@@ -48,7 +48,7 @@ export interface DriverSession {
   browserFor?(identity: string): Promise<BrowserSession>;
   /** Present when the driver offers browser.login. */
   browserLogin?: BrowserLogin;
-  /** Attaches a trace to `ending.evidence` when `ending.status` is not pass. */
+  /** Ends the session; a driver that records traces attaches them to `ending.evidence` unless `ending.status` is pass. */
   close(ending: CaseEnding): Promise<void>;
 }
 

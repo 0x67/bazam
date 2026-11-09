@@ -44,7 +44,7 @@ export interface CaseMeta {
   startedAt: Date;
 }
 
-/** Collects one case's evidence in `<runDir>/<caseId>/` and masks everything it writes. */
+/** Collects one case's evidence in `<runDir>/<caseId>/`; it masks text and JSON but writes png and zip unchanged. */
 export class EvidenceStore {
   readonly #dir: string;
   readonly #caseId: string;

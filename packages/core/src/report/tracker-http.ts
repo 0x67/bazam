@@ -6,7 +6,8 @@ const MAX_ATTEMPTS = 4;
 const FIRST_WAIT_MS = 1000;
 const MAX_WAIT_MS = 60_000;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost"]);
-const UNAUTHORIZED_HINT = "; check that the API token has not expired, and for a scoped token set the tracker's api";
+const UNAUTHORIZED_HINT =
+  "; check that the API token has not expired, and for a scoped token set trackers.<tracker>.api";
 
 export interface TrackerRequest {
   method: string;

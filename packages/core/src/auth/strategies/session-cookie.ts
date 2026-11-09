@@ -65,7 +65,7 @@ export function loginPrompt(strategy: string, identity: string, person: PersonLo
 const SessionCookieConfig = z.strictObject({
   login: z.strictObject({
     url: z.url(),
-    /** The flow that runs before the person acts, such as one that enters the email. */
+    /** The flow that logs in; with `person`, it runs the steps before the person acts, such as entering the email. */
     flow: z.string().min(1).optional(),
     until: z.union([z.strictObject({ cookie: z.string().min(1) }), z.strictObject({ urlMatches: z.string().min(1) })]),
     person: PersonLogin.optional(),
@@ -181,7 +181,7 @@ function storedCookies(state: StorageState): StoredCookie[] {
   return z.array(StoredCookie).parse(state.cookies);
 }
 
-/** Sends the cookies a browser would send to the request's URL. */
+/** Sets the Cookie header to the cookies a browser would send to the request's URL. */
 function setCookieHeader(request: HttpRequestDraft, state: StorageState): void {
   const header = storedCookies(state)
     .filter((cookie) => isSentTo(cookie, request.url, Date.now()))

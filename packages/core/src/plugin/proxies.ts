@@ -109,7 +109,7 @@ function trackerClientProxy(call: PluginCall, within: Within, tracker: string): 
       const { connection } = await within(ctx, (contextId) =>
         call("trackerClient.connect", { tracker, contextId, config: ctx.config }, ctx.signal),
       );
-      // the context connect got is registered afresh for each call on the connection
+      // each call on the connection registers connect's context again, under a fresh contextId
       const on = <T>(run: (ids: { tracker: string; connection: string; contextId: string }) => Promise<T>) =>
         within(ctx, (contextId) => run({ tracker, connection, contextId }));
       const proxy: TrackerConnection = {
@@ -154,7 +154,7 @@ function driverProxy(
     schema: stepSchema(plugin, kind, schema),
     async run(step, ctx) {
       const session = sessions.get(ctx.session);
-      if (session === undefined) throw new Error(`driver ${driver} did not launch the session step ${kind} runs in`);
+      if (session === undefined) throw new Error(`step ${kind} runs in a session that driver ${driver} did not launch`);
       await within(ctx, (contextId) =>
         call(
           "driver.step",

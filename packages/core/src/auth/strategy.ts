@@ -42,7 +42,7 @@ export interface AuthStrategy<Config, Credential extends JsonValue> {
   cacheable: boolean;
   keepaliveMs?: number;
   /**
-   * True when acquire waits for a person, so preflight asks for it after the scripted logins. Gets the
+   * True when acquire waits for a person, so preflight runs that login after the scripted ones. Gets the
    * surface's `with:` settings as written, placeholders unresolved, so planning fetches no secret.
    */
   needsPerson?(settings: Readonly<Record<string, unknown>>): boolean;

@@ -43,7 +43,7 @@ function challengeSteps(identity: string, kind: ChallengeKindSpec, ask: Ask): st
 function challengeAnswer(answer: PersonAnswer, ask: Ask, timeoutMs: number): ChallengeAnswer {
   switch (answer.kind) {
     case "value":
-      // the value is dropped unread, so a human-only kind never carries a secret back
+      // an action ask drops the value unread, so a human-only kind never carries a secret back
       if (ask === "value") return { kind: "value", value: answer.value };
       throw new Error("the person sent a value, but this challenge only takes done");
     case "done":

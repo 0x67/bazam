@@ -133,7 +133,7 @@ export interface SuiteRecord {
  */
 export async function recordSuite(record: SuiteRecord): Promise<{ results: CaseResult[]; unmapped: UnmappedTest[] }> {
   const { project, target } = record;
-  // the run suites only cases the plan gave a runner, and ingestResults checks its target first
+  // the run builds a suite only from cases the plan gave a runner, and ingestResults checks its target first
   const { name, runner } = runnerOf(project.config, target)!;
   const tests: ExternalTest[] = [];
   const errors: string[] = [];

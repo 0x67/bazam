@@ -15,7 +15,9 @@ export class RefreshLockTimeout extends Error {
   readonly pid: number | undefined;
 
   constructor(pid: number | undefined) {
-    super(`refresh lock held by pid ${pid ?? "unknown"}`);
+    super(
+      `timed out waiting for the refresh lock held by pid ${pid ?? "unknown"}; wait for that process to finish or stop it`,
+    );
     this.name = "RefreshLockTimeout";
     this.pid = pid;
   }

@@ -105,7 +105,7 @@ interface Registered<T> {
 }
 
 interface RegisteredStep extends Registered<StepHandler> {
-  /** Undefined for a plugin step. */
+  /** Undefined for a core or plugin step, which no driver owns. */
   driver: Driver | undefined;
 }
 
@@ -309,7 +309,9 @@ function namedItems<T>(
   return value.map((item: T) => {
     const itemName: unknown = typeof item === "object" && item !== null ? name(item) : undefined;
     if (typeof itemName !== "string" || itemName === "")
-      throw new Error(`plugin "${plugin}" has an entry with no ${noun}`);
+      throw new Error(
+        `plugin "${plugin}": an entry in ${field} cannot be registered as a ${noun} because its identifier is missing or empty`,
+      );
     return [itemName, item];
   });
 }
@@ -339,8 +341,8 @@ function packageEntry(root: string, name: string): string {
 }
 
 /**
- * The redactor that masks process plugin stderr, with the values that declared secrets have in this environment
- * registered, since every process plugin inherits them.
+ * The redactor that masks process plugin stderr, with the `process.env` value of each declared secret registered,
+ * since every process plugin inherits `process.env`.
  */
 function processRedactor(config: ProjectConfig, given: Redactor | undefined): Redactor {
   let redactor = given;

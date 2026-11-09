@@ -43,7 +43,9 @@ const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  */
 const ServiceRequest = z.strictObject({
   kind: z.string().min(1),
-  caseId: z.string().regex(PLAIN_NAME, { error: "caseId must be letters, digits, dots, dashes and underscores" }),
+  caseId: z.string().regex(PLAIN_NAME, {
+    error: "caseId must be letters, digits, dots, dashes and underscores, starting with a letter or digit",
+  }),
   params: z.record(z.string(), z.string()).default({}),
   identity: z.string().min(1).default("tester"),
   step: z.int().positive().default(1),
@@ -89,10 +91,11 @@ interface Reply {
 }
 
 /**
- * Serves `POST /challenge` on loopback for tests outside the runner: 200 `{ value }` or `{ done: true }`,
- * or a status with `{ error }`. 401 without the token, 404 and 405 off the endpoint, 413 for a body over
- * 16 KiB, 400 for a body that is not a request or names an unknown kind, 500 for a resolver chain the
- * config gets wrong, 502 when the chain gives no answer and 504 when the person does not answer in time.
+ * Serves `POST /challenge` on loopback for the external suites that `exec` and runner targets start: 200 `{ value }`
+ * or `{ done: true }`, or a status with `{ error }`. 401 without the token, 404 and 405 off the endpoint, 413 for a
+ * body over 16 KiB, 400 for a body that is not a request or names an unknown kind, 500 for a resolver chain the
+ * config gets wrong, 502 when the chain gives no answer, 503 once the service is closing and 504 when the person
+ * does not answer in time.
  * The trigger already ran in the caller's test, so no resolver is armed. Requests run side by side, but the
  * person gets their prompts one at a time, in the order asked.
  */
@@ -225,7 +228,7 @@ function failure(status: number, error: string): Reply {
 
 function send(res: ServerResponse, status: number, body: Reply["body"]): void {
   if (res.destroyed) return;
-  // a body cut short at the limit leaves bytes the connection cannot be reused after
+  // the client may still be sending an oversized body, so the 413 reply closes the connection
   const close = status === 413 ? { connection: "close" } : {};
   res.writeHead(status, { "content-type": "application/json", ...close }).end(JSON.stringify(body));
 }
@@ -255,7 +258,7 @@ function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   });
 }
 
-/** Masks the prompt the caller wrote into, and counts a timeout, which humanResolver reports only as text. */
+/** Masks the title and steps built from the caller's request, and flags a timeout, which humanResolver reports only as text. */
 function personChannel(queued: HumanChannel, redactor: Redactor, person: { timedOut: boolean }): HumanChannel {
   return {
     async ask(prompt, signal) {

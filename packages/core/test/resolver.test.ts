@@ -267,7 +267,9 @@ describe("resolveChallenge", () => {
 
   it("blocks instead of falling back to a person after trigger for pin", async () => {
     const channel = channelAnswering({ kind: "value", value: "2468" });
-    const missing = new Error("secret DEMO_PIN: no value from providers [env, dotenv]");
+    const missing = new Error(
+      "secret DEMO_PIN: no value from providers [env, dotenv]; set it in one of them or add the provider that holds it to secrets.providers",
+    );
     const chain = [stubResolver("pin-secret", { answer: missing }), humanResolver];
 
     const resolving = resolveChallenge(requestFor("pin"), builtinKind("pin"), chain, context({ channel }), noTrigger);
