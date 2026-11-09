@@ -183,7 +183,7 @@ class JiraConnection implements TrackerConnection {
     return { key: bug, url: this.#browse(bug) };
   }
 
-  // admins can rename link types, so the configured name is looked up once per connection
+  // admins can rename link types, so the configured name is checked against the site's link types, fetched once per connection
   async #link(bug: string, project: string, keys: readonly string[]): Promise<void> {
     const name = this.#ctx.config.projects[project]?.bugs?.linkType ?? "Relates";
     this.#linkTypes ??= arrayAt(
@@ -193,7 +193,9 @@ class JiraConnection implements TrackerConnection {
       .map((type) => at(type, "name"))
       .filter((type) => typeof type === "string");
     if (!this.#linkTypes.includes(name)) {
-      this.#ctx.log(`no issue link type named ${name}`);
+      this.#ctx.log(
+        `no issue link type named ${name}, so ${bug} is not linked to ${keys.join(", ")}; set trackers.jira.projects.${project}.bugs.linkType to a link type the site has`,
+      );
       return;
     }
     for (const key of keys)
@@ -255,7 +257,7 @@ function arrayAt(value: unknown, key: string): unknown[] {
   return Array.isArray(found) ? (found as unknown[]) : [];
 }
 
-// the value under the keys, or undefined where a step is not an object
+// the value at the key path, or undefined once a value on the way is not an object
 function at(value: unknown, ...keys: string[]): unknown {
   let current = value;
   for (const key of keys) {

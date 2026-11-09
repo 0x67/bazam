@@ -332,7 +332,9 @@ describe("jiraClient", () => {
 
     expect(bug.key).toBe("DEMO-14");
     expect(sent()).not.toContain("POST /rest/api/3/issueLink");
-    expect(logs).toContain("no issue link type named Caused by");
+    expect(logs).toContain(
+      "no issue link type named Caused by, so DEMO-14 is not linked to DEMO-12; set trackers.jira.projects.DEMO.bugs.linkType to a link type the site has",
+    );
   });
 
   it("sends the paragraph that names the run when the evidence is over 30,000 characters", async () => {

@@ -5,7 +5,7 @@ import { checkResult, followupText, renderJiraAdf, resultSubject, type AdfDoc } 
 type MediaRef = MediaRefs[string];
 
 /**
- * The comment opens with the result line, then follow-ups for a person, then the evidence.
+ * The comment opens with the result line and any reason, then follow-ups for a person, then the evidence.
  * The HTML folds the evidence and shows a screenshot inline when `media` holds its uploaded id.
  * Markdown has no fold or media embed (the Atlassian connector stores HTML tags in Markdown as
  * literal text), so its evidence goes under a heading and it lists every file by name. ADF, which
@@ -77,7 +77,7 @@ function htmlList(label: string, items: readonly string[]): string {
   return `<p>${label}</p><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
-// the caption is the file name without its number and extension
+// the caption is the file name without its leading number and extension, with dashes as spaces
 function figure(name: string, ref: MediaRef): string {
   const caption = name
     .replace(/^\d+-/, "")
