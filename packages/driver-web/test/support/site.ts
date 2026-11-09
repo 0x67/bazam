@@ -149,6 +149,13 @@ export async function runSteps(ctx: StepContext, steps: readonly Step[]): Promis
   }
 }
 
+/** Runs `steps`, then short waits until a step throws, for a refusal that lands after the step that caused it. */
+export async function runUntilThrown(ctx: StepContext, steps: readonly Step[], timeout = 10_000): Promise<void> {
+  await runSteps(ctx, steps);
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) await runSteps(ctx, [{ wait: { ms: 50 } }]);
+}
+
 export function newEvidence(runDir: string, caseId: string): EvidenceStore {
   return new EvidenceStore(runDir, caseId, new Redactor(defaultRedactionRules()));
 }

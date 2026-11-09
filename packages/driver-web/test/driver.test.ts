@@ -20,6 +20,7 @@ import {
   launch,
   newEvidence,
   runSteps,
+  runUntilThrown,
   startSite,
   stepContext,
   tempDir,
@@ -420,7 +421,7 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const ctx = stepContext(session, { env, evidence, root });
     await runSteps(ctx, [{ open: `${site.origin}/` }]);
 
-    const refused = runSteps(ctx, [{ tap: { text: "Help" } }, { wait: { ms: 300 } }]);
+    const refused = runUntilThrown(ctx, [{ tap: { text: "Help" } }]);
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
     expect(site.requests.map((request) => request.path)).not.toContain("/direct");
@@ -431,7 +432,7 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const ctx = stepContext(session, { env, evidence, root });
     await runSteps(ctx, [{ open: `${site.origin}/` }]);
 
-    const refused = runSteps(ctx, [{ tap: { role: "button", name: "Popup" } }, { wait: { ms: 300 } }]);
+    const refused = runUntilThrown(ctx, [{ tap: { role: "button", name: "Popup" } }]);
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
   });

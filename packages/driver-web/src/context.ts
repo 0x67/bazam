@@ -134,6 +134,8 @@ export class GuardedContext {
   }
 
   async close(): Promise<void> {
+    // WebKit sends a request still paused in a route once its page goes, and unrouting lets the rest through
+    await this.context.setOffline(true);
     // a request still in a route handler would fail once the context is gone
     await this.context.unrouteAll({ behavior: "ignoreErrors" });
     await this.context.close();
