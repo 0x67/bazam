@@ -148,7 +148,9 @@ describe("runs over MCP", () => {
         counts: { pass: 1, total: 1 },
       });
       const answered = await mcp.call("prompt_answer", { runId, promptId: prompt.id, answer: PASS });
-      expect(textOf(answered)).toBe(`prompt ${prompt.id} is not pending in run ${runId}`);
+      expect(textOf(answered)).toBe(
+        `prompt ${prompt.id} is not pending in run ${runId}; prompt_list shows the prompts still waiting`,
+      );
     },
     SPAWN_TIMEOUT_MS,
   );

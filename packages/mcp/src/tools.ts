@@ -31,7 +31,7 @@ const DEFAULT_PLUGINS: readonly PluginManifest[] = [driverWeb, resolvers, jira];
 const ANSWERS_CHANNEL = "answers-file";
 // seven digits at most, so the redactor's rule for runs of eight or more leaves the seed readable
 const RANDOM_SEED_LIMIT = 10_000_000;
-// one level under cases/, the only files the loader reads
+// cases/<domain>/<name>.yaml, the only depth at which the loader reads case files
 const DRAFT_PATH = /^cases\/([A-Za-z0-9][A-Za-z0-9._-]*)\/[A-Za-z0-9][A-Za-z0-9._-]*\.yaml$/;
 
 export interface ToolDeps {
@@ -87,11 +87,14 @@ const Filter = z
     tags: Names,
   })
   .describe(
-    "Each field narrows the selection, and a case matches a field when any of its values matches. Without stages, only the stages that run are selected.",
+    "Each field narrows the selection, and a case matches a field when any of its values matches. Without stages, run_plan and run_start leave retired cases out, and cases_search keeps every stage.",
   );
 
 const Env = z.string().min(1).describe(`An env from ${BRAND.configFile}.`);
-const RunId = z.string().regex(PLAIN_NAME).describe("The run id run_start returned.");
+const RunId = z
+  .string()
+  .regex(PLAIN_NAME)
+  .describe("A run id: the one run_start returned, or the name of a folder under runs/.");
 
 const Answer = z
   .discriminatedUnion("kind", [
@@ -111,13 +114,13 @@ export const caseTools: readonly ToolDefinition[] = [
   defineTool({
     name: "cases_search",
     description:
-      "Finds existing cases, every stage included, so a ticket extends the case for its behavior instead of adding another.",
+      "Finds existing cases in every stage, retired ones included, unless the filter names stages. Search before case_draft, and extend the case that already covers a ticket's behavior instead of adding another.",
     input: z.object({
       text: z
         .string()
         .default("")
         .describe(
-          "Words that must all appear in the case (id, title, domain, links, tags, steps or checks), any case.",
+          "Words that must all appear somewhere in the case, such as its id, title, domain, links, tags, steps or checks; letter case does not matter.",
         ),
       filter: Filter.default({}),
     }),
@@ -169,7 +172,8 @@ export const caseTools: readonly ToolDefinition[] = [
   }),
   defineTool({
     name: "case_promote",
-    description: "Moves an acceptance case to regression when its latest result in the env passed.",
+    description:
+      "Moves an acceptance case to regression when its latest result in the env passed and it is not a once case. Otherwise the reply has ok: false and the reason.",
     input: z.object({ id: z.string().regex(CASE_ID), env: Env }),
     async handle({ id, env }, deps) {
       const { project } = await loadWorkspace(deps);
@@ -218,7 +222,9 @@ export const caseTools: readonly ToolDefinition[] = [
         .min(0)
         .max(Number.MAX_SAFE_INTEGER)
         .exactOptional()
-        .describe("The seed of an earlier run to replay its generated values."),
+        .describe(
+          "The seed of an earlier run, to replay its generated values: the seed field of any case's result.json from that run, which evidence_get returns.",
+        ),
     }),
     async handle({ filter, env, seed }, deps) {
       // refuse here what the run would refuse, so the error reaches the agent instead of a log file
@@ -287,11 +293,11 @@ export const caseTools: readonly ToolDefinition[] = [
   defineTool({
     name: "report_plan",
     description:
-      "The run's post plan: one tracker comment per case and ticket, to post with a tracker connector and then acknowledge with report_ack.",
+      "The run's post plan: one tracker comment per linked ticket for every acceptance result and for each regression result that failed or was blocked. Post each comment with a tracker connector, or edit the comment at edit.url when the item has one, then acknowledge it with report_ack.",
     input: z.object({
       runId: RunId,
       media: MediaRefs.exactOptional().describe(
-        "Media uploaded to the tracker first, keyed by attachment path relative to the run directory.",
+        "Screenshots already uploaded to the tracker, keyed by the path in an item's attachments (<case-id>/<file>, relative to the run directory), so the comment's html shows them inline.",
       ),
     }),
     async handle({ runId, media }, deps) {
@@ -323,7 +329,7 @@ export const caseTools: readonly ToolDefinition[] = [
   defineTool({
     name: "report_ack",
     description:
-      "Records the URL of a posted comment, so the next post plan for that case and ticket edits it instead of posting again.",
+      "Records the URL of a posted comment. When the case sets report.comment to update, the next post plan for that case and ticket edits this comment instead of posting a new one.",
     input: z.object({
       marker: z.string().min(1).describe(`The item's marker, ${BRAND.markerPrefix}:<case-id>:<run-id>.`),
       ticket: z
@@ -395,8 +401,9 @@ function issueReport(issues: readonly LoadIssue[]) {
 
 /**
  * Loads and checks a copy of the project with the draft in place, since the loader reads only from disk. An error
- * blocks the write when it is in the draft or new next to the same copy without the draft, so errors the project
- * already had, and the git-based state-ignored rule that a copy outside the repository fails, block nothing.
+ * blocks the write when it is in the draft, or when the same copy without the draft does not have it. Errors the
+ * project already had block nothing, and neither does the state-ignored rule, which in a copy outside the repository
+ * cannot ask git and reads only the copy's root .gitignore.
  */
 async function draftCase(deps: ToolDeps, file: string, yaml: string) {
   const root = deps.projectRoot;
@@ -496,7 +503,7 @@ async function writeAtomically(file: string, text: string): Promise<void> {
   await rename(temp, file);
 }
 
-/** The results of the run's cases in the order they started; preflight, prompts and answers are no case. */
+/** The run's case results in the order they started; the preflight, prompts and answers folders hold no case. */
 async function readResults(runDir: string, runId: string): Promise<CaseResult[]> {
   let found;
   try {
@@ -522,7 +529,9 @@ async function readPostPlan(runDir: string): Promise<PostPlan> {
   try {
     plan = JSON.parse(await readFile(file, "utf8")) as Partial<PostPlan>;
   } catch (error) {
-    throw new ToolError(`cannot read ${file}: ${(error as Error).message}`);
+    throw new ToolError(
+      `cannot read ${file}: ${(error as Error).message}; the run writes it when it finishes, so call report_ack again once run_status shows the run finished`,
+    );
   }
   if (!Array.isArray(plan.items)) throw new ToolError(`${file} has no items`);
   return plan as PostPlan;

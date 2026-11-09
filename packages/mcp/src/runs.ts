@@ -161,7 +161,9 @@ export class RunSupervisor {
     if (!PLAIN_NAME.test(promptId)) throw new Error(`prompt id "${promptId}" is not a plain file name`);
     const promptFile = join(runDir, "prompts", `${promptId}.json`);
     const prompt = await readJson<PersonPrompt>(promptFile);
-    if (prompt === undefined) throw new Error(`prompt ${promptId} is not pending in run ${runId}`);
+    if (prompt === undefined) {
+      throw new Error(`prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`);
+    }
     if ((await this.#process(runId)).ended) {
       throw new Error(`run ${runId} has stopped, so prompt ${promptId} can no longer be answered`);
     }
@@ -174,7 +176,9 @@ export class RunSupervisor {
     // once the prompt has timed out or the process has ended, nothing claims the answer, so take it back unless the
     // run claimed it first
     if (existsSync(promptFile) && !(await this.#process(runId)).ended) return;
-    if (await removeFile(answerFile)) throw new Error(`prompt ${promptId} is not pending in run ${runId}`);
+    if (await removeFile(answerFile)) {
+      throw new Error(`prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`);
+    }
   }
 
   /** The run's process as supervisor.json and this supervisor know it; a run started some other way has no record. */
