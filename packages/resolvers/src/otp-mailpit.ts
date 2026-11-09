@@ -37,10 +37,11 @@ interface Found {
 }
 
 /**
- * Answers `otp-email` from a Mailpit inbox with the first capture of `params.pattern` in the newest mail
- * to `params.recipient` that arrived after arm. Optional params and their defaults: `url` (Mailpit's base URL,
- * http://localhost:8025), `searchPath` (/api/v1/search), `messagePath` (/api/v1/message), `pattern`
- * (\b(\d{6})\b) and `timeoutSeconds` (30), how long arm and resolve each wait before they give up.
+ * Answers `otp-email` from a Mailpit inbox with the first capture of `params.pattern` in the newest mail to
+ * `params.recipient` that holds a match and arrived after arm; without arm, as through the challenge service, it
+ * also takes mail from up to 30 seconds before Mailpit's first answer. Optional params and their defaults: `url`
+ * (Mailpit's base URL, http://localhost:8025), `searchPath` (/api/v1/search), `messagePath` (/api/v1/message),
+ * `pattern` (\b(\d{6})\b) and `timeoutSeconds` (30), how long arm and resolve each wait before they give up.
  */
 export const mailpitResolver: ChallengeResolver = {
   name: "otp-mailpit",
@@ -50,7 +51,10 @@ export const mailpitResolver: ChallengeResolver = {
   async arm(request, ctx) {
     const inbox = inboxOf(request.params);
     const held = await withTimeout(inbox, ctx.signal, (stop) => search(ctx.http, inbox, stop));
-    if (held === undefined) throw new Error(`Mailpit did not answer within ${inbox.timeoutMs / 1000} s`);
+    if (held === undefined)
+      throw new Error(
+        `Mailpit did not answer within ${inbox.timeoutMs / 1000} s at ${inbox.url}; check that params.url points at Mailpit, or raise params.timeoutSeconds if it is slow`,
+      );
     heldAtArm.set(request, new Set(held.mail.map((mail) => mail.id)));
   },
   async resolve(request, ctx) {
@@ -74,7 +78,7 @@ function inboxOf(params: Readonly<Record<string, string>>): Inbox {
     throw new Error("otp-mailpit needs params.recipient, the address the code is mailed to");
   const timeoutSeconds = Number(params["timeoutSeconds"] ?? DEFAULT_TIMEOUT_SECONDS);
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 0)
-    throw new Error("otp-mailpit params.timeoutSeconds is not a number of seconds");
+    throw new Error("otp-mailpit params.timeoutSeconds takes a number of seconds, 0 or more");
   return {
     url: (params["url"] ?? DEFAULT_URL).replace(/\/+$/, ""),
     searchPath: params["searchPath"] ?? DEFAULT_SEARCH_PATH,
@@ -133,7 +137,7 @@ async function findCode(
 async function search(http: GuardedHttp, inbox: Inbox, stop: AbortSignal): Promise<Found> {
   const url = new URL(`${inbox.url}${inbox.searchPath}`);
   url.searchParams.set("query", `to:"${inbox.recipient}"`);
-  // Mailpit's to: search matches any address that contains the term, so joann@ also matches ann@
+  // Mailpit's to: search matches any address that contains the term, so a search for ann@ also finds joann@
   const recipient = inbox.recipient.toLowerCase();
   const response = await getJson(http, url, stop);
   const mail = summaries(response.body)
@@ -166,7 +170,9 @@ interface MessageSummary {
 function summaries(body: unknown): MessageSummary[] {
   const messages = isRecord(body) ? body["messages"] : undefined;
   if (Array.isArray(messages) && messages.every(isSummary)) return messages;
-  throw new Error("the Mailpit search answer has no messages list with ID, Created and To");
+  throw new Error(
+    "the Mailpit search answer has no messages list with ID, Created and To; check that params.url and params.searchPath point at Mailpit's search API",
+  );
 }
 
 function isSummary(value: unknown): value is MessageSummary {
@@ -182,7 +188,9 @@ function isSummary(value: unknown): value is MessageSummary {
 function textOf(body: unknown): string {
   const text = isRecord(body) ? body["Text"] : undefined;
   if (typeof text === "string") return text;
-  throw new Error("the Mailpit message answer has no Text");
+  throw new Error(
+    "the Mailpit message answer has no Text; check that params.messagePath points at Mailpit's message API",
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

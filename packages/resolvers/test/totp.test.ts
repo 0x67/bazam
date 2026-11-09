@@ -36,7 +36,9 @@ describe("totpCode", () => {
   });
 
   it("rejects a seed that is not base32 without echoing it", () => {
-    expect(() => totpCode("GEZD-1890", new Date(59_000))).toThrow(/^the TOTP seed is not base32$/);
+    expect(() => totpCode("GEZD-1890", new Date(59_000))).toThrow(
+      /^the TOTP seed is not base32, which uses only the letters A to Z and the digits 2 to 7$/,
+    );
   });
 });
 
