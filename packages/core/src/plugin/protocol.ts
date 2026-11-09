@@ -93,7 +93,7 @@ const StepCallContext = z.object({
   values: z.record(z.string(), z.string()),
 });
 
-// contextId lets a driver call host.secret, host.http and host.log while it probes or launches
+// contextId ties the call to its context
 const LaunchCallOptions = z.object({
   contextId: ContextId,
   env: WireEnv,
@@ -196,7 +196,7 @@ export const METHODS = {
       apiVersion: z.int(),
       host: z.object({ name: Name, version: z.string() }),
     }),
-    result: z.object({ name: Name, apiVersion: z.int(), contributions: Contributions }),
+    result: z.object({ protocolVersion: z.int(), name: Name, apiVersion: z.int(), contributions: Contributions }),
   },
   shutdown: { params: z.object({}), result: z.null() },
   "resolver.arm": { params: ResolverCall, result: z.null() },

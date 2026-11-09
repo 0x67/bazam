@@ -5,6 +5,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
 import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
+import type { CaseResult } from "@bazam/core/result";
 import type { RunPlan } from "@bazam/core/run";
 import { createMcpServer, serveStdio } from "../src/server.ts";
 import { RunSupervisor } from "../src/runs.ts";
@@ -215,6 +216,31 @@ describe("case tools", () => {
     expect((await readdir(join(project.root, "cases/desk"))).sort()).toEqual(["cases.yaml"]);
   });
 
+  it("case_draft checks a copy that holds the runner mapping files inside the root", async () => {
+    const project = await fixtureProject();
+    const config = JSON.parse(await project.read(BRAND.configFile)) as { targets: Record<string, unknown> };
+    const runners = {
+      desk: { command: ["node", "desk-suite.js"], results: "out/*.xml", format: "junit", mapping: "interop/desk.yaml" },
+    };
+    const targets = { ...config.targets, "desk-suite": { runner: "desk" } };
+    await project.write(BRAND.configFile, JSON.stringify({ ...config, runners, targets }));
+    await project.write("interop/desk.yaml", "tests:\n  shelf holds books: DESK-SHELF-001\n");
+    const mcp = await open(project.root);
+
+    // the drafted case runs on no target of runner desk, which only a copy holding the mapping file can see
+    const report = await mcp.json<DraftReport>("case_draft", { file: "cases/desk/shelf.yaml", yaml: SHELF_CASE });
+
+    expect(report.written).toBe(false);
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        ruleId: "runner-mapping-valid",
+        file: "interop/desk.yaml",
+        message: 'test "shelf holds books" maps to case DESK-SHELF-001, which does not run on a target of runner desk',
+      }),
+    );
+    expect(existsSync(join(project.root, "cases/desk/shelf.yaml"))).toBe(false);
+  });
+
   it("case_check reports the issues, only in the files named", async () => {
     const project = await fixtureProject();
     await project.write("cases/attic/cases.yaml", "cases:\n  - id: ATTIC-BOX-001\n");
@@ -240,6 +266,39 @@ describe("case tools", () => {
       expect(textOf(none)).toBe("no case matches the selection");
     }
     expect(existsSync(join(project.root, "runs"))).toBe(false);
+  });
+
+  it("report_plan leaves the adf body out of each comment", async () => {
+    const project = await fixtureProject();
+    const runId = "20261107-120000-abcd";
+    const result: CaseResult = {
+      runId,
+      caseId: "DESK-LOOK-001",
+      title: "A person looks at the desk",
+      stage: "acceptance",
+      env: "demo",
+      target: "t",
+      links: ["jira:TD-1"],
+      status: "pass",
+      checks: [{ name: "Look at the desk", kind: "guided", expected: "The desk is tidy", observed: "tidy", ok: true }],
+      notes: [],
+      followups: [],
+      attachments: [],
+      challenges: [],
+      identities: [],
+      seed: 7,
+      values: {},
+      startedAt: "2026-11-07T12:00:00.000Z",
+      finishedAt: "2026-11-07T12:00:05.000Z",
+      durationMs: 5000,
+    };
+    await project.write(`runs/${runId}/DESK-LOOK-001/result.json`, JSON.stringify(result));
+    const mcp = await open(project.root);
+
+    const plan = await mcp.json<{ items: { comment: Record<string, unknown> }[] }>("report_plan", { runId });
+
+    expect(plan.items).toHaveLength(1);
+    expect(Object.keys(plan.items[0]!.comment).sort()).toEqual(["html", "markdown"]);
   });
 
   it("evidence_get returns the result, the attachment paths and, when asked, the screenshots as images", async () => {

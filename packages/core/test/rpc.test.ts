@@ -313,6 +313,7 @@ describe("METHODS", () => {
   it("keeps contribution types it does not know, so the loader can name them", () => {
     const step = z.toJSONSchema(z.object({ url: z.string() }), { io: "input" });
     const result = METHODS.initialize.result.parse({
+      protocolVersion: 1,
       name: "example-plugin",
       apiVersion: 1,
       contributions: {

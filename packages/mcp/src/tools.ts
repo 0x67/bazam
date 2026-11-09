@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, posix } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { BRAND } from "@bazam/core/brand";
 import { CASE_ID, promoteCase, selectCases, Stage, type CaseFilter, type LoadIssue } from "@bazam/core/case";
 import { checkProject } from "@bazam/core/check";
 import { RunValues } from "@bazam/core/env";
 import { PluginRegistry, type PluginManifest } from "@bazam/core/plugin";
-import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project } from "@bazam/core/project";
+import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project, type ProjectConfig } from "@bazam/core/project";
 import type { Redactor } from "@bazam/core/redact";
 import {
   buildPostPlans,
@@ -39,6 +39,8 @@ export interface ToolDeps {
   projectRoot: string;
   supervisor: RunSupervisor;
   redactor: Redactor;
+  /** The registries this call loaded, which the server closes when the call ends. */
+  registries: PluginRegistry[];
 }
 
 /** What a tool hands back; the server masks it before it leaves. */
@@ -120,7 +122,7 @@ export const caseTools: readonly ToolDefinition[] = [
       filter: Filter.default({}),
     }),
     async handle({ text, filter }, deps) {
-      const { project } = await loadWorkspace(deps.projectRoot);
+      const { project } = await loadWorkspace(deps);
       const words = text.toLowerCase().split(/\s+/).filter(Boolean);
       // without stages, selectCases keeps only the stages that run, and a search covers retired cases too
       const cases = selectCases(project.cases, { stages: [...Stage.options], ...filter })
@@ -147,7 +149,7 @@ export const caseTools: readonly ToolDefinition[] = [
       yaml: z.string().describe("The whole file: a mapping with a cases list."),
     }),
     async handle({ file, yaml }, deps) {
-      return { doc: await draftCase(deps.projectRoot, file, yaml) };
+      return { doc: await draftCase(deps, file, yaml) };
     },
   }),
   defineTool({
@@ -161,7 +163,7 @@ export const caseTools: readonly ToolDefinition[] = [
         .describe("Report only the issues in these files, relative to the root with forward slashes."),
     }),
     async handle({ files }, deps) {
-      const issues = await checkIssues(deps.projectRoot);
+      const issues = await checkIssues(deps);
       return { doc: issueReport(files === undefined ? issues : issues.filter((issue) => files.includes(issue.file))) };
     },
   }),
@@ -170,7 +172,7 @@ export const caseTools: readonly ToolDefinition[] = [
     description: "Moves an acceptance case to regression when its latest result in the env passed.",
     input: z.object({ id: z.string().regex(CASE_ID), env: Env }),
     async handle({ id, env }, deps) {
-      const { project } = await loadWorkspace(deps.projectRoot);
+      const { project } = await loadWorkspace(deps);
       const target = project.cases.find((loaded) => loaded.spec.id === id);
       if (target === undefined) throw new ToolError(`no case ${id} loaded; case_check reports cases that do not load`);
       if (project.config.envs[env] === undefined) throw new ToolError(unknownEnv(project, env));
@@ -182,7 +184,7 @@ export const caseTools: readonly ToolDefinition[] = [
     description: "Shows what a run would do, with no step run and no login made.",
     input: z.object({ filter: Filter.default({}), env: Env }),
     async handle({ filter, env }, deps) {
-      const { project, registry, environment, cases } = await selectRun(deps.projectRoot, filter, env);
+      const { project, registry, environment, cases } = await selectRun(deps, filter, env);
       const startedAt = new Date();
       const runId = newRunId(startedAt, Math.random);
       const runDir = join(project.root, "runs", runId);
@@ -220,7 +222,7 @@ export const caseTools: readonly ToolDefinition[] = [
     }),
     async handle({ filter, env, seed }, deps) {
       // refuse here what the run would refuse, so the error reaches the agent instead of a log file
-      await selectRun(deps.projectRoot, filter, env);
+      await selectRun(deps, filter, env);
       return { doc: await deps.supervisor.start(filter, env, seed) };
     },
   }),
@@ -293,7 +295,7 @@ export const caseTools: readonly ToolDefinition[] = [
       ),
     }),
     async handle({ runId, media }, deps) {
-      const { project, registry } = await loadWorkspace(deps.projectRoot);
+      const { project, registry } = await loadWorkspace(deps);
       const results = await readResults(join(project.root, "runs", runId), runId);
       const [first] = results;
       if (first === undefined) throw new ToolError(`run ${runId} has no case results`);
@@ -309,8 +311,12 @@ export const caseTools: readonly ToolDefinition[] = [
         ...(media === undefined ? {} : { media }),
         now: new Date(),
       });
-      // only the comments are masked whole, as the runner does: the digit rule would break account ids and receipt URLs
-      const items = plan.items.map((item) => ({ ...item, comment: deps.redactor.value(item.comment) }));
+      // only the comments are masked whole, as the runner does: the digit rule would break account ids and receipt URLs;
+      // the agent posts the html or the markdown, so the adf body stays out of the reply
+      const items = plan.items.map(({ comment: { adf: _adf, ...comment }, ...item }) => ({
+        ...item,
+        comment: deps.redactor.value(comment),
+      }));
       return { doc: { ...plan, items }, masking: "registered" };
     },
   }),
@@ -337,21 +343,28 @@ export const caseTools: readonly ToolDefinition[] = [
   }),
 ];
 
-async function loadPlugins(root: string): Promise<PluginRegistry> {
+/** Loads the registry from the real root, where path plugins resolve, and adds it to the call's registries. */
+async function loadPlugins(deps: ToolDeps): Promise<{ config: ProjectConfig; registry: PluginRegistry }> {
+  const root = deps.projectRoot;
   const { config, issues } = await loadProjectConfig(root);
   if (config === undefined) throw new ToolError(`the project config in ${root} does not load`, issues);
-  // path plugins in the config resolve against the root, so the registry always comes from the real root
-  return PluginRegistry.load(config, root, DEFAULT_PLUGINS);
+  const registry = await PluginRegistry.load(config, root, DEFAULT_PLUGINS, {
+    // stdout carries the protocol, so plugin output goes to stderr
+    log: (line) => process.stderr.write(`${deps.redactor.text(line)}\n`),
+    redactor: deps.redactor,
+  });
+  deps.registries.push(registry);
+  return { config, registry };
 }
 
-async function loadWorkspace(root: string): Promise<{ project: Project; registry: PluginRegistry }> {
-  const registry = await loadPlugins(root);
-  return { project: await loadProject(root, registry), registry };
+async function loadWorkspace(deps: ToolDeps): Promise<{ project: Project; registry: PluginRegistry }> {
+  const { registry } = await loadPlugins(deps);
+  return { project: await loadProject(deps.projectRoot, registry), registry };
 }
 
 /** Refuses, as a run does, a project with load issues, an unknown env and a selection with no case. */
-async function selectRun(root: string, filter: CaseFilter, env: string) {
-  const { project, registry } = await loadWorkspace(root);
+async function selectRun(deps: ToolDeps, filter: CaseFilter, env: string) {
+  const { project, registry } = await loadWorkspace(deps);
   const loadErrors = project.issues.filter(isError);
   if (loadErrors.length > 0) throw new ToolError("the project has load issues; fix them and start again", loadErrors);
   const environment = project.config.envs[env];
@@ -367,10 +380,10 @@ function unknownEnv(project: Project, env: string): string {
 }
 
 /** Config issues are findings here, not a reason the check cannot run. */
-async function checkIssues(root: string): Promise<LoadIssue[]> {
-  const { config, issues } = await loadProjectConfig(root);
+async function checkIssues(deps: ToolDeps): Promise<LoadIssue[]> {
+  const { config, issues } = await loadProjectConfig(deps.projectRoot);
   if (config === undefined) return issues;
-  const { project, registry } = await loadWorkspace(root);
+  const { project, registry } = await loadWorkspace(deps);
   return checkProject(project, registry.checkRules());
 }
 
@@ -385,18 +398,19 @@ function issueReport(issues: readonly LoadIssue[]) {
  * blocks the write when it is in the draft or new next to the same copy without the draft, so errors the project
  * already had, and the git-based state-ignored rule that a copy outside the repository fails, block nothing.
  */
-async function draftCase(root: string, file: string, yaml: string) {
+async function draftCase(deps: ToolDeps, file: string, yaml: string) {
+  const root = deps.projectRoot;
   const match = DRAFT_PATH.exec(file);
   if (match === null) throw new ToolError(`"${file}" is not a case file; name it cases/<domain>/<name>.yaml`);
   // the loader skips linked domain folders, and a write through a link could land outside cases/
   await refuseLink(root, "cases");
   await refuseLink(root, `cases/${match[1]}`);
-  const registry = await loadPlugins(root);
+  const { config, registry } = await loadPlugins(deps);
   const copy = await mkdtemp(join(tmpdir(), `${BRAND.name}-draft-`));
   let before: LoadIssue[];
   let after: LoadIssue[];
   try {
-    await copyProjectFiles(root, copy);
+    await copyProjectFiles(root, copy, config);
     before = checkProject(await loadProject(copy, registry), registry.checkRules());
     await mkdir(dirname(join(copy, file)), { recursive: true });
     await writeFile(join(copy, file), yaml);
@@ -424,7 +438,7 @@ async function refuseLink(root: string, folder: string): Promise<void> {
 }
 
 /** The files loadProject reads, copied to `to` at the same paths. */
-async function copyProjectFiles(root: string, to: string): Promise<void> {
+async function copyProjectFiles(root: string, to: string, config: ProjectConfig): Promise<void> {
   const paths = [
     BRAND.configFile,
     ".gitignore",
@@ -433,6 +447,7 @@ async function copyProjectFiles(root: string, to: string): Promise<void> {
     "cases/.retired",
     ...(await yamlFiles(root, "flows")),
     ...(await caseFiles(root)),
+    ...mappingFiles(root, config),
   ];
   for (const path of paths) {
     await mkdir(dirname(join(to, path)), { recursive: true });
@@ -440,6 +455,15 @@ async function copyProjectFiles(root: string, to: string): Promise<void> {
       if (!isMissing(error)) throw error;
     });
   }
+}
+
+// each runner's mapping file, when it lies inside the root; the copy holds nothing from outside it
+function mappingFiles(root: string, config: ProjectConfig): string[] {
+  return Object.values(config.runners).flatMap(({ mapping }) => {
+    if (mapping === undefined) return [];
+    const path = relative(root, resolve(root, mapping));
+    return path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path) ? [] : [path];
+  });
 }
 
 // cases/<domain>/*.yaml, skipping domain folders whose names start with a dot, as the loader does

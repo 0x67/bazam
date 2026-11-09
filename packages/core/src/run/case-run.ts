@@ -20,6 +20,7 @@ import {
   type PlaceholderSources,
 } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
+import { PluginCallFailed } from "../plugin/process.ts";
 import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
@@ -131,7 +132,8 @@ export class CaseRun {
     try {
       await handler.run(payload, this.#context(identity));
     } catch (error) {
-      throw isBlocking(error) ? error : new StepFailed(number, kind, error);
+      // a process plugin that exits, stalls or breaks the protocol is the harness's fault, never the product's
+      throw isBlocking(error) || error instanceof PluginCallFailed ? error : new StepFailed(number, kind, error);
     }
   }
 

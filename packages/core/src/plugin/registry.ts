@@ -13,11 +13,12 @@ import type { CheckRule } from "../check/index.ts";
 import type { Driver, StepHandler } from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
 import type { ResultFormat } from "../ingest/index.ts";
-import type { ProjectConfig } from "../project.ts";
-import type { Redactor } from "../redact/index.ts";
+import { declaredSecretNames, type ProjectConfig } from "../project.ts";
+import { defaultRedactionRules, Redactor } from "../redact/index.ts";
 import { markdownTracker, type TrackerClient, type TrackerRenderer } from "../report/index.ts";
 import type { SecretProvider } from "../secrets/index.ts";
 import { builtinContributions } from "./builtin.ts";
+import { startProcessPlugin, type ProcessPlugin } from "./process.ts";
 
 export const PLUGIN_API_VERSION = 1;
 const CORE_PLUGIN = `${BRAND.scope}/core`;
@@ -114,27 +115,54 @@ export class PluginRegistry {
   readonly #registrations = Object.fromEntries(CONTRIBUTION_KEYS.map((key) => [key, new Map()])) as Registrations;
   readonly #steps = new Map<string, RegisteredStep>();
   readonly #humanOnlyKinds: ReadonlySet<string>;
+  readonly #processes: ProcessPlugin[] = [];
 
   private constructor(humanOnlyKinds: ReadonlySet<string>) {
     this.#humanOnlyKinds = humanOnlyKinds;
   }
 
-  /** Registers the core plugin, then `defaults`, then each entry of `config.plugins` in order. */
+  /**
+   * Registers the core plugin, then `defaults`, then each entry of `config.plugins` in order, starting a process for
+   * each object entry. `log` gets the stderr and `host.log` lines of process plugins and must mask them; `redactor`
+   * masks the stderr lines a failed start quotes. A load that fails closes the processes it started.
+   */
   static async load(
     config: ProjectConfig,
     projectRoot: string,
     defaults: readonly PluginManifest[],
-    _options?: { log?(line: string): void; redactor?: Redactor },
+    options: { log?(line: string): void; redactor?: Redactor } = {},
   ): Promise<PluginRegistry> {
     const root = resolve(projectRoot);
     const registry = new PluginRegistry(new Set(config.challenges.humanOnly));
     registry.#add({ name: CORE_PLUGIN, apiVersion: PLUGIN_API_VERSION, ...builtinContributions(config, root) });
     for (const manifest of defaults) registry.#add(manifest);
-    for (const entry of config.plugins) {
-      if (typeof entry !== "string") throw new Error("process plugins are not supported yet");
-      registry.#add(manifestOf(await importPlugin(entry, root), entry));
+    let redactor: Redactor | undefined;
+    try {
+      for (const entry of config.plugins) {
+        if (typeof entry === "string") {
+          registry.#add(manifestOf(await importPlugin(entry, root), entry));
+          continue;
+        }
+        redactor ??= processRedactor(config, options.redactor);
+        const plugin = await startProcessPlugin(entry, {
+          root,
+          apiVersion: PLUGIN_API_VERSION,
+          log: (line) => options.log?.(line),
+          redactor,
+        });
+        registry.#processes.push(plugin);
+        registry.#add(plugin.manifest);
+      }
+    } catch (error) {
+      await registry.close();
+      throw error;
     }
     return registry;
+  }
+
+  /** Ends every process plugin; safe to call twice. */
+  async close(): Promise<void> {
+    await Promise.all(this.#processes.splice(0).map((plugin) => plugin.close()));
   }
 
   driver(name: string): Driver {
@@ -308,6 +336,23 @@ function packageEntry(root: string, name: string): string {
   }
   // createRequire resolves from the folder of the file it is given; that file need not exist
   return createRequire(resolve(root, "package.json")).resolve(name);
+}
+
+/**
+ * The redactor that masks process plugin stderr, with the values that declared secrets have in this environment
+ * registered, since every process plugin inherits them.
+ */
+function processRedactor(config: ProjectConfig, given: Redactor | undefined): Redactor {
+  let redactor = given;
+  if (redactor === undefined) {
+    redactor = new Redactor(defaultRedactionRules());
+    redactor.configure(config.redaction);
+  }
+  for (const name of declaredSecretNames(config)) {
+    const value = process.env[name];
+    if (value) redactor.register(value);
+  }
+  return redactor;
 }
 
 function manifestOf(value: unknown, entry: string): PluginManifest {

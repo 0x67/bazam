@@ -228,14 +228,6 @@ describe("PluginRegistry.load", () => {
     );
   });
 
-  it("refuses a process plugin entry until process plugins load", async () => {
-    const entry = { command: ["python3", "plugins/otp_hook.py"] };
-
-    await expect(PluginRegistry.load(config({ plugins: [entry] }), projectRoot, [])).rejects.toThrow(
-      "process plugins are not supported yet",
-    );
-  });
-
   it("lets drivers with different names offer the same step kind", async () => {
     const playwright = fakeDriver({ name: "playwright", steps: [fakeStep("open")] });
     const selenium = fakeDriver({ name: "selenium", steps: [fakeStep("open")] });

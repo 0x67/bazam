@@ -22,7 +22,7 @@ export function createMcpServer(deps: {
   redactor: Redactor;
 }): McpServer {
   const server = new McpServer({ name: BRAND.mcpServerName, version });
-  const toolDeps: ToolDeps = { ...deps, projectRoot: resolve(deps.projectRoot) };
+  const toolDeps = { ...deps, projectRoot: resolve(deps.projectRoot) };
   for (const tool of caseTools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input }, (input) =>
       callTool(tool, input, toolDeps),
@@ -56,8 +56,16 @@ export async function serveStdio(
   }
 }
 
-/** Runs the tool and masks what it returns; a thrown error becomes a masked tool error. */
-async function callTool(tool: ToolDefinition, input: unknown, deps: ToolDeps): Promise<CallToolResult> {
+/**
+ * Runs the tool and masks what it returns; a thrown error becomes a masked tool error. Each call loads its own
+ * plugins, so the registries it loaded close when it ends.
+ */
+async function callTool(
+  tool: ToolDefinition,
+  input: unknown,
+  shared: Omit<ToolDeps, "registries">,
+): Promise<CallToolResult> {
+  const deps: ToolDeps = { ...shared, registries: [] };
   const { redactor } = deps;
   try {
     // the config can change while the server runs, so each call takes the redaction rules it holds now; a config
@@ -75,6 +83,8 @@ async function callTool(tool: ToolDefinition, input: unknown, deps: ToolDeps): P
   } catch (error) {
     // the SDK would send the message as it is, and it may quote an input or a file
     return { isError: true, content: [{ type: "text", text: redactor.text(errorText(error)) }] };
+  } finally {
+    await Promise.all(deps.registries.map((registry) => registry.close()));
   }
 }
 
