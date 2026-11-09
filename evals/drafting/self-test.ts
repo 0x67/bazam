@@ -53,8 +53,8 @@ const PLUGIN_MARK = "plugin.imported";
 const CONFIG_PLUGIN_MARK = "config-plugin.started";
 const WORKING = "working";
 
-// a run the agent started: it says once it listens for SIGTERM, then records whether the eval stopped it before the
-// graded run began
+// a run the agent started: it writes "running" to its file once it listens for SIGTERM, then records there whether
+// the eval stopped it before the graded run began
 const LEFTOVER = `
 const { existsSync, writeFileSync } = require("node:fs");
 process.on("SIGTERM", () => {

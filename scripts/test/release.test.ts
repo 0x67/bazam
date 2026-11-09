@@ -70,7 +70,9 @@ describe("nextVersion", () => {
   });
 
   it("refuses final with no open candidate", () => {
-    const refusal = new ReleaseRefused("no release candidate to finalize; run minor or patch");
+    const refusal = new ReleaseRefused(
+      "no release candidate to finalize; run rc to cut one, or minor or patch to release without one",
+    );
 
     expect(() => nextVersion("final", MAIN, tags("v0.1.0"), HEAD)).toThrow(refusal);
     expect(() => nextVersion("final", MAIN, tags("v0.2.0-rc.1", "v0.2.0"), HEAD)).toThrow(refusal);
@@ -154,7 +156,11 @@ describe("releaseLine", () => {
       "refs/heads/release/v0.2",
       "refs/heads/release/01.2",
     ]) {
-      expect(() => releaseLine(ref)).toThrow(new ReleaseRefused(`ref ${ref} is not main or release/<x>.<y>`));
+      expect(() => releaseLine(ref)).toThrow(
+        new ReleaseRefused(
+          `ref ${ref} is not the branch main or release/<x>.<y>; dispatch the workflow on one of those branches`,
+        ),
+      );
     }
   });
 });

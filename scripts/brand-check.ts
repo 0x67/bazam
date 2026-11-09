@@ -8,8 +8,8 @@ const brandFile = path.join(root, "packages", "core", "src", "brand.ts");
 function main(): number {
   const name = BRAND.name.replaceAll("-", "[-_]");
   const word = new RegExp(`(?<![a-z0-9])${name}(?![a-z0-9])`, "i");
-  // an import or export of a workspace package names the package, and the rename script rewrites it;
-  // the same string anywhere else, such as a plugin name, is a literal
+  // an import or export specifier has to spell out the workspace package, and the rename script rewrites it;
+  // the same string anywhere else, such as a plugin name, should read from BRAND, so the check reports it
   const importSpecifier = new RegExp(`(\\bfrom\\s*|\\bimport\\s*\\(?\\s*)(["'])@${name}/[^"']*\\2`, "gi");
   let hits = 0;
   for (const file of packageSourceFiles()) {

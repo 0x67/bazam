@@ -5,7 +5,7 @@ description: Drafts and edits test cases from a ticket. Finds an existing case f
 
 # Authoring cases
 
-This skill holds the judgment calls. `bazam check` enforces the mechanical rules and the `case_check` tool runs the same rules; each section below names the rule ids it relies on, so read a rule's message and fix in the check output instead of guessing them. The example project in `examples/` runs every step kind, auth strategy and challenge resolver against the demo app, and the case ids named here point into it.
+This skill holds the judgment calls. `bazam check` enforces the mechanical rules and the `case_check` tool runs the same rules; each section below names the rule ids it relies on. When a rule fires, follow the message and fix text the check output gives for it. The example project in `examples/` runs every step kind, auth strategy and challenge resolver against the demo app, and the case ids named here point into it.
 
 **1. Read the ticket**
 
@@ -56,7 +56,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 1. When a test in another framework, such as Selenium, pytest or Playwright Test, already checks the behavior, write an external case instead of steps. Its `targets` name only runner targets, the targets with `runner:` in the config (`external-case-shape`).
 2. A runner runs its command whenever a run selects a case on one of its targets, so treat runners and runner targets as code: when none fits, ask the person to add it.
 3. An external case has no `steps` and no `checks`. Each test that names the case becomes one of its checks.
-4. `SHOP-CART-001` below is a made-up external case, not one in `examples/`. A test names its case with the id in brackets in the test name, such as `[SHOP-CART-001] keeps items after sign-in`, or with a tag `@SHOP-CART-001`. When the test names cannot change, map the test's title to the case in the runner's mapping file, such as `tests: { "com.shop.CartTest › keepsItemsAfterSignIn": SHOP-CART-001 }` (`runner-mapping-valid`).
+4. `API-OTP-001` and `API-OTP-002` in `cases/api/email-code.yaml` are the external cases in `examples/`: their target `node-test` uses runner `demo-node-test`, which runs the node:test suite in `external/node-test`. `SHOP-CART-001` below is a made-up case. A test names its case with the id in brackets in the test name, such as `[SHOP-CART-001] keeps items after sign-in`, or with a tag `@SHOP-CART-001`. When the test names cannot change, map the test's title to the case in the runner's mapping file, such as `tests: { "com.shop.CartTest › keepsItemsAfterSignIn": SHOP-CART-001 }` (`runner-mapping-valid`).
 5. Stage, links, risk and `prod_safe` work as for any other case. A skipped test leaves the case blocked, never passed.
 6. The runner's `format` names a result format the harness reads, such as `junit` or `playwright-json` (`runner-format-known`).
 
@@ -95,7 +95,8 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 3. Start the run with `run_start` and follow it with `run_status`. The run goes on after the call returns.
 4. When `run_status` reports pending prompts, read them with `prompt_list` and relay each one to the person as written, with its screenshot. Send their answer back with `prompt_answer`. Answer a prompt only with what the person said.
 5. Read each outcome with `evidence_get`: `result.json`, its checks, attachments and screenshots. Report a failed or blocked case with its reason. Rerun it only after a change that could fix it.
-6. To post results, get the post plan with `report_plan` and post each item through the tracker connector, with the `html` field of the item's comment as the body; the reply holds no `adf`. Then confirm each comment with `report_ack` and its URL, so a later run can edit that comment. Pass the ticket too when several items share a marker.
+6. To post results, get the post plan with `report_plan`. Each item names a ticket and a comment, with the `attachments` to upload, the people in `mentions` and, when they apply, an `edit` URL and a `transition`. Upload the attachments through the tracker connector first, then call `report_plan` again with each upload's `id` (and `collection`, when the tracker gives one) in `media`, keyed by the path in `attachments`, so the comment shows the screenshots inline. Before you post, look up whatever `unresolved` lists: a role with no account id, or a transition for a tracker project the config does not list.
+7. Post the `html` field of each item's comment as the body, or `markdown` when it has no `html`; the `report_plan` reply holds no `adf`. When the item has `edit`, update the comment at `edit.url` instead of posting a new one. Mention the people in `mentions`. Confirm each comment with `report_ack` and its URL as soon as it is posted, so a later run can edit that comment, and pass the ticket too when several items share a marker. Then move the ticket to `transition`.
 
 **11. Rules the tool enforces**
 

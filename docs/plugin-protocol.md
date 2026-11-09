@@ -23,14 +23,14 @@ A plugin can run as its own process, written in any language, and talk to bazam 
 
 1. Each message is one line of UTF-8 JSON that ends in `\n`. A JSON encoder escapes line breaks inside strings, so one line holds one message. A line over 64 MiB closes the connection, and every call waiting on it fails.
 2. Every request and notification carries `"jsonrpc": "2.0"`; the host answers one without it with `-32600`. A batch (a JSON array) gets `-32600` too.
-3. A request has an `id`, a number or a string, and gets exactly one answer with `result` or `error`. A notification has no `id` and gets no answer.
+3. A request has an `id`, an integer or a string, and gets exactly one answer with `result` or `error`. A request with any other `id`, such as `null` or `1.5`, gets `-32600`. A notification has no `id` and gets no answer.
 4. Both sides send requests. The host's ids are integers, and the host matches answers to its own requests by that number, so a plugin copies `id` into its answer unchanged. The host copies the plugin's ids the same way, so a plugin may use numbers or strings.
 5. stdout carries protocol lines only. The host drops a stdout line that is not JSON and logs only how many it dropped. Write logs to stderr or send `host.log`.
 6. The host's own log names methods, ids and error codes, never params or results, since they may hold secrets.
 
 **Error codes**
 
-1. `-32700` parse error, `-32600` invalid request, `-32601` method not found, `-32602` invalid params, `-32603` internal error.
+1. `-32600` invalid request, `-32601` method not found, `-32602` invalid params, `-32603` internal error. The host never sends `-32700` parse error. It drops a line that is not JSON, as "Wire format" says.
 2. `-32001` blocked: the case ends `blocked`, with the error's message as the reason.
 3. `-32002` cancelled: the answer to a request whose handler stopped after `$/cancelRequest`. The side that cancelled no longer waits for it.
 
@@ -60,9 +60,9 @@ A plugin can run as its own process, written in any language, and talk to bazam 
 
 1. The host spawns the command with stdin, stdout and stderr piped, and sends `initialize`. The plugin has 30 s to answer.
 2. The host reads `protocolVersion` first. Another version fails the load with `plugin <name> speaks protocol version <theirs>; this host speaks version 1`.
-3. `apiVersion` must be 1, the host's plugin API version, or the load fails with `PluginApiMismatch`. A contribution name that another plugin already registered fails it with `PluginConflict`. Both rules are the ones in-process plugins follow.
+3. `apiVersion` must be 1, the host's plugin API version, or the load fails with `PluginApiMismatch`: `plugin "<name>" needs plugin API version <theirs>; @bazam/core provides version 1`. A contribution name that another plugin already registered fails it with `PluginConflict`: `<contribution> "<name>" comes from both plugin "<first>" and plugin "<second>"`. Both rules are the ones in-process plugins follow.
 4. A plugin that cannot start, exits or stays silent before it answers `initialize` fails the load. When it wrote to stderr, the message ends with its last 20 stderr lines, masked. Until the host accepts the plugin's `initialize` answer, its log lines and errors name the plugin by its command line, the items joined with spaces, such as `plugin python3 plugins/otp_hook.py exited with code 1` or `plugin python3 plugins/otp_hook.py could not start: spawn python3 ENOENT`. The version error in item 2 uses the name from the answer.
-5. Each stderr line and each `host.log` line goes to the host's log as `plugin <name>: <line>`, masked. The CLI and the MCP server write that log to their stderr, and a host that loads plugins without a log drops the lines. Plugins load before a run starts, so these lines never reach `run.log`.
+5. Each stderr line and each `host.log` line goes to the host's log as `plugin <name>: <line>`, masked. The CLI and the MCP server write that log to their stderr, and a host that loads plugins without a log drops the lines. The host's log is separate from the run's log, so these lines never reach `run.log`, even when a plugin writes them during a run.
 6. The host closes its plugins once it no longer needs them: the CLI after each command, the MCP server after each tool call. It sends `shutdown` and waits up to 5 s for the answer, ends stdin, waits 2 s for the exit, sends SIGTERM, waits 3 s and sends SIGKILL. After the exit it keeps reading stdout and stderr for at most 5 s, then closes them, so a child the plugin started cannot hold the close open.
 7. A plugin exits when stdin ends.
 
@@ -170,7 +170,7 @@ The `contributions` object of the `initialize` answer lists what the plugin offe
 1. A process resolver gets no session and no channel. One with `requires` is chosen only on targets whose capabilities include them, and it still cannot reach the session.
 2. A process resolver with `automated: false` must reach the person by its own means, since the run's channel stays in the host.
 3. `null` from `resolver.resolve` means the resolver found no answer.
-4. The value a resolver answers is registered with the run's redactor once `resolver.resolve` returns, as an in-process resolver's is. A stderr or `host.log` line written before then shows it unmasked, so a resolver never logs the code it found.
+4. The value a resolver answers is registered with the run's redactor once `resolver.resolve` returns, as an in-process resolver's is. A stderr or `host.log` line written before then shows it unmasked, so never log the code a resolver found.
 
 **TypeScript plugins**
 

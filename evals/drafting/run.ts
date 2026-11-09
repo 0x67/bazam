@@ -133,7 +133,7 @@ interface CheckGrade {
 }
 
 interface IdsGrade {
-  /** Null for a ticket about a new behavior, which may add ids. */
+  /** Null for a new or guided ticket, which may add ids. */
   pass: boolean | null;
   added: string[];
   error?: string;
@@ -172,7 +172,7 @@ interface Rate {
   rate: number;
 }
 
-/** The `key: value` lines of the front matter. */
+/** Parses `source` into a ticket: the `key: value` lines of its front matter and the body that follows. */
 function parseTicket(file: string, source: string): Ticket {
   const text = source.replaceAll("\r\n", "\n");
   const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -323,7 +323,8 @@ function outputOf<T>(exited: Exited, key: string): T | string {
 
 /**
  * What a fresh clone holds of examples/: the files git does not ignore, without the demo app. Then the two inputs a
- * run reads that git ignores: the secrets file, and the local fixtures, which start as a copy of the example ones.
+ * run reads that git ignores: the secrets file when there is one, and the local fixtures, or a copy of the example
+ * ones when there are none.
  */
 async function copyExamples(to: string): Promise<void> {
   const listed = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
@@ -353,7 +354,9 @@ async function freshCopy(project: string): Promise<string[]> {
   if (!baseline.pass) {
     const why =
       baseline.error ?? baseline.issues.map((issue) => `${issue.file}:${issue.line} ${issue.ruleId}`).join(", ");
-    throw new Error(`the copy of examples/ fails check before the agent ran (${why}); is a change to it half done?`);
+    throw new Error(
+      `the copy of examples/ fails check before the agent ran (${why}); make check pass in examples/, then run the eval again`,
+    );
   }
   const ids = await caseIds(project);
   if (typeof ids === "string") throw new Error(`plan fails on the copy of examples/: ${ids}`);
@@ -502,7 +505,7 @@ async function caseIds(project: string): Promise<string[] | string> {
 
 function gradeIds(ticket: Ticket, before: readonly string[], after: string[] | string): IdsGrade {
   const graded = ticket.kind === "extend";
-  // a draft that leaves the project unloadable has unknown ids, which counts as a fail
+  // a draft that leaves the project unloadable has unknown ids, which fails an extend ticket
   if (typeof after === "string") return { pass: graded ? false : null, added: [], error: after };
   const added = after.filter((id) => !before.includes(id));
   return { pass: graded ? added.length === 0 : null, added };
@@ -538,7 +541,7 @@ async function answerPrompts(runDir: string, answered: Set<string>, counts: Reco
 }
 
 /**
- * Runs the cases that link the ticket, answering each person prompt as the person would. `drafted` holds the ids of
+ * Runs the cases that link the ticket, answering each person prompt from ANSWERS. `drafted` holds the ids of
  * the cases that are new or have new steps or checks: a run of cases the agent only linked tests none of the ticket.
  */
 async function gradeRun(project: string, ticket: Ticket, drafted: ReadonlySet<string>): Promise<RunGrade> {
@@ -715,7 +718,7 @@ async function demoIsUp(): Promise<void> {
     );
     if (!up) {
       throw new Error(
-        `nothing answers at ${url}; start the demo: docker compose -f examples/demo-app/docker-compose.yml up -d`,
+        `${url} does not answer or answers with an error; start the demo: docker compose -f examples/demo-app/docker-compose.yml up -d`,
       );
     }
   }
@@ -814,8 +817,8 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
   });
 }
 
-// 0 once the result file is written, whatever the grades; 2 when the harness itself fails; 128 plus the signal number
-// when a signal stopped it
+// 0 when every attempt finished, whatever the grades; 2 when the harness itself fails; 128 plus the signal number
+// when a signal stopped it. A failed or stopped run still writes the result file if at least one attempt finished.
 try {
   await main();
 } catch (error) {

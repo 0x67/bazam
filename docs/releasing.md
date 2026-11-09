@@ -71,7 +71,7 @@ The Release workflow (`.github/workflows/release.yml`) creates each release as a
    ```sh
    gh release download v0.1.0 --repo 0x67/bazam --pattern '*.tgz'
    npm install ./*.tgz
-   npx bazam --help
+   ./node_modules/.bin/bazam --help
    ```
 
 2. npm takes the `@bazam/*` packages from the sibling tarballs and the third-party dependencies, such as zod, yaml and `@modelcontextprotocol/sdk`, from the registry.

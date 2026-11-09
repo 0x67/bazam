@@ -10,7 +10,9 @@ const validName = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 function main(args: string[]): number {
   const newName = args[0];
   if (newName === undefined || !validName.test(newName)) {
-    console.error("usage: pnpm rename <new-name> (lowercase letters and digits, words joined by single hyphens)");
+    console.error(
+      "usage: pnpm rename <new-name> (lowercase letters and digits, starting with a letter, words joined by single hyphens)",
+    );
     return 1;
   }
   renameTree(root, nameReplacer(BRAND.name, newName));

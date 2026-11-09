@@ -9,31 +9,31 @@ The server is Hono on Node with plain server-rendered HTML. Every link, button a
 1. From the repository root: `docker compose -f examples/demo-app/docker-compose.yml up -d`. Docker builds the app image from the root so the install uses the workspace lockfile.
 2. Open the app at http://localhost:3300 and the Mailpit inbox at http://localhost:8325.
 3. Stop with `docker compose -f examples/demo-app/docker-compose.yml down`.
-4. To run the app outside Docker, start Mailpit (or any SMTP server) and run `pnpm --filter demo-app start`. Set `SMTP_HOST` and `SMTP_PORT` when it is not on `localhost:1025`.
+4. To run the app outside Docker, start Mailpit (or any SMTP server) and run `pnpm --filter demo-app start`. The app then listens on port 3000 with the test hooks off. The example project and the tests expect the app on port 3300 with test hooks on and Mailpit's web UI and API on port 8325, so set `PORT=3300` and `DEMO_TEST_HOOKS=1`, and run Mailpit with its web UI and API on port 8325. Set `SMTP_HOST` and `SMTP_PORT` when the SMTP server is not on `localhost:1025`.
 
 **Ports and settings**
 
 1. `DEMO_APP_PORT` (default `3300`): host port of the app. The compose file also derives `DEMO_ORIGIN` from it, because passkeys only work on the origin the browser sees.
 2. `DEMO_MAILPIT_HTTP_PORT` (default `8325`): host port of the Mailpit web UI and API.
 3. `DEMO_MAILPIT_SMTP_PORT` (default `1325`): host port of the Mailpit SMTP server.
-4. `DEMO_TEST_HOOKS` (compose default `1`): mounts the test hooks. Any other value, or no value, leaves them out.
-5. Inside the container the app reads `PORT` (default `3000`), `DEMO_ORIGIN` (default `http://localhost:<PORT>`), `SMTP_HOST` and `SMTP_PORT`.
+4. `DEMO_TEST_HOOKS` (compose default `1`): `1` mounts the test hooks, and any other value, such as `0`, leaves them out. Compose uses `1` when the variable is unset or empty; the app run outside Docker leaves the hooks out unless the variable is `1`.
+5. The app itself reads `PORT` (default `3000`), `DEMO_ORIGIN` (default `http://localhost:<PORT>`), `DEMO_TEST_HOOKS`, `SMTP_HOST` (default `localhost`) and `SMTP_PORT` (default `1025`), in the container or outside it. Inside the container the image and the compose file set them.
 
 **Mailpit**
 
 1. The compose file pins `axllent/mailpit:v1.33.0`, the newest stable release on 2026-11-06. Dependabot proposes newer tags.
 2. Sign-in mail goes to the address typed on `/login`, with the subject `Your sign-in code` and a body that holds one six digit code.
-3. Mailpit v1.33.0 serves that mail through `GET /api/v1/search?query=to:"<address>"` (newest first) and `GET /api/v1/message/<ID>` (the body is in the `Text` field). The tests read it this way, and the `otp-mailpit` resolver should too.
+3. Mailpit v1.33.0 serves that mail through `GET /api/v1/search?query=to:"<address>"` (newest first) and `GET /api/v1/message/<ID>` (the body is in the `Text` field). The tests and the `otp-mailpit` resolver read it this way.
 
 **Pages**
 
-1. `/login`: email form (`email`, `send-code`), the passkey button (`sign-in-passkey`, status in `passkey-status`) and a link to TOTP sign-in. When `email` is filled in, the passkey button allows only that account's passkeys; when it is empty, the browser offers any discoverable passkey.
+1. `/login`: email form (`email`, `send-code`), the passkey button (`sign-in-passkey`, status in `passkey-status`) and a link to TOTP sign-in (`sign-in-totp-link`). When `email` is filled in, the passkey button allows only that account's passkeys; when it is empty, the browser offers any discoverable passkey.
 2. `/login/verify`: the emailed code (`otp-input`, `verify-code`). A code works once and expires after five minutes.
 3. `/login/totp`: email and TOTP code (`email`, `totp-code`, `sign-in-totp`).
-4. `/dashboard`: the signed-in home (`dashboard`, `user-email`, `sign-out`).
-5. `/account/totp`: TOTP enrollment. It shows the key in `totp-seed` and turns TOTP on with a valid code (`totp-code`, `enable-totp`). With test hooks on, every enrollment uses the fixed key below, so a test can know it in advance.
+4. `/dashboard`: the signed-in home (`dashboard`, `user-email`, `sign-out`) with links to the pages below (`account-totp-link`, `account-passkey-link`, `transfer-link`, `profile-phone-link`).
+5. `/account/totp`: TOTP enrollment. It shows the key in `totp-seed` and turns TOTP on with a valid code (`totp-code`, `enable-totp`). With test hooks on, every enrollment uses the fixed key below, so a test can know it in advance. Once TOTP is on, the page shows `totp-enabled` instead.
 6. `/account/passkey`: adds a passkey (`register-passkey`, count in `passkey-count`).
-7. `/transfer/confirm`: the PIN step (`pin-input`, `confirm-transfer`, result in `transfer-confirmed`). The PIN comes from the secret `DEMO_PIN` (value `2468`, set in an environment variable or the secrets file) through the `pin-secret` resolver, so no person types it.
+7. `/transfer/confirm`: the PIN step (`pin-input`, `confirm-transfer`, result in `transfer-confirmed`). The PIN is always `2468`. The example project's cases read it from the secret `DEMO_PIN` (an environment variable or `examples/.bazam/secrets.env`) through the `pin-secret` resolver, so no person types it.
 8. `/profile/phone`: four forms that each post to `/profile/phone/<form>`, save one phone number and show it in E.164 in `<form>-saved` (`select-saved`, `search-saved`, `full-saved`, `local-saved`). The country list holds the United Kingdom, Indonesia and the United States.
    1. `select`: a native country select (`select-country`, options labelled `United Kingdom (+44)` with the value `GB`) beside a number field (`select-number`, `select-save`).
    2. `search`: a searchable country list (`search-country`, options such as `🇬🇧 +44`; typing `+44` or `44` works too) beside a number field (`search-number`, `search-save`).
@@ -43,6 +43,8 @@ The server is Hono on Node with plain server-rendered HTML. Every link, button a
    The `select`, `search` and `local` forms take the national number with or without the trunk prefix (`07700 900123` or `7700 900123`). Every number field ignores spaces, dashes, dots and brackets.
 
 Successful sign-ins set the `session` cookie, which lasts ten minutes. Pages that need a session redirect to `/login` with status 303.
+
+When a form refuses what was entered, the same page comes back with the reason in `error`: status 400 for an email address or phone number the app cannot read, and 401 for a wrong or expired code or a wrong PIN. A wrong code on `/login/verify`, for example, shows `That code is wrong or has expired.`
 
 **API endpoints**
 
@@ -56,7 +58,7 @@ Successful sign-ins set the `session` cookie, which lasts ten minutes. Pages tha
 8. Any method on `/api/hmac/echo`: needs an HMAC signature and returns `keyId`, `method`, `path`, `query` and the body as text.
 9. Passkey JSON endpoints used by `public/passkey.js`: `POST /account/passkey/options`, `POST /account/passkey`, `POST /login/passkey/options` and `POST /login/passkey`.
 
-Requests without valid credentials get status 401.
+Requests without valid credentials get status 401. `POST /oauth/token` answers 400 with `invalid_grant` to a refresh token that is unknown or already used.
 
 **HMAC signatures**
 

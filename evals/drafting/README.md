@@ -6,13 +6,14 @@ Measures how well an agent drafts cases from tickets with the authoring skill (`
 
 1. Start the demo app: `docker compose -f examples/demo-app/docker-compose.yml up -d`. The harness stops with exit code 2 when the app on port 3300 or Mailpit on port 8325 does not answer.
 2. Install Playwright's Chromium once: `pnpm --filter @bazam/driver-web exec playwright install chromium`.
-3. Log the agent in. The default agent is `claude -p`, which uses your Claude account and needs a Claude Code version with `--restricted`.
-4. From the repository root: `pnpm eval:drafting`.
-5. `EVAL_AGENT_CMD` replaces the agent command, `EVAL_REPEATS` (default 3) sets the attempts per ticket, and `EVAL_TICKETS` names another folder of tickets, such as one with a subset of them.
-6. Before any agent starts, the harness copies `examples/` once and checks that the copy passes `check` and `plan --env demo` and that it has the case of every `extend` ticket. A failure there costs no agent session.
-7. The harness prints one line per attempt on stderr and the path of the result file on stdout. It exits 0 once the result file is written, whatever the grades, and 2 when the harness itself fails: the demo is down, a ticket is malformed, or a copy of `examples/` fails `check` before the agent starts (another change to `examples/` may be half done).
-8. Ctrl-C, or SIGTERM or SIGHUP, stops the agent, the runs it started and the graded run, deletes the copy, and exits with 128 plus the signal number (130 for Ctrl-C). A second Ctrl-C exits at once, without that cleanup. Closing the terminal sends SIGHUP, so run a long eval in tmux or screen rather than under `nohup`.
-9. When the harness fails or is stopped after some attempts, it still writes the result file with the attempts it finished.
+3. Give the example project its secrets, as environment variables or in `examples/.bazam/secrets.env`, which the harness copies into each attempt's folder. The header of `examples/bazam.config.yaml` names them, and `examples/demo-app/README.md` lists their values under "Demo credentials". A case that reads a missing secret ends blocked, which fails the run grade.
+4. Log the agent in. The default agent is `claude -p`, which uses your Claude account and needs a Claude Code version with `--restricted`.
+5. From the repository root: `pnpm eval:drafting`.
+6. `EVAL_AGENT_CMD` replaces the agent command, `EVAL_REPEATS` (default 3) sets the attempts per ticket, and `EVAL_TICKETS` names another folder of tickets, such as one with a subset of them.
+7. Before any agent starts, the harness copies `examples/` once and checks that the copy passes `check` and `plan --env demo` and that it has the case of every `extend` ticket. A failure there costs no agent session.
+8. The harness prints one line per attempt on stderr and the path of the result file on stdout. It exits 0 when every attempt finished and the result file is written, whatever the grades, and 2 when the harness itself fails: the demo is down, a ticket is malformed, or a copy of `examples/` fails `check` before the agent starts (another change to `examples/` may be half done).
+9. Ctrl-C, or SIGTERM or SIGHUP, stops the agent, the runs it started and the graded run, deletes the copy, and exits with 128 plus the signal number (130 for Ctrl-C). A second Ctrl-C exits at once, without that cleanup. Closing the terminal sends SIGHUP, which stops the eval even under `nohup` because the harness installs its own SIGHUP handler, so run a long eval in tmux or screen.
+10. When the harness fails or is stopped after some attempts, it still writes the result file with the attempts it finished.
 
 **One attempt**
 
@@ -20,7 +21,7 @@ Measures how well an agent drafts cases from tickets with the authoring skill (`
 2. It runs `check` and `plan --env demo` on the copy to get a clean baseline and the case ids before the agent, and records the steps and checks of every case.
 3. It runs the agent once (see below), with a 15 minute limit.
 4. It stops every run the agent left behind: each `runs/<id>/supervisor.json` names a process that leads its own process group, and runs started through `run_start` outlive the agent. The harness signals that group only when the process's command line names the copy, as a run the MCP server started does, since the agent can write any `supervisor.json`.
-5. It refuses to load a copy with code the agent wrote. When the agent added or changed any file that Node could run, the attempt fails the check and run grades (and the ids grade for an `extend` ticket), and the harness runs no command on the copy, since `check`, `plan` and `run` import the project's plugins and hooks. Every file other than YAML, JSON, XML, Markdown, text, logs, `.env` files, images, videos and zip archives counts as code, and so does any symlink. The keys `plugins`, `runners` and `targets` of `bazam.config.yaml` count as code too, since the CLI starts the commands they name: when the agent changed any of them, or left a config the harness cannot read or parse, the attempt fails the same way before any command runs.
+5. It refuses to load a copy with code the agent wrote. When the agent added or changed any file that Node could run, the attempt fails the check and run grades (and the ids grade for an `extend` ticket), and the harness runs no command on the copy, since `check`, `plan` and `run` import the project's plugins and hooks. Every file counts as code unless its extension is exactly one of `.yaml`, `.yml`, `.json`, `.xml`, `.md`, `.txt`, `.log`, `.env`, `.png`, `.jpg`, `.jpeg`, `.webm` or `.zip`, in lowercase. Any symlink counts as code too, and so does a file named just `.env`, which has no extension. The keys `plugins`, `runners` and `targets` of `bazam.config.yaml` count as code too, since the CLI starts the commands they name: when the agent changed any of them, or left a config the harness cannot read or parse, the attempt fails the same way before any command runs.
 6. It grades the copy, then deletes it.
 
 Attempts run one at a time, since the demo app, Mailpit and the browsers are shared.

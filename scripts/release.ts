@@ -60,7 +60,10 @@ export function releaseLine(ref: string): ReleaseLine {
   const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : undefined;
   if (branch === "main") return { kind: "main" };
   const match = branch === undefined ? null : releaseBranch.exec(branch);
-  if (match === null) throw new ReleaseRefused(`ref ${ref} is not main or release/<x>.<y>`);
+  if (match === null)
+    throw new ReleaseRefused(
+      `ref ${ref} is not the branch main or release/<x>.<y>; dispatch the workflow on one of those branches`,
+    );
   return { kind: "release", major: Number(match[1]), minor: Number(match[2]) };
 }
 
@@ -114,7 +117,10 @@ export function nextVersion(bump: Bump, line: ReleaseLine, tags: readonly TagRef
     else if (line.kind === "main") version = { major: from.major, minor: from.minor + 1, patch: 0, rc: 1 };
     else version = { major: from.major, minor: from.minor, patch: from.patch + 1, rc: 1 };
   } else {
-    if (candidate === undefined) throw new ReleaseRefused("no release candidate to finalize; run minor or patch");
+    if (candidate === undefined)
+      throw new ReleaseRefused(
+        "no release candidate to finalize; run rc to cut one, or minor or patch to release without one",
+      );
     const { major, minor, patch } = candidate.version;
     version = { major, minor, patch };
     target = candidate.sha;

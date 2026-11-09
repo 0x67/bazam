@@ -152,7 +152,10 @@ async function secretValues(config: ProjectConfig, projectRoot: string): Promise
   const builtin = builtinContributions(config, projectRoot).secretProviders ?? [];
   const providers = config.secrets.providers.map((name): SecretProvider => {
     const provider = builtin.find((candidate) => candidate.name === name);
-    if (provider === undefined) throw new ScanError(`secret provider ${name} is not one the scan can read`);
+    if (provider === undefined)
+      throw new ScanError(
+        `secret provider ${name} is not one the scan can read; the scan reads only the providers the core plugin registers`,
+      );
     return provider;
   });
   const redactor = new Redactor(defaultRedactionRules());
@@ -255,14 +258,16 @@ async function runCodes(
     const to = span.to + CODE_MARGIN_MS;
     const secrets: Secret[] = [];
     if (span.kinds.has("totp")) {
-      if (seed === undefined) throw new ScanError(`run ${run} used TOTP codes; give --totp-seed the seed's secret`);
+      if (seed === undefined)
+        throw new ScanError(`run ${run} used TOTP codes; give --totp-seed the name of the secret that holds the seed`);
       secrets.push(secretOf(`TOTP code of ${totpSeed}`, totpCodes(seed, from, to)));
     }
     const readMailpit = span.resolvers.has("otp-mailpit");
     if (readMailpit && mailpit === undefined)
       throw new ScanError(`run ${run} read codes from Mailpit; give --mailpit its URL`);
     if (mailpit !== undefined) {
-      // the run's own mail, also mail the case's resolver did not read, such as a code a test hook returned
+      // every mail Mailpit received while the run lasted, also mail no resolver read,
+      // such as a code a test hook returned
       const received = mailpit.mail.filter((mail) => mail.created >= from && mail.created <= to);
       if (readMailpit && received.length === 0)
         throw new ScanError(`run ${run} read codes from Mailpit, which holds no mail from that time`);
@@ -337,7 +342,7 @@ function filesUnder(dir: string): string[] {
     throw new ScanError(`cannot read ${dir}: ${(error as Error).message}`);
   }
   const files = entries.filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name));
-  if (files.length === 0) throw new ScanError(`${dir} holds no files`);
+  if (files.length === 0) throw new ScanError(`${dir} holds no files; run the cases before the scan`);
   return files.sort();
 }
 

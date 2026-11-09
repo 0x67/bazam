@@ -6,7 +6,7 @@
 
 1. `BAZAM_CHALLENGE_URL` holds the full endpoint, `http://127.0.0.1:<port>/challenge`. Post to it as given.
 2. `BAZAM_CHALLENGE_TOKEN` holds the bearer token every request must carry.
-3. Leave `BAZAM_CHALLENGE_TOKEN` and `BAZAM_CHALLENGE_URL` out of the environment of an app server the suite starts (for example, set Playwright `webServer.env` explicitly instead of inheriting `process.env`).
+3. Leave `BAZAM_CHALLENGE_TOKEN` and `BAZAM_CHALLENGE_URL` out of the environment of an app server the suite starts. A Playwright `webServer` inherits `process.env`, and `webServer.env` only overrides the keys it names, so start the server with `env -u BAZAM_CHALLENGE_TOKEN -u BAZAM_CHALLENGE_URL <command>` or set both to `""` in `webServer.env`.
 
 **Request**
 
@@ -32,14 +32,14 @@ The service refuses any other field.
 8. 500: the env's chain for the kind names a resolver that does not answer that kind, or names an automated resolver for a human-only kind. The service also answers 500 when it fails in an unexpected way.
 9. 502: the env has no resolver chain for the kind, no resolver in the chain can run outside a browser, or the resolvers that ran gave no answer.
 10. 503: the service is stopping because the command or the run ended.
-11. 504: the person gave no answer within their window, five minutes by default.
+11. 504: the person gave no answer within their window of five minutes.
 
 Every status other than 200 comes with `{ "error": "<reason>" }`.
 
 **Clients**
 
-1. Tests inside this repository call `requestChallenge` from `@bazam/core/challenge`.
-2. TypeScript and JavaScript suites in other repositories copy `examples/clients/ts/challenge-client.ts`. It imports only `node:http` and exports the same `requestChallenge` and `ChallengeRequestFailed`:
+1. A suite in a project with `@bazam/core` installed can call `requestChallenge` from `@bazam/core/challenge`.
+2. TypeScript and JavaScript suites in a project without `@bazam/core` installed copy `examples/clients/ts/challenge-client.ts`. It imports only `node:http` and exports the same `requestChallenge` and `ChallengeRequestFailed`:
 
    ```ts
    import { requestChallenge } from "./challenge-client.ts";

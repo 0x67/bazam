@@ -38,7 +38,7 @@ A runner name takes letters, digits, dots, dashes and underscores, starting with
 
 1. A target names a driver or a runner. A runner target holds `runner` and an optional `env` and nothing else. Its `env` adds to the runner's `env` and wins on a name both set.
 2. Several targets can share one runner, such as one per browser. Each target with selected cases runs the suite once.
-3. `bazam check` refuses, with these messages:
+3. `bazam check` reports these with their file and line, and other commands, such as `plan` and `run`, refuse to start on them with exit 2:
    1. `a target names a driver or a runner, not both`
    2. `runner <name> is not defined under runners`
    3. `runner <name> lists identity <id>, which is not defined under identities`
@@ -65,7 +65,7 @@ cases:
 1. The run starts the challenge service before the first suite, then starts each runner target's command once, with every selected case of that target that the plan did not block. A runner whose selected cases are all blocked never starts.
 2. The suite's environment is the run's own environment, then the runner's `env`, then the target's `env`, then five variables: `BAZAM_CHALLENGE_URL`, `BAZAM_CHALLENGE_TOKEN`, `BAZAM_RUN_ID`, `BAZAM_ENV` and `BAZAM_CASES`. Every variable named in a `trackers.<tracker>.secrets` value is removed. A placeholder that does not resolve blocks the target's cases with `unresolved placeholder <placeholder>`, and nothing starts.
 3. Before the suite starts, the run registers with its redactor the inherited value of each declared secret: `secrets.names`, each tracker's `secrets` and each `${secret.NAME}` the identities use. The challenge service registers every answer it gives. Each line the suite writes to stdout or stderr is masked, appended to `runs/<run-id>/runner-<target>/runner.log` and written to `run.log` as `[<target>] <line>`. The suite gets no stdin.
-4. After the suite exits, the run expands `results` in `cwd` and reads the regular files written since the start, less 2 seconds for file systems with coarse timestamps. Older matches stay where they are, since they belong to the suite, and `run.log` lists each as `skipped <file>: written before this run's runner started`. A file that another target of the same run already read, and that has not changed since, is skipped as `skipped <file>: another target of this run already read it, and it has not changed since`, so two targets of one runner never read each other's results.
+4. After the suite exits, the run expands `results` in `cwd` and reads the regular files written since the start, less 2 seconds for file systems with coarse timestamps. Older matches stay where they are, since they belong to the suite, and `run.log` lists each as `[<target>] skipped <file>: written before this run's runner started`. A file that another target of the same run already read, and that has not changed since, is skipped as `[<target>] skipped <file>: another target of this run already read it, and it has not changed since`, so two targets of one runner never read each other's results.
 5. Once the suite wrote result files, its exit code decides nothing, since a suite with failing tests exits nonzero. The tests in the files decide each case:
    1. one check per test that did not skip, named by the test's title, with `observed` set to `passed`, `failed` or `errored`, or to `passed after 1 retry` (`passed after <N> retries`) for a test that passed on a rerun;
    2. any failed or errored test fails the case;
@@ -84,11 +84,11 @@ cases:
 
 **Attachments**
 
-1. JUnit testcases name attachments in `[[ATTACHMENT|<path>]]` lines of their `system-out` or `system-err`, as the Playwright junit reporter and `mocha-junit-reporter` write them. Playwright JSON gives the attachments of a test's last result that have a path.
+1. JUnit testcases name attachments in `[[ATTACHMENT|<path>]]` lines of their `system-out` or `system-err`. The Playwright junit reporter writes one such line for each attachment that has a path. `mocha-junit-reporter` writes them only when `attachments=true` is in its `--reporter-options`, for the paths a test puts in `this.test.attachments`. Playwright JSON gives the attachments of a test's last result that have a path.
 2. A relative path resolves against the result file's folder, then against the runner's `cwd`.
 3. The run copies `.png` files as images, `.txt` and `.log` as text and `.json` as JSON, each up to 20 MiB. It masks text and JSON as it masks a YAML case's evidence and copies images unchanged.
 4. It copies a file only when it sits inside the runner's `cwd`, outside the project's `.bazam` and `runs` folders, and was written during the run.
-5. Otherwise the case gets a note: `left out <name>: <ext> files from a runner are not copied` (such as `zip files`, so Playwright traces and videos stay out, since bazam cannot scrub them), `left out <name>: not a file this runner wrote`, `left out <name>: larger than 20 MiB`, `left out <name>: not valid JSON` or `attachment <name> was not found`.
+5. Otherwise the case gets a note: `left out <name>: <ext> files from a runner are not copied` (such as `zip files` for Playwright traces and `webm files` for its videos, which bazam cannot scrub), `left out <name>: not a file this runner wrote`, `left out <name>: larger than 20 MiB`, `left out <name>: not valid JSON` or `attachment <name> was not found`.
 
 **Production**
 
@@ -109,7 +109,7 @@ cases:
      "com.shop.CartTest › keepsItemsAfterSignIn": SHOP-CART-001
    ```
 
-   Each key is a test title: the suite names from the outside in, then the test's name, joined by `›` with a space on each side. For Surefire, pytest and Playwright's junit reporter that is `<classname> › <name>`. Node's reporter gives the names of the enclosing `describe` blocks, then the test's name, so a test at the top of a file is its name alone. `mocha-junit-reporter` gives its full title alone, the suite and test names joined by spaces. A Playwright project name is not part of the key.
+   Each key is a test title: the suite names from the outside in, then the test's name, joined by `›` with a space on each side. For Surefire, pytest and Playwright's junit reporter that is `<classname> › <name>`. Node's reporter gives the names of the enclosing `describe` blocks, then the test's name, so a test at the top of a file is its name alone. `mocha-junit-reporter` gives its full title alone, the suite and test names joined by spaces. A Playwright project name is not part of the key, unless the junit reporter's `includeProjectInTestName` option writes it into the test's name.
 
 4. A test the run cannot place goes into `summary.json` under `unmapped` and into `summary.md` under "Unmapped tests", with one of these reasons: `no case id in the test name, its tags or the mapping file`, `no case <id>`, or `case <id> does not run on target <target>`.
 5. A test of a case the run did not select is only counted, and `run.log` says `[<target>] <N> tests belong to cases this run did not select` (or `1 test belongs to a case this run did not select`). Nothing posts it.
@@ -139,7 +139,7 @@ cases:
    ```
 
 2. pytest: `command: [pytest, --junitxml=results/junit.xml]` with `results: results/junit.xml` and `format: junit`. A parametrize id puts the case id in the name, as in `test_login[SHOP-LOGIN-001]` from `@pytest.mark.parametrize("plan", ["basic"], ids=["SHOP-LOGIN-001"])`.
-3. Playwright Test with `format: playwright-json`: `command: [npx, playwright, test, --reporter=json]`, with `PLAYWRIGHT_JSON_OUTPUT_FILE: results/report.json` in the runner's `env` (or `outputFile` in the reporter options of `playwright.config.ts`) and `results: results/report.json`. The JSON report keeps tags, so `test("keeps items", { tag: "@SHOP-CART-001" }, ...)` maps by tag; it keeps project names, which prefix titles as `[<project>] `, and retries. With `format: junit`, use `--reporter=junit` and `PLAYWRIGHT_JUNIT_OUTPUT_FILE` instead. The junit report has no tags and writes a flaky test as a plain pass with no retries.
+3. Playwright Test with `format: playwright-json`: `command: [npx, playwright, test, --reporter=json]`, with `PLAYWRIGHT_JSON_OUTPUT_FILE: results/report.json` in the runner's `env` (or `outputFile` in the reporter options of `playwright.config.ts`) and `results: results/report.json`. The JSON report keeps tags, so `test("keeps items", { tag: "@SHOP-CART-001" }, ...)` maps by tag; it keeps project names, which prefix titles as `[<project>] `, and retries. With `format: junit`, use `--reporter=junit` and `PLAYWRIGHT_JUNIT_OUTPUT_FILE` instead. The junit report has no tags, and by default it writes a flaky test as a plain pass with no retries. To keep retries, set `PLAYWRIGHT_JUNIT_INCLUDE_RETRIES: "1"` in the runner's `env` (or `includeRetries: true` in the junit reporter options of `playwright.config.ts`). The report then gives a flaky test a `flakyFailure` or `flakyError` for each failed attempt, and bazam counts each one as a retry.
 4. Cypress or Mocha with `mocha-junit-reporter`: `--reporter mocha-junit-reporter --reporter-options mochaFile=results/junit-[hash].xml`, with `results: results/junit-*.xml` and `format: junit`. Cypress writes one file per spec, and `[hash]` keeps them apart. Files from earlier runs stay in the folder and are skipped by time; to keep `run.log` short, clear the folder in the command, as in `[sh, -c, "rm -rf results && npx cypress run --reporter mocha-junit-reporter --reporter-options mochaFile=results/junit-[hash].xml"]`.
 5. Node's test runner takes one destination per reporter, so spec output for `runner.log` and JUnit XML for bazam need two pairs: `[node, --test, --test-reporter=spec, --test-reporter-destination=stdout, --test-reporter=junit, --test-reporter-destination=junit.xml, <test file>]`. Node does not create a missing folder for the destination and exits with ENOENT, so write the report into `cwd` or into a folder that exists in a fresh checkout.
 
@@ -150,7 +150,7 @@ bazam ingest --env <env> --target <target> [selection] [--run <id>] <files...>
 ```
 
 1. It records the cases of one runner target from result files written elsewhere, as a run of those cases would, and starts no process. The target gives the format, the mapping file and the folder that attachments resolve against. Its runner still needs a `command`, which `ingest` never runs.
-2. File paths are relative to the working directory. Attachments resolve against the runner's `cwd` with the same exclusions as in a run, without the rule on when a file was written.
+2. File paths are relative to the working directory. Attachments resolve as in a run, against the result file's folder and then the runner's `cwd`, with the same exclusions, without the rule on when a file was written.
 3. It asks no production question, and `prod_safe` still applies to each case.
 4. It exits as `run` does: 0 when every case passed, 1 when any failed, 3 when any is blocked or needs follow-up, and 2 when it cannot start.
 5. It refuses to start, with exit 2, with these messages:
