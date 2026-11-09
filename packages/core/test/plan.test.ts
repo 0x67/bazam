@@ -101,7 +101,7 @@ function testCase(id: string, fields: CaseFields): CaseFields {
     title: `case ${id}`,
     stage: "acceptance",
     risk: "low",
-    links: ["jira:TD-1"],
+    links: ["jira:DEMO-1"],
     targets: ["web"],
     ...fields,
   };

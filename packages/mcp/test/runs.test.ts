@@ -262,13 +262,13 @@ describe("runs over MCP", () => {
           marker,
           caseId: "DESK-LOOK-001",
           status: "pass",
-          ticket: { tracker: "jira", key: "TD-1" },
+          ticket: { tracker: "jira", key: "DEMO-1" },
         }),
       ]);
-      const url = "https://jira.example.test/browse/TD-1?focusedCommentId=10001";
+      const url = "https://jira.example.test/browse/DEMO-1?focusedCommentId=10001";
       expect(await mcp.json("report_ack", { marker, url })).toEqual({
         marker,
-        ticket: "jira:TD-1",
+        ticket: "jira:DEMO-1",
         caseId: "DESK-LOOK-001",
       });
       expect(await project.read(`${BRAND.stateDir}/receipts.json`)).toContain(url);

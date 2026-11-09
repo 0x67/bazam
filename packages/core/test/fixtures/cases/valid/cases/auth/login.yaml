@@ -4,7 +4,7 @@ cases:
     title: Customer signs in with an email code
     stage: acceptance
     risk: high
-    links: [jira:TD-246]
+    links: [jira:DEMO-246]
     targets: [web]
     steps:
       - use: { flow: login, with: { email: "${identity.customer.email}" } }

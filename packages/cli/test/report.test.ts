@@ -18,7 +18,7 @@ afterEach(removeFixtures);
 
 const MARKER = `${BRAND.markerPrefix}:SHOP-OK-001:r1`;
 // a comment id is a long digit run, which the redactor's digit rule would mask
-const COMMENT_URL = "https://tracker.example.test/browse/TD-1?focusedCommentId=10234567";
+const COMMENT_URL = "https://tracker.example.test/browse/DEMO-1?focusedCommentId=10234567";
 
 async function ranProject(): Promise<Fixture> {
   const project = await fixtureProject(api);
@@ -45,26 +45,26 @@ describe("report", () => {
     // the Jira tracker from the default plugins renders the comment as HTML too
     expect(first.items.map((item) => item.comment.html?.startsWith("<p><strong>"))).toEqual([true, true]);
     expect(edits(first)).toEqual([
-      ["TD-1", undefined],
-      ["TD-2", undefined],
+      ["DEMO-1", undefined],
+      ["DEMO-2", undefined],
     ]);
-    const ack = await project.cli("report", "ack", MARKER, "--ticket", "jira:TD-1", "--url", COMMENT_URL, "--json");
+    const ack = await project.cli("report", "ack", MARKER, "--ticket", "jira:DEMO-1", "--url", COMMENT_URL, "--json");
     expect(ack.code, ack.stderr).toBe(ExitCode.Pass);
-    expect(JSON.parse(ack.stdout)).toEqual({ marker: MARKER, ticket: "jira:TD-1", caseId: "SHOP-OK-001" });
+    expect(JSON.parse(ack.stdout)).toEqual({ marker: MARKER, ticket: "jira:DEMO-1", caseId: "SHOP-OK-001" });
     expect(edits(await reportPlan(project))).toEqual([
-      ["TD-1", COMMENT_URL],
-      ["TD-2", undefined],
+      ["DEMO-1", COMMENT_URL],
+      ["DEMO-2", undefined],
     ]);
     // post-plan.json stays as the run wrote it; the next run's plan carries the edit
     const written = JSON.parse(await project.read("runs/r1/post-plan.json")) as PostPlan;
     expect(edits(written)).toEqual([
-      ["TD-1", undefined],
-      ["TD-2", undefined],
+      ["DEMO-1", undefined],
+      ["DEMO-2", undefined],
     ]);
     await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001", "--run", "r2");
     expect(edits(JSON.parse(await project.read("runs/r2/post-plan.json")) as PostPlan)).toEqual([
-      ["TD-1", COMMENT_URL],
-      ["TD-2", undefined],
+      ["DEMO-1", COMMENT_URL],
+      ["DEMO-2", undefined],
     ]);
   });
 
@@ -72,27 +72,27 @@ describe("report", () => {
     const project = await ranProject();
     const { code, stderr } = await project.cli("report", "ack", MARKER, "--url", COMMENT_URL);
     expect(code).toBe(ExitCode.CouldNotStart);
-    expect(stderr).toContain(`several items share ${MARKER}; pass --ticket with one of jira:TD-1, jira:TD-2`);
+    expect(stderr).toContain(`several items share ${MARKER}; pass --ticket with one of jira:DEMO-1, jira:DEMO-2`);
     expect(edits(await reportPlan(project))).toEqual([
-      ["TD-1", undefined],
-      ["TD-2", undefined],
+      ["DEMO-1", undefined],
+      ["DEMO-2", undefined],
     ]);
   });
 
   it("refuses an ack without a URL, with a marker that is not one and for an item the run lacks", async () => {
     const project = await ranProject();
     const runs = [
-      await project.cli("report", "ack", MARKER, "--ticket", "jira:TD-1"),
+      await project.cli("report", "ack", MARKER, "--ticket", "jira:DEMO-1"),
       await project.cli("report", "ack", "SHOP-OK-001", "--url", COMMENT_URL),
       await project.cli("report", "ack", `${BRAND.markerPrefix}:SHOP-OK-001:../r1`, "--url", COMMENT_URL),
-      await project.cli("report", "ack", MARKER, "--ticket", "jira:TD-9", "--url", COMMENT_URL),
+      await project.cli("report", "ack", MARKER, "--ticket", "jira:DEMO-9", "--url", COMMENT_URL),
     ];
     expect(runs.map((run) => run.code)).toEqual(Array(4).fill(ExitCode.CouldNotStart));
     expect(runs.map((run) => run.stderr.split("\n")[0])).toEqual([
       "error: --url is required: the URL of the posted comment",
       `error: "SHOP-OK-001" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`,
       'error: run id "../r1" is not a plain file name',
-      `error: run r1 has no item ${MARKER} for jira:TD-9`,
+      `error: run r1 has no item ${MARKER} for jira:DEMO-9`,
     ]);
   });
 

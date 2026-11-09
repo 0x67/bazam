@@ -83,7 +83,7 @@ const Filter = z
     domains: Names,
     stages: z.array(Stage).min(1).exactOptional(),
     targets: Names,
-    links: Names.describe("Ticket links such as jira:TD-1."),
+    links: Names.describe("Ticket links such as jira:DEMO-1."),
     tags: Names,
   })
   .describe(

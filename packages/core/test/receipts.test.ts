@@ -15,7 +15,7 @@ import type { CaseResult } from "../src/result/index.ts";
 
 const FIRST_RUN = "20261107-100000-ab12";
 const SECOND_RUN = "20261108-100000-cd34";
-const COMMENT_URL = "https://tracker.example.test/browse/TD-246?focusedCommentId=10001";
+const COMMENT_URL = "https://tracker.example.test/browse/DEMO-246?focusedCommentId=10001";
 
 let stateDir: string;
 
@@ -31,7 +31,7 @@ function failed(runId: string): CaseResult {
     stage: "regression",
     env: "uat",
     target: "web",
-    links: ["jira:TD-246", "jira:TD-250"],
+    links: ["jira:DEMO-246", "jira:DEMO-250"],
     status: "fail",
     checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "hidden", ok: false }],
     notes: [],
@@ -53,7 +53,7 @@ async function plan(runId: string, comment: "new" | "update"): Promise<PostPlan>
     title: "Customer signs in with an email code",
     stage: "regression",
     risk: "high",
-    links: ["jira:TD-246", "jira:TD-250"],
+    links: ["jira:DEMO-246", "jira:DEMO-250"],
     targets: ["web"],
     report: { comment },
   });
@@ -78,8 +78,8 @@ describe("receipts", () => {
     const second = await plan(SECOND_RUN, "update");
 
     expect(second.items.map((item) => [item.ticket.key, item.edit])).toEqual([
-      ["TD-246", { url: COMMENT_URL }],
-      ["TD-250", undefined],
+      ["DEMO-246", { url: COMMENT_URL }],
+      ["DEMO-250", undefined],
     ]);
   });
 
@@ -96,18 +96,18 @@ describe("receipts", () => {
     const first = await plan(FIRST_RUN, "update");
     await recordReceipt(stateDir, first.items[0]!, COMMENT_URL, new Date("2026-11-07T10:10:00Z"));
     const second = await plan(SECOND_RUN, "update");
-    const laterUrl = "https://tracker.example.test/browse/TD-246?focusedCommentId=10002";
+    const laterUrl = "https://tracker.example.test/browse/DEMO-246?focusedCommentId=10002";
 
     await recordReceipt(stateDir, second.items[0]!, laterUrl, new Date("2026-11-08T10:10:00Z"));
 
-    expect((await loadReceipts(stateDir)).latest("jira", "TD-246", "AUTH-LOGIN-001")).toEqual({
+    expect((await loadReceipts(stateDir)).latest("jira", "DEMO-246", "AUTH-LOGIN-001")).toEqual({
       marker: second.items[0]!.marker,
       url: laterUrl,
       postedAt: "2026-11-08T10:10:00.000Z",
     });
     expect(await readdir(stateDir)).toEqual(["receipts.json"]);
     expect(JSON.parse(await readFile(join(stateDir, "receipts.json"), "utf8"))).toHaveProperty([
-      "jira:TD-246:AUTH-LOGIN-001",
+      "jira:DEMO-246:AUTH-LOGIN-001",
     ]);
   });
 });

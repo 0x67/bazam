@@ -10,7 +10,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 **1. Read the ticket**
 
 1. Read the summary, the description and the acceptance criteria. Each criterion is a behavior that a case shows passing or failing.
-2. Note the ticket key. It becomes the case link, such as `links: [jira:TD-246]`.
+2. Note the ticket key. It becomes the case link, such as `links: [jira:DEMO-246]`.
 3. For each criterion, write down who acts (the identity), where (a page or an endpoint), what makes the behavior happen, and which outcome proves it.
 4. When the ticket leaves an outcome open, ask the person. Never invent an expected value.
 

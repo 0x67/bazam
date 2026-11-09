@@ -16,7 +16,7 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     stage: "acceptance",
     env: "uat",
     target: "web",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     status: "pass",
     checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true }],
     notes: [],

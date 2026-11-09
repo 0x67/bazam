@@ -183,7 +183,7 @@ function testCase(id: string, caseSteps: readonly Record<string, unknown>[]): Re
     title: `case ${id}`,
     stage: "acceptance",
     risk: "low",
-    links: ["jira:TD-9"],
+    links: ["jira:DEMO-9"],
     targets: ["web"],
     steps: caseSteps,
   };

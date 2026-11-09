@@ -10,14 +10,14 @@ function loaded(domain: string, fields: Partial<CaseSpec> & { id: string }): Loa
 }
 
 const cases = [
-  loaded("auth", { id: "AUTH-LOGIN-001", stage: "acceptance", links: ["jira:TD-246"], tags: ["smoke"] }),
+  loaded("auth", { id: "AUTH-LOGIN-001", stage: "acceptance", links: ["jira:DEMO-246"], tags: ["smoke"] }),
   loaded("auth", {
     id: "AUTH-LOGIN-002",
     stage: "regression",
     targets: ["web", "web-chrome"],
     tags: ["smoke", "slow"],
   }),
-  loaded("auth", { id: "AUTH-RESET-001", stage: "draft", links: ["jira:TD-300"] }),
+  loaded("auth", { id: "AUTH-RESET-001", stage: "draft", links: ["jira:DEMO-300"] }),
   loaded("billing", { id: "BILLING-REFUND-001", stage: "regression", targets: ["web-chrome"], tags: ["smoke"] }),
   loaded("billing", { id: "BILLING-REFUND-002", stage: "retired", tags: ["smoke"] }),
 ];
@@ -35,7 +35,7 @@ describe("selectCases", () => {
       "AUTH-LOGIN-001",
       "AUTH-LOGIN-002",
     ]);
-    expect(ids(selectCases(cases, { links: ["jira:TD-246", "jira:TD-300"] }))).toEqual([
+    expect(ids(selectCases(cases, { links: ["jira:DEMO-246", "jira:DEMO-300"] }))).toEqual([
       "AUTH-LOGIN-001",
       "AUTH-RESET-001",
     ]);

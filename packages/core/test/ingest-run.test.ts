@@ -23,7 +23,7 @@ function cartCase(id: string, fields: Record<string, unknown> = {}): Record<stri
     title: `case ${id}`,
     stage: "acceptance",
     risk: "low",
-    links: ["jira:TD-7"],
+    links: ["jira:DEMO-7"],
     targets: ["shop-chrome"],
     ...fields,
   };

@@ -28,7 +28,7 @@ function failedItem(people: PeopleRegistry, roles: readonly string[]): PostPlanI
     title: "Customer signs in with an email code",
     stage: "acceptance",
     risk: "high",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     targets: ["web"],
     report: { on: { fail: { mention: roles } } },
   });
@@ -39,7 +39,7 @@ function failedItem(people: PeopleRegistry, roles: readonly string[]): PostPlanI
     stage: "acceptance",
     env: "uat",
     target: "web",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     status: "fail",
     checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "hidden", ok: false }],
     notes: [],
@@ -61,7 +61,7 @@ function failedItem(people: PeopleRegistry, roles: readonly string[]): PostPlanI
     people,
     receipts: { latest: () => undefined },
     trackers: markdownTracker,
-    transitions: { jira: { projects: { TD: { transitions: { fail: "In Progress" } } } } },
+    transitions: { jira: { projects: { DEMO: { transitions: { fail: "In Progress" } } } } },
     now: new Date("2026-11-07T10:05:00Z"),
   });
   return plan.items[0];

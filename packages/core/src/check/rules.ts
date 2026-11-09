@@ -115,7 +115,7 @@ function casesWithoutLink(project: Project): Finding[] {
     .map(({ spec, source }) => ({
       at: source,
       message: `${spec.id} is ${spec.once ? "a once case" : "an acceptance case"} with no link`,
-      fix: "Add the ticket the case covers to links, such as links: [jira:TD-246].",
+      fix: "Add the ticket the case covers to links, such as links: [jira:DEMO-246].",
     }));
 }
 

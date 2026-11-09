@@ -3,7 +3,7 @@ cases:
     title: Ops refunds a paid order
     stage: draft
     risk: medium
-    links: [jira:TD-300]
+    links: [jira:DEMO-300]
     targets: [web]
     once: true
     steps:

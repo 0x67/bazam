@@ -23,7 +23,7 @@ const meta: CaseMeta = {
   stage: "acceptance",
   env: "demo",
   target: "web",
-  links: ["jira:TD-246"],
+  links: ["jira:DEMO-246"],
   identities: ["admin-1"],
   seed: 42,
   values: { amount: "4.27" },
@@ -75,7 +75,7 @@ describe("EvidenceStore", () => {
       stage: "acceptance",
       env: "demo",
       target: "web",
-      links: ["jira:TD-246"],
+      links: ["jira:DEMO-246"],
       status: "followup",
       checks: [
         heading,

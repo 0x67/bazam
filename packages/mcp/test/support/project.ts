@@ -33,7 +33,7 @@ export const DESK_CASES = [
   "    title: A person looks at the desk",
   "    stage: acceptance",
   "    risk: low",
-  "    links: [jira:TD-1]",
+  "    links: [jira:DEMO-1]",
   "    targets: [t]",
   "    tags: [visual]",
   "    report: { comment: update }",

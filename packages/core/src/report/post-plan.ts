@@ -124,7 +124,7 @@ function ownEntry<T>(record: Readonly<Record<string, T>>, key: string): T | unde
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-// a Jira key TD-246 belongs to project TD
+// a Jira key DEMO-246 belongs to project DEMO
 export function trackerProject(key: string): string {
   return key.replace(/-\d+$/, "");
 }

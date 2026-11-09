@@ -23,7 +23,7 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     stage: "acceptance",
     env: "uat",
     target: "web",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     status: "pass",
     checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true }],
     notes: [],
@@ -46,7 +46,7 @@ function spec(fields: Record<string, unknown> = {}): CaseSpec {
     title: "Customer signs in with an email code",
     stage: "acceptance",
     risk: "high",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     targets: ["web"],
     ...fields,
   });
@@ -96,7 +96,7 @@ describe("buildPostPlans", () => {
       items: [
         {
           marker: `${BRAND.markerPrefix}:AUTH-LOGIN-001:${RUN}`,
-          ticket: { tracker: "jira", key: "TD-246" },
+          ticket: { tracker: "jira", key: "DEMO-246" },
           caseId: "AUTH-LOGIN-001",
           status: "pass",
           comment: markdownTracker("jira").render(result({ attachments: ["01-dashboard.png", "02-trace.zip"] })),
@@ -109,17 +109,17 @@ describe("buildPostPlans", () => {
   });
 
   it("a case linked to two tickets gets one item per ticket", () => {
-    const plan = buildPostPlans(inputs([result({ links: ["jira:TD-246", "notion:release-notes-42"] })]));
+    const plan = buildPostPlans(inputs([result({ links: ["jira:DEMO-246", "notion:release-notes-42"] })]));
 
     expect(plan.items.map((item) => item.ticket)).toEqual([
-      { tracker: "jira", key: "TD-246" },
+      { tracker: "jira", key: "DEMO-246" },
       { tracker: "notion", key: "release-notes-42" },
     ]);
   });
 
   it("case transition wins over project default", () => {
     const transitions = ProjectConfig.shape.trackers.parse({
-      jira: { projects: { TD: { transitions: { pass: "Ready for Release", fail: "In Progress" } } } },
+      jira: { projects: { DEMO: { transitions: { pass: "Ready for Release", fail: "In Progress" } } } },
     });
     const reopened = spec({ id: "AUTH-LOGIN-002", report: { on: { fail: { transition: "Reopened" } } } });
 
@@ -137,23 +137,23 @@ describe("buildPostPlans", () => {
   });
 
   it("lists the transition as unresolved only when the ticket's project is missing from the config", () => {
-    const transitions = { jira: { projects: { TD: { transitions: { pass: "Ready for Release" } } } } };
+    const transitions = { jira: { projects: { DEMO: { transitions: { pass: "Ready for Release" } } } } };
 
     const plan = buildPostPlans(
-      inputs([result({ status: "blocked", links: ["jira:TD-246", "jira:OPS-12"] })], { transitions }),
+      inputs([result({ status: "blocked", links: ["jira:DEMO-246", "jira:OPS-12"] })], { transitions }),
     );
 
     expect(
       plan.items.map(({ ticket, transition, unresolved }) => ({ key: ticket.key, transition, unresolved })),
     ).toEqual([
-      { key: "TD-246", transition: undefined, unresolved: [] },
+      { key: "DEMO-246", transition: undefined, unresolved: [] },
       { key: "OPS-12", transition: undefined, unresolved: ["transition:blocked"] },
     ]);
   });
 
   it("treats a tracker or project named like an inherited member, such as constructor, as missing from the config", () => {
-    const transitions = { jira: { projects: { TD: { transitions: { fail: "In Progress" } } } } };
-    const links = ["jira:constructor-1", "constructor:TD-246", "jira:__proto__-1"];
+    const transitions = { jira: { projects: { DEMO: { transitions: { fail: "In Progress" } } } } };
+    const links = ["jira:constructor-1", "constructor:DEMO-246", "jira:__proto__-1"];
 
     const plan = buildPostPlans(inputs([result({ status: "fail", links })], { transitions }));
 
@@ -163,11 +163,11 @@ describe("buildPostPlans", () => {
   });
 
   it("stage and links come from the result, so a case promoted after its run still posts its pass", () => {
-    const promoted = spec({ stage: "regression", links: ["jira:TD-999"] });
+    const promoted = spec({ stage: "regression", links: ["jira:DEMO-999"] });
 
     const plan = buildPostPlans(inputs([result()], { specs: new Map([["AUTH-LOGIN-001", promoted]]) }));
 
-    expect(plan.items.map((item) => item.ticket.key)).toEqual(["TD-246"]);
+    expect(plan.items.map((item) => item.ticket.key)).toEqual(["DEMO-246"]);
   });
 
   it("passes the media references to the ticket's tracker renderer", () => {

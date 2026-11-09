@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const CASE_ID = /^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-\d{3,}$/;
 export const Stage = z.enum(["draft", "acceptance", "regression", "retired"]);
-export const TicketRef = z.string().regex(/^[a-z][a-z0-9-]*:[^\s]+$/, { error: 'a link looks like "jira:TD-246"' });
+export const TicketRef = z.string().regex(/^[a-z][a-z0-9-]*:[^\s]+$/, { error: 'a link looks like "jira:DEMO-246"' });
 
 /** A step kind with its zod schema; a driver or plugin step handler satisfies it. */
 export interface StepSchemaSource {

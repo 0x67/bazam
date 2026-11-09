@@ -24,7 +24,7 @@ const SHOP_CASES = [
   "    title: The shop answers",
   "    stage: acceptance",
   "    risk: low",
-  "    links: [jira:TD-1, jira:TD-2]",
+  "    links: [jira:DEMO-1, jira:DEMO-2]",
   "    targets: [t]",
   "    report: { comment: update }",
   "    checks:",

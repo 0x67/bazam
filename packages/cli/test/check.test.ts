@@ -59,7 +59,7 @@ describe("check", () => {
     expect(stdout).toBe(
       [
         "cases/shop/new.yaml:2: error stage-link: SHOP-NEW-001 is an acceptance case with no link",
-        "  fix: Add the ticket the case covers to links, such as links: [jira:TD-246].",
+        "  fix: Add the ticket the case covers to links, such as links: [jira:DEMO-246].",
         "1 error, 0 warnings",
         "",
       ].join("\n"),

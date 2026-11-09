@@ -231,11 +231,11 @@ describe("a served plugin through the registry", () => {
       },
     });
 
-    expect(await connection.ticket("TD-1")).toEqual({ key: "TD-1", status: "Open", done: false });
-    expect(await connection.postComment("TD-1", { markdown: "passed" }, [])).toEqual({
-      url: "https://tracker.example.test/TD-1?chars=6",
+    expect(await connection.ticket("DEMO-1")).toEqual({ key: "DEMO-1", status: "Open", done: false });
+    expect(await connection.postComment("DEMO-1", { markdown: "passed" }, [])).toEqual({
+      url: "https://tracker.example.test/DEMO-1?chars=6",
     });
-    expect(await connection.findOpenBug("TD", "regression")).toBeUndefined();
+    expect(await connection.findOpenBug("DEMO", "regression")).toBeUndefined();
     expect(lines).toEqual(["plugin served: connected with [redacted]"]);
   });
 });

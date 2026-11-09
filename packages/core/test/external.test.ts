@@ -77,7 +77,7 @@ function externalCase(id: string, fields: CaseFields = {}): CaseFields {
     title: `case ${id}`,
     stage: "acceptance",
     risk: "low",
-    links: ["jira:TD-7"],
+    links: ["jira:DEMO-7"],
     targets: ["shop-chrome"],
     ...fields,
   };

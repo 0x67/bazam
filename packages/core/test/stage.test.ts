@@ -17,14 +17,14 @@ const LOGIN_FILE = `# sign-in journeys
 cases:
   - id: AUTH-LOGIN-001
     title: Customer signs in with an email code
-    stage: acceptance # promote once TD-246 ships
+    stage: acceptance # promote once DEMO-246 ships
     risk: high
-    links: [jira:TD-246]
+    links: [jira:DEMO-246]
     targets: [web]
     steps:
       - use: { flow: login, with: { email: "\${identity.customer.email}" } }
 
-  # flaky on webkit until TD-400
+  # flaky on webkit until DEMO-400
   - id: AUTH-LOGIN-002
     title: Session survives a reload
     stage: regression
@@ -71,7 +71,7 @@ function result(runId: string, env: string, status: Status, finishedAt: string):
     stage: "acceptance",
     env,
     target: "web",
-    links: ["jira:TD-246"],
+    links: ["jira:DEMO-246"],
     status,
     checks: [],
     notes: [],
@@ -136,7 +136,7 @@ describe("promoteCase", () => {
     expect(promoted).toEqual({ ok: true });
     const before = LOGIN_FILE.split("\n");
     expect(after.filter((line, index) => line !== before[index])).toEqual([
-      "    stage: regression # promote once TD-246 ships",
+      "    stage: regression # promote once DEMO-246 ships",
     ]);
     expect(after).toHaveLength(before.length);
   });

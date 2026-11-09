@@ -382,7 +382,7 @@ function testCase(id: string, fields: CaseFields): CaseFields {
     title: `case ${id}`,
     stage: "acceptance",
     risk: "low",
-    links: ["jira:TD-7"],
+    links: ["jira:DEMO-7"],
     targets: ["web"],
     ...fields,
   };
@@ -715,16 +715,16 @@ describe("runCases", () => {
       items: { marker: string; ticket: unknown; comment: { markdown: string } }[];
     };
     expect(postPlan.items.map((item) => [item.marker, item.ticket])).toEqual([
-      [`${BRAND.markerPrefix}:SHOP-ONE-001:${RUN_ID}`, { tracker: "jira", key: "TD-7" }],
-      [`${BRAND.markerPrefix}:SHOP-TWO-001:${RUN_ID}`, { tracker: "jira", key: "TD-7" }],
+      [`${BRAND.markerPrefix}:SHOP-ONE-001:${RUN_ID}`, { tracker: "jira", key: "DEMO-7" }],
+      [`${BRAND.markerPrefix}:SHOP-TWO-001:${RUN_ID}`, { tracker: "jira", key: "DEMO-7" }],
     ]);
     expect(postPlan.items[1]?.comment.markdown).toContain("**Failed** on demo: SHOP-TWO-001");
   });
 
   it("writes account ids and receipt URLs into post-plan.json as given, though they hold long digit runs", async () => {
-    const receiptUrl = "https://tracker.example.test/browse/TD-7?focusedCommentId=10234567";
+    const receiptUrl = "https://tracker.example.test/browse/DEMO-7?focusedCommentId=10234567";
     const receipts = {
-      "jira:TD-7:SHOP-CRASH-001": {
+      "jira:DEMO-7:SHOP-CRASH-001": {
         marker: `${BRAND.markerPrefix}:SHOP-CRASH-001:20261101-090000-0a1b`,
         url: receiptUrl,
         postedAt: "2026-11-01T09:00:00.000Z",
