@@ -1356,9 +1356,19 @@ describe("runCases with external suites", () => {
   });
 
   it("never runs two targets of one runner at once", async () => {
+    // the runner holds no identity, so only its runner lock keeps its targets apart
+    const config = configFor() as { runners: Record<string, object> };
     const { results, runDir } = await runProject(
       [external("SHOP-SUITE-001", "shop-a"), external("SHOP-SUITE-002", "shop-b")],
-      { workers: 2 },
+      {
+        workers: 2,
+        files: {
+          [BRAND.configFile]: {
+            ...config,
+            runners: { ...config.runners, shop: { ...config.runners["shop"], identities: [] } },
+          },
+        },
+      },
     );
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
@@ -1397,18 +1407,93 @@ describe("runCases with external suites", () => {
     );
   });
 
-  it("gives an external suite one worker, however many cases it runs", async () => {
-    // the suite finishes only once the native case, which needs the second worker, has written its marker
-    const { results } = await runProject(
-      [
-        external("SHOP-SOLO-001", "solo"),
-        external("SHOP-SOLO-002", "solo"),
-        testCase("SHOP-MEET-001", { steps: [{ touch: {} }, expectVisible] }),
-      ],
-      { workers: 2 },
+  it.each([
+    {
+      roots: "equal roots",
+      first: { name: "ui", results: "reports/*.xml", file: "reports/ui.xml" },
+      second: { name: "api", results: "reports/*.xml", file: "reports/api.xml" },
+    },
+    {
+      roots: "one root inside the other",
+      first: { name: "api", results: "reports/api/*.xml", file: "reports/api/api.xml" },
+      second: { name: "ui", results: "reports/**/*.xml", file: "reports/ui.xml" },
+    },
+  ])("never runs two runners whose result globs reach one folder at once ($roots)", async ({ first, second }) => {
+    const config = configFor() as { runners: Record<string, unknown>; targets: Record<string, unknown> };
+    const suite = (name: string, results: string, env: Record<string, string>) => ({
+      command: SUITE_COMMAND,
+      results,
+      format: "junit",
+      identities: [],
+      env: { SUITE_LOG: "suite.log", SUITE_NAME: name, ...env },
+    });
+    const names = [first.name, second.name, "solo"];
+    const caseId = (name: string) => `SHOP-${name.toUpperCase()}-001`;
+    const { results, runDir } = await runProject(
+      names.map((name) => external(caseId(name), name)),
+      {
+        workers: 2,
+        files: {
+          [BRAND.configFile]: {
+            ...config,
+            runners: {
+              ...config.runners,
+              // the first writes its file, then runs on until solo has written its own
+              [first.name]: suite(first.name, first.results, {
+                SUITE_RESULTS: first.file,
+                SUITE_WAIT_AFTER: "solo/results.xml",
+              }),
+              [second.name]: suite(second.name, second.results, {
+                SUITE_RESULTS: second.file,
+                SUITE_WAIT_FOR: first.file,
+              }),
+              solo: suite("solo", "solo/*.xml", { SUITE_RESULTS: "solo/results.xml" }),
+            },
+            targets: { ...config.targets, ui: { runner: "ui" }, api: { runner: "api" } },
+          },
+        },
+      },
     );
-    expect(results.map((result) => result.status)).toEqual(["pass", "pass", "pass"]);
+    expect(outcomes(results)).toEqual(
+      names.map((name) => ({ caseId: caseId(name), status: "pass", reason: undefined })),
+    );
+    expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).not.toHaveProperty("unmapped");
+    const log = await suiteLog(runDir);
+    expect(log.filter((line) => !line.startsWith("solo "))).toEqual([
+      `${first.name} start`,
+      `${first.name} end`,
+      `${second.name} start`,
+      `${second.name} end`,
+    ]);
+    // the first ends only after solo writes its file, so solo ran beside it
+    expect(log.indexOf("solo start")).toBeLessThan(log.indexOf(`${first.name} end`));
   });
+
+  it.each([{ identities: [] }, { identities: ["shopper"] }])(
+    "gives an external suite one worker, however many cases it runs (runner identities $identities)",
+    async ({ identities }) => {
+      // the suite finishes only once the native case, which needs the second worker, has written its marker
+      // the native case acts as customer, so it gets that worker only when the runner's list leaves customer out
+      const config = configFor() as { runners: Record<string, object> };
+      const { results } = await runProject(
+        [
+          external("SHOP-SOLO-001", "solo"),
+          external("SHOP-SOLO-002", "solo"),
+          testCase("SHOP-MEET-001", { steps: [{ touch: {}, as: "customer" }, expectVisible] }),
+        ],
+        {
+          workers: 2,
+          files: {
+            [BRAND.configFile]: {
+              ...config,
+              runners: { ...config.runners, solo: { ...config.runners["solo"], identities } },
+            },
+          },
+        },
+      );
+      expect(results.map((result) => result.status)).toEqual(["pass", "pass", "pass"]);
+    },
+  );
 
   it("blocks only its own case when a launch fails after an external suite finished", async () => {
     const { results, runDir } = await runProject(
@@ -1434,7 +1519,7 @@ describe("runCases production confirmation", () => {
     expect(outcomes(results)).toEqual([{ caseId: "SHOP-SUITE-001", status: "pass", reason: undefined }]);
     expect(channel.prompts).toEqual([
       {
-        id: "preflight-shop-confirm",
+        id: expect.stringMatching(/^preflight-shop-confirm-[0-9a-f]{7}$/),
         runId: RUN_ID,
         caseId: "",
         ask: "verdict",
@@ -1484,6 +1569,9 @@ describe("runCases production confirmation", () => {
       { env: "live", channel, driver: webDriver({ loginWaitsFor: answered.promise }) },
     );
     expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
-    expect(events.slice(0, 2)).toEqual(["ask preflight-shop-confirm", "ask shopper-session-cookie-login"]);
+    expect(events.slice(0, 2)).toEqual([
+      expect.stringMatching(/^ask preflight-shop-confirm-[0-9a-f]{7}$/),
+      "ask shopper-session-cookie-login",
+    ]);
   });
 });

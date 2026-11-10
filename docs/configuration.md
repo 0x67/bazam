@@ -12,7 +12,7 @@
 4. `format` (required): `junit`, `playwright-json`, or a format a plugin registers.
 5. `mapping`: a mapping file of test titles to case ids, relative to the project root.
 6. `env`: `{}` when left out. Values take `${env.NAME}`, `${secret.NAME}` and `${run.…}` placeholders: `${run.id}`, `${run.time}` and `${run.random(min, max, decimals)}`.
-7. `timeoutMinutes`: 60 when left out.
+7. `timeoutMinutes`: 60 when left out, 35791 (about 24.8 days) at most, the longest timer Node can set.
 8. `prodSafe`: `false` when left out. Without it, a run in an env with `production: true` asks before it starts the runner.
 9. `identities`: every identity in the config when left out. A runner that names an unknown one gets `runner <name> lists identity <id>, which is not defined under identities`.
 
@@ -39,7 +39,7 @@ plugins:
 1. `command` (required): the argv, run without a shell.
 2. `cwd`: relative to the project root, `.` when left out.
 3. `env`: added to the plugin's environment, `{}` when left out.
-4. `timeoutSeconds`: how long the host waits for each answer, a whole number, 600 when left out.
+4. `timeoutSeconds`: how long the host waits for each answer, a whole number, 600 when left out and at most 2147483 (about 24 days), the longest delay a Node timer holds.
 5. Any other entry gets `a plugin entry is a module path, or an object whose command is an argv list such as [python3, plugins/otp_hook.py]`.
 
 **Trackers**

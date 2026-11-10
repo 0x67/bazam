@@ -42,7 +42,7 @@ export interface TrackerConnection {
   ticket(key: string): Promise<TicketState>;
   attach(key: string, files: readonly AttachmentFile[]): Promise<void>;
   postComment(key: string, comment: RenderedComment, mentions: readonly Mention[]): Promise<PostedComment>;
-  /** Undefined when `url` names no comment this client can edit. */
+  /** Undefined when `url` names no comment this client can edit, or the comment is gone. */
   editComment(
     key: string,
     url: string,
@@ -52,7 +52,8 @@ export interface TrackerConnection {
   transition(key: string, name: string): Promise<void>;
   /** The key of the newest open issue with the label. */
   findOpenBug(project: string, label: string): Promise<string | undefined>;
-  createBug(draft: BugDraft): Promise<{ key: string; url: string }>;
+  /** `problems` names each step after the create that failed, such as an upload or a link; the bug exists either way. */
+  createBug(draft: BugDraft): Promise<{ key: string; url: string; problems?: string[] }>;
 }
 
 export interface TrackerClientContext {

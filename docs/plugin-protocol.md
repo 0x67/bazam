@@ -15,13 +15,13 @@ A plugin can run as its own process, written in any language, and talk to bazam 
 2. `command` (required): the program and its arguments. The host starts `command[0]` with the other items as arguments, without a shell.
 3. `cwd`: the folder it runs in, relative to the project root, `.` when left out.
 4. `env`: variables to set for the plugin. It inherits the host's whole environment, with these added.
-5. `timeoutSeconds`: how long the host waits for each answer, 600 when left out.
+5. `timeoutSeconds`: how long the host waits for each answer, 600 when left out and at most 2147483 (about 24 days), the longest delay a Node timer holds.
 6. A process plugin runs with the same trust as an in-process one: it is code the project's config names. Before the first one starts, the host registers with its redactor the value of each declared secret (`secrets.names`, each tracker's `secrets`, and each `${secret.NAME}` the identities use) that is set in the host's environment, which the plugin inherits, so those values are masked in the plugin's log lines.
 7. Process plugins start in config order, after the in-process entries listed before them.
 
 **Wire format**
 
-1. Each message is one line of UTF-8 JSON that ends in `\n`. A JSON encoder escapes line breaks inside strings, so one line holds one message. A line over 64 MiB closes the connection, and every call waiting on it fails.
+1. Each message is one line of UTF-8 JSON that ends in `\n`. A JSON encoder escapes line breaks inside strings, so one line holds one message. A line over 64 MiB closes the connection, and every call waiting on it fails. The host never sends one: a request that would pass the limit fails at once, a result that would pass it is answered with `-32003`, and an error that would pass it is answered with its code and a short message.
 2. Every request and notification carries `"jsonrpc": "2.0"`; the host answers one without it with `-32600`. A batch (a JSON array) gets `-32600` too.
 3. A request has an `id`, an integer or a string, and gets exactly one answer with `result` or `error`. A request with any other `id`, such as `null` or `1.5`, gets `-32600`. A notification has no `id` and gets no answer.
 4. Both sides send requests. The host's ids are integers, and the host matches answers to its own requests by that number, so a plugin copies `id` into its answer unchanged. The host copies the plugin's ids the same way, so a plugin may use numbers or strings.
@@ -33,17 +33,19 @@ A plugin can run as its own process, written in any language, and talk to bazam 
 1. `-32600` invalid request, `-32601` method not found, `-32602` invalid params, `-32603` internal error. The host never sends `-32700` parse error. It drops a line that is not JSON, as "Wire format" says.
 2. `-32001` blocked: the case ends `blocked`, with the error's message as the reason.
 3. `-32002` cancelled: the answer to a request whose handler stopped after `$/cancelRequest`. The side that cancelled no longer waits for it.
+4. `-32003` line too long: the answer to a request whose result would pass the 64 MiB line limit. A served TypeScript step whose host call passed the limit answers `driver.step` with it too.
 
 **How the host reads a plugin's answer**
 
 1. The host checks each result against the method's result shape below. A result that does not match fails the call with `plugin <name> answered <method> with a result that does not match the protocol: <path>: <issue>`.
 2. `-32001` becomes a blocking error with the message.
 3. `-32603` counts as the contribution's own failure, as when an in-process handler throws.
-4. Any other code fails the call with `plugin <name> answered <method> with error <code>: <message>`.
-5. No answer within `timeoutSeconds`: the host sends `$/cancelRequest` and fails the call with `plugin <name> did not answer <method> within N s`.
-6. An exit fails every waiting call, and each later one, with `plugin <name> exited with code N` (or `signal S`).
-7. For a case this means:
-   1. `driver.step`: `-32001` ends the case `blocked` with the message, and `-32603` fails the case, as a step that throws does. Every failure in 1, 4, 5 and 6 ends it `blocked` with an `internal:` reason, never `fail`.
+4. `-32003` fails the call with `plugin <name> cannot answer <method>: <message>`, and any other code with `plugin <name> answered <method> with error <code>: <message>`.
+5. An `error` without a numeric `code` and a string `message`, such as a bare string, fails the call with `plugin <name> answered <method> with an error that is not a JSON-RPC error object`.
+6. No answer within `timeoutSeconds`: the host sends `$/cancelRequest` and fails the call with `plugin <name> did not answer <method> within N s`.
+7. An exit fails every waiting call, and each later one, with `plugin <name> exited with code N` (or `signal S`).
+8. For a case this means:
+   1. `driver.step`: `-32001` ends the case `blocked` with the message, and `-32603` fails the case, as a step that throws does. Every failure in 1, 4, 5, 6 and 7 ends it `blocked` with an `internal:` reason, never `fail`.
    2. `driver.launch`: any failure gives `could not launch target <target>: <message>`.
    3. `resolver.arm` and `resolver.resolve`: the resolver chain handles every error alike. A resolver that fails at `resolver.arm` gives way to the next one in the chain. After the trigger, only a person resolver may take over, and only for a kind with `fallbackAfterTrigger`. With none left, the case ends blocked with `resolver "<name>" could not arm: <message>` or `resolver "<name>" failed: <message>`.
 
@@ -94,7 +96,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
 | `trackerClient.editComment` | `{ tracker, connection, contextId, key, url, comment, mentions: Mention[] }`   | `{ url }`, or `null` when the comment is gone                          |
 | `trackerClient.transition`  | `{ tracker, connection, contextId, key, name }`                                | `null`                                                                 |
 | `trackerClient.findOpenBug` | `{ tracker, connection, contextId, project, label }`                           | the bug's key, or `null`                                               |
-| `trackerClient.createBug`   | `{ tracker, connection, contextId, draft: BugDraft }`                          | `{ key, url }`                                                         |
+| `trackerClient.createBug`   | `{ tracker, connection, contextId, draft: BugDraft }`                          | `{ key, url, problems? }`                                              |
 | `driver.probe`              | `{ driver, options: LaunchCallOptions }`                                       | the capabilities this target would have, as strings                    |
 | `driver.launch`             | `{ driver, options: LaunchCallOptions }`                                       | `{ session, capabilities }`, where `session` is an id the plugin picks |
 | `driver.step`               | `{ session, kind, step, context: StepCallContext }`                            | `null`                                                                 |
@@ -104,21 +106,22 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
 2. `resolver.resolve` always carries `kind`, and `resolver.arm` never does. The host calls `resolver.arm` only for a resolver whose descriptor sets `arm: true`, before the app sends the challenge.
 3. `results.parse`: `file.path` is relative to the runner's working folder, and `file.text` is the file's content.
 4. `trackerClient.connect`: `config` is the project's `trackers.<tracker>` entry. Its `secrets` map holds secret names; read the values with `host.secret` and this call's `contextId`.
-5. `driver.step`: `step` is the step's payload as the case wrote it, already checked against the step's schema; `kind` names the step.
-6. `driver.close`: `status` is `pass`, `fail`, `blocked` or `followup`.
+5. `trackerClient.createBug`: once the issue exists, each later step that fails, such as an upload or a link, adds a message to `problems` instead of failing the call, so the host still learns the key. Leave `problems` out when every step worked.
+6. `driver.step`: `step` is the step's payload as the case wrote it, already checked against the step's schema; `kind` names the step.
+7. `driver.close`: `status` is `pass`, `fail`, `blocked` or `followup`.
 
 **Methods from the plugin to the host**
 
-| Method                   | Params                                                                       | Result                                 |
-| ------------------------ | ---------------------------------------------------------------------------- | -------------------------------------- |
-| `host.resolve`           | `{ contextId, value }`                                                       | the value with its placeholders filled |
-| `host.secret`            | `{ contextId, key }`                                                         | the secret's value                     |
-| `host.http`              | `{ contextId, request: { method, url, headers, bodyBase64? }, as?, write? }` | `{ status, headers, body }`            |
-| `host.evidence.record`   | `{ contextId, check: CheckRecord }`                                          | `null`                                 |
-| `host.evidence.note`     | `{ contextId, text }`                                                        | `null`                                 |
-| `host.evidence.followup` | `{ contextId, item, hint }`                                                  | `null`                                 |
-| `host.evidence.attach`   | `{ contextId, label, ext, dataBase64 }`                                      | `{ name }`, the attachment's file name |
-| `host.values.set`        | `{ contextId, name, value }`                                                 | `null`                                 |
+| Method                   | Params                                                                                  | Result                                  |
+| ------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
+| `host.resolve`           | `{ contextId, value }`                                                                  | the value with its placeholders filled  |
+| `host.secret`            | `{ contextId, key }`                                                                    | the secret's value                      |
+| `host.http`              | `{ contextId, request: { method, url, headers, bodyBase64?, redirect? }, as?, write? }` | `{ status, headers, setCookie?, body }` |
+| `host.evidence.record`   | `{ contextId, check: CheckRecord }`                                                     | `null`                                  |
+| `host.evidence.note`     | `{ contextId, text }`                                                                   | `null`                                  |
+| `host.evidence.followup` | `{ contextId, item, hint }`                                                             | `null`                                  |
+| `host.evidence.attach`   | `{ contextId, label, ext, dataBase64 }`                                                 | `{ name }`, the attachment's file name  |
+| `host.values.set`        | `{ contextId, name, value }`                                                            | `null`                                  |
 
 1. `host.resolve` fills placeholders such as `${env.APP_URL}`, `${secret.NAME}` and `${case.<name>}` in any JSON value. The host registers a secret it fills with its redactor.
 2. `host.secret` reads the secret through the env's providers and registers the value with the host's redactor.
@@ -127,7 +130,8 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
    2. The host sends only to hosts in the env's `hosts` and checks every redirect hop, so any other host gets `-32001`.
    3. `as: { identity, surface }` sends the request as that identity, with its credentials for the surface.
    4. In a production env, any method other than GET needs `write: true`, or the call gets `-32001` `<METHOD> needs write: true in production env <name>`.
-   5. In the result, `headers` maps names to values, and `body` is the parsed JSON for a JSON content type, otherwise the text, and `null` when empty.
+   5. `request.redirect` is `follow`, the default, or `manual`, which returns a 3xx response as it came, with its `location` header, and sends nothing to the target.
+   6. In the result, `headers` maps each name to its value, with repeated values joined by `, `. `setCookie` lists each `Set-Cookie` value on its own and is left out when there is none. `body` is the parsed JSON for a JSON content type, otherwise the text, and `null` when empty.
 4. `host.evidence.attach`: `ext` is `png`, `txt` or `json`. A `zip` gets `-32602` "a process plugin cannot attach zip files, which core cannot scrub".
 5. `host.values.set` saves a value that later steps read as `${case.<name>}`.
 
@@ -146,7 +150,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
 6. `LaunchCallOptions`: `{ contextId, env, target, settings, runDir, redaction: { screenshotSelectors } }`. `settings` is the target's entry in config without `driver`.
 7. `env` in all three: `{ name, production, vars, hosts, challenges, locale }`, where `hosts` is a list and `challenges` maps each kind to its resolver names.
 8. `ExternalTest`: `{ title: string[], tags: string[], outcome, message?, retries, project?, durationMs?, attachments: { name, path, contentType? }[], source }`, where `outcome` is `passed`, `failed`, `errored` or `skipped`.
-9. `TicketState`: `{ key, status, done, assignee?, reporter? }`.
+9. `TicketState`: `{ key, status, done, assignee?, reporter? }`. `key` is the key the tracker answers with, which differs from the one asked for after the issue moved; the host then checks that key's project against `trackers.<tracker>.projects` before it sends anything more.
 10. `comment` and a `BugDraft`'s `description`: `{ markdown, html?, adf? }`, which core renders. A process tracker client converts them to its tracker's format itself.
 11. `Mention`: `{ role, accountId }`. `AttachmentFile`: `{ name, path }`, a file on the host's disk.
 12. `BugDraft`: `{ project, issueType, summary, labels, description, attachments: AttachmentFile[], relatesTo }`.
@@ -174,7 +178,7 @@ The `contributions` object of the `initialize` answer lists what the plugin offe
 
 **TypeScript plugins**
 
-`serveProcessPlugin(manifest)` from `@bazam/core/plugin` serves an in-process manifest over stdin and stdout until stdin ends, so one manifest loads either way. It is also the reference implementation of the plugin's side.
+`serveProcessPlugin(manifest)` from `@bazam/core/plugin` serves an in-process manifest over stdin and stdout until stdin ends, so one manifest loads either way. It is also the reference implementation of the plugin's side. When the connection closes on a line over 64 MiB, it rejects with `received a line longer than 67108864 bytes`, so a plugin that awaits it at the top level exits with code 1 and the host fails its calls at once.
 
 1. It refuses at start a manifest that offers steps outside a driver, auth strategies, check rules, channels or tracker renderers.
 2. Step schemas cross as JSON Schema of the input. A schema JSON Schema cannot represent, such as a Date, fails the start with `step <kind> of driver <name> has a schema that JSON Schema cannot represent: <message>`. Refinements and transforms do not cross, so the served side parses each `driver.step` payload with the handler's own schema and answers `-32001` `step <kind> does not match its schema: <issues>`.

@@ -52,7 +52,12 @@ export const RunnerConfig = z.strictObject({
   /** Relative to the project root. */
   mapping: z.string().min(1).optional(),
   env: z.record(z.string().min(1), z.string()).default({}),
-  timeoutMinutes: z.number().positive().default(60),
+  // 35791 min is the most that fits under the 2^31 - 1 ms Node's timers take; a longer one fires after 1 ms
+  timeoutMinutes: z
+    .number()
+    .positive()
+    .max(35791, "timeoutMinutes can be at most 35791 (about 24.8 days), the longest timer Node can set")
+    .default(60),
   /**
    * Runs the suite in a production env without asking. When false, the run asks first, because it cannot hold the
    * suite's process to the host allowlist or the write guard.
@@ -77,7 +82,11 @@ export const ProcessPluginEntry = z.strictObject({
   /** Added to the environment the plugin process inherits from the host. */
   env: z.record(z.string().min(1), z.string()).default({}),
   /** How long the host waits for each call before it cancels the call. */
-  timeoutSeconds: z.int().positive().default(600),
+  timeoutSeconds: z
+    .int()
+    .positive()
+    .max(2_147_483, "timeoutSeconds takes at most 2147483 (about 24 days), the longest delay a Node timer holds")
+    .default(600),
 });
 export type ProcessPluginEntry = z.infer<typeof ProcessPluginEntry>;
 
@@ -562,14 +571,27 @@ async function readMappings(
     if (mapping === undefined) continue;
     let entry = parsed.get(mapping);
     if (entry === undefined) {
-      const file = await readProjectFile(root, mapping);
+      let file: ProjectFile | undefined;
+      let folder = false;
+      try {
+        file = await readProjectFile(root, mapping);
+      } catch (error) {
+        // a path with a file as a parent cannot exist, so ENOTDIR reads as missing
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EISDIR" && code !== "ENOTDIR") throw error;
+        folder = code === "EISDIR";
+      }
       if (file === undefined) {
         issues.push({
           ...schemaIssue(
             configFile.path,
             lineAt(configFile, ["runners", name, "mapping"]),
-            `mapping file ${mapping} of runner ${name} is missing`,
-            "Create the mapping file, or set mapping to its path relative to the project root.",
+            folder
+              ? `mapping file ${mapping} of runner ${name} is a folder, not a file`
+              : `mapping file ${mapping} of runner ${name} is missing`,
+            folder
+              ? "Set mapping to the path of the mapping file inside that folder, relative to the project root."
+              : "Create the mapping file, or set mapping to its path relative to the project root.",
           ),
           ruleId: MAPPING_RULE,
         });

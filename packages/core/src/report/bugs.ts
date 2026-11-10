@@ -155,7 +155,10 @@ async function applyBug(intent: BugIntent, connecting: Promise<TrackerConnection
       if (intent.kind === "recover") return { ...outcome, ok: true, action: `no open bug in ${intent.project}` };
       outcome.action = `file a bug in ${intent.project}`;
       const bug = await connection.createBug(intent.draft);
-      return { ...outcome, ok: true, action: `filed ${bug.key}`, key: bug.key, url: bug.url };
+      const filed = { ...outcome, action: `filed ${bug.key}`, key: bug.key, url: bug.url };
+      // the bug exists, so the outcome names it even when a later step failed
+      if (bug.problems !== undefined && bug.problems.length > 0) return { ...filed, error: bug.problems.join("; ") };
+      return { ...filed, ok: true };
     }
     outcome.key = key;
     outcome.action = `comment on ${key}`;

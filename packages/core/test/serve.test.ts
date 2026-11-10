@@ -29,6 +29,18 @@ let requests: string[] = [];
 
 function route(req: IncomingMessage, res: ServerResponse): void {
   requests.push(`${req.method} ${req.url} ${req.headers.authorization ?? "-"}`);
+  if (req.url === "/moved") {
+    res.writeHead(302, { location: "/target" }).end();
+    return;
+  }
+  if (req.url === "/cookies") {
+    res.writeHead(200, { "set-cookie": ["session=abc", "csrf=xyz"] }).end();
+    return;
+  }
+  if (req.url === "/big") {
+    res.writeHead(200, { "content-type": "text/plain" }).end("x".repeat(65 * 1024 * 1024));
+    return;
+  }
   const authorized = req.url !== "/otp" || req.headers.authorization === `Bearer ${TOKEN}`;
   res.writeHead(authorized ? 200 : 401, { "content-type": "application/json" }).end(JSON.stringify({ code: OTP }));
 }
@@ -179,6 +191,47 @@ describe("a served plugin in a run", () => {
     expect(requests).toEqual(["POST /orders -"]);
   });
 
+  it("blocks with internal:, never fails, a step whose host.http request or response passes the line limit", async () => {
+    const results = await runServed([
+      testCase("SHOP-UPLOAD-001", [{ upload: { url: "${env.API_URL}/orders", bytes: 50 * 1024 * 1024 } }]),
+      testCase("SHOP-BIG-001", [{ fetch: { url: "${env.API_URL}/big", method: "GET" } }]),
+    ]);
+
+    // the redactor masks the limit's digit run in a reason
+    expect(outcomes(results)).toEqual([
+      {
+        caseId: "SHOP-UPLOAD-001",
+        status: "blocked",
+        reason:
+          "internal: plugin served cannot answer driver.step: host.http would send a line longer than ••••8864 bytes",
+      },
+      {
+        caseId: "SHOP-BIG-001",
+        status: "blocked",
+        reason:
+          "internal: plugin served cannot answer driver.step: the result of host.http would be a line longer than ••••8864 bytes",
+      },
+    ]);
+    expect(requests).toEqual(["GET /big -"]);
+  });
+
+  it("returns a 3xx as it came for a request sent with redirect: manual, and never requests the target", async () => {
+    const [result] = await runServed([testCase("SHOP-MOVED-001", [{ redirect: { url: "${env.API_URL}/moved" } }])]);
+
+    expect(result?.checks.map(({ observed }) => observed)).toEqual(["302 /target"]);
+    expect(requests).toEqual(["GET /moved -"]);
+  });
+
+  it("gives a step each Set-Cookie value of a response, as an in-process step gets them", async () => {
+    const [result] = await runServed([testCase("SHOP-COOKIE-001", [{ cookies: { url: "${env.API_URL}/cookies" } }])]);
+    const { headers } = await fetch(`${origin}/cookies`);
+
+    expect(headers.getSetCookie()).toEqual(["session=abc", "csrf=xyz"]);
+    expect(result?.checks.map(({ observed }) => observed)).toEqual([
+      JSON.stringify([headers.get("set-cookie"), headers.getSetCookie()]),
+    ]);
+  });
+
   it("refuses a host call made with the context of a step whose call has ended", async () => {
     const [result] = await runServed([testCase("SHOP-STALE-001", [{ keep: {} }, { stale: {} }])]);
 
@@ -238,6 +291,33 @@ describe("a served plugin through the registry", () => {
     expect(await connection.findOpenBug("DEMO", "regression")).toBeUndefined();
     expect(lines).toEqual(["plugin served: connected with [redacted]"]);
   });
+
+  it("returns the problems a plugin's createBug reports, and a result without them as it came", async () => {
+    const registry = await servedRegistry();
+    const connection = await registry.trackerClient("served").connect({
+      config: TrackerConfig.parse({ secrets: { token: "TRACKER_TOKEN" } }),
+      secret: async () => "fake-tracker-token-7781",
+      redactor: new Redactor(defaultRedactionRules()),
+      signal: new AbortController().signal,
+      log: () => {},
+    });
+    const draft = {
+      project: "DEMO",
+      issueType: "Bug",
+      summary: "[SHOP-CART-001] fails",
+      labels: [],
+      description: { markdown: "failed" },
+      attachments: [],
+      relatesTo: [],
+    };
+    const bug = { key: "BUG-1", url: "https://tracker.example.test/BUG-1" };
+
+    expect(await connection.createBug(draft)).toEqual(bug);
+    expect(await connection.createBug({ ...draft, relatesTo: ["DEMO-1"] })).toEqual({
+      ...bug,
+      problems: ["could not link BUG-1 to DEMO-1"],
+    });
+  });
 });
 
 describe("serveProcessPlugin", () => {
@@ -261,6 +341,16 @@ describe("serveProcessPlugin", () => {
     await expect(serveProcessPlugin(manifest, io())).rejects.toThrow(
       "step remind of driver dated has a schema that JSON Schema cannot represent: Date cannot be represented in JSON Schema",
     );
+  });
+
+  it("rejects and destroys its input when the host sends a line over 64 MiB", async () => {
+    const streams = io();
+    const serving = serveProcessPlugin(definePlugin({ name: "small", apiVersion: PLUGIN_API_VERSION }), streams);
+
+    streams.input.write(Buffer.alloc(64 * 1024 * 1024 + 1, "x"));
+
+    await expect(serving).rejects.toThrow("received a line longer than 67108864 bytes");
+    expect(streams.input.destroyed).toBe(true);
   });
 
   const rule: CheckRule = { id: "local-rule", check: () => [] };

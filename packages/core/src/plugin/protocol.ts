@@ -236,7 +236,7 @@ export const METHODS = {
   },
   "trackerClient.createBug": {
     params: z.object({ ...Connection, draft: BugDraftSchema }),
-    result: z.object({ key: Name, url: Name }),
+    result: z.object({ key: Name, url: Name, problems: z.array(z.string()).exactOptional() }),
   },
   "driver.probe": { params: z.object({ driver: Name, options: LaunchCallOptions }), result: z.array(Name) },
   "driver.launch": {
@@ -260,12 +260,23 @@ export const METHODS = {
   "host.http": {
     params: z.object({
       contextId: ContextId,
-      request: z.object({ method: Name, url: z.url(), headers: HeaderRecord, bodyBase64: Base64.exactOptional() }),
+      request: z.object({
+        method: Name,
+        url: z.url(),
+        headers: HeaderRecord,
+        bodyBase64: Base64.exactOptional(),
+        redirect: z.enum(["follow", "manual"]).exactOptional(),
+      }),
       as: z.object({ identity: Name, surface: Name }).exactOptional(),
       write: z.boolean().exactOptional(),
     }),
     // body is the parsed JSON for a JSON content type, otherwise the text, and null when empty
-    result: z.object({ status: z.int(), headers: HeaderRecord, body: z.json() }),
+    result: z.object({
+      status: z.int(),
+      headers: HeaderRecord,
+      setCookie: z.array(z.string()).exactOptional(),
+      body: z.json(),
+    }),
   },
   "host.evidence.record": { params: z.object({ contextId: ContextId, check: CheckRecordSchema }), result: z.null() },
   "host.evidence.note": { params: z.object({ contextId: ContextId, text: z.string() }), result: z.null() },

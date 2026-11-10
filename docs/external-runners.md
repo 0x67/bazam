@@ -28,9 +28,9 @@ targets:
 4. `format` (required): `junit`, `playwright-json`, or a result format a plugin registers. `bazam check` reports any other name under `runner-format-known`.
 5. `mapping`: a mapping file, relative to the project root, for tests whose names cannot hold a case id (see "Mapping tests to cases").
 6. `env`: variables added to the suite's environment. Values take `${env.NAME}`, `${secret.NAME}` and `${run.…}` placeholders: `${run.id}`, `${run.time}` and `${run.random(min, max, decimals)}`. A suite belongs to no case and acts as no identity, so `${case.…}` and `${identity.…}` do not resolve here.
-7. `timeoutMinutes`: 60 when left out.
+7. `timeoutMinutes`: 60 when left out, 35791 (about 24.8 days) at most.
 8. `prodSafe`: `false` when left out (see "Production").
-9. `identities`: the identities the suite's tests act as, every identity in the config when left out. With `--workers`, the suite holds the lock of each one it lists and of `runner:<name>`, so no case that acts as one of them runs beside it. `identities: []` holds only the runner's own lock.
+9. `identities`: the identities the suite's tests act as, every identity in the config when left out. With `--workers`, the suite holds the lock of each one it lists and of `runner:<name>`, so no case that acts as one of them runs beside it. It also never runs beside another runner whose `results` glob can reach the same files. bazam compares the fixed folders before each glob's first wildcard, so `reports/*.xml` and `reports/ui/*.xml` wait for each other. `identities: []` holds only these runner locks.
 
 A runner name takes letters, digits, dots, dashes and underscores, starting with a letter or digit.
 

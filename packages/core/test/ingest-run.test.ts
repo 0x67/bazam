@@ -10,6 +10,8 @@ import { loadTestProject } from "./support/project.ts";
 
 const RUN_ID = "20261109-120000-7a8b";
 const ORDER_REF = "fake-order-ref-9931";
+const SECRET_NAME = "INGEST_PROBE_SECRET";
+const SECRET_VALUE = "probe-secret-value-xyz";
 
 const roots: string[] = [];
 
@@ -38,6 +40,8 @@ interface IngestSetup {
   env?: string;
   format?: string;
   redactor?: Redactor;
+  /** `secrets.names` in the config. */
+  secrets?: string[];
 }
 
 async function ingest(setup: IngestSetup): Promise<{ results: CaseResult[]; runDir: string }> {
@@ -50,6 +54,7 @@ async function ingest(setup: IngestSetup): Promise<{ results: CaseResult[]; runD
       shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: setup.format ?? "junit" },
     },
     targets: { "shop-chrome": { runner: "shop" } },
+    ...(setup.secrets === undefined ? {} : { secrets: { names: setup.secrets } }),
   };
   const { root, project, registry } = await loadTestProject(
     { [BRAND.configFile]: config, "cases/shop/cart.yaml": { cases: setup.cases }, ...setup.files },
@@ -132,6 +137,33 @@ describe("ingestResults", () => {
     for (const file of ["summary.json", "summary.md"])
       expect(await readFile(join(runDir, file), "utf8")).not.toContain(ORDER_REF);
     expect(await readFile(join(runDir, "summary.md"), "utf8")).toContain("Cart › checks out order [redacted]");
+  });
+
+  it("masks the inherited value of a declared secret in every file it writes", async () => {
+    const before = process.env[SECRET_NAME];
+    process.env[SECRET_NAME] = SECRET_VALUE;
+    try {
+      const { runDir } = await ingest({
+        cases: [cartCase("SHOP-CART-001")],
+        files: {
+          "reports/results.xml": junit(
+            // the post plan's comment names the test, not its failure message
+            `<testcase classname="Cart" name="[SHOP-CART-001] keeps items for ${SECRET_VALUE}"><failure message="token ${SECRET_VALUE} refused"/></testcase>`,
+            `<testcase classname="Cart" name="signs in with ${SECRET_VALUE}"/>`,
+          ),
+        },
+        secrets: [SECRET_NAME],
+      });
+      for (const file of [join("SHOP-CART-001", "result.json"), "summary.json", "summary.md", "post-plan.json"]) {
+        const text = await readFile(join(runDir, file), "utf8");
+        expect(text, file).not.toContain(SECRET_VALUE);
+        // the post plan's markdown escapes the brackets
+        expect(text, file).toMatch(/\[redacted\\*\]/);
+      }
+    } finally {
+      if (before === undefined) delete process.env[SECRET_NAME];
+      else process.env[SECRET_NAME] = before;
+    }
   });
 
   it("blocks a case without prod_safe in a production env and asks nothing for the runner", async () => {

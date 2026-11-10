@@ -25,14 +25,23 @@ const CONTRIBUTIONS: Record<string, object> = {
   "version-shape": misshapen,
   "launch-http": driver,
   "step-secret": driver,
+  "step-string-error": driver,
+  "step-codeless-error": driver,
+  "step-cookies": driver,
+};
+// driver.step answers in these modes, with an error that is not a JSON-RPC error object
+const BROKEN_ERRORS: Record<string, unknown> = {
+  "step-string-error": "device not reachable",
+  "step-codeless-error": { message: "device not reachable" },
 };
 const contributions = CONTRIBUTIONS[mode] ?? { secretProviders: [{ name: "raw-secrets" }] };
 
 interface Message {
   id?: number;
   method?: string;
-  params?: { id?: number; options?: { contextId: string }; context?: { contextId: string } };
-  error?: object;
+  params?: { id?: number; options?: { contextId: string }; context?: { contextId: string }; step?: { url?: string } };
+  result?: unknown;
+  error?: unknown;
 }
 
 function send(message: object): void {
@@ -42,11 +51,16 @@ function send(message: object): void {
 // host calls that wait for their answers, by request id
 const asked = new Map<number, (answer: Message) => void>();
 
+/** Sends one host call and hands its answer to `then`. */
+function ask(method: string, params: object, then: (answer: Message) => void): void {
+  const hostId = asked.size + 1;
+  asked.set(hostId, then);
+  send({ id: hostId, method, params });
+}
+
 /** Sends one host call and answers request `id` with the error the host gave back. */
 function relay(id: number | undefined, method: string, params: object): void {
-  const hostId = asked.size + 1;
-  asked.set(hostId, (answer) => send({ id, error: answer.error }));
-  send({ id: hostId, method, params });
+  ask(method, params, (answer) => send({ id, error: answer.error }));
 }
 
 createInterface({ input: process.stdin }).on("line", (line) => {
@@ -95,6 +109,19 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       send({ id, result: { session: "raw-session", capabilities: [] } });
       return;
     case "driver.step":
+      if (mode in BROKEN_ERRORS) {
+        send({ id, error: BROKEN_ERRORS[mode] });
+        return;
+      }
+      if (mode === "step-cookies") {
+        // the host.http result as it came over the wire, as a plugin in another language reads it
+        const request = { method: "GET", url: message.params?.step?.url, headers: {} };
+        ask("host.http", { contextId: message.params?.context?.contextId, request }, (answer) => {
+          writeFileSync(process.env["RAW_RESULT_FILE"] ?? "", JSON.stringify(answer.result ?? answer.error));
+          send({ id, result: null });
+        });
+        return;
+      }
       relay(id, "host.secret", { contextId: message.params?.context?.contextId, key: "RAW_SECRET" });
       return;
     case "driver.close":

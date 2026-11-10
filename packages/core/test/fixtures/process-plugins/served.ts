@@ -33,6 +33,24 @@ const steps: StepHandler[] = [
       ctx.evidence.record({ name: `${method} answered`, kind: "api", expected: 200, observed: response.status, ok: true });
     },
   ),
+  step("upload", z.strictObject({ url: z.string(), bytes: z.int() }), async (payload, ctx) => {
+    const { url, bytes } = await ctx.resolve(payload);
+    const request = { method: "POST", url: new URL(url), headers: new Headers(), body: new Uint8Array(bytes) };
+    await ctx.http.send({ ...request, signal: ctx.signal });
+  }),
+  step("redirect", z.strictObject({ url: z.string() }), async (payload, ctx) => {
+    const { url } = await ctx.resolve(payload);
+    const request = { method: "GET", url: new URL(url), headers: new Headers(), redirect: "manual" as const };
+    const response = await ctx.http.send({ ...request, signal: ctx.signal });
+    const observed = `${response.status} ${response.headers.get("location")}`;
+    ctx.evidence.record({ name: "redirect", kind: "api", expected: "302 /target", observed, ok: true });
+  }),
+  step("cookies", z.strictObject({ url: z.string() }), async (payload, ctx) => {
+    const { url } = await ctx.resolve(payload);
+    const { headers } = await ctx.http.send({ method: "GET", url: new URL(url), headers: new Headers(), signal: ctx.signal });
+    const observed = JSON.stringify([headers.get("set-cookie"), headers.getSetCookie()]);
+    ctx.evidence.record({ name: "cookies", kind: "api", expected: "both cookies", observed, ok: true });
+  }),
   step(
     "strict",
     z.strictObject({ count: z.int() }).refine((payload) => payload.count > 0, { error: "count must be above 0" }),
@@ -121,7 +139,14 @@ const manifest = definePlugin({
           editComment: async () => undefined,
           transition: async () => {},
           findOpenBug: async () => undefined,
-          createBug: async () => ({ key: "BUG-1", url: "https://tracker.example.test/BUG-1" }),
+          // each related key stands for a link the tracker refused
+          createBug: async (draft) => ({
+            key: "BUG-1",
+            url: "https://tracker.example.test/BUG-1",
+            ...(draft.relatesTo.length === 0
+              ? {}
+              : { problems: draft.relatesTo.map((key) => `could not link BUG-1 to ${key}`) }),
+          }),
         };
       },
     },

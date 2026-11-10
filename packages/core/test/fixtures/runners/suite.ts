@@ -45,6 +45,13 @@ async function ask(caseId: string): Promise<string | undefined> {
   return response.status === 200 && body.value !== undefined ? undefined : `service answered ${response.status}`;
 }
 
+async function waitFor(file: string | undefined): Promise<void> {
+  for (let tries = 0; file !== undefined && !existsSync(file); tries += 1) {
+    if (tries > 500) throw new Error(`${file} did not appear`);
+    await sleep(10);
+  }
+}
+
 mark("start");
 if (env["SUITE_URL_FILE"] !== undefined) writeFileSync(env["SUITE_URL_FILE"], env[urlVar] ?? "");
 if (env["SUITE_REPORT"] !== undefined) {
@@ -54,11 +61,7 @@ if (env["SUITE_REPORT"] !== undefined) {
 if (env["SUITE_PRINT_VAR"] !== undefined) console.log(`value of ${env["SUITE_PRINT_VAR"]}: ${env[env["SUITE_PRINT_VAR"]]}`);
 const askFailure = env["SUITE_ASK"] === undefined ? undefined : await ask(env["SUITE_ASK"]);
 if (env["SUITE_HOLD_MS"] !== undefined) await sleep(Number(env["SUITE_HOLD_MS"]));
-const waitFor = env["SUITE_WAIT_FOR"];
-for (let tries = 0; waitFor !== undefined && !existsSync(waitFor); tries += 1) {
-  if (tries > 500) throw new Error(`${waitFor} did not appear`);
-  await sleep(10);
-}
+await waitFor(env["SUITE_WAIT_FOR"]);
 
 if (env["SUITE_NO_RESULTS"] === undefined) {
   const failing = list(env["SUITE_FAIL"]);
@@ -77,6 +80,8 @@ if (env["SUITE_NO_RESULTS"] === undefined) {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, xml);
 }
+// keeps running after its results are written, as a suite that writes one file per class does
+await waitFor(env["SUITE_WAIT_AFTER"]);
 if (env["SUITE_HANG"] !== undefined) await sleep(60_000);
 mark("end");
 process.exitCode = Number(env["SUITE_EXIT"] ?? 0);

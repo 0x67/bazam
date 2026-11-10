@@ -306,6 +306,17 @@ describe("runner targets and process plugin entries", () => {
     ]);
   });
 
+  it("takes a timeoutMinutes up to the longest timer Node can set", async () => {
+    const { config } = await load([...runner, "    timeoutMinutes: 35791"]);
+    expect(config?.runners["shop-selenium"]?.timeoutMinutes).toBe(35791);
+    expect(await issues([...runner, "    timeoutMinutes: 35792"])).toEqual([
+      [
+        9,
+        "runners.shop-selenium.timeoutMinutes: timeoutMinutes can be at most 35791 (about 24.8 days), the longest timer Node can set",
+      ],
+    ]);
+  });
+
   it("refuses a runner identity the config does not define, on its line", async () => {
     expect(await issues([...runner, "    identities:", "      - customer", "      - admin"])).toEqual([
       [
@@ -365,6 +376,22 @@ describe("runner targets and process plugin entries", () => {
       ]);
     },
   );
+
+  it("refuses a plugin timeoutSeconds longer than a Node timer holds and takes the longest one it holds", async () => {
+    const entry = (seconds: number) => [
+      "envs: {}",
+      "plugins:",
+      `  - { command: [python3, x.py], timeoutSeconds: ${seconds} }`,
+    ];
+
+    expect(await issues(entry(2_147_484))).toEqual([
+      [
+        3,
+        "plugins[0].timeoutSeconds: timeoutSeconds takes at most 2147483 (about 24 days), the longest delay a Node timer holds",
+      ],
+    ]);
+    expect((await load(entry(2_147_483))).config?.plugins[0]).toMatchObject({ timeoutSeconds: 2_147_483 });
+  });
 
   it.each([[".."], ["shop/chrome"]])("refuses a runner target named %s", async (name) => {
     expect(await issues([...runner, "targets:", `  "${name}": { runner: shop-selenium }`])).toEqual([

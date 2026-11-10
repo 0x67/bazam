@@ -204,6 +204,28 @@ describe("postPlanDirect", () => {
     expect((await loadReceipts(stateDir)).latest("jira", "DEMO-12", "CHECKOUT-CART-001")).toBeDefined();
   });
 
+  it("skips the transition when the ticket is already in that status, ignoring case", async () => {
+    connection.tickets.set("DEMO-12", { key: "DEMO-12", status: "Ready for Release", transitions: ["Reopen"] });
+    const [outcome] = await post([item({ transition: "ready for release" })], [fakeTrackerClient(connection)]);
+
+    expect(outcome).toMatchObject({ ok: true, actions: ["posted a comment", "already in Ready for Release"] });
+    expect(connection.methods()).toEqual(["ticket", "postComment"]);
+    expect((await loadReceipts(stateDir)).latest("jira", "DEMO-12", "CHECKOUT-CART-001")).toBeDefined();
+  });
+
+  it("refuses an issue that moved to a project the config does not list, sending nothing past the read", async () => {
+    connection.tickets.set("DEMO-12", { key: "SEC-3", status: "To Do" });
+    const [outcome] = await post([item(FULL)], [fakeTrackerClient(connection)]);
+
+    expect(outcome).toMatchObject({
+      ok: false,
+      actions: [],
+      error: "DEMO-12 is now SEC-3, in project SEC, which is not listed under trackers.jira.projects",
+    });
+    expect(connection.methods()).toEqual(["ticket"]);
+    expect((await loadReceipts(stateDir)).latest("jira", "DEMO-12", "CHECKOUT-CART-001")).toBeUndefined();
+  });
+
   it("fails an item with an attachment outside the run folder before it reads the ticket", async () => {
     const client = fakeTrackerClient(connection);
     const outside = "CHECKOUT-CART-001/../../../outside.txt";

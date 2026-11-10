@@ -11,7 +11,7 @@ import {
   type UnmappedTest,
 } from "../ingest/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
-import { runnerOf, type Project } from "../project.ts";
+import { declaredSecretNames, runnerOf, type Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import type { CaseResult } from "../result/index.ts";
 import { finishRun, ProgressFile, progressEntry, RunLog } from "./finish.ts";
@@ -35,10 +35,16 @@ export interface IngestOptions {
 
 /**
  * Records the target's cases from result files written elsewhere, as a run of those cases would, and starts no
- * process. Throws before writing anything when a file cannot be read or the target names no runner.
+ * process. Registers the inherited values of the declared secrets with the redactor first, as `Run.startService`
+ * does, since the runner that wrote the files had them in its environment. Throws before writing anything when a
+ * file cannot be read or the target names no runner.
  */
 export async function ingestResults(options: IngestOptions): Promise<CaseResult[]> {
   const { project, env, registry, target, cases, runDir, redactor, seed } = options;
+  for (const name of declaredSecretNames(project.config)) {
+    const value = process.env[name];
+    if (value !== undefined && value !== "") redactor.register(value);
+  }
   const external = runnerOf(project.config, target);
   if (external === undefined) throw new Error(`target ${target} does not name a runner`);
   const cwd = resolve(project.root, external.runner.cwd);

@@ -7,6 +7,10 @@ const INVALID_REQUEST = -32600;
 const METHOD_NOT_FOUND = -32601;
 const INTERNAL_ERROR = -32603;
 const CANCELLED = -32002;
+/** The code for a message that would pass the line limit; a served step passes it on, so the case ends blocked. */
+export const LINE_TOO_LONG = -32003;
+// the longest delay a Node timer holds; a longer one fires at once
+const MAX_TIMER_MS = 2_147_483_647;
 
 type Id = number | string;
 type Handler = (params: unknown, signal: AbortSignal) => Promise<unknown>;
@@ -29,6 +33,14 @@ export class RpcError extends Error {
   }
 }
 
+/** An answer whose `error` is not a JSON-RPC error object with a numeric `code` and a string `message`. */
+export class MalformedAnswer extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MalformedAnswer";
+  }
+}
+
 /**
  * One side of a JSON-RPC 2.0 connection over newline-delimited JSON, which sends and answers requests both ways.
  * Its log gets method names, ids and error codes only, never params, results or messages, since they may hold secrets.
@@ -47,6 +59,9 @@ export class JsonRpcPeer {
   #partialBytes = 0;
   #dropped = 0;
   #closed: Error | undefined;
+  readonly #closing = Promise.withResolvers<Error>();
+  /** Resolves with the reason once the peer closes, also when it closes itself after a line over its limit. */
+  readonly closed: Promise<Error> = this.#closing.promise;
 
   constructor(input: Readable, output: Writable, options: { maxLineBytes?: number; log?(line: string): void }) {
     this.#output = output;
@@ -64,7 +79,8 @@ export class JsonRpcPeer {
 
   /**
    * Rejects with `signal.reason` when the signal aborts, and with a `DOMException` named `TimeoutError` when
-   * `timeoutMs` passes; either way the other side gets `$/cancelRequest`.
+   * `timeoutMs` passes; either way the other side gets `$/cancelRequest`. A request whose line would pass the line
+   * limit rejects at once with an `RpcError` of code `LINE_TOO_LONG` and sends nothing.
    */
   request<T>(method: string, params: unknown, options: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> {
     if (this.#closed !== undefined) return Promise.reject(this.#closed);
@@ -72,6 +88,11 @@ export class JsonRpcPeer {
     if (signal?.aborted === true) return Promise.reject(signal.reason);
     const id = this.#nextId++;
     const line = JSON.stringify({ jsonrpc: "2.0", id, method, params });
+    if (!this.#fits(line)) {
+      return Promise.reject(
+        new RpcError(LINE_TOO_LONG, `${method} would send a line longer than ${this.#maxLineBytes} bytes`),
+      );
+    }
     const { promise, resolve, reject } = Promise.withResolvers<T>();
     const finish = (): void => {
       clearTimeout(timer);
@@ -89,7 +110,7 @@ export class JsonRpcPeer {
         ? undefined
         : setTimeout(
             () => abandon(new DOMException(`${method} got no answer within ${timeoutMs} ms`, "TimeoutError")),
-            timeoutMs,
+            Math.min(timeoutMs, MAX_TIMER_MS),
           );
     signal?.addEventListener("abort", onAbort, { once: true });
     this.#pending.set(id, {
@@ -117,6 +138,7 @@ export class JsonRpcPeer {
   close(reason: Error): void {
     if (this.#closed !== undefined) return;
     this.#closed = reason;
+    this.#closing.resolve(reason);
     this.#partial = [];
     this.#partialBytes = 0;
     for (const pending of this.#pending.values()) pending.reject(reason);
@@ -234,6 +256,13 @@ export class JsonRpcPeer {
     try {
       const result = await handler(params, controller.signal);
       line = JSON.stringify({ jsonrpc: "2.0", id, result: result ?? null });
+      // the other side would close on it, so the caller gets an error instead
+      if (!this.#fits(line)) {
+        throw new RpcError(
+          LINE_TOO_LONG,
+          `the result of ${method} would be a line longer than ${this.#maxLineBytes} bytes`,
+        );
+      }
     } catch (error) {
       this.#answerError(id, method, controller.signal.aborted ? cancelled(id) : wireError(error));
       return;
@@ -246,7 +275,14 @@ export class JsonRpcPeer {
   #answerError(id: Id, method: string, error: { code: number; message: string; data?: unknown }): void {
     if (this.#closed !== undefined) return;
     this.#log(`answered ${JSON.stringify(method)} request ${JSON.stringify(id)} with error ${error.code}`);
-    this.#send({ jsonrpc: "2.0", id, error });
+    const line = JSON.stringify({ jsonrpc: "2.0", id, error });
+    if (this.#fits(line)) {
+      this.#write(line);
+      return;
+    }
+    // the caller still gets the code; #send drops this too only when the id or method name nears the limit
+    const message = `the error of ${method} would be a line longer than ${this.#maxLineBytes} bytes`;
+    this.#send({ jsonrpc: "2.0", id, error: { code: error.code, message } });
   }
 
   #refuse(id: Id | null, message: string): void {
@@ -255,7 +291,14 @@ export class JsonRpcPeer {
   }
 
   #send(message: object): void {
-    if (this.#closed === undefined) this.#write(JSON.stringify(message));
+    if (this.#closed !== undefined) return;
+    const line = JSON.stringify(message);
+    if (this.#fits(line)) this.#write(line);
+    else this.#log(`dropped a message longer than ${this.#maxLineBytes} bytes`);
+  }
+
+  #fits(line: string): boolean {
+    return Buffer.byteLength(line) <= this.#maxLineBytes;
   }
 
   #write(line: string): void {
@@ -277,10 +320,10 @@ function wireError(error: unknown): { code: number; message: string; data?: unkn
   return { code: INTERNAL_ERROR, message: error instanceof Error ? error.message : String(error) };
 }
 
-function rpcErrorOf(error: unknown): RpcError {
+function rpcErrorOf(error: unknown): RpcError | MalformedAnswer {
   const { code, message, data } = (typeof error === "object" && error !== null ? error : {}) as Record<string, unknown>;
   if (typeof code !== "number" || typeof message !== "string") {
-    return new RpcError(INTERNAL_ERROR, "the answer held an error that is not a JSON-RPC error object");
+    return new MalformedAnswer("the answer held an error that is not a JSON-RPC error object");
   }
   return new RpcError(code, message, data);
 }

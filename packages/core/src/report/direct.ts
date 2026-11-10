@@ -74,6 +74,12 @@ async function postItem(
     });
     const connection = await connect(tracker, guarded.config);
     const state = await connection.ticket(key);
+    // a moved issue answers under its new key, in a project the guard has not checked
+    const moved = state.key === key ? undefined : unlistedProject(guarded.config, state.key);
+    if (moved !== undefined)
+      throw new Error(
+        `${key} is now ${state.key}, in project ${moved}, which is not listed under trackers.${tracker}.projects`,
+      );
     const mentions = resolveMentions(item, state, outcome.unresolved);
     if (files.length > 0) {
       await connection.attach(key, files);
@@ -83,8 +89,13 @@ async function postItem(
     outcome.url = posted;
     await recordReceipt(deps.stateDir, item, posted, deps.now());
     if (item.transition !== undefined) {
-      await connection.transition(key, item.transition);
-      outcome.actions.push(`moved to ${item.transition}`);
+      // most workflows offer no transition from a status to itself
+      if (state.status.toLowerCase() === item.transition.toLowerCase())
+        outcome.actions.push(`already in ${state.status}`);
+      else {
+        await connection.transition(key, item.transition);
+        outcome.actions.push(`moved to ${item.transition}`);
+      }
     }
     outcome.ok = true;
   } catch (error) {
@@ -136,10 +147,16 @@ function resolveMentions(item: PostPlanItem, state: TicketState, unresolved: str
 function guard(ticket: TicketRef, config: ProjectConfig): { config: TrackerConfig } | { refused: string } {
   const tracker = Object.hasOwn(config.trackers, ticket.tracker) ? config.trackers[ticket.tracker] : undefined;
   if (tracker?.site === undefined) return { refused: `trackers.${ticket.tracker}.site is not set` };
-  const project = trackerProject(ticket.key);
-  if (!Object.hasOwn(tracker.projects, project))
+  const project = unlistedProject(tracker, ticket.key);
+  if (project !== undefined)
     return { refused: `project ${project} is not listed under trackers.${ticket.tracker}.projects` };
   return { config: tracker };
+}
+
+// the key's project when `projects` does not list it
+function unlistedProject(tracker: TrackerConfig, key: string): string | undefined {
+  const project = trackerProject(key);
+  return Object.hasOwn(tracker.projects, project) ? undefined : project;
 }
 
 /** What `postPlanDirect` would do, one line per action, with the items the guard refuses. */

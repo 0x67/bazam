@@ -1,4 +1,6 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -319,6 +321,39 @@ describe("process plugins in a run", () => {
       reason:
         "internal: plugin raw answered driver.step with error -32602: host.secret is not available in this context",
     });
+  });
+
+  it.each(["step-string-error", "step-codeless-error"])(
+    "ends a case blocked with internal:, never fail, when driver.step answers an error that is not a JSON-RPC error object (%s)",
+    async (mode) => {
+      const result = await runOnTarget(fixture("raw", { args: [mode] }), "raw", [{ peek: {} }]);
+
+      expect(result).toMatchObject({
+        status: "blocked",
+        reason: "internal: plugin raw answered driver.step with an error that is not a JSON-RPC error object",
+      });
+    },
+  );
+
+  it("gives a plugin set-cookie with its values joined in headers, and each value on its own in setCookie", async () => {
+    const server = createServer((_req, res) => res.writeHead(200, { "set-cookie": ["session=abc", "csrf=xyz"] }).end());
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const folder = await mkdtemp(join(tmpdir(), "process-plugin-"));
+    folders.push(folder);
+    const file = join(folder, "result.json");
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/cookies`;
+
+    try {
+      const plugin = fixture("raw", { args: ["step-cookies"], env: { RAW_RESULT_FILE: file } });
+      await runOnTarget(plugin, "raw", [{ peek: { url } }]);
+
+      const { headers, setCookie } = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+      expect((headers as Record<string, string>)["set-cookie"]).toBe("session=abc, csrf=xyz");
+      expect(setCookie).toEqual(["session=abc", "csrf=xyz"]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
   });
 
   it("lets a process resolver whose plugin exits give way to the next resolver at arm", async () => {

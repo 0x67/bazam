@@ -10,7 +10,10 @@ import type {
   TrackerConnection,
 } from "../../src/report/index.ts";
 
-/** A ticket the fake tracker holds; `done` is false when left out. */
+/**
+ * A ticket the fake tracker holds; `done` is false when left out. `ticket()` answers with `key`, so a ticket stored
+ * under another key acts as an issue moved to a new key.
+ */
 export interface FakeTicket {
   key: string;
   status: string;
@@ -52,6 +55,8 @@ export class FakeTrackerConnection implements TrackerConnection {
   readonly calls: FakeTrackerCall[] = [];
   /** The message a method throws after it records its call, as when the tracker answers with an error. */
   readonly failures: Partial<Record<Method, string>> = {};
+  /** What `createBug` reports as failed after it files the bug, as when an upload or a link is refused. */
+  readonly bugProblems: string[] = [];
   #lastComment = 10_000;
   #lastIssue = 900;
 
@@ -68,7 +73,7 @@ export class FakeTrackerConnection implements TrackerConnection {
     this.#record({ method: "ticket", key });
     const ticket = this.#held(key);
     return {
-      key,
+      key: ticket.key,
       status: ticket.status,
       done: ticket.done ?? false,
       ...(ticket.assignee === undefined ? {} : { assignee: ticket.assignee }),
@@ -124,13 +129,14 @@ export class FakeTrackerConnection implements TrackerConnection {
       ?.key;
   }
 
-  async createBug(draft: BugDraft): Promise<{ key: string; url: string }> {
+  async createBug(draft: BugDraft): Promise<{ key: string; url: string; problems?: string[] }> {
     this.#record({ method: "createBug", draft });
     this.#lastIssue += 1;
     const key = `${draft.project}-${this.#lastIssue}`;
     this.tickets.set(key, { key, status: "Open", labels: [...draft.labels] });
     this.bugs.set(key, draft);
-    return { key, url: `https://tracker.example.test/browse/${key}` };
+    const url = `https://tracker.example.test/browse/${key}`;
+    return this.bugProblems.length === 0 ? { key, url } : { key, url, problems: [...this.bugProblems] };
   }
 
   #record(call: FakeTrackerCall): void {

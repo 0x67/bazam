@@ -2,7 +2,10 @@
 export interface WorkUnit {
   /** The plan positions the unit's results fill, in the order `run` returns them. */
   positions: readonly number[];
-  /** Identity names, plus `runner:<name>` for an external suite. */
+  /**
+   * Identity names. An external suite adds `runner:<name>`, and `results:<a>+<b>` for each other runner whose result
+   * glob can reach the same files.
+   */
   locks: readonly string[];
 }
 

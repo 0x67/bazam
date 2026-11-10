@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -237,6 +237,26 @@ describe("checkProject with the built-in rules", () => {
     expect(
       issues.filter((issue) => issue.ruleId === "no-literal-secret" && issue.file === "interop/shop-suite.yaml"),
     ).toEqual([]);
+  });
+
+  it.each([
+    ["names a folder", "interop/api-suite.yaml", "of runner api-suite is a folder, not a file"],
+    ["has a file as a parent", "interop/shop-suite.yaml/x.yaml", "of runner api-suite is missing"],
+  ])("reports a runner mapping path that %s on its config line", async (_, mapping, message) => {
+    await cp(clean, root, { recursive: true });
+    await cp(fixture("failing/runner-mapping-valid"), root, { recursive: true });
+    await mkdir(join(root, "interop/api-suite.yaml"));
+    const config = join(root, BRAND.configFile);
+    await writeFile(
+      config,
+      (await readFile(config, "utf8")).replace("mapping: interop/api-suite.yaml", `mapping: ${mapping}`),
+    );
+
+    const issues = checkProject(await load(root), builtinRules).filter(
+      (issue) => issue.ruleId === "runner-mapping-valid" && issue.file === BRAND.configFile,
+    );
+
+    expect(issues.map((issue) => [issue.line, issue.message])).toEqual([[32, `mapping file ${mapping} ${message}`]]);
   });
 
   it("tells a trigger whose flow has several steps to name a one-step flow", async () => {

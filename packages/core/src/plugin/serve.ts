@@ -53,7 +53,7 @@ export function firstIssue(error: z.ZodError): string {
  * Serves an in-process manifest as a process plugin until `input` ends. By default `input` and `output` are stdin and
  * stdout, so the plugin must keep stdout for the protocol and write its own logs to stderr. Rejects at start a
  * manifest that offers a type a process plugin cannot, or a step schema that JSON Schema cannot represent, naming the
- * step kind.
+ * step kind. Rejects with the reason, and destroys `input`, when the connection closes on a line over 64 MiB.
  */
 export async function serveProcessPlugin(
   manifest: PluginManifest,
@@ -66,7 +66,12 @@ export async function serveProcessPlugin(
   });
   const peer = new JsonRpcPeer(io.input, io.output, {});
   serve(peer, manifest, contributions);
-  await ended;
+  const closed = await Promise.race([ended.then(() => undefined), peer.closed]);
+  if (closed !== undefined) {
+    // a peer that closed itself answers nothing more, so the plugin exits and the host sees the exit
+    io.input.destroy();
+    throw closed;
+  }
   peer.close(new Error("the host closed the connection"));
 }
 
@@ -151,13 +156,19 @@ function serve(
             url: request.url.href,
             headers: Object.fromEntries(request.headers),
             ...body,
+            ...(request.redirect === undefined ? {} : { redirect: request.redirect }),
           },
           ...(as === undefined ? {} : { as }),
           ...(write ? { write } : {}),
         },
         request.signal ?? signal,
       );
-      return { status: response.status, headers: new Headers(response.headers), body: response.body ?? undefined };
+      const headers = new Headers(response.headers);
+      if (response.setCookie !== undefined) {
+        headers.delete("set-cookie");
+        for (const cookie of response.setCookie) headers.append("set-cookie", cookie);
+      }
+      return { status: response.status, headers, body: response.body ?? undefined };
     },
   });
 

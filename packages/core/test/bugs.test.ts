@@ -250,6 +250,28 @@ describe("applyBugs", () => {
     ]);
   });
 
+  it("names a filed bug and fails the intent when a step after the create failed", async () => {
+    const connection = new FakeTrackerConnection();
+    connection.bugProblems.push(
+      "could not link DEMO-901 to DEMO-99: POST /rest/api/3/issueLink answered 404",
+      "could not link DEMO-901 to DEMO-98: POST /rest/api/3/issueLink answered 404",
+    );
+
+    const outcomes = await applyBugs(planBugs(inputs([result()])), connected(connection));
+
+    expect(outcomes).toEqual([
+      {
+        caseId: "CHECKOUT-CART-001",
+        ok: false,
+        action: "filed DEMO-901",
+        key: "DEMO-901",
+        url: "https://tracker.example.test/browse/DEMO-901",
+        error:
+          "could not link DEMO-901 to DEMO-99: POST /rest/api/3/issueLink answered 404; could not link DEMO-901 to DEMO-98: POST /rest/api/3/issueLink answered 404",
+      },
+    ]);
+  });
+
   it("connects once per tracker and fails each intent of a tracker that cannot connect", async () => {
     const connection = new FakeTrackerConnection();
     const asked: string[] = [];

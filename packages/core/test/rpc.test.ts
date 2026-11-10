@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { METHODS } from "../src/plugin/protocol.ts";
-import { JsonRpcPeer, RpcError } from "../src/plugin/rpc.ts";
+import { JsonRpcPeer, MalformedAnswer, RpcError } from "../src/plugin/rpc.ts";
 
 const SECRET = "sk-example-4421";
 
@@ -116,6 +116,84 @@ describe("JsonRpcPeer", () => {
     expect(logged).toContain('a: answered "broken" request 2 with error -32603');
     expect(logged).toContain('a: answered "missing" request 3 with error -32601');
     expect(logged.join("\n")).not.toContain(SECRET);
+  });
+
+  it.each([
+    ["a string", "boom"],
+    ["an object without a numeric code", { message: "boom" }],
+  ])("rejects with MalformedAnswer, not an RpcError, when the answer's error is %s", async (_label, error) => {
+    const { peer, write, next } = wired();
+
+    const call = peer.request("ping", {}, {});
+    expect(await next()).toMatchObject({ id: 1, method: "ping" });
+    write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, error })}\n`);
+
+    await expect(call).rejects.toBeInstanceOf(MalformedAnswer);
+    await expect(call).rejects.not.toBeInstanceOf(RpcError);
+  });
+
+  it("rejects a request over the line limit at once, without sending it", async () => {
+    const { peer, sent, next } = wired({ maxLineBytes: 64 });
+
+    await expect(peer.request("parse", { text: "x".repeat(64) }, {})).rejects.toMatchObject({
+      name: "RpcError",
+      code: -32003,
+      message: "parse would send a line longer than 64 bytes",
+    });
+    peer.notify("marker", {});
+
+    expect(await next()).toEqual({ jsonrpc: "2.0", method: "marker", params: {} });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("answers -32003 instead of a result over the line limit, and drops a notification over it", async () => {
+    const { peer, write, next, logged } = wired({ maxLineBytes: 200 });
+    peer.handle("big", async () => "x".repeat(200));
+
+    peer.notify("host.log", { line: "x".repeat(200) });
+    write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "big" })}\n`);
+
+    expect(await next()).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      error: { code: -32003, message: "the result of big would be a line longer than 200 bytes" },
+    });
+    expect(logged).toEqual(["dropped a message longer than 200 bytes", 'answered "big" request 1 with error -32003']);
+  });
+
+  it("answers a handler error over the line limit with its code and a short message", async () => {
+    const { peer, write, next } = wired({ maxLineBytes: 200 });
+    peer.handle("broken", async () => {
+      throw new Error("x".repeat(200));
+    });
+
+    write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "broken" })}\n`);
+
+    expect(await next()).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      error: { code: -32603, message: "the error of broken would be a line longer than 200 bytes" },
+    });
+  });
+
+  it("holds a timeout longer than a Node timer can hold instead of firing at once", async () => {
+    const { peer } = wired();
+
+    const call = peer.request("ping", {}, { timeoutMs: 2 ** 31 });
+    const isSettled = settled(call);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(isSettled()).toBe(false);
+    peer.close(new Error("done"));
+    await expect(call).rejects.toThrow("done");
+  });
+
+  it("resolves closed with the reason when it closes itself on a line over the limit", async () => {
+    const { peer, write } = wired({ maxLineBytes: 64 });
+
+    write("x".repeat(65));
+
+    await expect(peer.closed).resolves.toEqual(new Error("received a line longer than 64 bytes"));
   });
 
   it("delivers a notification to its handler and answers nothing", async () => {

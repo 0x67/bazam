@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
@@ -278,7 +279,8 @@ class Run {
         throw error;
       }
     };
-    const units = workUnits(plan, this.#options.project.config);
+    const { config, root } = this.#options.project;
+    const units = workUnits(plan, config, root);
     return runUnits(units, this.#options.workers ?? 1, runUnit, this.#stop.signal);
   }
 
@@ -337,7 +339,9 @@ class Run {
     const { env, redactor } = this.#options;
     const prompt = maskPrompt(
       {
-        id: `preflight-${runner}-confirm`,
+        // no answer file written before the prompt can hold this id, and --seed cannot make it known; seven hex
+        // digits stay under the redactor's rule for runs of eight digits, which would hide the id from prompt_list
+        id: `preflight-${runner}-confirm-${randomUUID().slice(0, 7)}`,
         runId: this.#runId,
         caseId: "",
         ask: "verdict",
@@ -569,7 +573,7 @@ class Run {
  * One unit per case, except that the cases of one runner target that are not blocked share one, placed where the
  * first of them sits in the plan.
  */
-function workUnits(plan: RunPlan, config: ProjectConfig): WorkUnit[] {
+function workUnits(plan: RunPlan, config: ProjectConfig, root: string): WorkUnit[] {
   const units: WorkUnit[] = [];
   const suites = new Map<string, number[]>();
   plan.cases.forEach((planned, position) => {
@@ -584,18 +588,47 @@ function workUnits(plan: RunPlan, config: ProjectConfig): WorkUnit[] {
     }
     const suite = [position];
     suites.set(planned.target, suite);
-    units.push({ positions: suite, locks: suiteLocks(config, planned.runner) });
+    units.push({ positions: suite, locks: suiteLocks(config, root, planned.runner) });
   });
   return units;
 }
 
 /**
  * The identities the runner lists, or every identity when it lists none, and the runner itself, since its targets
- * share one results folder.
+ * share one results folder. Adds `results:<a>+<b>` for each other runner whose result glob can reach the same
+ * files, so one suite never reads what the other is still writing; a lock per pair keeps two runners that each
+ * overlap only a third free to run together.
  */
-function suiteLocks(config: ProjectConfig, runner: string): string[] {
-  const identities = config.runners[runner]?.identities ?? Object.keys(config.identities);
-  return [...identities, `runner:${runner}`];
+function suiteLocks(config: ProjectConfig, root: string, runner: string): string[] {
+  const own = config.runners[runner];
+  const identities = own?.identities ?? Object.keys(config.identities);
+  const locks = [...identities, `runner:${runner}`];
+  if (own === undefined) return locks;
+  const ownRoot = resultsRoot(root, own);
+  for (const [other, otherRunner] of Object.entries(config.runners)) {
+    if (other === runner || !overlaps(ownRoot, resultsRoot(root, otherRunner))) continue;
+    locks.push(`results:${[runner, other].sort().join("+")}`);
+  }
+  return locks;
+}
+
+// a glob character in a segment ends the part of the pattern that names a fixed folder
+const GLOB_SEGMENT = /[*?[\]{}()!]/;
+
+/** The fixed folder, or file, that every match of the runner's result glob lies in; its cwd when no part is fixed. */
+function resultsRoot(root: string, runner: RunnerConfig): string {
+  const segments = runner.results.split("/");
+  const end = segments.findIndex((segment) => GLOB_SEGMENT.test(segment));
+  return resolve(root, runner.cwd, ...(end === -1 ? segments : segments.slice(0, end)));
+}
+
+/** Whether two paths are the same or one lies inside the other. */
+function overlaps(a: string, b: string): boolean {
+  const inside = (from: string, to: string): boolean => {
+    const path = relative(from, to);
+    return path === "" || (!path.startsWith("..") && !isAbsolute(path));
+  };
+  return inside(a, b) || inside(b, a);
 }
 
 /** Why the suite gave no results to read, or ended early; undefined when its files decide. */

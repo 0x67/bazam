@@ -12,7 +12,7 @@ import { CaseBlocked } from "../run/outcome.ts";
 import { METHODS, PROTOCOL_VERSION } from "./protocol.ts";
 import { proxyContributions, type HostCalls, type HostContext, type PluginCall } from "./proxies.ts";
 import type { PluginManifest } from "./registry.ts";
-import { JsonRpcPeer, RpcError } from "./rpc.ts";
+import { JsonRpcPeer, LINE_TOO_LONG, MalformedAnswer, RpcError } from "./rpc.ts";
 import { BLOCKED, firstIssue, handleMethod, INVALID_PARAMS } from "./serve.ts";
 
 const INTERNAL_ERROR = -32603;
@@ -223,7 +223,16 @@ function callError(plugin: string, method: string, timeoutMs: number, error: unk
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return new PluginCallTimedOut(`plugin ${plugin} did not answer ${method} within ${timeoutMs / 1000} s`);
   }
+  if (error instanceof MalformedAnswer) {
+    return new PluginCallFailed(
+      `plugin ${plugin} answered ${method} with an error that is not a JSON-RPC error object`,
+    );
+  }
   if (error instanceof RpcError) {
+    // a line over the limit, on either side or in a host call of a served step
+    if (error.code === LINE_TOO_LONG) {
+      return new PluginCallFailed(`plugin ${plugin} cannot answer ${method}: ${error.message}`);
+    }
     // the plugin's handler threw, so a step fails as an in-process step that throws does
     if (error.code === INTERNAL_ERROR) return new Error(error.message);
     if (error.code === BLOCKED) return new CaseBlocked(error.message);
@@ -272,10 +281,15 @@ function answerHostCalls(peer: JsonRpcPeer, contexts: ReadonlyMap<string, HostCo
       signal,
     };
     if (request.bodyBase64 !== undefined) draft.body = Buffer.from(request.bodyBase64, "base64");
+    if (request.redirect !== undefined) draft.redirect = request.redirect;
     const response = await context.http.send(draft, as);
     // the body was parsed from JSON or is text
     const body = (response.body ?? null) as z.core.util.JSONType;
-    return { status: response.status, headers: Object.fromEntries(response.headers), body };
+    // each name once with the value get() gives, so set-cookie holds the joined value; setCookie keeps each one
+    const headers: Record<string, string> = {};
+    for (const name of new Set(response.headers.keys())) headers[name] = response.headers.get(name) ?? "";
+    const setCookie = response.headers.getSetCookie();
+    return { status: response.status, headers, ...(setCookie.length > 0 ? { setCookie } : {}), body };
   });
   handleMethod(peer, "host.evidence.record", async ({ contextId, check }) => {
     find("host.evidence.record", contextId, hasEvidence).evidence.record(check);
