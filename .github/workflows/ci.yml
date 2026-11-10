@@ -75,19 +75,25 @@ jobs:
           key: ${{ steps.browsers.outputs.cache-primary-key }}
 
       # the Ubuntu mirror can take minutes per package, so apt-get installs from the cached .deb files and
-      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives
+      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives.
+      # A new runner image starts from the files of an older one, since most package versions stay the same.
       - name: Restore the system packages of the browsers
         id: packages
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
           key: apt-${{ runner.os }}-${{ steps.playwright.outputs.image }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: apt-${{ runner.os }}-
 
       - name: Install the system packages of the browsers
         run: |
           mkdir -p ~/apt-archives
           sudo find ~/apt-archives -maxdepth 1 -name '*.deb' -exec cp -t /var/cache/apt/archives {} +
           pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+          # autoclean drops the files of versions the mirror no longer offers, so the cache keeps only current ones
+          sudo apt-get autoclean
+          rm -rf ~/apt-archives
+          mkdir -p ~/apt-archives
           find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
 
       - name: Save the system packages of the browsers
@@ -151,19 +157,25 @@ jobs:
           key: ${{ steps.browsers.outputs.cache-primary-key }}
 
       # the Ubuntu mirror can take minutes per package, so apt-get installs from the cached .deb files and
-      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives
+      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives.
+      # A new runner image starts from the files of an older one, since most package versions stay the same.
       - name: Restore the system packages of the browsers
         id: packages
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
           key: apt-${{ runner.os }}-${{ steps.playwright.outputs.image }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: apt-${{ runner.os }}-
 
       - name: Install the system packages of the browsers
         run: |
           mkdir -p ~/apt-archives
           sudo find ~/apt-archives -maxdepth 1 -name '*.deb' -exec cp -t /var/cache/apt/archives {} +
           pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+          # autoclean drops the files of versions the mirror no longer offers, so the cache keeps only current ones
+          sudo apt-get autoclean
+          rm -rf ~/apt-archives
+          mkdir -p ~/apt-archives
           find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
 
       - name: Save the system packages of the browsers
