@@ -21,6 +21,14 @@ export class HarnessError extends Error {
   }
 }
 
+/** A step landed on the login page: the run recovers the session and runs the step once more. */
+export class SessionLost extends Error {
+  constructor(message = "the step landed on the login page") {
+    super(message);
+    this.name = "SessionLost";
+  }
+}
+
 /** A step handler threw something other than a blocking error; outcomeOf counts it as the product's error. */
 export class StepFailed extends Error {
   constructor(step: number, kind: string, cause: unknown) {

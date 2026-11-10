@@ -17,7 +17,7 @@ import {
   type StepHandler,
 } from "@bazam/core/driver";
 import { assertHostAllowed, type Environment } from "@bazam/core/env";
-import { CaseBlocked, HarnessError } from "@bazam/core/run";
+import { CaseBlocked, HarnessError, SessionLost } from "@bazam/core/run";
 import type { Redactor } from "@bazam/core/redact";
 import type { CheckRecord } from "@bazam/core/result";
 import {
@@ -220,6 +220,8 @@ interface StepScope {
   redactor: Redactor;
   evidence: StepEvidence | undefined;
   signal: AbortSignal | undefined;
+  /** How many redirects to the login page the context has seen; a login tab watches none. */
+  lostSessions: () => number;
 }
 
 interface WebStep<S> extends StepHandler<S> {
@@ -237,7 +239,12 @@ function webStep<S>(kind: string, schema: z.ZodType<S>, act: WebStep<S>["act"]):
       const guarded = await session.contextFor(ctx.identity);
       const page = await guarded.page();
       const payload = await ctx.resolve(written);
-      const scope: StepScope = { ...session.scope(page), evidence: ctx.evidence, signal: ctx.signal };
+      const scope: StepScope = {
+        ...session.scope(page),
+        evidence: ctx.evidence,
+        signal: ctx.signal,
+        lostSessions: () => guarded.lostSessions,
+      };
       await guarded.run(() => act(payload, scope, written));
     },
   };
@@ -267,12 +274,15 @@ type Expectation = z.infer<typeof Expectation>;
 const WaitStep = z.union([z.strictObject({ ms: z.number().int().positive() }), z.strictObject({ for: Selector })]);
 
 const steps: readonly WebStep<unknown>[] = [
-  webStep("open", z.string().min(1), async (url, { page, env }) => {
+  webStep("open", z.string().min(1), async (url, { page, env, lostSessions }) => {
     const target = new URL(url);
     assertHostAllowed(env, target);
+    const before = lostSessions();
     await page.goto(target.href).catch(async (error: unknown) => {
       throw (await unreachable(target)) ?? error;
     });
+    if (lostSessions() > before)
+      throw new SessionLost(`opening ${target.origin}${target.pathname} ended on the login page`);
   }),
   webStep("tap", Selector, async (selector, scope) => {
     await field(scope, selector).click();
@@ -400,6 +410,7 @@ export class WebSession implements DriverSession {
       setExtraHeaders: (headers) => guarded.setHeaders(headers),
       setHttpCredentials: (credentials) => guarded.setCredentials(credentials),
       onUnauthorized: (listener) => guarded.onUnauthorized(listener),
+      onSessionLost: (pattern, listener) => guarded.onSessionLost(pattern, listener),
     };
   }
 
@@ -422,7 +433,7 @@ export class WebSession implements DriverSession {
     return (await this.contextFor(identity)).page();
   }
 
-  scope(page: Page): Omit<StepScope, "evidence" | "signal"> {
+  scope(page: Page): Omit<StepScope, "evidence" | "signal" | "lostSessions"> {
     return { page, env: this.#env, testIdAttribute: this.#settings.testIdAttribute, redactor: this.redactor };
   }
 
@@ -500,7 +511,12 @@ export class WebSession implements DriverSession {
         new Refusals(),
       );
       const page = await guarded.page();
-      const scope: StepScope = { ...this.scope(page), evidence: undefined, signal: request.signal };
+      const scope: StepScope = {
+        ...this.scope(page),
+        evidence: undefined,
+        signal: request.signal,
+        lostSessions: () => 0,
+      };
       return {
         context: guarded.context,
         page,

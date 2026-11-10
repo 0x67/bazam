@@ -1,6 +1,7 @@
 import type { BrowserSession } from "@bazam/core/auth";
 import { assertHostAllowed, HostNotAllowed, type Environment } from "@bazam/core/env";
 import type { APIResponse, BrowserContext, Page, Request, Response, Route } from "playwright";
+import { urlMatches } from "./login.ts";
 
 /** The first host refused in any of the contexts that share it, kept until a step throws it. */
 export class Refusals {
@@ -39,6 +40,10 @@ export class GuardedContext {
   // the Basic header the route adds to WebKit's requests to allowlisted hosts, since WebKit answers no challenge
   // from http on 80 or https on 443
   #authorization: string | undefined;
+  #lostSessions = 0;
+  readonly #watchers: { pattern: string; listener: (url: string) => void }[] = [];
+  // each redirect chain counts once, however many of its hops match
+  readonly #lostSeen = new WeakSet<Request>();
 
   private constructor(context: BrowserContext, env: Environment, refusals: Refusals) {
     this.context = context;
@@ -53,6 +58,8 @@ export class GuardedContext {
       () => true,
       (route) => guarded.#route(route),
     );
+    // a redirect hop that lands on a watched URL counts as a lost session
+    context.on("request", (request) => guarded.#checkRedirect(request, request.url()));
     // routing misses redirect hops on Chromium and Firefox, so the page's URL is checked after each navigation too
     context.on("page", (page) => {
       // a popup appears once its first navigation has committed, and no framenavigated reports that one
@@ -115,6 +122,40 @@ export class GuardedContext {
     return () => {
       this.context.off("response", onResponse);
     };
+  }
+
+  /** How many redirects to a watched URL this context has seen. */
+  get lostSessions(): number {
+    return this.#lostSessions;
+  }
+
+  /**
+   * Calls `listener` with the URL when a redirect brings a main-frame navigation to a URL that matches `pattern`,
+   * from one that does not; returns a function that stops it.
+   */
+  onSessionLost(pattern: string, listener: (url: string) => void): () => void {
+    const watcher = { pattern, listener };
+    this.#watchers.push(watcher);
+    return () => {
+      const index = this.#watchers.indexOf(watcher);
+      if (index >= 0) this.#watchers.splice(index, 1);
+    };
+  }
+
+  /** Counts and reports a main-frame redirect of `request` that ended at `landed`, once per redirect. */
+  #checkRedirect(request: Request, landed: string): void {
+    if (this.#watchers.length === 0 || !isMainFrameNavigation(request)) return;
+    let first = request;
+    for (let from = first.redirectedFrom(); from !== null; from = first.redirectedFrom()) first = from;
+    if (first === request && landed === request.url()) return;
+    if (this.#lostSeen.has(first)) return;
+    const matching = this.#watchers.filter(
+      ({ pattern }) => urlMatches(pattern, landed) && !urlMatches(pattern, first.url()),
+    );
+    if (matching.length === 0) return;
+    this.#lostSeen.add(first);
+    this.#lostSessions += 1;
+    for (const { listener } of matching) listener(landed);
   }
 
   /** Throws the navigation the guard refused here or in a context sharing its refusals, if there was one. */
@@ -212,7 +253,9 @@ export class GuardedContext {
       // WebKit takes no redirect from a route, so the request is followed from here and the page keeps its first URL
       if (isRedirect(response) && this.#engine === "webkit") {
         const hop = redirectHop(request, response, this.#authorization);
+        this.#checkRedirect(request, hop.url);
         response = await this.context.request.fetch(hop.url, hop.options);
+        this.#checkRedirect(request, response.url());
       }
     } catch {
       // the page sees the request fail, as it would had the browser sent it

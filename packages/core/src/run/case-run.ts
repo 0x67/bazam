@@ -26,12 +26,36 @@ import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence } from "./case-evidence.ts";
-import { CaseBlocked, HarnessError, isBlocking, messageOf, StepFailed } from "./outcome.ts";
+import { CaseBlocked, HarnessError, isBlocking, messageOf, SessionLost, StepFailed } from "./outcome.ts";
 import { caseSteps, FILL_STEP, finallySteps } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
 const GUIDED_PROMPT_TIMEOUT_MS = 15 * 60_000;
 const FINALLY_BUDGET_MS = 2 * 60_000;
+
+/** What started a recovery: a 401, a redirect to the login page, or a step that landed on it. */
+type RecoveryCause =
+  | { kind: "unauthorized"; origin: string }
+  | { kind: "redirect"; url: string }
+  // the page URL is not known to core, so the cause names the step
+  | { kind: "landed"; step: string };
+
+type RecoveryResult = "stillValid" | "refreshed" | "loggedIn" | "cannotRecover" | "failed";
+
+/** The words notes and log lines use for a cause. */
+function describeCause(cause: RecoveryCause): { event: string; after: string; another: string } {
+  if (cause.kind === "unauthorized") {
+    const event = `a 401 from ${cause.origin}`;
+    return { event, after: event, another: `another 401 from ${cause.origin}` };
+  }
+  if (cause.kind === "redirect") {
+    const url = new URL(cause.url);
+    const to = `${url.origin}${url.pathname}`;
+    return { event: `a redirect to ${to}`, after: `a redirect to ${to}`, another: `another redirect to ${to}` };
+  }
+  const event = `${cause.step} landed on the login page`;
+  return { event, after: event, another: event };
+}
 
 /** What every case of a run shares. */
 export interface RunScope {
@@ -92,6 +116,8 @@ export class CaseRun {
   readonly #stops: (() => void)[] = [];
   // the probe or recovery a 401 started; a 401 that arrives meanwhile adds nothing
   #recovery: Promise<void> | undefined;
+  // the recovery that the current top-level step's own events started, so a SessionLost waits only for that one
+  #stepRecovery: { identity: string; result: Promise<RecoveryResult> } | undefined;
   #recovered = false;
   #notedLater = false;
   // set when a login after a 401 failed; the main loop throws it before the next step
@@ -117,6 +143,7 @@ export class CaseRun {
       for (const [index, step] of steps.entries()) {
         await this.#recovery;
         this.#throwPendingBlock();
+        this.#stepRecovery = undefined;
         await this.#step(step, index + 1, step.as);
       }
       await this.#recovery;
@@ -166,6 +193,7 @@ export class CaseRun {
         evidence.note(`finally step ${number} (${kind}) skipped: finally steps run unattended`);
         continue;
       }
+      this.#stepRecovery = undefined;
       let failure: unknown;
       const checks = await evidence.recordAside(async () => {
         try {
@@ -202,13 +230,66 @@ export class CaseRun {
     if (handler === undefined) throw new Error(`driver ${driver.name} has no ${kind} step`);
     if (identity !== undefined && (driver.steps.includes(handler) || handler.opensBrowser === true))
       await this.#openBrowser(identity);
+    const attempt = async (): Promise<void> => {
+      try {
+        await handler.run(payload, this.#context(identity));
+      } catch (error) {
+        if (error instanceof SessionLost) throw error;
+        // a process plugin that exits, stalls or breaks the protocol is the harness's fault, never the product's
+        throw isBlocking(error) || error instanceof PluginCallFailed || error instanceof HarnessError
+          ? error
+          : new StepFailed(number, kind, error);
+      }
+    };
     try {
-      await handler.run(payload, this.#context(identity));
+      await attempt();
     } catch (error) {
-      // a process plugin that exits, stalls or breaks the protocol is the harness's fault, never the product's
-      throw isBlocking(error) || error instanceof PluginCallFailed || error instanceof HarnessError
-        ? error
-        : new StepFailed(number, kind, error);
+      if (!(error instanceof SessionLost)) throw error;
+      const label = `step ${number} (${kind})`;
+      await this.#afterSessionLost(label, identity);
+      try {
+        await attempt();
+      } catch (again) {
+        if (again instanceof SessionLost)
+          throw new CaseBlocked(`${label} landed on the login page again after the session was recovered`);
+        throw again;
+      }
+    }
+  }
+
+  /** Recovers the session a step lost and notes that the step runs again; throws a block when it cannot run again. */
+  async #afterSessionLost(label: string, identity: string | undefined): Promise<void> {
+    const { driver } = this.#parts;
+    const surface = driver.surface;
+    const browser = identity === undefined ? undefined : this.#browsers.get(identity);
+    if (
+      identity === undefined ||
+      browser === undefined ||
+      this.#scope.project.config.identities[identity]?.auth[surface] === undefined
+    )
+      throw new CaseBlocked(`${label} landed on the login page, but it acts as no identity with ${surface} auth`);
+    if (this.#stepRecovery?.identity !== identity) {
+      while (this.#recovery !== undefined) await this.#recovery;
+      if (!this.#recovered) this.#unauthorized(identity, surface, browser, { kind: "landed", step: label });
+    }
+    const started = this.#stepRecovery;
+    if (started?.identity !== identity)
+      throw new CaseBlocked(`${label} lost the ${surface} session of ${identity} again after this case's one recovery`);
+    const result = await started.result;
+    const credential = `the ${surface} credential of ${identity}`;
+    if (result === "failed") {
+      // a failed recovery always sets the block
+      this.#throwPendingBlock();
+    } else if (result === "stillValid") {
+      throw new CaseBlocked(`${label} landed on the login page, but ${credential} still passes its probe`);
+    } else if (result === "cannotRecover") {
+      throw new CaseBlocked(
+        `${label} landed on the login page, and ${credential} cannot be refreshed or logged in again`,
+      );
+    } else {
+      this.#parts.evidence.note(
+        `${label} ran again after ${result === "refreshed" ? `refreshing ${identity}'s ${surface} credential` : `logging in again as ${identity} on ${surface}`}`,
+      );
     }
   }
 
@@ -294,26 +375,39 @@ export class CaseRun {
       await this.#scope.credentials.authorize(identity, driver.surface, { kind: "browser", session: browser });
       // a pooled browser calls back in the async context of the case that launched it, so bind runs the listener in this case's context
       const listener = AsyncLocalStorage.bind((origin: string) =>
-        this.#unauthorized(identity, driver.surface, browser, origin),
+        this.#unauthorized(identity, driver.surface, browser, { kind: "unauthorized", origin }),
       );
       const stop = browser.onUnauthorized?.(listener);
       if (stop !== undefined) this.#stops.push(stop);
+      const pattern = await this.#scope.identities.lostOn(identity, driver.surface);
+      if (pattern !== undefined) {
+        const lost = AsyncLocalStorage.bind((url: string) =>
+          this.#unauthorized(identity, driver.surface, browser, { kind: "redirect", url }),
+        );
+        const stopLost = browser.onSessionLost?.(pattern, lost);
+        if (stopLost !== undefined) this.#stops.push(stopLost);
+      }
     }
     this.#browsers.set(identity, browser);
   }
 
-  /** Probes after a 401 until the case has had its one recovery; after that, one 401 more adds a note. */
-  #unauthorized(identity: string, surface: string, browser: BrowserSession, origin: string): void {
+  /** Probes after a 401 or a redirect to the login page until the case has had its one recovery; after that, one more adds a note. */
+  #unauthorized(identity: string, surface: string, browser: BrowserSession, cause: RecoveryCause): void {
     if (this.#recovery !== undefined) return;
     if (this.#recovered) {
-      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after this case's one recovery`);
+      if (!this.#notedLater)
+        this.#parts.evidence.note(`${describeCause(cause).another} after this case's one recovery`);
       this.#notedLater = true;
       return;
     }
-    const recovery: Promise<void> = this.#recover(identity, surface, browser, origin).finally(() => {
-      if (this.#recovery === recovery) this.#recovery = undefined;
-    });
+    const result = this.#recover(identity, surface, browser, cause);
+    const recovery: Promise<void> = result
+      .then(() => undefined)
+      .finally(() => {
+        if (this.#recovery === recovery) this.#recovery = undefined;
+      });
     this.#recovery = recovery;
+    this.#stepRecovery = { identity, result };
   }
 
   /**
@@ -345,32 +439,44 @@ export class CaseRun {
   }
 
   /** Never throws, so the step that saw the 401 keeps its own outcome. */
-  async #recover(identity: string, surface: string, browser: BrowserSession, origin: string): Promise<void> {
+  async #recover(
+    identity: string,
+    surface: string,
+    browser: BrowserSession,
+    cause: RecoveryCause,
+  ): Promise<RecoveryResult> {
     const { identities, credentials } = this.#scope;
     const { evidence } = this.#parts;
     // a probe that throws counts as failing, so the refresh runs
     const passes = await identities.probe(identity, surface).catch(() => false);
+    const { event, after } = describeCause(cause);
     if (passes === true) {
-      this.#scope.log(`401 from ${origin}; the ${surface} credential of ${identity} still passes its probe`);
-      return;
+      this.#scope.log(
+        `${cause.kind === "unauthorized" ? `401 from ${cause.origin}` : event}; the ${surface} credential of ${identity} still passes its probe`,
+      );
+      return "stillValid";
     }
     this.#recovered = true;
     try {
       const recovery = await identities.recoverOrLogIn(identity, surface);
       if (recovery === "none") {
-        evidence.note(`got a 401 from ${origin}; the ${surface} credential of ${identity} cannot be refreshed`);
-        return;
+        evidence.note(
+          `${cause.kind === "landed" ? event : `got ${event}`}; the ${surface} credential of ${identity} cannot be refreshed`,
+        );
+        return "cannotRecover";
       }
       await credentials.authorize(identity, surface, { kind: "browser", session: browser });
       evidence.note(
         recovery === "refreshed"
-          ? `refreshed ${identity}'s ${surface} credential after a 401 from ${origin}`
-          : `logged in again as ${identity} on ${surface} after a 401 from ${origin}`,
+          ? `refreshed ${identity}'s ${surface} credential after ${after}`
+          : `logged in again as ${identity} on ${surface} after ${after}`,
       );
+      return recovery;
     } catch (error) {
       this.#pendingBlock = new CaseBlocked(
-        `logging in again as ${identity} on ${surface} after a 401 from ${origin} failed: ${messageOf(error)}`,
+        `logging in again as ${identity} on ${surface} after ${after} failed: ${messageOf(error)}`,
       );
+      return "failed";
     }
   }
 

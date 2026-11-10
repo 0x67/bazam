@@ -476,6 +476,31 @@ describe("Identities", () => {
     });
   });
 
+  describe("lostOn", () => {
+    const lostOn = { url: "${env.APP_URL}/login*" };
+
+    it("follows from: to the owner surface and fills the placeholders of its url", async () => {
+      const { strategy } = tokenStrategy(clock);
+      const ids = await identities(
+        {
+          customer: {
+            auth: {
+              web: { ...tokenSurface, lostOn },
+              api: { strategy: "token", from: "web" },
+              mobile: tokenSurface,
+            },
+          },
+        },
+        [strategy],
+        { resolve: async (value) => (value as string).replace("${env.APP_URL}", "https://app.example.test") as never },
+      );
+
+      expect(await ids.lostOn("customer", "web")).toBe("https://app.example.test/login*");
+      expect(await ids.lostOn("customer", "api")).toBe("https://app.example.test/login*");
+      expect(await ids.lostOn("customer", "mobile")).toBeUndefined();
+    });
+  });
+
   describe("recoverOrLogIn", () => {
     it("refreshes when it can", async () => {
       const { strategy, calls } = tokenStrategy(clock);
@@ -723,6 +748,16 @@ describe("IdentitiesConfig", () => {
       });
       expect(reused.success).toBe(false);
     });
+  });
+
+  it("refuses lostOn beside from:", () => {
+    const lostOn = { url: "https://app.example.test/login*" };
+    const result = IdentitiesConfig.safeParse({
+      customer: { auth: { web: tokenSurface, api: { strategy: "token", from: "web", lostOn } } },
+    });
+
+    expect(result.success).toBe(false);
+    expect(IdentitiesConfig.safeParse({ customer: { auth: { web: { ...tokenSurface, lostOn } } } }).success).toBe(true);
   });
 
   it("rejects from: naming another strategy or a surface that has no settings of its own", () => {

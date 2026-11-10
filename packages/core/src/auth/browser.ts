@@ -22,6 +22,11 @@ export interface BrowserSession {
    * a host in the env's allowlist; returns a function that stops it.
    */
   onUnauthorized?(listener: (origin: string) => void): () => void;
+  /**
+   * Calls `listener` with the URL when a redirect brings a main-frame navigation to a URL that matches `pattern`,
+   * from one that does not; returns a function that stops it.
+   */
+  onSessionLost?(pattern: string, listener: (url: string) => void): () => void;
 }
 
 /** The login is done when this cookie is set, or when the page URL matches this pattern. */

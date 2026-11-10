@@ -33,6 +33,8 @@ const SurfaceAuth = z.union([
     with: z.record(z.string(), z.unknown()).default({}),
     /** Refresh this often while a run acts as the identity. */
     refreshEveryMs: z.number().int().min(10_000).optional(),
+    /** A redirect to a page matching url means the session is gone; a * matches any text. */
+    lostOn: z.strictObject({ url: z.string().min(1) }).optional(),
   }),
 ]);
 
@@ -251,6 +253,12 @@ export class Identities {
   refreshInterval(identity: string, surface: string): { surface: string; everyMs: number } | undefined {
     const { owner, settings } = this.#owner(identity, surface);
     return settings.refreshEveryMs === undefined ? undefined : { surface: owner, everyMs: settings.refreshEveryMs };
+  }
+
+  /** The lostOn pattern of the surface that owns the credential, after from:, with its placeholders filled. */
+  async lostOn(identity: string, surface: string): Promise<string | undefined> {
+    const { settings } = this.#owner(identity, surface);
+    return settings.lostOn === undefined ? undefined : this.#deps.resolve(settings.lostOn.url);
   }
 
   async #ensure(slot: Slot): Promise<Held> {
