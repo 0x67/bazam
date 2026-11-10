@@ -2,13 +2,18 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { BRAND } from "@bazam/core/brand";
 import { PluginRegistry } from "@bazam/core/plugin";
 import { ProjectConfig, TrackerConfig } from "@bazam/core/project";
 import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
 import {
+  loadReceipts,
+  postPlanDirect,
   TrackerRequestFailed,
   type AttachmentFile,
   type BugDraft,
+  type ItemOutcome,
+  type PostPlanItem,
   type TrackerClientContext,
   type TrackerConnection,
 } from "@bazam/core/report";
@@ -124,6 +129,69 @@ describe("jiraClient", () => {
       .map((request) => `${request.method} ${request.path}`);
   }
 
+  // answers the requests `match` picks with `status` before they reach the stub; call it before connect
+  function refuse(match: (method: string, path: string) => boolean, status: number, message: string): void {
+    const send = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const { pathname } = new URL(input instanceof Request ? input.url : input);
+      if (!match(init?.method ?? "GET", pathname)) return send(input, init);
+      return Response.json({ errorMessages: [message] }, { status });
+    });
+  }
+
+  function bugDraft(fields: Partial<BugDraft> = {}): BugDraft {
+    return {
+      project: "DEMO",
+      issueType: "Bug",
+      summary: "[AUTH-LOGIN-001] fails in uat",
+      labels: [],
+      description: jiraTracker.render(result()),
+      attachments: [],
+      relatesTo: ["DEMO-12"],
+      ...fields,
+    };
+  }
+
+  function planItem(fields: Partial<PostPlanItem> = {}): PostPlanItem {
+    return {
+      marker: `${BRAND.markerPrefix}:AUTH-LOGIN-001:${RUN_ID}`,
+      ticket: { tracker: "jira", key: "DEMO-12" },
+      caseId: "AUTH-LOGIN-001",
+      status: "fail",
+      comment: jiraTracker.render(result()),
+      attachments: [],
+      mentions: [],
+      unresolved: [],
+      ...fields,
+    };
+  }
+
+  // posts through the plugin's client with only DEMO listed; the run folder is `folder`
+  async function postDirect(items: PostPlanItem[]): Promise<ItemOutcome[]> {
+    const config = ProjectConfig.parse({
+      envs: {},
+      trackers: {
+        jira: { site: stub.site, secrets: { email: "JIRA_EMAIL", token: "JIRA_API_TOKEN" }, projects: { DEMO: {} } },
+      },
+    });
+    const registry = await PluginRegistry.load(config, import.meta.dirname, [manifest]);
+    const secrets: Record<string, string> = { JIRA_EMAIL: EMAIL, JIRA_API_TOKEN: TOKEN };
+    return postPlanDirect(
+      { runId: RUN_ID, env: "uat", createdAt: "2026-11-07T10:05:00.000Z", items },
+      {
+        runDir: folder,
+        stateDir: join(folder, BRAND.stateDir),
+        config,
+        registry,
+        secret: async (name) => secrets[name] ?? "",
+        redactor: new Redactor(defaultRedactionRules()),
+        signal: new AbortController().signal,
+        now: () => new Date("2026-11-07T10:05:00.000Z"),
+        log: (line) => logs.push(line),
+      },
+    );
+  }
+
   it("reads the status, its category and the account ids of a ticket", async () => {
     const connection = await connect();
 
@@ -137,6 +205,13 @@ describe("jiraClient", () => {
     await expect(connection.ticket("DEMO-13")).resolves.toEqual({ key: "DEMO-13", status: "Done", done: true });
     expect(sent()).toEqual(["GET /rest/api/3/issue/DEMO-12", "GET /rest/api/3/issue/DEMO-13"]);
     expect(stub.requests[0]?.query).toEqual({ fields: "status,assignee,reporter" });
+  });
+
+  it("answers with the key Jira resolved for an issue moved to another project", async () => {
+    stub.issues.set("DEMO-12", { key: "SEC-3", status: "To Do" });
+    const connection = await connect();
+
+    await expect(connection.ticket("DEMO-12")).resolves.toEqual({ key: "SEC-3", status: "To Do", done: false });
   });
 
   it("uploads at most ten attachments per request", async () => {
@@ -211,6 +286,50 @@ describe("jiraClient", () => {
 
     await expect(connection.editComment("DEMO-12", url, jiraTracker.render(result()), [])).resolves.toBeUndefined();
     expect(stub.requests).toEqual([]);
+  });
+
+  it("returns undefined after one PUT when the comment is gone or this account may not edit it", async () => {
+    const readOnly = { id: "55774", body: { type: "doc", version: 1, content: [] }, readOnly: true };
+    stub.issues.get("DEMO-12")!.comments = [readOnly];
+    const connection = await connect();
+    const comment = jiraTracker.render(result());
+    const browse = (id: string): string => `https://example.atlassian.net/browse/DEMO-12?focusedCommentId=${id}`;
+
+    await expect(connection.editComment("DEMO-12", browse("55773"), comment, [])).resolves.toBeUndefined();
+    await expect(connection.editComment("DEMO-12", browse("55774"), comment, [])).resolves.toBeUndefined();
+
+    expect(sent()).toEqual([
+      "PUT /rest/api/3/issue/DEMO-12/comment/55773",
+      "PUT /rest/api/3/issue/DEMO-12/comment/55774",
+    ]);
+    expect(stub.issues.get("DEMO-12")?.comments).toEqual([readOnly]);
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        "cannot edit comment 55773 on DEMO-12, so a new comment takes its place: PUT /rest/api/3/issue/DEMO-12/comment/55773 answered 404: Can not find a comment for the id: 55773.",
+        "cannot edit comment 55774 on DEMO-12, so a new comment takes its place: PUT /rest/api/3/issue/DEMO-12/comment/55774 answered 400: You do not have the permission to edit this comment.",
+      ]),
+    );
+  });
+
+  it("returns undefined for an edit answered 403", async () => {
+    refuse((method) => method === "PUT", 403, "You do not have permission to edit this comment.");
+    const connection = await connect();
+    const url = "https://example.atlassian.net/browse/DEMO-12?focusedCommentId=55773";
+
+    await expect(connection.editComment("DEMO-12", url, jiraTracker.render(result()), [])).resolves.toBeUndefined();
+  });
+
+  it.each([401, 500])("rejects an edit answered %i, so no new comment doubles one that may exist", async (status) => {
+    refuse((method) => method === "PUT", status, "the edit failed");
+    const connection = await connect();
+    const url = "https://example.atlassian.net/browse/DEMO-12?focusedCommentId=55773";
+
+    const error: unknown = await connection
+      .editComment("DEMO-12", url, jiraTracker.render(result()), [])
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(TrackerRequestFailed);
+    expect(error).toMatchObject({ status });
   });
 
   it("moves a ticket by transition name or by target status, ignoring case", async () => {
@@ -337,6 +456,48 @@ describe("jiraClient", () => {
     );
   });
 
+  it("returns the new bug with a problem for a link Jira refuses, and still makes the next link", async () => {
+    const connection = await connect();
+
+    await expect(connection.createBug(bugDraft({ relatesTo: ["DEMO-99", "DEMO-12"] }))).resolves.toEqual({
+      key: "DEMO-14",
+      url: `http://${stub.site}/browse/DEMO-14`,
+      problems: [
+        "could not link DEMO-14 to DEMO-99: POST /rest/api/3/issueLink answered 404: Issue does not exist or you do not have permission to see it.",
+      ],
+    });
+    expect(stub.links).toEqual([{ type: "Relates", inward: "DEMO-14", outward: "DEMO-12" }]);
+  });
+
+  it("still links the new bug when its upload is refused, and names the upload in problems", async () => {
+    const refused = "You do not have permission to create attachments for this issue.";
+    refuse((method, path) => method === "POST" && path.endsWith("/attachments"), 403, refused);
+    const connection = await connect();
+
+    await expect(connection.createBug(bugDraft({ attachments: await files(1) }))).resolves.toEqual({
+      key: "DEMO-14",
+      url: `http://${stub.site}/browse/DEMO-14`,
+      problems: [
+        `could not attach the files to DEMO-14: POST /rest/api/3/issue/DEMO-14/attachments answered 403: ${refused}`,
+      ],
+    });
+    expect(stub.links).toEqual([{ type: "Relates", inward: "DEMO-14", outward: "DEMO-12" }]);
+  });
+
+  it("returns the new bug with a problem when the link types cannot be read", async () => {
+    refuse((method, path) => method === "GET" && path === "/rest/api/3/issueLinkType", 500, "try again later");
+    const connection = await connect();
+
+    await expect(connection.createBug(bugDraft())).resolves.toEqual({
+      key: "DEMO-14",
+      url: `http://${stub.site}/browse/DEMO-14`,
+      problems: [
+        "could not read the issue link types, so DEMO-14 is not linked to DEMO-12: GET /rest/api/3/issueLinkType answered 500: try again later",
+      ],
+    });
+    expect(stub.links).toEqual([]);
+  });
+
   it("sends the paragraph that names the run when the evidence is over 30,000 characters", async () => {
     const connection = await connect();
     const notes = Array.from({ length: 500 }, (_, index) => `note ${index} `.repeat(10));
@@ -411,5 +572,42 @@ describe("jiraClient", () => {
     const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), import.meta.dirname, [manifest]);
 
     expect(registry.trackerClient("jira")).toBe(jiraClient);
+  });
+
+  it("posts a new comment and records it in the receipt when the receipt's comment is gone", async () => {
+    const stale = `http://${stub.site}/browse/DEMO-12?focusedCommentId=55773`;
+
+    const [outcome] = await postDirect([planItem({ edit: { url: stale } })]);
+
+    const [posted] = stub.issues.get("DEMO-12")?.comments ?? [];
+    const url = `http://${stub.site}/browse/DEMO-12?focusedCommentId=${posted?.id}`;
+    expect(outcome).toMatchObject({
+      ok: true,
+      url,
+      actions: ["posted a new comment: the receipt URL names no comment to edit"],
+    });
+    expect(sent()).toEqual([
+      "GET /rest/api/3/issue/DEMO-12",
+      "PUT /rest/api/3/issue/DEMO-12/comment/55773",
+      "POST /rest/api/3/issue/DEMO-12/comment",
+    ]);
+    const receipts = await loadReceipts(join(folder, BRAND.stateDir));
+    expect(receipts.latest("jira", "DEMO-12", "AUTH-LOGIN-001")?.url).toBe(url);
+  });
+
+  it("sends nothing past the read for an issue moved to a project the config does not list", async () => {
+    stub.issues.set("DEMO-12", { ...seed()[0]!, key: "SEC-3" });
+    const [upload] = await files(1);
+
+    const [outcome] = await postDirect([planItem({ attachments: [upload!.name], transition: "Approve" })]);
+
+    expect(outcome).toMatchObject({
+      ok: false,
+      actions: [],
+      error: "DEMO-12 is now SEC-3, in project SEC, which is not listed under trackers.jira.projects",
+    });
+    expect(sent()).toEqual(["GET /rest/api/3/issue/DEMO-12"]);
+    const receipts = await loadReceipts(join(folder, BRAND.stateDir));
+    expect(receipts.latest("jira", "DEMO-12", "AUTH-LOGIN-001")).toBeUndefined();
   });
 });

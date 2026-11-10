@@ -16,6 +16,8 @@ export interface StubTransition {
 export interface StubComment {
   id: string;
   body: unknown;
+  /** Refuses an edit with 400, as Jira does for an account without permission to edit the comment. */
+  readOnly?: boolean;
 }
 
 export interface StubAttachment {
@@ -220,6 +222,8 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     const found = issue.comments?.find((existing) => existing.id === id);
     if (found === undefined)
       return { status: 404, body: { errorMessages: [`Can not find a comment for the id: ${id}.`] } };
+    if (found.readOnly === true)
+      return { status: 400, body: { errorMessages: ["You do not have the permission to edit this comment."] } };
     found.body = field(body, "body");
     return { status: 200, body: found };
   }

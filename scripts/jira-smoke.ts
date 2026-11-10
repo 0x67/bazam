@@ -452,7 +452,8 @@ async function failingRun(smoke: Smoke, send: Send): Promise<{ key: string; url:
     smoke.out.line(`ticket comment ${item.url}`);
   }
   const bug = output.bugs.find((outcome) => outcome.caseId === smoke.caseId);
-  if (bug?.ok === true && bug.key !== undefined && ISSUE_KEY.test(bug.key) && bug.url !== undefined) {
+  // a failed outcome still names a bug filed before its attach or link failed
+  if (bug?.key !== undefined && ISSUE_KEY.test(bug.key) && bug.url !== undefined) {
     smoke.bug = { key: bug.key, url: bug.url };
     smoke.out.line(`bug ${bug.key} ${bug.url}`);
   } else if (bug !== undefined && !bug.ok && bug.action === `file a bug in ${smoke.inputs.project}`)
@@ -468,7 +469,7 @@ async function failingRun(smoke: Smoke, send: Send): Promise<{ key: string; url:
   return smoke.bug;
 }
 
-/** Names a bug the create filed before its attach or link failed, or before Ctrl-C; the label is unique to the run. */
+/** Names a bug the create may have filed before it failed, or before Ctrl-C; the label is unique to the run. */
 async function findFiledBug(smoke: Smoke, send: Send): Promise<void> {
   const label = bugLabel(smoke.caseId);
   smoke.out.line(

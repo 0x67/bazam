@@ -3,6 +3,7 @@ import type { JsonValue } from "@bazam/core/auth";
 import {
   trackerHttp,
   trackerPath,
+  TrackerRequestFailed,
   type AttachmentFile,
   type BugDraft,
   type Mention,
@@ -21,6 +22,8 @@ const COMMENT_ID = /^[0-9]+$/;
 const SCOPED_API = /^https:\/\/api\.atlassian\.com\/ex\/jira\/[^/?#]+\/?$/;
 const REST_COMMENT_PATH = /\/rest\/api\/\d+\/issue\/[^/]+\/comment\/([^/]+)$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost"]);
+// Jira answers 404 for a deleted comment, and 400 or 403 when this account may not edit it
+const EDIT_REFUSED: ReadonlySet<number> = new Set([400, 403, 404]);
 // Jira takes 60 files per request; smaller batches keep each upload short
 const FILES_PER_REQUEST = 10;
 
@@ -74,12 +77,16 @@ class JiraConnection implements TrackerConnection {
     checkKey(key);
     const path = trackerPath`/rest/api/3/issue/${key}`;
     const { body } = await this.#http.send({ method: "GET", path, query: { fields: "status,assignee,reporter" } });
+    // Jira answers for a moved issue under its new key, which the caller checks against its projects
+    const resolved = at(body, "key");
+    if (typeof resolved !== "string" || !ISSUE_KEY.test(resolved))
+      throw new Error(`GET ${path} answered without an issue key`);
     const status = at(body, "fields", "status", "name");
     if (typeof status !== "string") throw new Error(`GET ${path} answered without fields.status.name`);
     const assignee = at(body, "fields", "assignee", "accountId");
     const reporter = at(body, "fields", "reporter", "accountId");
     return {
-      key,
+      key: resolved,
       status,
       done: at(body, "fields", "status", "statusCategory", "key") === "done",
       ...(typeof assignee === "string" ? { assignee } : {}),
@@ -120,11 +127,18 @@ class JiraConnection implements TrackerConnection {
     checkKey(key);
     const id = commentId(url);
     if (id === undefined) return undefined;
-    await this.#http.send({
-      method: "PUT",
-      path: trackerPath`/rest/api/3/issue/${key}/comment/${id}`,
-      json: { body: withMentions(comment, mentions) },
-    });
+    try {
+      await this.#http.send({
+        method: "PUT",
+        path: trackerPath`/rest/api/3/issue/${key}/comment/${id}`,
+        json: { body: withMentions(comment, mentions) },
+      });
+    } catch (error) {
+      // an auth failure, a rate limit or a 5xx still throws, so a new comment never doubles one that may exist
+      if (!(error instanceof TrackerRequestFailed) || !EDIT_REFUSED.has(error.status)) throw error;
+      this.#ctx.log(`cannot edit comment ${id} on ${key}, so a new comment takes its place: ${error.message}`);
+      return undefined;
+    }
     return { url: this.#browse(key, id) };
   }
 
@@ -160,7 +174,7 @@ class JiraConnection implements TrackerConnection {
     return typeof key === "string" ? key : undefined;
   }
 
-  async createBug(draft: BugDraft): Promise<{ key: string; url: string }> {
+  async createBug(draft: BugDraft): Promise<{ key: string; url: string; problems?: string[] }> {
     for (const key of draft.relatesTo) checkKey(key);
     const path = "/rest/api/3/issue";
     const { body } = await this.#http.send({
@@ -178,32 +192,50 @@ class JiraConnection implements TrackerConnection {
     });
     const bug = at(body, "key");
     if (typeof bug !== "string" || !ISSUE_KEY.test(bug)) throw new Error(`POST ${path} answered without an issue key`);
-    await this.attach(bug, draft.attachments);
-    if (draft.relatesTo.length > 0) await this.#link(bug, draft.project, draft.relatesTo);
-    return { key: bug, url: this.#browse(bug) };
+    // the bug exists from here on, so each later step that fails goes into problems instead of throwing
+    const problems: string[] = [];
+    try {
+      await this.attach(bug, draft.attachments);
+    } catch (error) {
+      problems.push(`could not attach the files to ${bug}: ${messageOf(error)}`);
+    }
+    if (draft.relatesTo.length > 0) await this.#link(bug, draft.project, draft.relatesTo, problems);
+    return { key: bug, url: this.#browse(bug), ...(problems.length > 0 ? { problems } : {}) };
   }
 
   // admins can rename link types, so the configured name is checked against the site's link types, fetched once per connection
-  async #link(bug: string, project: string, keys: readonly string[]): Promise<void> {
+  async #link(bug: string, project: string, keys: readonly string[], problems: string[]): Promise<void> {
     const name = this.#ctx.config.projects[project]?.bugs?.linkType ?? "Relates";
-    this.#linkTypes ??= arrayAt(
-      (await this.#http.send({ method: "GET", path: "/rest/api/3/issueLinkType" })).body,
-      "issueLinkTypes",
-    )
-      .map((type) => at(type, "name"))
-      .filter((type) => typeof type === "string");
-    if (!this.#linkTypes.includes(name)) {
+    let types: string[];
+    try {
+      types = this.#linkTypes ??= arrayAt(
+        (await this.#http.send({ method: "GET", path: "/rest/api/3/issueLinkType" })).body,
+        "issueLinkTypes",
+      )
+        .map((type) => at(type, "name"))
+        .filter((type) => typeof type === "string");
+    } catch (error) {
+      problems.push(
+        `could not read the issue link types, so ${bug} is not linked to ${keys.join(", ")}: ${messageOf(error)}`,
+      );
+      return;
+    }
+    if (!types.includes(name)) {
       this.#ctx.log(
         `no issue link type named ${name}, so ${bug} is not linked to ${keys.join(", ")}; set trackers.jira.projects.${project}.bugs.linkType to a link type the site has`,
       );
       return;
     }
     for (const key of keys)
-      await this.#http.send({
-        method: "POST",
-        path: "/rest/api/3/issueLink",
-        json: { type: { name }, inwardIssue: { key: bug }, outwardIssue: { key } },
-      });
+      try {
+        await this.#http.send({
+          method: "POST",
+          path: "/rest/api/3/issueLink",
+          json: { type: { name }, inwardIssue: { key: bug }, outwardIssue: { key } },
+        });
+      } catch (error) {
+        problems.push(`could not link ${bug} to ${key}: ${messageOf(error)}`);
+      }
   }
 
   #browse(key: string, commentId?: string): string {
@@ -246,6 +278,10 @@ function withMentions(comment: RenderedComment, mentions: readonly Mention[]): J
     { type: "mention", attrs: { id: mention.accountId, text: `@${mention.role}` } },
   ]);
   return { ...adf, content: [...adf.content, { type: "paragraph", content: nodes }] };
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function jqlString(value: string): string {
