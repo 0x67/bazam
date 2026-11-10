@@ -25,6 +25,7 @@ import { resolveSecret } from "../secrets/index.ts";
 import { maskPrompt, RunBrowserLogin } from "./browser-login.ts";
 import { CaseEvidence } from "./case-evidence.ts";
 import { CaseRun, placeholderSources, type RunScope } from "./case-run.ts";
+import { blockUnreachable, probeEnv, probeHint } from "./env-probes.ts";
 import { runExternalSuite, type ExternalSuiteRun } from "./external.ts";
 import { finishRun, ProgressFile, progressEntry, RunLog } from "./finish.ts";
 import { recordSuite } from "./ingest.ts";
@@ -211,6 +212,10 @@ class Run {
     await this.#progress.update((progress) => {
       progress.total = plan.cases.length;
     });
+    // before anything asks or logs in, and with no identities, so a probe never carries a credential
+    const { env, redactor, cases, project } = this.#options;
+    const http = guardedHttp({ env, redactor, log: this.#log.line });
+    blockUnreachable(plan, cases, project, env, await probeEnv(env, http, this.#scope.signal));
     for (const { runner, command } of plan.confirmations) await this.#confirm(plan, runner, command);
     const withLogins = plan.cases.filter((planned) => planned.blocked === undefined && planned.logins.length > 0);
     if (withLogins.length === 0) return new Map();
@@ -499,6 +504,9 @@ class Run {
       );
     } catch (error) {
       outcome = outcomeOf(error, signal.aborted);
+      const hint = probeHint(this.#options.env, error);
+      if (outcome.kind === "blocked" && hint !== undefined && !signal.aborted)
+        outcome = { ...outcome, reason: `${outcome.reason}; ${hint}` };
       if (outcome.kind === "errored" && outcome.source === "harness") this.#log.line(stackOf(error));
     }
     // the session needs the status first, so a case that did not pass keeps its trace

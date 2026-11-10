@@ -978,6 +978,36 @@ describe("runCases error outcomes", () => {
     });
   });
 
+  it("blocks only the cases that name a host whose env probe failed, and logs their identities in nowhere", async () => {
+    const away = closedOrigin.replace("127.0.0.1", "localhost");
+    const config = configFor() as {
+      envs: { demo: { hosts: string[]; probes: object[] } };
+      identities: { courier: { auth: { web: { with: { login: { url: string } } } } } };
+    };
+    config.envs.demo.hosts.push("localhost");
+    config.envs.demo.probes = [
+      { request: `GET ${away}/health`, hint: "connect the VPN" },
+      { request: `GET ${origin}/orders/42`, hint: "start the demo app" },
+    ];
+    config.identities.courier.auth.web.with.login.url = `${away}/login`;
+    const { results, driver } = await runProject(
+      [
+        testCase("SHOP-STEP-001", { steps: [{ request: { method: "GET", url: `${away}/orders` } }] }),
+        testCase("SHOP-LOGIN-001", { steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible] }),
+        testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
+        testCase("SHOP-DOWN-001", { steps: [{ request: { method: "GET", url: `${closedOrigin}/health` } }] }),
+      ],
+      { files: { [BRAND.configFile]: config } },
+    );
+    const refused = `failed: .*ECONNREFUSED.*; connect the VPN$`;
+    expect(results.map((result) => result.status)).toEqual(["blocked", "blocked", "pass", "blocked"]);
+    expect(results[0]?.reason).toMatch(new RegExp(`^GET ${away}/health ${refused}`));
+    expect(results[1]?.reason).toBe(results[0]?.reason);
+    // only the shopper logged in, and not the courier whose login URL sits on the unreachable host
+    expect(driver.sessions[0]?.browserLogin?.requests).toHaveLength(1);
+    expect(results[3]?.reason).toMatch(/got no answer: .*ECONNREFUSED.*; start the demo app$/);
+  });
+
   it("fails a case whose server drops the connection after the request reached it", async () => {
     const { results } = await runProject([
       testCase("SHOP-DROP-001", {
