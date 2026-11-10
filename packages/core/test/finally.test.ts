@@ -175,6 +175,18 @@ describe("finally steps", () => {
     expect(result?.notes).toEqual(["finally check check the ledger: ok"]);
   });
 
+  it("turn a followup step in finally into a note too", async () => {
+    const [result] = await run([
+      {
+        id: "SHOP-ONE-001",
+        checks: [{ expect: "cart" }],
+        finally: [{ followup: { name: "ledger", hint: "ask finance" } }],
+      },
+    ]);
+    expect(result).toMatchObject({ status: "pass", followups: [] });
+    expect(result?.notes).toEqual(["finally check ledger: ok"]);
+  });
+
   it("fail only the finally step that uses a value no step saved", async () => {
     const [result] = await run([
       {

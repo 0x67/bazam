@@ -351,6 +351,16 @@ describe("planRun", () => {
     expect(plan.personSteps).toBe(3);
   });
 
+  it("plans a followup step like a note, with no handler and no login", async () => {
+    const plan = await planFor([
+      testCase("AUTH-WEB-001", {
+        checks: [{ followup: { name: "badge", hint: "look at it" }, as: "customer" }],
+      }),
+    ]);
+    expect(plan.cases[0]).not.toHaveProperty("blocked");
+    expect(plan.cases[0]?.logins).toEqual([]);
+  });
+
   it("throws for a target that config does not define", async () => {
     await expect(
       planFor([testCase("AUTH-WEB-001", { targets: ["mobile"], steps: [{ note: "hello" }] })]),

@@ -23,8 +23,8 @@ const API_SURFACE = "api";
 const HTTP_KINDS: ReadonlySet<string> = new Set(["request", "api"]);
 /** The step of the target's driver that a challenge's value answer is filled with. */
 export const FILL_STEP = "fill";
-// the runner records a note itself, with no handler
-const NOTE_STEP = "note";
+// the runner records these itself, with no handler
+const RECORDED_STEPS: ReadonlySet<string> = new Set(["note", "followup"]);
 
 export interface PlannedCase {
   caseId: string;
@@ -242,7 +242,7 @@ class StepPlanner {
     if (kind === "challenge") this.#challenge(payload as ChallengeStep, number, identity);
     else if (kind === "guided") this.#guided(payload as GuidedStep, number, identity);
     else if (HTTP_KINDS.has(kind)) this.#request(payloadIdentity(payload) ?? identity);
-    else if (kind !== NOTE_STEP && this.#inputs.registry.stepHandler(kind, this.#driver) === undefined) {
+    else if (!RECORDED_STEPS.has(kind) && this.#inputs.registry.stepHandler(kind, this.#driver) === undefined) {
       this.#block(`driver ${this.#driver.name} has no ${kind} step`);
     } else if (actsInBrowser) this.#addLogin(identity, this.#driver.surface);
   }

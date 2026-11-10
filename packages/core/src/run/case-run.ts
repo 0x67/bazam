@@ -191,6 +191,10 @@ export class CaseRun {
     const kind = stepKind(step);
     const payload = step[kind];
     if (kind === "note") return this.#parts.evidence.note(await this.#resolve(payload as string));
+    if (kind === "followup") {
+      const { name, hint } = payload as { name: string; hint: string };
+      return this.#parts.evidence.followup(name, await this.#resolve(hint));
+    }
     if (kind === "challenge") return this.#challenge(payload as ChallengeStep, number, identity);
     if (kind === "guided") return this.#guided(payload as GuidedStep, number, identity);
     const { driver } = this.#parts;

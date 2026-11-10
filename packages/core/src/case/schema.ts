@@ -138,6 +138,7 @@ export function buildStepSchema(sources: readonly StepSchemaSource[]): z.ZodType
       }),
     ],
     ["note", z.string().min(1)],
+    ["followup", z.strictObject({ name: z.string().min(1), hint: z.string().min(1) })],
   ]);
   for (const source of sources) payloads.set(source.kind, source.schema);
 

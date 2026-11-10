@@ -66,7 +66,7 @@ describe("loadCases", () => {
       ["schema", 25],
     ]);
     expect(schemaIssues[1]?.message).toMatch(
-      /^steps\[1\]\.hover: unknown step kind "hover"; known kinds: challenge, guided/,
+      /^steps\[1\]\.hover: unknown step kind "hover"; known kinds: challenge, followup, guided/,
     );
     expect(schemaIssues[2]?.message).toMatch(/^steps\[0\]\.request\.url: /);
   });

@@ -245,7 +245,7 @@ describe("PluginRegistry.load", () => {
     expect(open[0]).toBe(playwright.steps[0]);
   });
 
-  it.each(["use", "request", "challenge", "guided", "note", "api"])(
+  it.each(["use", "request", "challenge", "guided", "note", "followup", "api"])(
     "refuses a plugin step of the core step kind %s",
     async (kind) => {
       const failure = await loadFailure([plugin("rogue", { steps: [fakeStep(kind)] })]);

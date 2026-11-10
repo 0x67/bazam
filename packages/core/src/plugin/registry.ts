@@ -25,7 +25,15 @@ export const PLUGIN_API_VERSION = 1;
 const CORE_PLUGIN = `${BRAND.scope}/core`;
 // the kinds buildStepSchema builds in (see case/schema.ts::buildStepSchema), which a plugin handler would replace,
 // and the api check from driver/http.ts::httpSteps
-const CORE_STEP_KINDS: ReadonlySet<string> = new Set(["use", "request", "challenge", "guided", "note", "api"]);
+const CORE_STEP_KINDS: ReadonlySet<string> = new Set([
+  "use",
+  "request",
+  "challenge",
+  "guided",
+  "note",
+  "followup",
+  "api",
+]);
 const STEP_KIND = "step kind";
 
 export interface PluginManifest {

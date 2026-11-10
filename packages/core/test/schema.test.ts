@@ -140,8 +140,24 @@ describe("buildCaseSchema", () => {
 
     expect(issuePaths(schema, { ...minimal, steps: [{ hover: { id: "menu" } }] })).toEqual(["steps.0.hover"]);
     expect(issueMessages(schema, { ...minimal, steps: [{ hover: { id: "menu" } }] })).toEqual([
-      'unknown step kind "hover"; known kinds: challenge, guided, note, request, tap, use',
+      'unknown step kind "hover"; known kinds: challenge, followup, guided, note, request, tap, use',
     ]);
+  });
+
+  it("takes a followup step with a name and a hint and refuses anything else", () => {
+    const schema = buildCaseSchema([]);
+    const followup = (payload: unknown) => ({ ...minimal, checks: [{ followup: payload }] });
+
+    for (const list of ["checks", "steps", "finally"])
+      expect(schema.safeParse({ ...minimal, [list]: [{ followup: { name: "badge", hint: "look" } }] }).success).toBe(
+        true,
+      );
+    expect(issuePaths(schema, followup({ name: "badge", hint: "" }))).toEqual(["checks.0.followup.hint"]);
+
+    expect(schema.safeParse(followup({ name: "badge", hint: "look at it" })).success).toBe(true);
+    expect(schema.safeParse(followup({ name: "badge" })).success).toBe(false);
+    expect(schema.safeParse(followup({ name: "", hint: "look" })).success).toBe(false);
+    expect(schema.safeParse(followup({ name: "badge", hint: "look", extra: 1 })).success).toBe(false);
   });
 
   it("accepts a plugin step kind with an identity", () => {
@@ -209,6 +225,7 @@ describe("caseJsonSchema", () => {
 
     expect(stepBranches.map((branch) => branch.required).sort((a, b) => a.join().localeCompare(b.join()))).toEqual([
       ["challenge"],
+      ["followup"],
       ["guided"],
       ["note"],
       ["request"],
