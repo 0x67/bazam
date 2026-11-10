@@ -69,7 +69,24 @@ identities:
 7. A refresh that fails adds the note `refreshing ops's web credential on its interval failed: <reason>` to each running case that acts as the identity, and the run goes on.
 8. `bazam check` reports `refreshEveryMs` below 10000, on a strategy that has no refresh, and on a session-cookie surface without a `refresh` request. A surface that uses `from:` takes no `refreshEveryMs`, so the config schema refuses it. Set it on the surface that owns the credential.
 
-**Logging in again after a 401**
+`lostOn` sits beside `strategy` and `with` on a `with:` surface and names the page that a lost session redirects to. It is for an app that answers a page load or a form post with a redirect to its login page, while only some calls answer 401.
+
+```yaml
+identities:
+  ops:
+    auth:
+      web:
+        strategy: session-cookie
+        with:
+          login: { url: "${env.APP_URL}/test/login?email=${identity.ops.email}", until: { cookie: session } }
+        lostOn: { url: "${env.APP_URL}/login*" }
+```
+
+9. `url` (required): a URL pattern in which `*` matches any text, as in `expect: { url }`. It takes `${env.…}` placeholders.
+10. A surface that uses `from:` takes no `lostOn`, so the config schema refuses it. Set it on the surface that owns the credential. A surface that reuses it reads that surface's `lostOn`.
+11. `lostOn` only takes effect on a driver whose browser reports a lost session, as the `playwright` driver does. A process plugin's driver does not.
+
+**Logging in again after a 401 or a lost session**
 
 A 401 reaches the run from a browser context or from the run's HTTP client. The two recover differently.
 
@@ -82,12 +99,43 @@ A 401 in a browser context, when the identity's credential then fails its probe,
 5. A strategy that caches nothing, such as `api-key`, cannot recover. The case notes `got a 401 from https://app.example.test; the web credential of ops cannot be refreshed`.
 6. The new login counts as the case's one recovery. A later 401 in the same case adds the note `another 401 from https://app.example.test after this case's one recovery`, once, and nothing more.
 
-A 401 to the run's HTTP client does not probe first. Each request recovers on its own, through the same refresh, adoption or login as above, and the request is sent once more with the new credential.
+A redirect to the page `lostOn` names counts as a 401 from that page's origin, in a browser context of the identity. A navigation that starts at a matching URL, such as opening the login page itself, is left alone.
+
+1. The recovery is the one above, and its notes name the redirect: `logged in again as ops on web after a redirect to https://app.example.test/login`, or `refreshed ops's web credential after a redirect to https://app.example.test/login`. The query is left out, since a login page's `next=` parameter can hold anything.
+2. A later redirect in the same case adds the note `another redirect to https://app.example.test/login after this case's one recovery`, once. The recovery is shared with the 401 one: a case recovers once in all.
+3. The web `open` step throws `SessionLost` when its navigation ends at a matching URL. A step that throws `SessionLost` waits for the recovery the redirect started, or starts one, and runs again when the recovery succeeds. The case notes `step 3 (open) ran again after logging in again as ops on web`, or `after refreshing ops's web credential`.
+4. A step that throws `SessionLost` a second time blocks the case with `step 3 (open) landed on the login page again after the session was recovered`. One that throws it after the case's one recovery was spent blocks it with `step 3 (open) lost the web session of ops again after this case's one recovery`.
+5. A step that throws `SessionLost` blocks the case when it acts as no identity or as one with no auth for the driver's surface (`step 3 (open) landed on the login page, but it acts as no identity with web auth`), when the credential still passes its probe (`step 3 (open) landed on the login page, but the web credential of ops still passes its probe`), and when it cannot be refreshed or logged in again (`step 3 (open) landed on the login page, and the web credential of ops cannot be refreshed or logged in again`). A login that fails blocks it with the login's reason.
+6. A finally step recovers the same way. A step that still fails becomes a note.
+7. A form post that the redirect lost is not sent again.
+
+A 401 to the run's HTTP client probes the credential first, and leaves one that still passes alone. When the probe fails, each request recovers through the same refresh, adoption or login as above, and the request is sent once more with the new credential.
 
 1. A refresh adds no note. A new login adds the note `logged in again as ops on web after an HTTP 401`.
 2. A failed recovery blocks the case with `no web credential for ops: <reason>`.
 
 `bazam keepalive` refreshes a credential and never logs in.
+
+**Roles**
+
+`roles.<name>` lets a run choose which identity plays a part in a case, so two testers run the same cases as themselves. They are called identity roles here; `people.yaml` has its own roles, which mentions use (`role:qa-lead`) and which are unrelated.
+
+```yaml
+roles:
+  tester: { identities: [alice, bob], default: alice }
+```
+
+A case then writes `as: tester` and `${identity.tester.email}`.
+
+1. `identities` (required): the identities that may play the role, at least one, each defined under `identities`.
+2. `default`: the identity that plays the role when the run names none. It must be one of `identities`.
+3. `roles` is `{}` when left out. A role name takes lowercase letters, digits and dashes, starting with a letter, and may not be the name of an identity.
+4. `bazam run` and `bazam plan` take `--as <role>=<identity>`, once per role. Before planning, bazam replaces the role with that identity in every `as:` and every `${identity.<role>.…}` placeholder of the selected cases and of the flows they use. The identity's own fixture, cached credential, logins, locks and result then apply, so switching between `alice` and `bob` logs nobody in again. A role reaches a flow through the `use:` step's `as:` or an `${identity.<role>.…}` placeholder; a role name given as a flow parameter value is not replaced.
+5. A case that names a role with no binding is blocked with `role tester plays no identity in this run; pass --as tester=<identity>, one of alice, bob`.
+6. `--as` is refused for a role that is not defined (`unknown role "qa"; roles: tester`), for an identity the role does not list (`role tester lists alice, bob, not ops`) and for the same role twice (`--as names role tester twice`). A value without `=` gets `--as on run and plan takes <role>=<identity>, such as tester=alice, not "tester"` (the value you passed shows after `not`).
+7. `bazam plan` prints `roles: tester=alice` for each role bound in the run, by `--as` or by its default, and nothing when no role is bound; its JSON holds the bindings as `roles`. The MCP tools `run_plan` and `run_start` take them as `roles`, an object of role to identity.
+8. `bazam keepalive` and `bazam logout` take one identity name in `--as`, never a role, and refuse more than one `--as`.
+9. `bazam check` refuses a role named like an identity, a role that lists an unknown identity and a default the role does not list. It reads `${identity.<role>.<field>}` from the fixture of each identity the role lists.
 
 **Runners**
 
@@ -109,9 +157,18 @@ A runner name takes letters, digits, dots, dashes and underscores, starting with
 
 `targets.<name>`, `{}` when left out.
 
-1. A driver target sets `driver` and the driver's own settings, such as `browser`.
+1. A driver target sets `driver` and the driver's own settings, such as `browser`. The `playwright` driver takes the settings in item 4.
 2. A runner target sets `runner`, the name of an entry in `runners`, and `env`, `{}` when left out, which adds to the runner's `env`. It takes no other key.
 3. The messages: `a target needs driver or runner`, `a target names a driver or a runner, not both`, `runner <name> is not defined under runners` and `a runner target's name takes letters, digits, dots, dashes and underscores, starting with a letter or digit`.
+4. The `playwright` driver's settings, all optional:
+   1. `browser`: `chromium`, `firefox` or `webkit`, `chromium` when left out.
+   2. `channel`: `chrome` or `msedge`, the installed browser to launch. It needs `browser: chromium`.
+   3. `headless`: `true` when left out.
+   4. `testIdAttribute`: the attribute that `{ id: ... }` selectors read, `data-testid` when left out.
+   5. `permissions`: the browser permissions that every context of a case and the login tab grant, such as `[geolocation]`. None are granted when left out, so a page that asks for another one, such as the camera, is refused. On Chromium the driver also grants `local-network-access` itself when it sets extra headers, with or without this list.
+   6. `args`: extra browser launch arguments, `[]` when left out. Targets that differ in `args` launch separate browsers, and targets that match share one.
+   7. `viewport`: the page size in CSS pixels, such as `{ width: 1600, height: 1000 }`, for every context of a case and the login tab, so screenshots and traces show that size. Playwright's 1280x720 applies when left out. Width and height are positive whole numbers.
+5. A setting that does not fit fails the plan with `target <name>:` and the problem, before any browser launches.
 
 **Plugins**
 
@@ -169,3 +226,4 @@ Each key of `trackers.<tracker>.projects.<project>` is optional, so a project li
 
 1. `patterns`: `[]` when left out. Regular expressions, read with the u flag; every match is masked whole.
 2. `screenshotSelectors`: `[]` when left out. Playwright selectors, such as CSS, of the page elements masked in screenshots. Any entry also turns off DOM snapshots and network entries in traces, which these selectors cannot mask. Such a trace keeps actions, console messages and page errors.
+3. `result.json` keeps what steps saved as `caseValues`, masked by the run's redactor with the rest of the result, so a value matching a rule, such as 8 or more digits, appears masked. `patterns` only add masking and cannot unmask it, and `values` stays unmasked. See item 6 of [plugins.md](plugins.md).

@@ -132,7 +132,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
    4. In a production env, any method other than GET needs `write: true`, or the call gets `-32001` `<METHOD> needs write: true in production env <name>`.
    5. `request.redirect` is `follow`, the default, or `manual`, which returns a 3xx response as it came, with its `location` header, and sends nothing to the target.
    6. In the result, `headers` maps each name to its value, with repeated values joined by `, `. `setCookie` lists each `Set-Cookie` value on its own and is left out when there is none. `body` is the parsed JSON for a JSON content type, otherwise the text, and `null` when empty.
-   7. Logging in again after a 401 and its note cover requests from in-process steps only. For a process plugin's `host.http`, the note is dropped, and a login that needs a browser blocks the case.
+   7. Logging in again after a 401 and its note cover requests from in-process steps only. For a process plugin's `host.http`, the note is dropped, and a login that needs a browser blocks the case. `lostOn` and `SessionLost` need a driver that offers `onSessionLost`, which a process plugin's driver does not, so a redirect to the login page does not start a recovery in a case that runs on one.
 4. `host.evidence.attach`: `ext` is `png`, `txt` or `json`. A `zip` gets `-32602` "a process plugin cannot attach zip files, which core cannot scrub".
 5. `host.values.set` saves a value that later steps read as `${case.<name>}`.
 

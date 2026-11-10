@@ -43,6 +43,9 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 7. A `pin` challenge names the secret that holds the PIN in `params.secret`, and config must declare it (`pin-secret-declared`). `AUTH-PIN-001` shows one.
 8. Use `note:` for context a reader of the evidence needs, such as why a step stands in for something the app does not have.
 9. Put the steps that undo data a case arms right before it acts, such as a fault row in an admin UI, under `finally:`. They run after the steps and checks however the case ends, in the case's own sessions, and never change its status or checks table. A failed finally step becomes a note. A `challenge` or `guided` step is refused there (`finally-unattended`), and the finally steps of one case get 2 minutes in all. `PROFILE-PHONE-002` shows one.
+10. Every `steps` entry runs first, then every `checks` entry, then `finally`. A check that reads a page therefore opens that page itself when several checks read different pages: `checks: [{ open: "${env.APP_URL}/orders", as: customer }, { expect: ..., as: customer }, { open: "${env.APP_URL}/ledger", as: customer }, { expect: ..., as: customer }]`.
+11. Write `as: <role>` instead of an identity name when a run may choose who plays the part, such as `as: tester` with `${identity.tester.email}`. The config's `roles` lists the identities each role allows and a default; `bazam run --as tester=teammate` picks one, and a case that names a role nobody plays is blocked. `AUTH-ROLE-001` shows one. Use `run_plan` with `roles` to see the binding first, and pass the same `roles` to `run_start`, or the run uses each role's default.
+12. A session the app ends mid-case needs no step: when the identity's `web` auth sets `lostOn`, a redirect to the login page logs the identity in again and the step that landed there runs once more. `AUTH-SESSION-002` shows one.
 
 **5. Write checks that observe outcomes**
 
@@ -50,7 +53,8 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 2. Check the outcome the ticket promises: the confirmation shown, the value saved, the state an endpoint reports. A tap that went through proves nothing on its own.
 3. When the page shows a value, prefer `expect: { text: { field: ..., equals: ... } }` to `visible`. Use `expect: { url: <glob> }` for where a page ends up.
 4. Back a page outcome with an `api` check when an endpoint exposes the same state, such as `api: { request: "GET ${env.APP_URL}/api/session/me", as: customer, status: 200, body: { email: ... } }`.
-5. To carry a value from one response to a later step, use `request` with `save:` and read it back as `${case.<name>}`, as `API-HMAC-001` does.
+5. To carry a value from one response to a later step, use `request` with `save:` and read it back as `${case.<name>}`, as `API-HMAC-001` does. `result.json` keeps what a case saved as `caseValues`.
+6. When only a person can confirm an outcome and no step needs to wait for them, add a `followup: { name, hint }` entry under `checks`, such as `AUTH-FOLLOWUP-001`. The case ends `followup` when everything else passes, `bazam run` exits 3, and the hint, whose placeholders are filled, tells the person what to confirm. The name stays as written. It counts as a check (`case-has-check`). Use `guided` instead when the run should stop and ask.
 
 **6. Cover a behavior another test suite already tests**
 

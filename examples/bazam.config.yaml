@@ -74,6 +74,8 @@ identities:
           refresh: { request: "POST ${env.APP_URL}/auth/refresh" }
         # refreshed every 2 minutes while a run acts as this identity
         refreshEveryMs: 120000
+        # a redirect to the login page means the session is gone, as the demo does after it ends one
+        lostOn: { url: "${env.APP_URL}/login*" }
       api: { strategy: session-cookie, from: web }
   teammate:
     fixture: teammate
@@ -129,6 +131,10 @@ identities:
           secret: ${secret.DEMO_HMAC_SECRET}
           sign: hooks/sign-demo.ts
           probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
+
+# a case acting as tester runs as customer unless the run passes --as tester=teammate
+roles:
+  tester: { identities: [customer, teammate], default: customer }
 
 runners:
   # the node:test suite in external/node-test; it signs in new addresses only, so it holds no identity's lock

@@ -1,0 +1,18 @@
+cases:
+  - id: AUTH-FOLLOWUP-001
+    title: Customer sees the dashboard, and a person confirms it reads well
+    # a follow-up makes the run exit 3, so this stays out of the acceptance runs
+    stage: regression
+    risk: low
+    links: [jira:DEMO-107]
+    targets: [web, web-chrome, web-firefox, web-webkit]
+    tags: [session]
+    steps:
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+    checks:
+      - expect: { visible: { id: dashboard } }
+        as: customer
+      - followup:
+          name: Dashboard reads well
+          hint: open ${env.APP_URL}/dashboard as ${identity.customer.email} and read the page

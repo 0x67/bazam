@@ -15,11 +15,13 @@ const pageText: StepHandler<z.infer<typeof PageText>> = {
   schema: PageText,
   // pageFor needs the identity's browser context, which opensBrowser asks the run to open and log in first
   opensBrowser: true,
-  async run(step, ctx) {
+  async run(written, ctx) {
+    // the payload arrives as written, so resolve fills its placeholders before a field is read
+    const { id, save } = await ctx.resolve(written);
     const page = await pageFor(ctx);
-    const text = await page.getByTestId(step.id).textContent({ timeout: 10_000 });
-    if (text === null) throw new Error(`the element ${step.id} holds no text`);
-    ctx.values.set(step.save, text.trim());
+    const text = await page.getByTestId(id).textContent({ timeout: 10_000 });
+    if (text === null) throw new Error(`the element ${id} holds no text`);
+    ctx.values.set(save, text.trim());
   },
 };
 

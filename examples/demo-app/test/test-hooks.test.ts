@@ -43,6 +43,32 @@ describe("test hooks", () => {
     expect(visitor.cookie("session")).toBeUndefined()
   })
 
+  it("ends every session of the address given to /test/expire-sessions and no other", async () => {
+    const [gone, goneToo, kept] = [new Visitor(), new Visitor(), new Visitor()]
+    const email = newEmail()
+    for (const [visitor, who] of [
+      [gone, email],
+      [goneToo, email],
+      [kept, newEmail()],
+    ] as const)
+      await visitor.request(`/test/login?email=${encodeURIComponent(who)}`)
+
+    const expired = await new Visitor().request(`/test/expire-sessions?email=${encodeURIComponent(email)}`, {
+      method: "POST",
+    })
+
+    expect(expired.status).toBe(204)
+    expect((await gone.request("/api/session/me")).status).toBe(401)
+    expect((await goneToo.request("/api/session/me")).status).toBe(401)
+    expect((await kept.request("/api/session/me")).status).toBe(200)
+  })
+
+  it("answers 400 to /test/expire-sessions without an email address", async () => {
+    const response = await new Visitor().request("/test/expire-sessions", { method: "POST" })
+
+    expect(response.status).toBe(400)
+  })
+
   it("drops every session on reset", async () => {
     const visitor = new Visitor()
     await signInByEmail(visitor, newEmail())
@@ -64,12 +90,16 @@ describe("test hooks", () => {
 
       const otp = await fetch(`http://localhost:${port}/test/otp?recipient=${encodeURIComponent(newEmail())}`)
       const reset = await fetch(`http://localhost:${port}/test/reset`, { method: "POST" })
+      const expire = await fetch(`http://localhost:${port}/test/expire-sessions?email=a@example.test`, {
+        method: "POST",
+      })
       const login = await fetch(`http://localhost:${port}/test/login?email=${encodeURIComponent(newEmail())}`, {
         redirect: "manual",
       })
 
       expect(otp.status).toBe(404)
       expect(reset.status).toBe(404)
+      expect(expire.status).toBe(404)
       expect(login.status).toBe(404)
     } finally {
       app.kill()

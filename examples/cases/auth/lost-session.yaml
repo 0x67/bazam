@@ -1,0 +1,36 @@
+cases:
+  - id: AUTH-SESSION-002
+    title: Customer is logged in again after the demo ends their session
+    stage: acceptance
+    risk: medium
+    links: [jira:DEMO-107]
+    targets: [web, web-chrome, web-firefox, web-webkit]
+    tags: [session]
+    # the second open lands on /login, so the case logs in again and runs that open once more
+    steps:
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+      # ends only this customer's sessions, so the other cases of the run stay signed in
+      - request:
+          method: POST
+          url: ${env.APP_URL}/test/expire-sessions?email=${identity.customer.email}
+      - open: ${env.APP_URL}/dashboard
+        as: customer
+    checks:
+      - expect: { visible: { id: dashboard } }
+        as: customer
+
+  - id: AUTH-ROLE-001
+    title: A tester sees their own address on the dashboard
+    stage: acceptance
+    risk: low
+    links: [jira:DEMO-107]
+    targets: [web, web-chrome, web-firefox, web-webkit]
+    tags: [session]
+    # tester plays customer unless the run passes --as tester=teammate
+    steps:
+      - open: ${env.APP_URL}/dashboard
+        as: tester
+    checks:
+      - expect: { text: { field: { id: user-email }, equals: "${identity.tester.email}" } }
+        as: tester

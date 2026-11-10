@@ -22,6 +22,14 @@ export function testHookRoutes(deps: DemoDeps): Hono {
     return c.redirect("/dashboard", 303)
   })
 
+  // ends only that user's sessions, so the other cases of a run stay signed in
+  app.post("/test/expire-sessions", (c) => {
+    const email = c.req.query("email")?.toLowerCase() ?? ""
+    if (!email.includes("@")) return c.json({ error: "email must be an email address" }, 400)
+    for (const [id, session] of store.sessions) if (session.email === email) store.sessions.delete(id)
+    return c.body(null, 204)
+  })
+
   app.post("/test/reset", (c) => {
     store.reset()
     return c.body(null, 204)
