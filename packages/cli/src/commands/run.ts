@@ -9,6 +9,8 @@ import type { CommandContext } from "../main.ts";
 import { PLAIN_NAME, planCommand, runDirOf, runOptions, startRun } from "./plan.ts";
 
 const ANSWERS_CHANNEL = "answers-file";
+// the run gives a production confirmation a random id, so a file named for one can never answer it
+const CONFIRMATION = /^preflight-.*-confirm/;
 const MAX_WORKERS = 16;
 
 /** Runs the selected cases; exits 0, 1 or 3 by their statuses, and 2 when the run cannot start. */
@@ -52,7 +54,10 @@ function workersOf(value: string | undefined): number {
   return workers;
 }
 
-/** The paths of the regular `<prompt-id>.json` files directly in `from`, skipping folders, links and other names. */
+/**
+ * The paths of the regular `<prompt-id>.json` files directly in `from`, skipping folders, links, other names and
+ * production confirmations.
+ */
 async function answerFiles(ctx: CommandContext, from: string): Promise<string[]> {
   let entries;
   try {
@@ -65,6 +70,10 @@ async function answerFiles(ctx: CommandContext, from: string): Promise<string[]>
     const id = entry.name.endsWith(".json") ? entry.name.slice(0, -".json".length) : undefined;
     if (!entry.isFile() || id === undefined || !PLAIN_NAME.test(id)) {
       if (entry.name.endsWith(".json")) ctx.out.log(`skipped ${entry.name}: not a regular file named for a prompt id`);
+      continue;
+    }
+    if (CONFIRMATION.test(id)) {
+      ctx.out.log(`skipped ${entry.name}: a production confirmation takes only an answer given while it waits`);
       continue;
     }
     files.push(join(from, entry.name));

@@ -43,6 +43,9 @@ const RESULTS = [
   "",
 ].join("\n");
 
+const SECRET_NAME = "INGEST_PROBE_SECRET";
+const SECRET_VALUE = "probe-secret-value-xyz";
+
 /** The fixture project plus a runner, never started here, and the runner target its cases name. */
 async function runnerProject(): Promise<Fixture> {
   const project = await fixtureProject(api);
@@ -83,6 +86,42 @@ describe("ingest", () => {
     const again = await project.cli(...argv);
     expect(again.code).toBe(ExitCode.CouldNotStart);
     expect(again.stderr).toContain("run in1 has already started");
+  });
+
+  it("masks the inherited value of a declared secret in the evidence it records", async () => {
+    const project = await runnerProject();
+    // the fixture loads only a module plugin, so no process plugin registers the value as it starts
+    const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
+    await project.write(BRAND.configFile, JSON.stringify({ ...config, secrets: { names: [SECRET_NAME] } }));
+    await project.write(
+      "reports/results.xml",
+      RESULTS.replace(
+        '<testcase classname="Cart" name="[CART-KEEP-001] keeps items"/>',
+        `<testcase classname="Cart" name="[CART-KEEP-001] keeps items"><failure message="token ${SECRET_VALUE} refused"/></testcase>`,
+      ),
+    );
+    const before = process.env[SECRET_NAME];
+    process.env[SECRET_NAME] = SECRET_VALUE;
+    try {
+      const file = join(project.root, "reports", "results.xml");
+      const { code, stderr } = await project.cli(
+        "ingest",
+        "--env",
+        "demo",
+        "--target",
+        "shop-chrome",
+        "--run",
+        "p1",
+        file,
+      );
+      expect(code, stderr).toBe(ExitCode.Fail);
+      const result = await project.read("runs/p1/CART-KEEP-001/result.json");
+      expect(result).not.toContain(SECRET_VALUE);
+      expect(result).toContain("token [redacted] refused");
+    } finally {
+      if (before === undefined) delete process.env[SECRET_NAME];
+      else process.env[SECRET_NAME] = before;
+    }
   });
 
   it("refuses a driver target, other than one target, no files, a file it cannot read and an empty selection", async () => {

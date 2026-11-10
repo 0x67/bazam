@@ -1,9 +1,12 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
+import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 const CI = join(REPO, "examples", "ci");
@@ -11,6 +14,7 @@ const PLAN_SOURCE = readFileSync(join(REPO, "packages", "cli", "src", "commands"
 
 interface Step {
   id?: string;
+  name?: string;
   uses?: string;
   run?: string;
   if?: string;
@@ -47,6 +51,13 @@ const NAMED_SECRET = /^\s*secrets\.\w+\s*$/;
 // the promotion branch `bazam/promote-<date>` names the brand without calling it
 const NPM_CODE = new RegExp(`\\b(npm|npx|pnpm|node|node_modules)\\b|\\b${BRAND.name}\\b(?!/)`);
 const CASE_PATHS = String.raw`grep -Ev '^cases/.+\.ya?ml$'`;
+const RUN_ID = /--run[ =]("[^"]*"|\S+)/g;
+// an Actions run id has 11 digits; a run number of 7 digits is the longest the redaction digit rule leaves alone
+const RUN_VARIABLES: Readonly<Record<string, string>> = {
+  GITHUB_RUN_ID: "42747674372",
+  GITHUB_RUN_NUMBER: "1234567",
+  GITHUB_RUN_ATTEMPT: "1",
+};
 
 const EXAMPLES: Sources = new Map(
   readdirSync(CI)
@@ -315,6 +326,112 @@ function emptyStageProblems(sources: Sources, plan: string): string[] {
   return problems;
 }
 
+/** The `run:` script of the first step of a promote.yml job that `pick` finds. */
+function promoteScript(sources: Sources, job: string, pick: (step: Step) => boolean): string {
+  const { jobs } = parse(sources.get("promote.yml") ?? "") as Workflow;
+  const run = jobs[job]?.steps?.find(pick)?.run;
+  expect(run, `a ${job} step to run`).toBeDefined();
+  return run ?? "";
+}
+
+/** Runs `script` as Actions runs a step that sets no `shell:`, and returns its exit status. */
+function bash(script: string, cwd: string, env: Record<string, string>): number | null {
+  return spawnSync("bash", ["-e", "-c", script], { cwd, env, encoding: "utf8" }).status;
+}
+
+/** Changes the promote job's patch could carry, made in a repository whose base commit holds `x.yml`. */
+const PATCHES: [string, (repo: string, git: (...args: string[]) => string) => void][] = [
+  ["a case file", (repo) => writeFileSync(join(repo, "cases", "a.yaml"), "cases: []\n")],
+  ["the lockfile", (repo) => writeFileSync(join(repo, "package-lock.json"), "{}\n")],
+  [
+    "a case file and a workflow",
+    (repo) => {
+      writeFileSync(join(repo, "cases", "a.yaml"), "cases: []\n");
+      mkdirSync(join(repo, ".github"));
+      writeFileSync(join(repo, ".github", "x.yml"), "on: push\n");
+    },
+  ],
+  ["a rename into cases/", (_repo, git) => git("mv", "x.yml", "cases/x.yaml")],
+];
+
+/** Runs the pull-request job's commit step on each patch and says how it ended. */
+function commitOutcomes(sources: Sources): string[] {
+  const script = promoteScript(sources, "pull-request", ({ name }) => name === "Commit the stage changes");
+  return PATCHES.map(([label, change]) => {
+    const temp = mkdtempSync(join(tmpdir(), "promote-commit-"));
+    try {
+      const repo = join(temp, "repo");
+      mkdirSync(join(repo, "cases"), { recursive: true });
+      mkdirSync(join(temp, "promotion"));
+      mkdirSync(join(temp, "home"));
+      // no global or system config, so a developer's signing, hooks or templates cannot change the outcome
+      const env = {
+        PATH: process.env["PATH"] ?? "",
+        HOME: join(temp, "home"),
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        RUNNER_TEMP: temp,
+      };
+      const git = (...args: string[]) => {
+        const result = spawnSync("git", args, { cwd: repo, env, encoding: "utf8" });
+        expect(result.status, result.stderr).toBe(0);
+        return result.stdout;
+      };
+      git("init", "-q", "-b", "main");
+      writeFileSync(join(repo, "x.yml"), "name: x\non: push\n");
+      git("add", "x.yml");
+      git("-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "base");
+      const base = git("rev-parse", "HEAD");
+      change(repo, git);
+      git("add", "-A");
+      writeFileSync(join(temp, "promotion", "promote.patch"), git("diff", "--cached", "--binary"));
+      git("reset", "-q", "--hard");
+      git("clean", "-fdq");
+      const status = bash(script, repo, env);
+      return `${label}: exit ${status}, ${git("rev-parse", "HEAD") === base ? "no commit" : "committed"}`;
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+}
+
+/** What `bazam run` prints and exits with, as the acceptance job meets it. */
+const RUN_EXITS: [string, number, unknown][] = [
+  ["an empty stage", 2, { error: "no case matches the selection" }],
+  ["a failed case", 1, { runId: "ci-1-1" }],
+  ["a blocked case", 3, { runId: "ci-1-1" }],
+  ["another error", 2, { error: "--env is required; envs: staging" }],
+];
+
+/** Runs the acceptance job's run step against a stub of the CLI for each exit, with the real jq. */
+function acceptanceOutcomes(sources: Sources): string[] {
+  const script = promoteScript(sources, "acceptance", ({ id }) => id === "run");
+  return RUN_EXITS.map(([label, status, json]) => {
+    const temp = mkdtempSync(join(tmpdir(), "promote-run-"));
+    try {
+      const bin = join(temp, "bin");
+      mkdirSync(bin);
+      const stub = join(bin, BRAND.name);
+      writeFileSync(stub, `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(json)}'\nexit ${status}\n`);
+      chmodSync(stub, 0o755);
+      const output = join(temp, "github-output");
+      writeFileSync(output, "");
+      const env = {
+        PATH: `${bin}:${process.env["PATH"] ?? ""}`,
+        HOME: temp,
+        RUNNER_TEMP: temp,
+        GITHUB_OUTPUT: output,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+      };
+      const exit = bash(script, temp, env);
+      return `${label}: exit ${exit}, output ${JSON.stringify(readFileSync(output, "utf8"))}`;
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+}
+
 function credentialedCheckouts(sources: Sources): string[] {
   return workflows(sources).flatMap(([file, workflow]) =>
     Object.entries(workflow.jobs).flatMap(([name, { steps = [] }]) =>
@@ -336,6 +453,34 @@ function expressionsInRun(sources: Sources): string[] {
     return Object.entries(workflow.jobs).flatMap(([job, { steps = [] }]) =>
       steps.filter(({ run }) => run !== undefined && expression.test(run)).map(({ run }) => `${file} ${job}: ${run}`),
     );
+  });
+}
+
+/** Each `--run` id a step passes, as written in the workflow. */
+function runIds(sources: Sources): { at: string; id: string }[] {
+  return workflows(sources).flatMap(([file, workflow]) =>
+    Object.entries(workflow.jobs).flatMap(([name, { steps = [] }]) =>
+      steps.flatMap(({ run = "" }) =>
+        [...run.matchAll(RUN_ID)].map(([, id = ""]) => ({ at: `${file} ${name}`, id: id.replace(/^"|"$/g, "") })),
+      ),
+    ),
+  );
+}
+
+/**
+ * The run ids that the default redaction changes once sample values fill their variables. bazam writes the id
+ * through the redactor into result.json, the markers and every comment it posts, so a masked id names no run.
+ */
+function maskedRunIds(sources: Sources): string[] {
+  const redactor = new Redactor(defaultRedactionRules());
+  return runIds(sources).flatMap(({ at, id }) => {
+    const unknown = [...id.matchAll(/\$\{?(\w+)/g)]
+      .map(([, variable = ""]) => variable)
+      .filter((v) => !Object.hasOwn(RUN_VARIABLES, v));
+    if (unknown.length > 0) return [`${at}: ${id} uses ${unknown.join(", ")}, which has no sample value`];
+    const sample = id.replace(/\$\{?(\w+)\}?/g, (_, variable: string) => RUN_VARIABLES[variable] ?? "");
+    const shown = redactor.text(sample);
+    return shown === sample ? [] : [`${at}: ${sample} reads ${shown}`];
   });
 }
 
@@ -496,6 +641,54 @@ describe("the example CI workflows", () => {
     expect(patchProblems(unstopped)).toEqual([outside]);
   });
 
+  it("commit a promotion patch only when it changes YAML files under cases/ alone, on both sides of a rename", () => {
+    expect(commitOutcomes(EXAMPLES)).toEqual([
+      "a case file: exit 0, committed",
+      "the lockfile: exit 1, no commit",
+      "a case file and a workflow: exit 1, no commit",
+      "a rename into cases/: exit 1, no commit",
+    ]);
+    // replace through a function: a replacement string reads $' and $& in shell text as patterns
+    const inverted = broken("promote.yml", (text) =>
+      text.replace(`if printf '%s\\n' "$paths"`, () => `if ! printf '%s\\n' "$paths"`),
+    );
+    expect(commitOutcomes(inverted)).toEqual([
+      "a case file: exit 1, no commit",
+      "the lockfile: exit 0, committed",
+      "a case file and a workflow: exit 0, committed",
+      "a rename into cases/: exit 0, committed",
+    ]);
+    const renames = broken("promote.yml", (text) => text.replace(" --no-renames)", () => ")"));
+    expect(commitOutcomes(renames)).toEqual([
+      "a case file: exit 0, committed",
+      "the lockfile: exit 1, no commit",
+      "a case file and a workflow: exit 1, no commit",
+      "a rename into cases/: exit 0, committed",
+    ]);
+  }, 30_000);
+
+  it("end an empty acceptance stage green with empty=true, and pass any exit other than 0, 1 or 3 on", () => {
+    const expected = [
+      'an empty stage: exit 0, output "empty=true\\n"',
+      'a failed case: exit 0, output ""',
+      'a blocked case: exit 0, output ""',
+      'another error: exit 2, output ""',
+    ];
+    expect(acceptanceOutcomes(EXAMPLES)).toEqual(expected);
+    const mutants: [string, string, string][] = [
+      ['echo "empty=true"', 'echo "empty=false"', 'an empty stage: exit 0, output "empty=false\\n"'],
+      ['[ "$status" -eq 2 ]', '[ "$status" -eq 3 ]', 'an empty stage: exit 2, output ""'],
+      ["0 | 1 | 3) ;;", "0 | 3) ;;", 'a failed case: exit 1, output ""'],
+    ];
+    for (const [from, to, outcome] of mutants) {
+      const edited = broken("promote.yml", (text) => text.replace(from, () => to));
+      const label = outcome.slice(0, outcome.indexOf(":"));
+      expect(acceptanceOutcomes(edited), to).toEqual(
+        expected.map((line) => (line.startsWith(`${label}:`) ? outcome : line)),
+      );
+    }
+  }, 30_000);
+
   it("read steps.run.outcome, not failure(), after the regression run", () => {
     expect(regressionFailureProblems(EXAMPLES)).toEqual([]);
     const edited = broken("regression.yml", (text) =>
@@ -553,5 +746,29 @@ describe("the example CI workflows", () => {
       text.replace('echo "changed=true"', 'echo "${{ toJSON(steps.run.outputs) }}"'),
     );
     expect(expressionsInRun(wrapped)).toEqual([expect.stringMatching(/^promote\.yml promote: /)]);
+  });
+
+  it("name each run with an id the default redaction leaves readable", () => {
+    expect(runIds(EXAMPLES)).toEqual([
+      { at: "promote.yml acceptance", id: "acceptance-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT" },
+      { at: "regression.yml regression", id: "regression-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT" },
+      { at: "regression.yml regression", id: "regression-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT" },
+    ]);
+    expect(maskedRunIds(EXAMPLES)).toEqual([]);
+    const runId = broken("regression.yml", (text) =>
+      text.replaceAll("regression-$GITHUB_RUN_NUMBER", "ci-$GITHUB_RUN_ID"),
+    );
+    expect(maskedRunIds(runId)).toEqual([
+      "regression.yml regression: ci-42747674372-1 reads ci-••••4372-1",
+      "regression.yml regression: ci-42747674372-1 reads ci-••••4372-1",
+    ]);
+    const joined = broken("promote.yml", (text) =>
+      text.replace("$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT", "$GITHUB_RUN_NUMBER$GITHUB_RUN_ATTEMPT"),
+    );
+    expect(maskedRunIds(joined)).toEqual(["promote.yml acceptance: acceptance-12345671 reads acceptance-••••5671"]);
+    const unknown = broken("promote.yml", (text) => text.replace("acceptance-$GITHUB_RUN_NUMBER", "$GITHUB_SHA"));
+    expect(maskedRunIds(unknown)).toEqual([
+      "promote.yml acceptance: $GITHUB_SHA-$GITHUB_RUN_ATTEMPT uses GITHUB_SHA, which has no sample value",
+    ]);
   });
 });

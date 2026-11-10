@@ -176,7 +176,10 @@ describe("report post", () => {
     const error = "transition Done is not available on DEMO-13; it [redacted]";
     const text = await project.cli("report", "post", "--run", "r1");
     expect(text.code, text.stderr).toBe(ExitCode.Fail);
-    expect(lines(text.stdout)).toEqual([`failed SHOP-BACK-001: commented on DEMO-13: ${error}`]);
+    // the failed line still names the comment that was posted
+    const [posted] = stub.issues.get("DEMO-13")?.comments ?? [];
+    const url = `http://${stub.site}/browse/DEMO-13?focusedCommentId=${posted?.id}`;
+    expect(lines(text.stdout)).toEqual([`failed SHOP-BACK-001: commented on DEMO-13 ${url}: ${error}`]);
     const json = await project.cli("report", "post", "--run", "r1", "--json");
     expect(json.code, json.stderr).toBe(ExitCode.Fail);
     const doc = JSON.parse(json.stdout) as { items: unknown[]; bugs: unknown[] };

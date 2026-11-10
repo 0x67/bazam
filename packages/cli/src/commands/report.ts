@@ -165,9 +165,11 @@ function itemLine(outcome: ItemOutcome): string {
   return outcome.ok ? `posted ${key} ${outcome.url ?? ""}` : `failed ${key}: ${outcome.error ?? ""}`;
 }
 
+// a failed line keeps the URL too, since a bug filed before a later step failed still exists
 function bugLine(outcome: BugOutcome): string {
-  if (!outcome.ok) return `failed ${outcome.caseId}: ${outcome.action}: ${outcome.error ?? ""}`;
-  return `${outcome.caseId}: ${outcome.action}${outcome.url === undefined ? "" : ` ${outcome.url}`}`;
+  const url = outcome.url === undefined ? "" : ` ${outcome.url}`;
+  if (!outcome.ok) return `failed ${outcome.caseId}: ${outcome.action}${url}: ${outcome.error ?? ""}`;
+  return `${outcome.caseId}: ${outcome.action}${url}`;
 }
 
 function bugIntentLine(intent: BugIntent): string {

@@ -55,12 +55,13 @@ jobs:
           printf '%s\n' "$IDENTITIES" > fixtures/identities.local.yaml
           printf '%s\n' "$SECRETS_ENV" > .bazam/secrets.env
 
-      # a re-run gets a new run id, so a fresh folder and a fresh marker
+      # the id takes the run number, since redaction masks 8 or more digits in a row and GITHUB_RUN_ID has 11;
+      # a re-run gets a new attempt, so a fresh folder and a fresh marker
       - name: Run the regression suite
         id: run
         continue-on-error: true
         run: >-
-          bazam run --env staging --suite regression --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          bazam run --env staging --suite regression --run "regression-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT"
           --workers 4 --channel answers-file
 
       - name: Post the results
@@ -68,7 +69,7 @@ jobs:
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-        run: bazam report post --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+        run: bazam report post --run "regression-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT"
 
       # failure() stays false after a step with continue-on-error, so the last two steps read the run step's outcome
       - name: Upload the run evidence

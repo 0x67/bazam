@@ -61,7 +61,7 @@ jobs:
         id: run
         run: |
           status=0
-          bazam run --env staging --suite acceptance --run "ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+          bazam run --env staging --suite acceptance --run "acceptance-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT" \
             --channel answers-file --json > "$RUNNER_TEMP/run.json" || status=$?
           error=$(jq -r '.error // empty' "$RUNNER_TEMP/run.json" 2> /dev/null || true)
           if [ "$status" -eq 2 ] && [ "$error" = "no case matches the selection" ]; then

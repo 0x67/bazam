@@ -93,7 +93,7 @@ cases:
 **Production**
 
 1. In an env with `production: true`, an external case needs `prod_safe: true`, as a YAML case does. Without it the case is blocked with `case <id> is not prod_safe and env <env> is production`.
-2. For a runner without `prodSafe: true`, the run asks once, before the runner starts: "Run runner <name> against production env <env>?", answered y or n. `bazam plan` lists `needs a yes before it runs in production env <env>: runner <name>`.
+2. For a runner without `prodSafe: true`, the run asks once, before the runner starts: "Run runner <name> against production env <env>?", answered y or n. `bazam plan` lists `needs a yes before it runs in production env <env>: runner <name>`. The prompt id, `preflight-<runner>-confirm-<random>`, is known only once the prompt waits, so an answer file written ahead of time cannot answer it, and `bazam run --answers` skips any `preflight-*-confirm*.json` file.
 3. A no, or no answer within five minutes, blocks the runner's cases with `production run of runner <name> was not confirmed`, followed by `: <note>` when the person wrote one.
 4. bazam cannot hold the suite's process to the host allowlist or the production write guard. Set `prodSafe: true` only when the suite runs just the tests named in `BAZAM_CASES` and the team accepts the suite in production. Unattended CI has nobody to answer the question, so it runs a production suite only with `prodSafe`.
 

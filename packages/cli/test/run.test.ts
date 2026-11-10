@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { basename, join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
 import type { RunPlan } from "@bazam/core/run";
@@ -299,6 +300,54 @@ describe("run", () => {
       await readFile(join(project.root, "runs", "answers-run", "DESK-LOOK-001", "result.json"), "utf8"),
     ) as { status: string; checks: { ok: boolean }[] };
     expect(result).toMatchObject({ status: "pass", checks: [{ ok: true }] });
+  });
+
+  it("takes a production confirmation only from an answer given while its prompt waits", async () => {
+    const project = await fixtureProject(api);
+    const config = JSON.parse(await project.read(BRAND.configFile)) as {
+      envs: Record<string, unknown>;
+      targets: Record<string, unknown>;
+    };
+    config.envs["live"] = { production: true, hosts: ["127.0.0.1"] };
+    const marker = join(project.root, "suite-ran");
+    const suite = `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "")`;
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({
+        ...config,
+        runners: { shop: { command: [process.execPath, "-e", suite], results: "reports/*.xml", format: "junit" } },
+        targets: { ...config.targets, "shop-chrome": { runner: "shop" } },
+      }),
+    );
+    await project.write("cases/cart/cases.yaml", CART_CASE);
+    const yes = JSON.stringify({ kind: "verdict", verdict: "pass", note: "" });
+    await project.write("fixtures/answers/preflight-shop-confirm.json", yes);
+    // a caller that picks the run id can put files in its folder before the run starts
+    await project.write("runs/confirm-run/answers/preflight-shop-confirm.json", yes);
+    const runDir = join(project.root, "runs", "confirm-run");
+    const answers = join(basename(project.root), "fixtures", "answers");
+    const argv = ["run", "--env", "live", "--domain", "cart", "--channel", "answers-file", "--answers", answers];
+    const run = project.cli(...argv, "--run", "confirm-run");
+    let finished = false;
+    const settle = () => (finished = true);
+    void run.then(settle, settle);
+    let id: string | undefined;
+    while (id === undefined && !finished) {
+      const names = await readdir(join(runDir, "prompts")).catch(() => []);
+      id = names.map((name) => /^(preflight-shop-confirm-[0-9a-f]{7})\.json$/.exec(name)?.[1]).find(Boolean);
+      if (id === undefined) await sleep(20);
+    }
+    if (id !== undefined) {
+      await writeFile(join(runDir, "answer.tmp"), JSON.stringify({ kind: "verdict", verdict: "fail", note: "no" }));
+      await rename(join(runDir, "answer.tmp"), join(runDir, "answers", `${id}.json`));
+    }
+    const { code, stdout, stderr } = await run;
+    expect(code, stderr).toBe(ExitCode.Incomplete);
+    expect(id).toBeDefined();
+    expect(stdout).toContain("CART-KEEP-001 on shop-chrome: production run of runner shop was not confirmed: no");
+    expect(stderr).toContain("skipped preflight-shop-confirm.json");
+    expect(existsSync(marker)).toBe(false);
+    expect(await readdir(join(runDir, "answers"))).toEqual(["preflight-shop-confirm.json"]);
   });
 
   it("refuses --answers without the answers-file channel, and a missing answers folder, in a dry run too", async () => {
