@@ -288,6 +288,7 @@ describe("case tools", () => {
       identities: [],
       seed: 7,
       values: {},
+      caseValues: {},
       startedAt: "2026-11-07T12:00:00.000Z",
       finishedAt: "2026-11-07T12:00:05.000Z",
       durationMs: 5000,

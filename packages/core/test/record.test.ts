@@ -177,6 +177,7 @@ describe("recordExternalResults outcomes", () => {
       challenges: [{ step: 0, kind: "otp-email", resolver: "otp-mailpit" }],
       identities: [],
       values: {},
+      caseValues: {},
       seed: 42,
       startedAt: "2026-11-08T10:15:00.000Z",
       finishedAt: "2026-11-08T10:16:30.000Z",

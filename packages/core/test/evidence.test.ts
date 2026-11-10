@@ -27,6 +27,7 @@ const meta: CaseMeta = {
   identities: ["admin-1"],
   seed: 42,
   values: { amount: "4.27" },
+  caseValues: {},
   startedAt: new Date("2026-11-06T09:30:00.000Z"),
 };
 const heading: CheckRecord = {
@@ -94,6 +95,7 @@ describe("EvidenceStore", () => {
       challenges: [{ step: 2, kind: "otp-email", resolver: "otp-mailpit" }],
       identities: ["admin-1"],
       seed: 42,
+      caseValues: {},
       values: { amount: "4.27" },
       startedAt: "2026-11-06T09:30:00.000Z",
       finishedAt: "2026-11-06T09:30:02.500Z",
@@ -187,6 +189,21 @@ describe("EvidenceStore", () => {
     expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ seed: 2654435761 });
   });
 
+  it("masks caseValues with the redactor but not run values", async () => {
+    const store = newStore();
+    store.record(heading);
+
+    const result = await store.finish(
+      completed,
+      { ...meta, values: { n: "66655867" }, caseValues: { order: "66655867", note: "ok" } },
+      finishedAt,
+    );
+
+    expect(result.caseValues).toEqual({ order: "••••5867", note: "ok" });
+    expect(result.values).toEqual({ n: "66655867" });
+    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ caseValues: result.caseValues });
+  });
+
   it("keeps run values and the duration readable when they hold eight or more digits", async () => {
     const store = newStore();
     store.record(heading);
@@ -238,6 +255,7 @@ describe("writeRunSummary", () => {
       identities: ["admin-1"],
       seed: 42,
       values: {},
+      caseValues: {},
       startedAt: "2026-11-06T09:30:00.000Z",
       finishedAt: "2026-11-06T09:30:02.500Z",
       durationMs: 2500,

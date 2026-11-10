@@ -81,6 +81,7 @@ function result(runId: string, env: string, status: Status, finishedAt: string):
     identities: ["customer"],
     seed: 7,
     values: {},
+    caseValues: {},
     startedAt: finishedAt,
     finishedAt,
     durationMs: 0,

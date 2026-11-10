@@ -25,6 +25,8 @@ export interface CaseResult {
   identities: string[];
   seed: number;
   values: Record<string, string>;
+  /** What the case's steps saved, masked as the rest of the result is. */
+  caseValues: Record<string, string>;
   startedAt: string;
   finishedAt: string;
   durationMs: number;
@@ -41,6 +43,7 @@ export interface CaseMeta {
   identities: string[];
   seed: number;
   values: Record<string, string>;
+  caseValues: Record<string, string>;
   startedAt: Date;
 }
 
@@ -122,6 +125,7 @@ export class EvidenceStore {
       identities: meta.identities,
       seed: meta.seed,
       values: meta.values,
+      caseValues: meta.caseValues,
       startedAt: meta.startedAt.toISOString(),
       finishedAt: now.toISOString(),
       durationMs: now.getTime() - meta.startedAt.getTime(),

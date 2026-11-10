@@ -231,6 +231,10 @@ function webSteps(): StepHandler[] {
 function pluginSteps(driver: FakeDriver): StepHandler[] {
   const browser = (ctx: StepContext) => driver.sessions.at(-1)?.browsers.has(ctx.identity ?? "") ?? false;
   return [
+    step("keep", async (payload, ctx) => {
+      const { name, value } = payload as { name: string; value: string };
+      ctx.values.set(name, value);
+    }),
     {
       ...step("scrape", async (_payload, ctx) => {
         events.push(`browser open: ${browser(ctx)}`);
@@ -653,6 +657,34 @@ describe("runCases", () => {
       ["api", true],
     ]);
     expect(Object.keys(result?.values ?? {})).toEqual(["random(1, 9, 2)"]);
+  });
+
+  it("writes what a case's steps saved to caseValues, masked, finally steps included", async () => {
+    const { results, runDir } = await runProject(
+      [
+        testCase("SHOP-SAVE-001", {
+          steps: [
+            { request: { method: "POST", url: "${env.API_URL}/orders", json: {}, save: { orderId: "body.id" } } },
+            { keep: { name: "account", value: "12345678" } },
+            { keep: { name: "orderId", value: "7" } },
+            expectVisible,
+          ],
+          finally: [{ request: { method: "GET", url: "${env.API_URL}/orders/42", save: { cleaned: "body.status" } } }],
+        }),
+        testCase("SHOP-NONE-001", { steps: [expectVisible] }),
+        testCase("SHOP-BLOCKED-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] }),
+      ],
+      { localFixtures: null },
+    );
+    const [saved, none, blocked] = results;
+    expect(saved?.caseValues).toEqual({ orderId: "7", account: "••••5678", cleaned: "PAID" });
+    expect(JSON.parse(await readFile(join(runDir, "SHOP-SAVE-001", "result.json"), "utf8")).caseValues).toEqual(
+      saved?.caseValues,
+    );
+    expect(Object.keys(saved?.values ?? {})).toEqual([]);
+    expect(none?.caseValues).toEqual({});
+    expect(blocked?.status).toBe("blocked");
+    expect(blocked?.caseValues).toEqual({});
   });
 
   it("writes status.json after each case", async () => {

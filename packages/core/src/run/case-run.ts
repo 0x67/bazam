@@ -10,6 +10,7 @@ import {
   type PersonPrompt,
   type ResolverContext,
 } from "../challenge/index.ts";
+import type { CaseValues } from "./case-values.ts";
 import type { Driver, DriverSession, StepContext } from "../driver/index.ts";
 import type { GuardedHttp } from "../driver/http.ts";
 import {
@@ -76,6 +77,7 @@ export interface CaseParts {
   session: DriverSession;
   evidence: CaseEvidence;
   runValues: CaseRunValues;
+  values: CaseValues;
 }
 
 /** Runs one case's steps and checks in its driver session. */
@@ -104,10 +106,7 @@ export class CaseRun {
     this.#scope = scope;
     this.#parts = parts;
     this.#signal = scope.signal;
-    this.#values = new Map([
-      ["id", parts.spec.id],
-      ["title", parts.spec.title],
-    ]);
+    this.#values = parts.values;
     this.#sources = placeholderSources(scope, parts.runValues, this.#values);
   }
 

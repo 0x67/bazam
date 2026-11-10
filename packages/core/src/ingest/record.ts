@@ -73,6 +73,7 @@ export async function recordExternalResults(inputs: ExternalRecordInputs): Promi
       identities: [],
       seed: inputs.seed,
       values: {},
+      caseValues: {},
       startedAt: inputs.startedAt,
     };
     results.push(await store.finish(outcomeOf(spec.id, tests, inputs), meta, inputs.finishedAt));

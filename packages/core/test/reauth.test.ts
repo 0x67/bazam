@@ -13,6 +13,7 @@ import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { CaseEvidence } from "../src/run/case-evidence.ts";
 import { CaseRun, type RunScope } from "../src/run/case-run.ts";
+import { CaseValues } from "../src/run/case-values.ts";
 import { FakeBrowserSession } from "./support/fake-browser.ts";
 import { loadTestProject } from "./support/project.ts";
 
@@ -324,6 +325,7 @@ async function startRun(cases: readonly Record<string, unknown>[]): Promise<(cas
       session,
       evidence,
       runValues: runValues.forCase(caseId),
+      values: new CaseValues(caseId, loaded.spec.title),
     });
     lastNotes = notes;
     current = run;

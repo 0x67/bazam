@@ -25,6 +25,7 @@ import { deriveStatus, EvidenceStore, type CaseOutcome, type CaseResult } from "
 import { resolveSecret } from "../secrets/index.ts";
 import { maskPrompt, RunBrowserLogin } from "./browser-login.ts";
 import { CaseEvidence } from "./case-evidence.ts";
+import { CaseValues } from "./case-values.ts";
 import { CaseRun, placeholderSources, type RunScope } from "./case-run.ts";
 import { blockUnreachable, probeEnv, probeHint } from "./env-probes.ts";
 import { runExternalSuite, type ExternalSuiteRun } from "./external.ts";
@@ -373,7 +374,8 @@ class Run {
     const startedAt = new Date();
     const evidence = new CaseEvidence(runDir, spec.id, redactor);
     const runValues = this.#options.runValues.forCase(spec.id);
-    const outcome = await this.#caseOutcome(loaded, planned, { evidence, runValues, loginsBlocked });
+    const values = new CaseValues(spec.id, spec.title);
+    const outcome = await this.#caseOutcome(loaded, planned, { evidence, runValues, values, loginsBlocked });
     const result = await evidence.finish(
       outcome,
       {
@@ -386,6 +388,7 @@ class Run {
         identities: planned.identities,
         seed,
         values: runValues.recorded(),
+        caseValues: values.saved(),
         startedAt,
       },
       new Date(),
@@ -548,7 +551,12 @@ class Run {
   async #caseOutcome(
     loaded: LoadedCase,
     planned: PlannedCase,
-    parts: { evidence: CaseEvidence; runValues: CaseRunValues; loginsBlocked: ReadonlyMap<string, string> },
+    parts: {
+      evidence: CaseEvidence;
+      runValues: CaseRunValues;
+      values: CaseValues;
+      loginsBlocked: ReadonlyMap<string, string>;
+    },
   ): Promise<CaseOutcome> {
     const { signal } = this.#scope;
     const reason = signal.aborted ? "run cancelled" : (planned.blocked ?? loginReason(planned, parts.loginsBlocked));
@@ -575,6 +583,7 @@ class Run {
               session,
               evidence: parts.evidence,
               runValues: parts.runValues,
+              values: parts.values,
             });
             const held = caseLocks(planned);
             for (const identity of held) this.#running.set(identity, { run, evidence: parts.evidence });
