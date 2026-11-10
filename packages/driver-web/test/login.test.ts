@@ -32,6 +32,41 @@ describe("urlMatches", () => {
   });
 });
 
+describe.each(ENGINES)("viewport on %s", (engine) => {
+  it("opens the login tab at the target's viewport", async () => {
+    const sizes: string[] = [];
+    const site = await startSite({
+      // the cookie is set once the size is reported, so the login ends after the server has it
+      "/login": html(
+        `<script>fetch("/size?" + innerWidth + "x" + innerHeight).then(() => { document.cookie = "sid=fake-1"; });</script>`,
+      ),
+      "/size": (request, response) => {
+        sizes.push(request.url!.split("?")[1]!);
+        response.end();
+      },
+    });
+    const root = await tempDir();
+    const session = await launch(engine, {
+      env: demoEnv(),
+      runDir: root,
+      settings: { viewport: { width: 700, height: 500 } },
+    });
+    try {
+      await session.browserLogin.login({
+        url: new URL(`${site.origin}/login`),
+        until: { cookie: "sid" },
+        timeoutMs: 10_000,
+      });
+    } finally {
+      await session.close({ status: "pass", evidence: newEvidence(root, "WEB-LOGIN-002") });
+      await site.close();
+      await rm(root, { recursive: true, force: true });
+    }
+
+    expect(sizes).toEqual(["700x500"]);
+  });
+});
+
 describe.each(ENGINES)("browser login on %s", (engine) => {
   let site: Site;
   let env: Environment;

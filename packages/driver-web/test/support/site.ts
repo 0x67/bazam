@@ -73,7 +73,7 @@ export async function tempDir(): Promise<string> {
 
 export async function launch(
   engine: Engine,
-  options: { env: Environment; runDir: string; redactor?: Redactor; settings?: Record<string, string> },
+  options: { env: Environment; runDir: string; redactor?: Redactor; settings?: Record<string, unknown> },
 ): Promise<WebSession> {
   const session = await playwrightDriver.launch({
     env: options.env,

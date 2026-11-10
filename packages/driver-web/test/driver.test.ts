@@ -818,6 +818,72 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   });
 });
 
+describe.each(ENGINES)("browser settings on %s", (engine) => {
+  let site: Site;
+  const sessions: WebSession[] = [];
+  const roots: string[] = [];
+
+  beforeAll(async () => {
+    site = await startSite({ "/": html("<h1>Home</h1>") });
+  });
+
+  afterAll(() => site.close());
+
+  afterEach(async () => {
+    for (const session of sessions.splice(0)) {
+      const root = roots.pop()!;
+      await session.close({ status: "pass", evidence: newEvidence(root, CASE_ID) });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  async function pageWith(settings: Record<string, unknown>) {
+    const root = await tempDir();
+    roots.push(root);
+    const session = await launch(engine, { env: demoEnv(), runDir: root, settings });
+    sessions.push(session);
+    const page = await session.pageFor(undefined);
+    await page.goto(`${site.origin}/`);
+    return page;
+  }
+
+  it("opens a case context at the viewport, and at 1280x720 without one", async () => {
+    const sized = await pageWith({ viewport: { width: 640, height: 480 } });
+    const plain = await pageWith({});
+
+    expect(sized.viewportSize()).toEqual({ width: 640, height: 480 });
+    expect(plain.viewportSize()).toEqual({ width: 1280, height: 720 });
+  });
+
+  it("leases two browsers for targets that differ in args and one for targets that match", async () => {
+    // an argument each engine's build ignores or accepts without effect
+    const one = await pageWith({ args: ["--bazam-test-one"] });
+    const same = await pageWith({ args: ["--bazam-test-one"] });
+    const other = await pageWith({ args: ["--bazam-test-two"] });
+
+    expect(same.context().browser()).toBe(one.context().browser());
+    expect(other.context().browser()).not.toBe(one.context().browser());
+  });
+
+  it.runIf(engine === "chromium")("passes args to the browser launch", async () => {
+    const page = await pageWith({ args: ["--user-agent=example-agent/1.0"] });
+
+    expect(await page.evaluate(() => navigator.userAgent)).toBe("example-agent/1.0");
+  });
+
+  // geolocation is the one permission name all three Playwright builds accept
+  it("grants only the listed permissions", async () => {
+    const query = (page: Awaited<ReturnType<typeof pageWith>>) =>
+      page.evaluate(async () => (await navigator.permissions.query({ name: "geolocation" })).state);
+
+    const granted = await pageWith({ permissions: ["geolocation"] });
+    const plain = await pageWith({});
+
+    expect(await query(granted)).toBe("granted");
+    expect(await query(plain)).not.toBe("granted");
+  });
+});
+
 describe("playwrightDriver", () => {
   it("records a failed ui check when the page never meets the expectation", async () => {
     const site = await startSite({ "/": html('<p data-testid="out">Draft</p>') });
@@ -870,6 +936,17 @@ describe("playwrightDriver", () => {
     await expect(
       playwrightDriver.probe({ ...options, settings: { browser: "firefox", channel: "chrome" } }),
     ).rejects.toThrow(/target web: .*a channel needs browser: chromium/s);
+  });
+
+  it.each([
+    ["a viewport of width 0", { viewport: { width: 0, height: 10 } }, /at viewport\.width/],
+    ["a non-string args entry", { args: ["--lang=en", 3] }, /at args\[1\]/],
+  ])("refuses %s when the settings parse", async (_name, settings, field) => {
+    const options = { env: demoEnv(), target: "web", runDir: "runs", redactor: new Redactor(defaultRedactionRules()) };
+
+    await expect(playwrightDriver.probe({ ...options, settings })).rejects.toThrow(
+      new RegExp(`^target web: [\\s\\S]*${field.source}`),
+    );
   });
 
   it.each(["data.qa", "data:qa", "1qa"])(

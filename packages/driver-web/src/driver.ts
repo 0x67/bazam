@@ -20,7 +20,16 @@ import { assertHostAllowed, type Environment } from "@bazam/core/env";
 import { CaseBlocked, HarnessError } from "@bazam/core/run";
 import type { Redactor } from "@bazam/core/redact";
 import type { CheckRecord } from "@bazam/core/result";
-import { chromium, firefox, webkit, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+import {
+  chromium,
+  firefox,
+  webkit,
+  type Browser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from "playwright";
 import { z } from "zod";
 import { GuardedContext, Refusals } from "./context.ts";
 import { PlaywrightLogin, storageStateOf, urlMatches, type LoginTab } from "./login.ts";
@@ -50,6 +59,10 @@ const WebSettings = z
         error: 'testIdAttribute takes a letter or "_", then letters, digits, "_" or "-", as in "data-testid"',
       })
       .default("data-testid"),
+    // granted to every context; Playwright grants none by default
+    permissions: z.array(z.string().min(1)).optional(),
+    args: z.array(z.string().min(1)).default([]),
+    viewport: z.strictObject({ width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
   })
   .refine((settings) => settings.channel === undefined || settings.browser === "chromium", {
     path: ["channel"],
@@ -63,7 +76,7 @@ function parseSettings(options: LaunchOptions): WebSettings {
   return parsed.data;
 }
 
-type BrowserKind = Pick<WebSettings, "browser" | "channel" | "headless">;
+type BrowserKind = Pick<WebSettings, "browser" | "channel" | "headless" | "args">;
 
 interface PooledBrowser {
   browser: Promise<Browser>;
@@ -80,7 +93,7 @@ interface BrowserLease {
 const pool = new Map<string, PooledBrowser>();
 
 function leaseBrowser(kind: BrowserKind): BrowserLease {
-  const key = JSON.stringify([kind.browser, kind.channel ?? null, kind.headless]);
+  const key = JSON.stringify([kind.browser, kind.channel ?? null, kind.headless, kind.args]);
   let pooled = pool.get(key);
   if (pooled === undefined) {
     const entry: PooledBrowser = { browser: launchBrowser(kind), users: 0, idle: undefined };
@@ -146,8 +159,17 @@ function launchBrowser(kind: BrowserKind): Promise<Browser> {
     headless: kind.headless,
     // Playwright's own handler would exit 130 on Ctrl-C before the run can record its cases as cancelled
     handleSIGINT: false,
+    args: kind.args,
     ...(kind.channel === undefined ? {} : { channel: kind.channel }),
   });
+}
+
+/** The newContext options of a case context and of the login tab; a setting left out keeps Playwright's default. */
+function contextOptions(settings: WebSettings): BrowserContextOptions {
+  return {
+    ...(settings.permissions === undefined ? {} : { permissions: settings.permissions }),
+    ...(settings.viewport === undefined ? {} : { viewport: settings.viewport }),
+  };
 }
 
 /**
@@ -431,7 +453,7 @@ export class WebSession implements DriverSession {
   }
 
   async #openCaseContext(): Promise<GuardedContext> {
-    const context = await this.#browser.newContext();
+    const context = await this.#browser.newContext(contextOptions(this.#settings));
     // screencast frames are images the scrubber cannot read, and sources would copy test files into the zip
     await context.tracing.start({
       // a DOM snapshot would show what screenshots mask; Playwright drops network entries along with it
@@ -472,7 +494,11 @@ export class WebSession implements DriverSession {
     // a person cannot act in a browser they cannot see
     const lease = leaseBrowser(request.prompt === undefined ? this.#settings : { ...this.#settings, headless: false });
     try {
-      const guarded = await GuardedContext.open(await (await lease.browser).newContext(), this.#env, new Refusals());
+      const guarded = await GuardedContext.open(
+        await (await lease.browser).newContext(contextOptions(this.#settings)),
+        this.#env,
+        new Refusals(),
+      );
       const page = await guarded.page();
       const scope: StepScope = { ...this.scope(page), evidence: undefined, signal: request.signal };
       return {
