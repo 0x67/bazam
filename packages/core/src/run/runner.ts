@@ -34,6 +34,7 @@ import { CaseBlocked, isBlocking, messageOf, outcomeOf } from "./outcome.ts";
 import {
   caseTarget,
   loginKey,
+  loginReason,
   planLogins,
   planRun,
   targetDriver,
@@ -41,6 +42,7 @@ import {
   type PlanInputs,
   type RunPlan,
 } from "./plan.ts";
+import { runPlanChecks } from "./plan-checks.ts";
 import { preflight } from "./preflight.ts";
 import { runUnits, type WorkUnit } from "./schedule.ts";
 
@@ -221,7 +223,23 @@ class Run {
     blockUnreachable(plan, cases, project, env, await probeEnv(env, http, this.#scope.signal));
     for (const { runner, command } of plan.confirmations) await this.#confirm(plan, runner, command);
     const withLogins = plan.cases.filter((planned) => planned.blocked === undefined && planned.logins.length > 0);
-    if (withLogins.length === 0) return new Map();
+    const blocked = withLogins.length === 0 ? new Map<string, string>() : await this.#logIn(plan, withLogins);
+    await runPlanChecks(this.#options.registry.planChecks(), {
+      plan,
+      cases,
+      loginsBlocked: blocked,
+      env,
+      http: this.#scope.http,
+      secret: (key) => this.#scope.secret(key),
+      redactor,
+      log: this.#log.line,
+    });
+    await this.#log.flush(join(this.#options.runDir, "run.log"));
+    return blocked;
+  }
+
+  /** Runs preflight for the cases' logins in a browser session of its own; returns the reasons of the logins that failed. */
+  async #logIn(plan: RunPlan, withLogins: readonly PlannedCase[]): Promise<ReadonlyMap<string, string>> {
     // logins run in a session of their own, launched once and only when a login needs a browser
     const target = await this.#loginTarget(withLogins);
     const launch: { session?: Promise<DriverSession> } = {};
@@ -238,7 +256,6 @@ class Run {
       const evidence = new EvidenceStore(this.#options.runDir, PREFLIGHT_DIR, this.#options.redactor);
       await this.#close(session, { status: blocked.size === 0 ? "pass" : "blocked", evidence });
     }
-    await this.#log.flush(join(this.#options.runDir, "run.log"));
     return blocked;
   }
 
@@ -668,10 +685,6 @@ function suiteFailure(
 function caseLocks(planned: PlannedCase): string[] {
   if (planned.blocked !== undefined) return [];
   return [...new Set([...planned.identities, ...planned.logins.map((login) => login.identity)])];
-}
-
-function loginReason(planned: PlannedCase, loginsBlocked: ReadonlyMap<string, string>): string | undefined {
-  return planned.logins.map((login) => loginsBlocked.get(loginKey(login))).find((reason) => reason !== undefined);
 }
 
 /** Identities as the step client and browser contexts use it: a credential that cannot be had blocks the case. */

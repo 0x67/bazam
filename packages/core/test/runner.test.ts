@@ -26,7 +26,7 @@ import { HostNotAllowed, RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import type { CaseResult, RunProgress } from "../src/result/index.ts";
-import { HarnessError, runCases } from "../src/run/index.ts";
+import { HarnessError, runCases, type PlanCheck } from "../src/run/index.ts";
 import { FakeBrowserSession } from "./support/fake-browser.ts";
 import { fakeDriver, type FakeDriver, type FakeDriverOptions, type FakeSession } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
@@ -437,6 +437,7 @@ interface RunSetup {
   /** Written into the run directory before the run starts. */
   before?: (runDir: string) => Promise<void>;
   workers?: number;
+  planChecks?: PlanCheck[];
 }
 
 interface Ran {
@@ -472,6 +473,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     steps: pluginSteps(driver),
     authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy, sessionStrategy],
     resolvers: [otpResolver, stuckResolver],
+    ...(setup.planChecks === undefined ? {} : { planChecks: setup.planChecks }),
   });
   const files: Record<string, unknown> = {
     [BRAND.configFile]: configFor(),
@@ -1420,6 +1422,117 @@ describe("runCases after an HTTP 401", () => {
     expect(results[0]).toMatchObject({ status: "pass" });
     expect(issuedTokens).toBe(2);
     expect(results[0]?.notes).toEqual(["logged in again as clerk on api after an HTTP 401"]);
+  });
+});
+
+describe("runCases plan checks", () => {
+  const plain = (id: string, fields: Partial<CaseFields> = {}) =>
+    testCase(id, { prod_safe: true, steps: [expectVisible], ...fields });
+  const three = [plain("SHOP-PLAN-001"), plain("SHOP-PLAN-002"), plain("SHOP-PLAN-003")];
+  const planCheck = (name: string, answer: PlanCheck["check"]): PlanCheck => ({ name, check: answer });
+
+  it("blocks the case it names with the reason and runs the other two", async () => {
+    const { results, runDir } = await runProject(three, {
+      planChecks: [
+        planCheck("budget", async ({ cases }) => {
+          events.push(`budget saw ${cases.map(({ caseId }) => caseId).join(",")}`);
+          return { "SHOP-PLAN-002": "balance 5 is under the 9 planned" };
+        }),
+      ],
+    });
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-PLAN-001", status: "pass", reason: undefined },
+      { caseId: "SHOP-PLAN-002", status: "blocked", reason: "balance 5 is under the 9 planned" },
+      { caseId: "SHOP-PLAN-003", status: "pass", reason: undefined },
+    ]);
+    expect(events[0]).toBe("budget saw SHOP-PLAN-001,SHOP-PLAN-002,SHOP-PLAN-003");
+    expect(readFileSync(join(runDir, "summary.md"), "utf8")).toContain("balance 5 is under the 9 planned");
+  });
+
+  it("runs before the first case, once, even when no case logs in", async () => {
+    await runProject(three, {
+      planChecks: [planCheck("budget", async () => (events.push("plan check"), {}))],
+    });
+    expect(events.filter((event) => event === "plan check")).toHaveLength(1);
+    expect(events.indexOf("plan check")).toBe(0);
+  });
+
+  it("gives a later check only the cases an earlier one left", async () => {
+    const seen: string[][] = [];
+    await runProject(three, {
+      planChecks: [
+        planCheck("first", async () => ({ "SHOP-PLAN-001": "over budget" })),
+        planCheck("second", async ({ cases }) => (seen.push(cases.map(({ caseId }) => caseId)), {})),
+      ],
+    });
+    expect(seen).toEqual([["SHOP-PLAN-002", "SHOP-PLAN-003"]]);
+  });
+
+  it("logs an id it was not given and ignores it", async () => {
+    const { results, runDir } = await runProject(three, {
+      planChecks: [planCheck("budget", async () => ({ "SHOP-PLAN-404": "no such case" }))],
+    });
+    expect(results.map((result) => result.status)).toEqual(["pass", "pass", "pass"]);
+    expect(readFileSync(join(runDir, "run.log"), "utf8")).toContain(
+      "plan check budget named SHOP-PLAN-404, which is not a case it was given",
+    );
+  });
+
+  it("blocks every case it was given when a check throws", async () => {
+    const { results } = await runProject(three, {
+      planChecks: [
+        planCheck("budget", async () => {
+          throw new Error("balance service is down");
+        }),
+      ],
+    });
+    expect(outcomes(results).map(({ reason }) => reason)).toEqual(
+      Array(3).fill("internal: plan check budget failed: balance service is down"),
+    );
+  });
+
+  it("refuses a POST from a check in a production env, so its cases end blocked", async () => {
+    const { results } = await runProject(three, {
+      env: "live",
+      planChecks: [
+        planCheck("budget", async ({ http }) => {
+          await http.send({ method: "POST", url: new URL(`${origin}/orders`), headers: new Headers() });
+          return {};
+        }),
+      ],
+    });
+    expect(outcomes(results).map(({ reason }) => reason)).toEqual(
+      Array(3).fill("internal: plan check budget failed: POST needs write: true in production env live"),
+    );
+  });
+
+  it("lets a check send as an identity that preflight logged in, before it sends", async () => {
+    let issuedBefore = -1;
+    let status = 0;
+    const { results } = await runProject(
+      [
+        plain("SHOP-PLAN-001", {
+          steps: [{ request: { method: "GET", url: "${env.API_URL}/clerk", as: "clerk" } }, expectVisible],
+        }),
+      ],
+      {
+        planChecks: [
+          planCheck("budget", async ({ http }) => {
+            issuedBefore = issuedTokens;
+            const response = await http.send(
+              { method: "GET", url: new URL(`${origin}/clerk`), headers: new Headers() },
+              { identity: "clerk", surface: "api" },
+            );
+            status = response.status;
+            return {};
+          }),
+        ],
+      },
+    );
+    expect(results[0]).toMatchObject({ status: "pass" });
+    expect(issuedBefore).toBe(1);
+    expect(status).toBe(200);
+    expect(issuedTokens).toBe(1);
   });
 });
 

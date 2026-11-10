@@ -358,6 +358,7 @@ describe("serveProcessPlugin", () => {
     ["checkRules", { checkRules: [rule] }],
     ["trackers", { trackers: [markdownTracker("jira")] }],
     ["authStrategies", { authStrategies: [apiKeyStrategy] }],
+    ["planChecks", { planChecks: [{ name: "budget", check: async () => ({}) }] }],
   ])("refuses to start with %s, which a process plugin cannot offer", async (key, fields) => {
     const manifest = definePlugin({ name: "refused", apiVersion: PLUGIN_API_VERSION, ...fields });
 

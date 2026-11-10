@@ -3,3 +3,4 @@ export { preflight, type PreflightResult } from "./preflight.ts";
 export { planCases, runCases, type RunOptions } from "./runner.ts";
 export { CaseBlocked, HarnessError } from "./outcome.ts";
 export { ingestResults, type IngestOptions } from "./ingest.ts";
+export type { PlanCheck, PlanCheckCase, PlanCheckInput } from "./plan-checks.ts";

@@ -21,7 +21,7 @@ type Params<M extends keyof Methods> = z.output<Methods[M]["params"]>;
 type Answer<M extends keyof Methods> = z.input<Methods[M]["result"]>;
 
 // the manifest fields a process plugin cannot offer
-const REFUSED = ["steps", "authStrategies", "checkRules", "channels", "trackers"] as const;
+const REFUSED = ["steps", "authStrategies", "checkRules", "channels", "trackers", "planChecks"] as const;
 const NO_RUN_OBJECTS = "a process resolver cannot reach the run's channel or session";
 
 /**

@@ -76,6 +76,11 @@ export function loginKey(login: Login): string {
   return `${login.identity}/${login.surface}`;
 }
 
+/** The reason of the first login of the case that preflight could not get. */
+export function loginReason(planned: PlannedCase, loginsBlocked: ReadonlyMap<string, string>): string | undefined {
+  return planned.logins.map((login) => loginsBlocked.get(loginKey(login))).find((reason) => reason !== undefined);
+}
+
 /** The case's steps and then its checks, flows expanded, in the order they run; a step's number is its index plus one. */
 export function caseSteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>): Step[] {
   return expandFlows([...spec.steps, ...spec.checks], flows);

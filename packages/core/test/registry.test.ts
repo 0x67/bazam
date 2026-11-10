@@ -32,6 +32,7 @@ import {
 import { ProjectConfig } from "../src/project.ts";
 import { markdownTracker, type TrackerClient, type TrackerRenderer } from "../src/report/index.ts";
 import type { CaseResult } from "../src/result/index.ts";
+import type { PlanCheck } from "../src/run/index.ts";
 import type { SecretProvider } from "../src/secrets/index.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
@@ -354,6 +355,36 @@ describe("PluginRegistry.strategy", () => {
     );
 
     expect(cacheable).toEqual({ "api-key": false, basic: false, oauth2: true, "session-cookie": true, hmac: false });
+  });
+});
+
+describe("plan checks", () => {
+  const planCheck = (name: string): PlanCheck => ({ name, check: async () => ({}) });
+
+  it("lists every registered plan check in load order", async () => {
+    const [budget, quota, stock] = [planCheck("budget"), planCheck("quota"), planCheck("stock")];
+    const registry = await PluginRegistry.load(config(), projectRoot, [
+      plugin("first", { planChecks: [budget, quota] }),
+      plugin("second", { planChecks: [stock] }),
+    ]);
+
+    expect(registry.planChecks()).toEqual([budget, quota, stock]);
+  });
+
+  it("lists none when no plugin offers one", async () => {
+    expect((await PluginRegistry.load(config(), projectRoot, [])).planChecks()).toEqual([]);
+  });
+
+  it("refuses two plan checks with one name", async () => {
+    const failure = await loadFailure([
+      plugin("first", { planChecks: [planCheck("budget")] }),
+      plugin("second", { planChecks: [planCheck("budget")] }),
+    ]);
+
+    expect(failure).toBeInstanceOf(PluginConflict);
+    expect((failure as PluginConflict).message).toBe(
+      'plan check "budget" comes from both plugin "first" and plugin "second"',
+    );
   });
 });
 

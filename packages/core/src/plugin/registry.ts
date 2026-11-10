@@ -16,6 +16,7 @@ import type { ResultFormat } from "../ingest/index.ts";
 import { declaredSecretNames, type ProjectConfig } from "../project.ts";
 import { defaultRedactionRules, Redactor } from "../redact/index.ts";
 import { markdownTracker, type TrackerClient, type TrackerRenderer } from "../report/index.ts";
+import type { PlanCheck } from "../run/plan-checks.ts";
 import type { SecretProvider } from "../secrets/index.ts";
 import { builtinContributions } from "./builtin.ts";
 import { startProcessPlugin, type ProcessPlugin } from "./process.ts";
@@ -42,6 +43,7 @@ export interface PluginManifest {
   checkRules?: CheckRule[];
   resultFormats?: ResultFormat[];
   trackerClients?: TrackerClient[];
+  planChecks?: PlanCheck[];
 }
 
 export function definePlugin(manifest: PluginManifest): PluginManifest {
@@ -96,6 +98,7 @@ const contributionLists: { [K in ContributionKey]: ContributionList<Contribution
   checkRules: { noun: "check rule", name: (rule) => rule.id },
   resultFormats: { noun: "result format", name: (format) => format.name },
   trackerClients: { noun: "tracker client", name: (client) => client.tracker },
+  planChecks: { noun: "plan check", name: (check) => check.name },
 };
 const CONTRIBUTION_KEYS = Object.keys(contributionLists) as ContributionKey[];
 
@@ -242,6 +245,11 @@ export class PluginRegistry {
   /** The built-in rules, then each plugin's, in the order the plugins loaded. */
   checkRules(): readonly CheckRule[] {
     return [...this.#registrations.checkRules.values()].map((registered) => registered.item);
+  }
+
+  /** Every registered plan check, in the order the plugins loaded. */
+  planChecks(): readonly PlanCheck[] {
+    return [...this.#registrations.planChecks.values()].map((registered) => registered.item);
   }
 
   #add(manifest: PluginManifest): void {
