@@ -23,6 +23,7 @@ import { chromium, firefox, webkit, type Browser, type BrowserContext, type Loca
 import { z } from "zod";
 import { GuardedContext, Refusals } from "./context.ts";
 import { PlaywrightLogin, storageStateOf, urlMatches, type LoginTab } from "./login.ts";
+import { poll as pollFor } from "./poll.ts";
 import { describeSelector, locate } from "./selectors.ts";
 import { scrubTrace } from "./trace.ts";
 
@@ -271,7 +272,12 @@ const steps: readonly WebStep<unknown>[] = [
   webStep("screenshot", z.strictObject({ name: z.string().min(1) }), async ({ name }, scope) => {
     const evidence = caseEvidence(scope, "screenshot");
     const mask = scope.redactor.selectors().map((css) => scope.page.locator(css));
-    await evidence.attach(name, await scope.page.screenshot({ mask }), "png");
+    // masking finds the elements in the page, so a navigation the last step started can interrupt it
+    const shot = await poll(
+      () => scope.page.screenshot({ mask }),
+      () => true,
+    );
+    await evidence.attach(name, shot.value, "png");
   }),
   webStep("wait", WaitStep, async (wait, scope) => {
     if ("for" in wait) await field(scope, wait.for).waitFor({ state: "visible" });
@@ -330,14 +336,8 @@ async function observe(
   };
 }
 
-async function poll<T>(read: () => Promise<T>, ok: (value: T) => boolean): Promise<{ value: T; ok: boolean }> {
-  const deadline = Date.now() + EXPECT_TIMEOUT_MS;
-  for (;;) {
-    const value = await read();
-    if (ok(value)) return { value, ok: true };
-    if (Date.now() >= deadline) return { value, ok: false };
-    await sleep(EXPECT_POLL_MS);
-  }
+function poll<T>(read: () => Promise<T>, ok: (value: T) => boolean): Promise<{ value: T; ok: boolean }> {
+  return pollFor(read, ok, EXPECT_TIMEOUT_MS, EXPECT_POLL_MS);
 }
 
 function normalizeSpace(text: string): string {
