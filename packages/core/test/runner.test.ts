@@ -26,7 +26,7 @@ import { HostNotAllowed, RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import type { CaseResult, RunProgress } from "../src/result/index.ts";
-import { runCases } from "../src/run/index.ts";
+import { HarnessError, runCases } from "../src/run/index.ts";
 import { FakeBrowserSession } from "./support/fake-browser.ts";
 import { fakeDriver, type FakeDriver, type FakeDriverOptions, type FakeSession } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
@@ -198,6 +198,24 @@ function webSteps(): StepHandler[] {
         if (Date.now() > deadline) throw new Error("no other case finished");
         await sleep(5);
       }
+    }),
+  ];
+}
+
+// plugin steps that look for the identity's browser context, as pageFor does
+function pluginSteps(driver: FakeDriver): StepHandler[] {
+  const browser = (ctx: StepContext) => driver.sessions.at(-1)?.browsers.has(ctx.identity ?? "") ?? false;
+  return [
+    {
+      ...step("scrape", async (_payload, ctx) => {
+        events.push(`browser open: ${browser(ctx)}`);
+      }),
+      opensBrowser: true,
+    },
+    step("scrape-quietly", async (_payload, ctx) => {
+      events.push(`browser open: ${browser(ctx)}`);
+      if (!browser(ctx))
+        throw new HarnessError(`pageFor was called as identity "${ctx.identity}"; set opensBrowser: true`);
     }),
   ];
 }
@@ -433,6 +451,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     name: "test-run",
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver, phone],
+    steps: pluginSteps(driver),
     authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy],
     resolvers: [otpResolver, stuckResolver],
   });
@@ -973,6 +992,14 @@ describe("runCases error outcomes", () => {
     const { results } = await runProject([testCase("SHOP-LATE-001", { steps: [expectVisible] })], { driver });
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-LATE-001", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" },
+    ]);
+  });
+
+  it("blocks a case whose step failed after a navigation the guard refused and no step threw", async () => {
+    const driver = webDriver({ closeError: new HostNotAllowed("late.example.test", "demo") });
+    const { results } = await runProject([testCase("SHOP-LATE-002", { steps: [{ crash: {} }] })], { driver });
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-LATE-002", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" },
     ]);
   });
 
@@ -1572,6 +1599,28 @@ describe("runCases production confirmation", () => {
     expect(events.slice(0, 2)).toEqual([
       expect.stringMatching(/^ask preflight-shop-confirm-[0-9a-f]{7}$/),
       "ask shopper-session-cookie-login",
+    ]);
+  });
+
+  it("opens the browser of a plugin step that sets opensBrowser, and blocks the case of one that needs it without", async () => {
+    const { results } = await runProject([
+      testCase("SHOP-SCRAPE-001", { steps: [{ scrape: {}, as: "customer" }, expectVisible] }),
+      testCase("SHOP-SCRAPE-002", { steps: [{ "scrape-quietly": {}, as: "customer" }] }),
+    ]);
+    expect(events).toEqual([
+      "SHOP-SCRAPE-001 scrape as customer",
+      "browser open: true",
+      "SHOP-SCRAPE-001 expect",
+      "SHOP-SCRAPE-002 scrape-quietly as customer",
+      "browser open: false",
+    ]);
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-SCRAPE-001", status: "pass", reason: undefined },
+      {
+        caseId: "SHOP-SCRAPE-002",
+        status: "blocked",
+        reason: 'internal: pageFor was called as identity "customer"; set opensBrowser: true',
+      },
     ]);
   });
 });

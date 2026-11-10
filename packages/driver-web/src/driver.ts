@@ -17,7 +17,7 @@ import {
   type StepHandler,
 } from "@bazam/core/driver";
 import { assertHostAllowed, type Environment } from "@bazam/core/env";
-import { CaseBlocked } from "@bazam/core/run";
+import { CaseBlocked, HarnessError } from "@bazam/core/run";
 import type { Redactor } from "@bazam/core/redact";
 import type { CheckRecord } from "@bazam/core/result";
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
@@ -356,6 +356,7 @@ export class WebSession implements DriverSession {
   readonly #browser: Browser;
   readonly #lease: BrowserLease;
   readonly #contexts = new Map<string | undefined, Promise<GuardedContext>>();
+  readonly #browsed = new Set<string>();
   // one for all the case's contexts, so a refusal in one is thrown by the next web step in any of them
   readonly #refusals = new Refusals();
 
@@ -369,6 +370,7 @@ export class WebSession implements DriverSession {
   }
 
   async browserFor(identity: string): Promise<BrowserSession> {
+    this.#browsed.add(identity);
     const guarded = await this.contextFor(identity);
     return {
       storageState: () => storageStateOf(guarded.context),
@@ -387,6 +389,15 @@ export class WebSession implements DriverSession {
       this.#contexts.set(identity, opened);
     }
     return opened;
+  }
+
+  /** Throws when the identity's context never got its credential, which happens when the step's handler leaves out opensBrowser. */
+  async pageFor(identity: string | undefined): Promise<Page> {
+    if (identity !== undefined && !this.#browsed.has(identity))
+      throw new HarnessError(
+        `pageFor was called as identity "${identity}", whose browser context did not open first; set opensBrowser: true on the step handler`,
+      );
+    return (await this.contextFor(identity)).page();
   }
 
   scope(page: Page): Omit<StepScope, "evidence" | "signal"> {

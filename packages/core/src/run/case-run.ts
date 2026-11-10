@@ -25,7 +25,7 @@ import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence } from "./case-evidence.ts";
-import { CaseBlocked, isBlocking, messageOf, StepFailed } from "./outcome.ts";
+import { CaseBlocked, HarnessError, isBlocking, messageOf, StepFailed } from "./outcome.ts";
 import { caseSteps, FILL_STEP, finallySteps } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
@@ -176,7 +176,9 @@ export class CaseRun {
       await handler.run(payload, this.#context(identity));
     } catch (error) {
       // a process plugin that exits, stalls or breaks the protocol is the harness's fault, never the product's
-      throw isBlocking(error) || error instanceof PluginCallFailed ? error : new StepFailed(number, kind, error);
+      throw isBlocking(error) || error instanceof PluginCallFailed || error instanceof HarnessError
+        ? error
+        : new StepFailed(number, kind, error);
     }
   }
 

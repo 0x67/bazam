@@ -4,6 +4,7 @@ import { playwrightDriver } from "./driver.ts";
 import { virtualPasskeyResolver } from "./passkey.ts";
 
 export { playwrightDriver } from "./driver.ts";
+export { pageFor } from "./page.ts";
 export { virtualPasskeyResolver } from "./passkey.ts";
 
 export default definePlugin({

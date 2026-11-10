@@ -13,6 +13,14 @@ export class CaseBlocked extends Error {
   }
 }
 
+/** A step handler broke a rule of the harness; the case ends blocked with `internal:` instead of failing as the product's error. */
+export class HarnessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HarnessError";
+  }
+}
+
 /** A step handler threw something other than a blocking error; outcomeOf counts it as the product's error. */
 export class StepFailed extends Error {
   constructor(step: number, kind: string, cause: unknown) {

@@ -506,9 +506,13 @@ class Run {
       status: deriveStatus(parts.evidence.checks, outcome),
       evidence: parts.evidence,
     });
-    if (failure === undefined || outcome.kind !== "completed") return outcome;
-    // a driver may report on close what its guard refused after the last step, such as a navigation to another host
-    if (isBlocking(failure)) return { kind: "blocked", reason: failure.message };
+    if (failure === undefined) return outcome;
+    // a driver may report on close what its guard refused that no step threw, such as a navigation to another host
+    // from a plugin step's page; the refusal outranks the error it caused, as it does for a web step
+    const causedByRefusal =
+      outcome.kind === "completed" || (outcome.kind === "errored" && outcome.source === "product");
+    if (isBlocking(failure) && causedByRefusal) return { kind: "blocked", reason: failure.message };
+    if (outcome.kind !== "completed") return outcome;
     return { kind: "errored", source: "harness", message: "closing the driver session failed; case.log has the error" };
   }
 
