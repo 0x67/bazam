@@ -14,7 +14,14 @@ import {
   type HttpRequestDraft,
 } from "../src/auth/index.ts";
 import type { StepContext } from "../src/driver/index.ts";
-import { ConnectionFailed, guardedHttp, httpSteps, Unauthorized, type GuardedHttp } from "../src/driver/http.ts";
+import {
+  bodyMismatches,
+  ConnectionFailed,
+  guardedHttp,
+  httpSteps,
+  Unauthorized,
+  type GuardedHttp,
+} from "../src/driver/http.ts";
 import {
   EnvsConfig,
   HostNotAllowed,
@@ -394,5 +401,17 @@ describe("http", () => {
       await expect(runStep(step, ctx)).rejects.toThrow(ProdWriteRefused);
       expect(seen).toEqual([]);
     });
+  });
+});
+
+describe("bodyMismatches", () => {
+  const response = { status: 200, headers: new Headers(), body: { user: { id: 42 }, items: [{ ok: true }] } };
+
+  it("names each path whose value differs, reading numbers and booleans as their text", () => {
+    expect(bodyMismatches({ "user.id": "42", "items[0].ok": "true" }, response)).toEqual([]);
+    expect(bodyMismatches({ "user.id": "7", "items[0].ok": "true", "user.name": "x" }, response)).toEqual([
+      "body.user.id",
+      "body.user.name",
+    ]);
   });
 });

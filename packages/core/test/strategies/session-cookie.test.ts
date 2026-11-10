@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type { StorageState } from "../../src/auth/index.ts";
+import { IdentityMismatch } from "../../src/auth/index.ts";
 import { sessionCookieStrategy } from "../../src/auth/strategies/index.ts";
+import { checkProbe, RequestCheck } from "../../src/auth/strategies/session-cookie.ts";
 import { FakeBrowserLogin, FakeBrowserSession } from "../support/fake-browser.ts";
 import { authContext, draft, redacted, serve, type LocalServer } from "./support.ts";
 
@@ -38,6 +40,10 @@ describe("sessionCookieStrategy", () => {
         case "GET /api/session/page":
           if (/\bsession=fake-session-[12]\b/.test(cookies)) return response.writeHead(200).end();
           return response.writeHead(302, { location: "/login" }).end();
+        case "GET /api/session/who":
+          return response
+            .writeHead(200, { "content-type": "application/json" })
+            .end(JSON.stringify({ user_id: 42, name: "Fake User" }));
         case "GET /login":
         case "GET /home":
           return response.writeHead(200).end();
@@ -139,6 +145,80 @@ describe("sessionCookieStrategy", () => {
 
     expect(https.headers.get("cookie")).toBe("parent=fake-parent; admin=fake-admin; secure=fake-secure");
     expect(http.headers.get("cookie")).toBe("parent=fake-parent; admin=fake-admin");
+  });
+
+  describe("headers", () => {
+    const withCsrf: StorageState = { cookies: [...LOGGED_IN.cookies, cookie("csrf", "fake-csrf-1")], origins: [] };
+    const headers = { origin: "https://app.example.test", "x-csrf-token": { cookie: "csrf" } };
+    const withHeaders = (purpose: "probe" | "refresh") =>
+      sessionCookieStrategy.config.parse({
+        ...settings,
+        [purpose]: { ...(settings[purpose] as object), headers },
+      });
+
+    it.each(["probe", "refresh"] as const)("the %s sends its headers and copies a cached cookie", async (purpose) => {
+      const config = withHeaders(purpose);
+      const ctx = authContext();
+
+      if (purpose === "probe") await sessionCookieStrategy.probe?.(withCsrf, config, ctx);
+      else await sessionCookieStrategy.refresh?.(withCsrf, config, ctx);
+
+      expect(server.received.at(-1)?.headers).toMatchObject({
+        origin: "https://app.example.test",
+        "x-csrf-token": "fake-csrf-1",
+        cookie: "session=fake-session-1; tracker=fake-tracker-1; csrf=fake-csrf-1",
+      });
+    });
+
+    it("fails with a message that names the cookie and no value when the state does not send it", async () => {
+      const count = server.received.length;
+
+      const failure = await sessionCookieStrategy
+        .probe?.(LOGGED_IN, withHeaders("probe"), authContext())
+        .catch((e) => e);
+
+      expect(failure.message).toBe(
+        `the session-cookie probe of customer needs cookie csrf for header x-csrf-token, which the cached state does not send to ${server.origin}`,
+      );
+      expect(failure.message).not.toContain("fake-");
+      expect(server.received).toHaveLength(count);
+    });
+
+    it("refuses a header named cookie", () => {
+      const refused = { ...settings, probe: { ...settings.probe, headers: { Cookie: "session=fake-forged" } } };
+
+      expect(() => sessionCookieStrategy.config.parse(refused)).toThrow(
+        "the cookie header comes from the cached state",
+      );
+    });
+  });
+
+  describe("probe body", () => {
+    const who = (body: object) =>
+      sessionCookieStrategy.config.parse({
+        ...settings,
+        probe: { request: `GET ${server.origin}/api/session/who`, body },
+      });
+
+    it("passes only when each path holds the expected value, a number matching its text", async () => {
+      const ctx = authContext();
+
+      expect(await sessionCookieStrategy.probe?.(LOGGED_IN, who({ user_id: "42", name: "Fake User" }), ctx)).toBe(true);
+      await expect(
+        sessionCookieStrategy.probe?.(LOGGED_IN, who({ user_id: "7", name: "Fake User" }), ctx),
+      ).rejects.toMatchObject({
+        name: "IdentityMismatch",
+        paths: ["body.user_id"],
+      });
+    });
+
+    it("checkProbe returns false for a wrong status before it reads the body", () => {
+      const check = RequestCheck.parse({ request: "GET http://127.0.0.1/me", status: 200, body: { user_id: 42 } });
+      const response = { status: 401, headers: new Headers(), body: { user_id: 7 } };
+
+      expect(checkProbe(check, response)).toBe(false);
+      expect(() => checkProbe(check, { ...response, status: 200 })).toThrow(IdentityMismatch);
+    });
   });
 
   it("the probe passes with a live session and fails with a stale one", async () => {

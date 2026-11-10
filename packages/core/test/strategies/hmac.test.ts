@@ -47,6 +47,10 @@ describe("hmacStrategy", () => {
       switch (request.url.pathname) {
         case "/api/hmac/echo":
           return response.writeHead(templateSignatureIsValid(request) ? 200 : 401).end();
+        case "/api/hmac/who":
+          return response
+            .writeHead(templateSignatureIsValid(request) ? 200 : 401, { "content-type": "application/json" })
+            .end(JSON.stringify({ user_id: 42 }));
         case "/api/hmac/hook": {
           const valid = request.headers["x-hook-signature"] === hmacHex(`${request.method} ${request.url.pathname}`);
           return response.writeHead(valid ? 200 : 401).end();
@@ -132,6 +136,20 @@ describe("hmacStrategy", () => {
     await expect(hmacStrategy.probe?.(credential, config, behind)).rejects.toThrow(
       /^the local clock is 1[12]\d s away from the Date of http:\/\/127\.0\.0\.1:\d+, more than maxSkewSeconds 30$/,
     );
+  });
+
+  it("the probe passes only for the account its body names", async () => {
+    const who = (user_id: number) =>
+      hmacStrategy.config.parse({
+        ...SETTINGS,
+        probe: { request: `GET ${server.origin}/api/hmac/who`, body: { user_id } },
+      });
+    const credential = await hmacStrategy.acquire(who(42), authContext());
+
+    expect(await hmacStrategy.probe?.(credential, who(42), authContext())).toBe(true);
+    await expect(hmacStrategy.probe?.(credential, who(7), authContext())).rejects.toMatchObject({
+      paths: ["body.user_id"],
+    });
   });
 
   it("refuses maxSkewSeconds without a probe request", () => {

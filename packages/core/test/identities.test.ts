@@ -15,6 +15,8 @@ import {
   defineAuthStrategy,
   Identities,
   IdentitiesConfig,
+  IdentityMismatch,
+  MissingHeaderCookie,
   withRefreshLock,
   type AuthContext,
   type AuthStrategy,
@@ -50,6 +52,8 @@ interface TokenStrategyOptions {
   name?: string;
   cacheable?: boolean;
   refreshFails?: boolean;
+  /** The refresh hands back the credential it was given, as one that keeps the account does. */
+  refreshKeepsToken?: boolean;
   probe?: (credential: Token) => boolean;
   canRefresh?: (credential: Token) => boolean;
   /** Adds a field set to undefined, as a strategy does for a value the token endpoint left out. */
@@ -79,6 +83,7 @@ function tokenStrategy(clock: () => Date, options: TokenStrategyOptions = {}) {
     refresh: async (credential, _config, ctx) => {
       calls.push(`refresh ${credential.token}`);
       if (options.refreshFails === true) throw new Error("refresh token revoked");
+      if (options.refreshKeepsToken === true) return credential;
       return issue(ctx.identity);
     },
     canRefresh: (credential) => options.canRefresh?.(credential) ?? true,
@@ -453,6 +458,72 @@ describe("Identities", () => {
 
     await expect(ids.ensureCredential("customer", "api")).rejects.toBeInstanceOf(CredentialRejected);
     expect(await cacheFiles()).toEqual([]);
+  });
+
+  it("blocks with the paths when a new credential belongs to another account, and saves nothing", async () => {
+    const { strategy } = tokenStrategy(clock, {
+      probe: () => {
+        throw new IdentityMismatch(["body.user_id"]);
+      },
+    });
+    const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+
+    await expect(ids.ensureCredential("customer", "api")).rejects.toThrow(
+      "the new token credential for customer/api belongs to another account: body.user_id does not match",
+    );
+    expect(await cacheFiles()).toEqual([]);
+  });
+
+  it("logs in again when the cached credential belongs to another account, and probe reports false", async () => {
+    let mismatched = false;
+    const { strategy, calls } = tokenStrategy(clock, {
+      refreshKeepsToken: true,
+      probe: (credential) => {
+        if (mismatched && credential.token === "fake-customer-1") throw new IdentityMismatch(["body.user_id"]);
+        return true;
+      },
+    });
+    const first = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    await first.ensureCredential("customer", "api");
+    mismatched = true;
+    const second = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+
+    await second.ensureCredential("customer", "api");
+
+    expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
+    expect(await second.probe("customer", "api")).toBe(true);
+    expect(await first.probe("customer", "api")).toBe(false);
+  });
+
+  it("logs in again when the probe header needs a cookie the cached state lacks, and says so when the new one lacks it too", async () => {
+    const missing = new MissingHeaderCookie("probe", "customer", "csrf", "x-csrf-token", "https://app.example.test");
+    let lacking = false;
+    const { strategy, calls } = tokenStrategy(clock, {
+      canRefresh: () => false,
+      probe: (credential) => {
+        if (lacking && credential.token === "fake-customer-1") throw missing;
+        return true;
+      },
+    });
+    const first = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+    await first.ensureCredential("customer", "api");
+    lacking = true;
+    const second = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+
+    await second.ensureCredential("customer", "api");
+
+    expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
+    const always = tokenStrategy(clock, {
+      name: "always-lacking",
+      probe: () => {
+        throw missing;
+      },
+    });
+    const third = await identities(
+      { other: { auth: { api: { strategy: "always-lacking", with: { audience: "x" } } } } },
+      [always.strategy],
+    );
+    await expect(third.ensureCredential("other", "api")).rejects.toThrow(missing.message);
   });
 
   it("refreshes once on a 401 and saves the new credential for the retry", async () => {

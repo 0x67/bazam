@@ -1,4 +1,6 @@
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -242,6 +244,42 @@ describe("keepalive", () => {
     expect(ended?.code).toBe(ExitCode.Pass);
     expect(ended?.stderr).toContain("customer/web was logged out; stopped keeping it alive");
     expect(await readdir(credentialsDir())).toEqual([]);
+  });
+
+  it("refreshes a session-cookie credential with the headers of its refresh request", async () => {
+    const received: { origin: string | undefined; csrf: string | undefined }[] = [];
+    const server = createServer((request, response) => {
+      received.push({ origin: request.headers.origin, csrf: request.headers["x-csrf-token"] as string | undefined });
+      response.writeHead(200).end();
+    });
+    await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const cookie = (name: string, value: string) => ({ name, value, domain: "127.0.0.1", path: "/", expires: -1 });
+    await customerAuth({
+      web: {
+        strategy: "session-cookie",
+        with: {
+          login: { url: `${origin}/login`, until: { cookie: "session" } },
+          refresh: {
+            request: `POST ${origin}/auth/refresh`,
+            headers: { origin: "https://app.example.test", "x-csrf-token": { cookie: "csrf" } },
+          },
+        },
+      },
+    });
+    await seed(
+      { strategy: "session-cookie" },
+      { cookies: [cookie("session", "fake-session-1"), cookie("csrf", "fake-csrf-1")], origins: [] },
+    );
+    try {
+      const running = startCli("keepalive", "--env", "demo", "--as", "customer");
+      await vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(1), { timeout: 10_000, interval: 20 });
+      running.stop();
+      expect((await running.done).code).toBe(ExitCode.Pass);
+    } finally {
+      await new Promise((closed) => server.close(closed));
+    }
+    expect(received[0]).toEqual({ origin: "https://app.example.test", csrf: "fake-csrf-1" });
   });
 
   it("keeps the surfaces it can alive and logs why it skips the others", async () => {

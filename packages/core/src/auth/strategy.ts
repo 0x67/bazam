@@ -72,6 +72,16 @@ export class IdentityMismatch extends Error {
   }
 }
 
+/** A probe or refresh header takes its value from a cookie the cached state does not send. */
+export class MissingHeaderCookie extends Error {
+  constructor(purpose: string, identity: string, cookie: string, header: string, origin: string) {
+    super(
+      `the session-cookie ${purpose} of ${identity} needs cookie ${cookie} for header ${header}, which the cached state does not send to ${origin}`,
+    );
+    this.name = "MissingHeaderCookie";
+  }
+}
+
 export function defineAuthStrategy<Config, Credential extends JsonValue>(
   strategy: AuthStrategy<Config, Credential>,
 ): AuthStrategy<Config, Credential> {

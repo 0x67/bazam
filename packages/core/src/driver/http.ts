@@ -287,6 +287,13 @@ function compare(check: ApiCheck, response: HttpResponse): Pick<CheckRecord, "ex
   return { expected, observed, ok };
 }
 
+/** The paths under `body` whose value in the response differs from the expected one, compared as the api check compares. */
+export function bodyMismatches(expected: Readonly<Record<string, unknown>>, response: HttpResponse): string[] {
+  return Object.entries(expected)
+    .filter(([path, value]) => !matches(value, valueAt(response, `body.${path}`)))
+    .map(([path]) => `body.${path}`);
+}
+
 // placeholders resolve to text, so "${case.orderId}" has to match the number 42
 function matches(expected: unknown, observed: unknown): boolean {
   if (typeof expected === "string" && (typeof observed === "number" || typeof observed === "boolean"))

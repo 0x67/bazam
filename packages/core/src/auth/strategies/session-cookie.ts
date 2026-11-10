@@ -2,9 +2,9 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { RequestStep } from "../../case/index.ts";
 import type { PersonPrompt } from "../../challenge/index.ts";
-import type { HttpResponse } from "../../driver/http.ts";
+import { bodyMismatches, type HttpResponse } from "../../driver/http.ts";
 import type { BrowserLoginRequest, StorageState } from "../browser.ts";
-import { defineAuthStrategy, type HttpRequestDraft } from "../strategy.ts";
+import { defineAuthStrategy, IdentityMismatch, MissingHeaderCookie, type HttpRequestDraft } from "../strategy.ts";
 
 const SCRIPTED_LOGIN_TIMEOUT_MS = 60_000;
 export const PERSON_LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -25,20 +25,64 @@ const RequestLine = z.string().transform((line, ctx) => {
 });
 
 /**
- * A request whose answer counts as success when it has `status`, or any 2xx when that is left out. It does not
- * follow redirects, so a 3xx passes only when `status` names it, and a dead session sent to a login page fails.
+ * A request whose answer counts as success when it has `status`, or any 2xx when that is left out, and, with
+ * `body`, when each dot path holds the value written. It does not follow redirects, so a 3xx passes only when
+ * `status` names it, and a dead session sent to a login page fails.
  */
-export const RequestCheck = z.strictObject({ request: RequestLine, status: z.number().int().optional() });
+export const RequestCheck = z.strictObject({
+  request: RequestLine,
+  status: z.number().int().optional(),
+  /** Expected values by dot path inside the response body, as the api check reads them. */
+  body: z.record(z.string(), z.unknown()).optional(),
+});
 export type RequestCheck = z.infer<typeof RequestCheck>;
 
 export function requestDraft(check: RequestCheck): HttpRequestDraft {
   return { method: check.request.method, url: new URL(check.request.url), headers: new Headers(), redirect: "manual" };
 }
 
-export function passes(check: RequestCheck, response: HttpResponse): boolean {
-  return check.status === undefined
-    ? response.status >= 200 && response.status < 300
-    : response.status === check.status;
+/** False when the status is wrong; throws IdentityMismatch when the status is right and a body path holds another value. */
+export function checkProbe(check: RequestCheck, response: HttpResponse): boolean {
+  const statusOk =
+    check.status === undefined ? response.status >= 200 && response.status < 300 : response.status === check.status;
+  if (!statusOk) return false;
+  const paths = bodyMismatches(check.body ?? {}, response);
+  if (paths.length > 0) throw new IdentityMismatch(paths);
+  return true;
+}
+
+const HeaderValue = z.union([z.string(), z.strictObject({ cookie: z.string().min(1) })]);
+const SessionRequest = RequestCheck.extend({
+  headers: z
+    .record(z.string().regex(/^[a-z0-9-]+$/i), HeaderValue)
+    .refine((headers) => !Object.keys(headers).some((name) => name.toLowerCase() === "cookie"), {
+      error: "the cookie header comes from the cached state; name the cookie under a header such as x-csrf-token",
+    })
+    .optional(),
+});
+type SessionRequest = z.infer<typeof SessionRequest>;
+
+/** The request with its headers set: strings as written, `{ cookie }` from the cookie the state sends to the URL. */
+function sessionRequestDraft(
+  request: SessionRequest,
+  state: StorageState,
+  use: { identity: string; purpose: "probe" | "refresh" },
+): HttpRequestDraft {
+  const draft = requestDraft(request);
+  const cookies = storedCookies(state).filter((cookie) => isSentTo(cookie, draft.url, Date.now()));
+  for (const [header, value] of Object.entries(request.headers ?? {})) {
+    if (typeof value === "string") {
+      draft.headers.set(header, value);
+      continue;
+    }
+    const cookie = cookies.find((entry) => entry.name === value.cookie);
+    if (cookie === undefined) {
+      throw new MissingHeaderCookie(use.purpose, use.identity, value.cookie, header, draft.url.origin);
+    }
+    draft.headers.set(header, cookie.value);
+  }
+  setCookieHeader(draft, state);
+  return draft;
 }
 
 const PersonLogin = z.strictObject({
@@ -71,8 +115,8 @@ const SessionCookieConfig = z.strictObject({
     person: PersonLogin.optional(),
     timeoutMs: z.number().int().positive().optional(),
   }),
-  probe: RequestCheck.optional(),
-  refresh: RequestCheck.optional(),
+  probe: SessionRequest.optional(),
+  refresh: SessionRequest.optional(),
 });
 type SessionCookieConfig = z.infer<typeof SessionCookieConfig>;
 
@@ -129,18 +173,16 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
   },
   probe: async (state, config, ctx) => {
     if (config.probe === undefined) return true;
-    const draft = requestDraft(config.probe);
-    setCookieHeader(draft, state);
-    return passes(config.probe, await ctx.http.send(draft));
+    const draft = sessionRequestDraft(config.probe, state, { identity: ctx.identity, purpose: "probe" });
+    return checkProbe(config.probe, await ctx.http.send(draft));
   },
   canRefresh: (_state, settings) => settings["refresh"] !== undefined,
   refresh: async (state, config, ctx) => {
     if (config.refresh === undefined)
       throw new Error(`the session-cookie settings of ${ctx.identity} have no refresh request`);
-    const draft = requestDraft(config.refresh);
-    setCookieHeader(draft, state);
+    const draft = sessionRequestDraft(config.refresh, state, { identity: ctx.identity, purpose: "refresh" });
     const response = await ctx.http.send(draft);
-    if (!passes(config.refresh, response))
+    if (!checkProbe(config.refresh, response))
       throw new Error(`the session refresh of ${ctx.identity} answered ${response.status}`);
     return storeSetCookies(state, draft.url, response.headers.getSetCookie(), ctx.now());
   },

@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { HttpResponse } from "../../driver/http.ts";
 import { loadAuthHook } from "../hooks.ts";
 import { defineAuthStrategy, type HttpRequestDraft } from "../strategy.ts";
-import { passes, RequestCheck, requestDraft } from "./session-cookie.ts";
+import { checkProbe, RequestCheck, requestDraft } from "./session-cookie.ts";
 
 const SIGNED_PARTS = ["method", "path", "query", "timestamp", "nonce", "bodySha256", "keyId"];
 const HEADER_PARTS = [...SIGNED_PARTS, "signature"];
@@ -76,7 +76,7 @@ export const hmacStrategy = defineAuthStrategy<HmacConfig, HmacCredential>({
     const response = await ctx.http.send(draft);
     // before the status, since a server whose clock is far off refuses the signature too
     if (config.maxSkewSeconds !== undefined) assertClockSkew(response, config.maxSkewSeconds, ctx.now(), draft.url);
-    return passes(config.probe, response);
+    return checkProbe(config.probe, response);
   },
   secrets: (credential) => [credential.secret],
 });

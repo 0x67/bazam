@@ -7,7 +7,14 @@ import type { Redactor } from "../redact/index.ts";
 import type { BrowserLogin } from "./browser.ts";
 import type { CredentialCache, CredentialKey } from "./cache.ts";
 import { withRefreshLock } from "./lock.ts";
-import type { ApplyTarget, AuthContext, AuthStrategy, JsonValue } from "./strategy.ts";
+import {
+  IdentityMismatch,
+  MissingHeaderCookie,
+  type ApplyTarget,
+  type AuthContext,
+  type AuthStrategy,
+  type JsonValue,
+} from "./strategy.ts";
 
 /** Where a credential will come from: the cache, a refresh, a scripted or person login, or static secrets. */
 export type LoginMode = "cached" | "refresh" | "scripted" | "person" | "static";
@@ -81,12 +88,24 @@ export interface IdentitiesDeps {
 
 /** A credential that came back from a login or a refresh failed the strategy's probe. */
 export class CredentialRejected extends Error {
-  constructor(slot: string, strategy: string) {
+  constructor(slot: string, strategy: string, verdict: ProbeVerdict) {
+    const { mismatch, reason } = verdict;
     super(
-      `the new ${strategy} credential for ${slot} failed its probe; check the probe request and the credential settings in the with: block of that surface`,
+      reason !== undefined
+        ? reason
+        : mismatch === undefined
+          ? `the new ${strategy} credential for ${slot} failed its probe; check the probe request and the credential settings in the with: block of that surface`
+          : `the new ${strategy} credential for ${slot} belongs to another account: ${mismatch.join(", ")} ${mismatch.length === 1 ? "does" : "do"} not match`,
     );
     this.name = "CredentialRejected";
   }
+}
+
+/** Whether a credential passes the probe, the body paths that showed it belongs to another account, or why the probe could not run. */
+interface ProbeVerdict {
+  passes: boolean;
+  mismatch?: readonly string[];
+  reason?: string;
 }
 
 interface Held {
@@ -173,7 +192,7 @@ export class Identities {
     if (slot.strategy.probe === undefined) return undefined;
     const held = this.#held.get(slot.id);
     if (held === undefined) return false;
-    return this.#passesProbe(slot, await this.#config(slot), held.credential);
+    return (await this.#probeVerdict(slot, await this.#config(slot), held.credential)).passes;
   }
 
   async #ensure(slot: Slot): Promise<Held> {
@@ -181,29 +200,34 @@ export class Identities {
     if (held !== undefined && !this.#isExpired(held)) return held;
     const config = await this.#config(slot);
     let stale = held;
+    let wrongAccount = false;
     if (stale === undefined) {
       const cached = await this.#loadCached(slot);
-      if (cached !== undefined && (await this.#isUsable(slot, config, cached))) return this.#keep(slot, cached);
+      if (cached !== undefined) {
+        const verdict = await this.#heldVerdict(slot, config, cached);
+        if (verdict.passes) return this.#keep(slot, cached);
+        wrongAccount = verdict.mismatch !== undefined;
+      }
       stale = cached;
     }
-    if (!slot.strategy.cacheable) return this.#renew(slot, config, stale);
+    if (!slot.strategy.cacheable) return this.#renew(slot, config, wrongAccount ? undefined : stale);
     return withRefreshLock(this.#deps.lockDir, slot.key, async () => {
       // another process may have refreshed it while this one waited for the lock
       const reloaded = await this.#loadCached(slot);
-      if (
-        reloaded !== undefined &&
-        !isSameCredential(reloaded, stale) &&
-        (await this.#isUsable(slot, config, reloaded))
-      ) {
-        return this.#keep(slot, reloaded);
+      if (reloaded !== undefined && !isSameCredential(reloaded, stale)) {
+        const verdict = await this.#heldVerdict(slot, config, reloaded);
+        if (verdict.passes) return this.#keep(slot, reloaded);
+        wrongAccount = verdict.mismatch !== undefined;
       }
-      return this.#renew(slot, config, reloaded ?? stale);
+      // a refresh keeps the account, so a credential of another account is replaced by a login
+      return this.#renew(slot, config, wrongAccount ? undefined : (reloaded ?? stale));
     });
   }
 
   async #renew(slot: Slot, config: unknown, previous: Held | undefined): Promise<Held> {
     const credential = await this.#refreshOrAcquire(slot, config, previous);
-    if (!(await this.#passesProbe(slot, config, credential))) throw new CredentialRejected(slot.id, slot.strategy.name);
+    const verdict = await this.#probeVerdict(slot, config, credential);
+    if (!verdict.passes) throw new CredentialRejected(slot.id, slot.strategy.name, verdict);
     return this.#adopt(slot, credential);
   }
 
@@ -226,12 +250,20 @@ export class Identities {
     return slot.strategy.refresh?.bind(slot.strategy);
   }
 
-  async #isUsable(slot: Slot, config: unknown, held: Held): Promise<boolean> {
-    return !this.#isExpired(held) && (await this.#passesProbe(slot, config, held.credential));
+  async #heldVerdict(slot: Slot, config: unknown, held: Held): Promise<ProbeVerdict> {
+    if (this.#isExpired(held)) return { passes: false };
+    return this.#probeVerdict(slot, config, held.credential);
   }
 
-  async #passesProbe(slot: Slot, config: unknown, credential: JsonValue): Promise<boolean> {
-    return slot.strategy.probe === undefined || slot.strategy.probe(credential, config, this.#context(slot.identity));
+  async #probeVerdict(slot: Slot, config: unknown, credential: JsonValue): Promise<ProbeVerdict> {
+    if (slot.strategy.probe === undefined) return { passes: true };
+    try {
+      return { passes: await slot.strategy.probe(credential, config, this.#context(slot.identity)) };
+    } catch (error) {
+      if (error instanceof IdentityMismatch) return { passes: false, mismatch: error.paths };
+      if (error instanceof MissingHeaderCookie) return { passes: false, reason: error.message };
+      throw error;
+    }
   }
 
   #isExpired(held: Held): boolean {
