@@ -300,6 +300,7 @@ describe("http", () => {
             case: (key) => values.get(key),
             locale: env.locale,
           }),
+        mask: (value) => redactor.register(value),
         signal: new AbortController().signal,
       };
       return { ctx, checks: () => record.mock.calls.map(([check]) => check) };

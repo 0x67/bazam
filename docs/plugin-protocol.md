@@ -122,6 +122,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
 | `host.evidence.followup` | `{ contextId, item, hint }`                                                             | `null`                                  |
 | `host.evidence.attach`   | `{ contextId, label, ext, dataBase64 }`                                                 | `{ name }`, the attachment's file name  |
 | `host.values.set`        | `{ contextId, name, value }`                                                            | `null`                                  |
+| `host.mask`              | `{ contextId, value }`                                                                  | `null`                                  |
 
 1. `host.resolve` fills placeholders such as `${env.APP_URL}`, `${secret.NAME}` and `${case.<name>}` in any JSON value. The host registers a secret it fills with its redactor.
 2. `host.secret` reads the secret through the env's providers and registers the value with the host's redactor.

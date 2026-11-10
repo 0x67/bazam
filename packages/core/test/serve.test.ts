@@ -174,6 +174,19 @@ describe("a served plugin in a run", () => {
     expect(requests).toEqual([]);
   });
 
+  it("masks a value a served step registers with host.mask in later notes and the result", async () => {
+    const [result] = await runServed([
+      testCase("SHOP-MASK-001", [
+        { mask: { value: "ACCT-77001234" } },
+        { note: "account ACCT-77001234 opened" },
+        { fill: { field: "account", value: "ACCT-77001234" } },
+        { check: { name: "done", value: "yes" } },
+      ]),
+    ]);
+
+    expect(result?.notes).toEqual(["account [redacted] opened", "filled [redacted]", "session closed pass"]);
+  });
+
   it("sends a production write only from a step that sets write: true", async () => {
     const post = { url: "${env.API_URL}/orders", method: "POST" };
     const results = await runServed(

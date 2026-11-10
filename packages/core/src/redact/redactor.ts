@@ -37,6 +37,8 @@ export const RedactionConfig = z.strictObject({
    * and network entries in traces, which these selectors cannot mask.
    */
   screenshotSelectors: z.array(z.string().min(1)).default([]),
+  /** Fixture field names that the fill step leaves unregistered and that the evidence scan leaves out. */
+  shown: z.array(z.string().min(1)).default([]),
 });
 export type RedactionConfig = z.infer<typeof RedactionConfig>;
 
@@ -58,7 +60,7 @@ export class Redactor {
    * Adds the project's patterns and screenshot selectors to the rules the redactor was built with, replacing what
    * an earlier call added. The patterns must have passed `RedactionConfig`.
    */
-  configure(config: RedactionConfig): void {
+  configure(config: Pick<RedactionConfig, "patterns" | "screenshotSelectors">): void {
     this.#configured = {
       patterns: config.patterns.map((source) => ({
         pattern: new RegExp(source, CONFIGURED_PATTERN_FLAGS),

@@ -592,6 +592,7 @@ describe("loadProjectConfig", () => {
       expect((await loadProjectConfig(root)).config?.redaction).toEqual({
         patterns: ["ACCT-\\d+"],
         screenshotSelectors: ["#card"],
+        shown: [],
       });
 
       await writeFile(join(root, BRAND.configFile), `${[...redaction, "    - '(unclosed'"].join("\n")}\n`);

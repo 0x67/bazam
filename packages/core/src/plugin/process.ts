@@ -248,7 +248,7 @@ function callError(plugin: string, method: string, timeoutMs: number, error: unk
 /**
  * Answers the plugin's `host.*` calls from the context registered under their `contextId`. A context that is unknown,
  * released or lacks what the method needs gets `-32602`. A resolver context offers secrets and http; a step context
- * offers resolve, http, evidence and values; a case ending offers evidence; a tracker client's context offers
+ * offers resolve, http, evidence, values and mask; a case ending offers evidence; a tracker client's context offers
  * secrets; a launch context offers nothing.
  */
 function answerHostCalls(peer: JsonRpcPeer, contexts: ReadonlyMap<string, HostContext>, log: (line: string) => void) {
@@ -311,6 +311,10 @@ function answerHostCalls(peer: JsonRpcPeer, contexts: ReadonlyMap<string, HostCo
     find("host.values.set", contextId, hasValues).values.set(name, value);
     return null;
   });
+  handleMethod(peer, "host.mask", async ({ contextId, value }) => {
+    find("host.mask", contextId, hasMask).mask(value);
+    return null;
+  });
   peer.handle("host.log", async (params) => {
     const parsed = METHODS["host.log"].params.safeParse(params);
     if (parsed.success) log(parsed.data.line);
@@ -333,6 +337,10 @@ function hasHttp(context: HostContext): context is ContextWith<"http"> {
 
 function hasEvidence(context: HostContext): context is ContextWith<"evidence"> {
   return "evidence" in context;
+}
+
+function hasMask(context: HostContext): context is ContextWith<"mask"> {
+  return "mask" in context;
 }
 
 function hasValues(context: HostContext): context is ContextWith<"values"> {

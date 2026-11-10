@@ -301,6 +301,22 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
       "plugin raw answered driver.launch with error -32602: host.http is not available in this context",
     );
   });
+
+  it("answers -32602 to host.mask from a launch context", async () => {
+    const registry = await load({ plugins: [fixture("raw", { args: ["launch-mask"] })] });
+
+    const launching = registry.driver("raw").launch({
+      env: demoEnv(),
+      target: "proc",
+      settings: {},
+      runDir: FIXTURES,
+      redactor: new Redactor(defaultRedactionRules()),
+    });
+
+    await expect(launching).rejects.toThrow(
+      "plugin raw answered driver.launch with error -32602: host.mask is not available in this context",
+    );
+  });
 });
 
 describe("process plugins in a run", () => {

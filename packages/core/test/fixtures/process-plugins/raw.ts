@@ -24,6 +24,7 @@ const CONTRIBUTIONS: Record<string, object> = {
   shape: misshapen,
   "version-shape": misshapen,
   "launch-http": driver,
+  "launch-mask": driver,
   "step-secret": driver,
   "step-string-error": driver,
   "step-codeless-error": driver,
@@ -104,6 +105,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       if (mode === "launch-http") {
         const request = { method: "GET", url: "http://127.0.0.1/", headers: {} };
         relay(id, "host.http", { contextId: message.params?.options?.contextId, request });
+        return;
+      }
+      if (mode === "launch-mask") {
+        relay(id, "host.mask", { contextId: message.params?.options?.contextId, value: "ACCT-77001234" });
         return;
       }
       send({ id, result: { session: "raw-session", capabilities: [] } });

@@ -322,6 +322,7 @@ function serve(
         http: http(contextId, write, signal),
         resolve: async <T>(value: T) =>
           (await host("host.resolve", { contextId, value: value as z.core.util.JSONType }, signal)) as T,
+        mask: (value) => fired.add(host("host.mask", { contextId, value })),
         signal,
       }),
     );

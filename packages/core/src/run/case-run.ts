@@ -15,10 +15,12 @@ import type { Driver, DriverSession, StepContext } from "../driver/index.ts";
 import type { GuardedHttp } from "../driver/http.ts";
 import {
   escapePlaceholders,
+  findPlaceholders,
   resolvePlaceholders,
   type CaseRunValues,
   type Environment,
   type PlaceholderSources,
+  UnresolvedPlaceholder,
 } from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import { PluginCallFailed } from "../plugin/process.ts";
@@ -230,6 +232,7 @@ export class CaseRun {
     if (handler === undefined) throw new Error(`driver ${driver.name} has no ${kind} step`);
     if (identity !== undefined && (driver.steps.includes(handler) || handler.opensBrowser === true))
       await this.#openBrowser(identity);
+    if (kind === FILL_STEP) await this.#maskFilled(payload);
     const attempt = async (): Promise<void> => {
       try {
         await handler.run(payload, this.#context(identity));
@@ -491,6 +494,7 @@ export class CaseRun {
       values: this.#values,
       http,
       resolve: (value) => this.#resolve(value),
+      mask: (value) => this.#scope.redactor.register(value),
       signal: this.#signal,
     };
     if (identity !== undefined) ctx.identity = identity;
@@ -513,6 +517,22 @@ export class CaseRun {
       now: () => new Date(),
       signal,
     };
+  }
+
+  /** Registers each identity field value a fill step types, except the fields `redaction.shown` lists. */
+  async #maskFilled(payload: unknown): Promise<void> {
+    const value = (payload as { value?: unknown } | null)?.value;
+    if (typeof value !== "string") return;
+    const { shown } = this.#scope.project.config.redaction;
+    for (const placeholder of findPlaceholders(value)) {
+      const [namespace, , field] = placeholder.slice(2, -1).split(".");
+      if (namespace !== "identity" || field === undefined || shown.includes(field)) continue;
+      try {
+        this.#scope.redactor.register(await this.#resolve(placeholder));
+      } catch (error) {
+        if (!(error instanceof UnresolvedPlaceholder)) throw error;
+      }
+    }
   }
 
   #resolve<T>(value: T): Promise<T> {

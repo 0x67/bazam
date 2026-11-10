@@ -204,8 +204,8 @@ describe("Redactor", () => {
 });
 
 describe("RedactionConfig", () => {
-  it("defaults to no patterns and no selectors, and refuses a pattern that is not a regular expression", () => {
-    expect(RedactionConfig.parse({})).toEqual({ patterns: [], screenshotSelectors: [] });
+  it("defaults to no patterns, selectors or shown fields, and refuses a pattern that is not a regular expression", () => {
+    expect(RedactionConfig.parse({})).toEqual({ patterns: [], screenshotSelectors: [], shown: [] });
 
     const result = RedactionConfig.safeParse({ patterns: ["ok-\\d+", "(unclosed"] });
 

@@ -65,6 +65,9 @@ const steps: StepHandler[] = [
   step("fill", z.strictObject({ field: z.unknown(), value: z.string() }), async (payload, ctx) => {
     ctx.evidence.note(`filled ${(await ctx.resolve(payload)).value}`);
   }),
+  step("mask", z.strictObject({ value: z.string() }), async ({ value }, ctx) => {
+    ctx.mask(value);
+  }),
   step("keep", z.strictObject({}), async (_payload, ctx) => {
     kept = ctx;
   }),

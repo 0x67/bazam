@@ -24,6 +24,8 @@ export interface StepContext {
   http: GuardedHttp;
   /** Fills the placeholders in a step value. */
   resolve<T>(value: T): Promise<T>;
+  /** Registers the value with the run's redactor, so traces, logs, notes and results mask it from now on. */
+  mask(value: string): void;
   signal: AbortSignal;
 }
 

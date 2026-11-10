@@ -135,6 +135,7 @@ export function stepContext(
         case: (key) => values.get(key),
         locale: env.locale,
       }),
+    mask: (value) => redactor.register(value),
     signal: new AbortController().signal,
   };
 }

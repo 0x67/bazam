@@ -300,6 +300,7 @@ export const METHODS = {
     params: z.object({ contextId: ContextId, name: Name, value: z.string() }),
     result: z.null(),
   },
+  "host.mask": { params: z.object({ contextId: ContextId, value: z.string() }), result: z.null() },
   "host.log": { params: z.object({ line: z.string() }), result: z.never() },
   "$/cancelRequest": { params: z.object({ id: z.union([z.int(), z.string()]) }), result: z.never() },
 } as const satisfies Record<string, { params: z.ZodType; result: z.ZodType }>;
