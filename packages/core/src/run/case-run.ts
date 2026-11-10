@@ -92,6 +92,8 @@ export class CaseRun {
   #recovery: Promise<void> | undefined;
   #recovered = false;
   #notedLater = false;
+  // set when a login after a 401 failed; the main loop throws it before the next step
+  #pendingBlock: CaseBlocked | undefined;
   // the run's signal until the finally steps start; they get one of their own that a cancel does not abort
   #signal: AbortSignal;
 
@@ -110,7 +112,13 @@ export class CaseRun {
   async run(): Promise<void> {
     const steps = caseSteps(this.#parts.spec, this.#scope.project.flows);
     try {
-      for (const [index, step] of steps.entries()) await this.#step(step, index + 1, step.as);
+      for (const [index, step] of steps.entries()) {
+        await this.#recovery;
+        this.#throwPendingBlock();
+        await this.#step(step, index + 1, step.as);
+      }
+      await this.#recovery;
+      this.#throwPendingBlock();
     } finally {
       await this.#recovery;
       // the 401 listeners stay on, so a finally step that meets an expired session still recovers
@@ -119,6 +127,10 @@ export class CaseRun {
       // the session closes after this returns, so never under a refresh
       await this.#recovery;
     }
+  }
+
+  #throwPendingBlock(): void {
+    if (this.#pendingBlock !== undefined) throw this.#pendingBlock;
   }
 
   /** Runs every finally step under its own signal and turns what goes wrong, and each check, into notes. Never throws. */
@@ -297,15 +309,20 @@ export class CaseRun {
     }
     this.#recovered = true;
     try {
-      if (await identities.recoverFromUnauthorized(identity, surface)) {
-        await credentials.authorize(identity, surface, { kind: "browser", session: browser });
-        evidence.note(`refreshed ${identity}'s ${surface} credential after a 401 from ${origin}`);
-      } else {
+      const recovery = await identities.recoverOrLogIn(identity, surface);
+      if (recovery === "none") {
         evidence.note(`got a 401 from ${origin}; the ${surface} credential of ${identity} cannot be refreshed`);
+        return;
       }
-    } catch (error) {
+      await credentials.authorize(identity, surface, { kind: "browser", session: browser });
       evidence.note(
-        `refreshing ${identity}'s ${surface} credential after a 401 from ${origin} failed: ${messageOf(error)}`,
+        recovery === "refreshed"
+          ? `refreshed ${identity}'s ${surface} credential after a 401 from ${origin}`
+          : `logged in again as ${identity} on ${surface} after a 401 from ${origin}`,
+      );
+    } catch (error) {
+      this.#pendingBlock = new CaseBlocked(
+        `logging in again as ${identity} on ${surface} after a 401 from ${origin} failed: ${messageOf(error)}`,
       );
     }
   }

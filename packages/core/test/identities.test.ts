@@ -452,6 +452,100 @@ describe("Identities", () => {
     expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
   });
 
+  describe("recoverOrLogIn", () => {
+    it("refreshes when it can", async () => {
+      const { strategy, calls } = tokenStrategy(clock);
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("refreshed");
+      expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
+    });
+
+    it("logs in when the strategy cannot refresh", async () => {
+      const { strategy, calls } = tokenStrategy(clock, { canRefresh: () => false });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("loggedIn");
+      const request = draft();
+      await ids.authorize("customer", "api", { kind: "http", request });
+
+      expect(request.headers.get("authorization")).toBe("Bearer fake-customer-2");
+      expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
+    });
+
+    it("logs in when the refresh throws", async () => {
+      const { strategy, calls } = tokenStrategy(clock, { refreshFails: true });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("loggedIn");
+      expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1", "acquire customer for orders"]);
+    });
+
+    it("adopts a credential another process saved", async () => {
+      const { strategy, calls } = tokenStrategy(clock, { canRefresh: () => false });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+      const expiresAt = new Date(now.getTime() + HOUR_MS).toISOString();
+      await new CredentialCache(join(root, "credentials")).save(customerApiKey, {
+        token: "fake-from-other-process",
+        refreshToken: "fake-refresh-other",
+        expiresAt,
+      });
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("refreshed");
+      const request = draft();
+      await ids.authorize("customer", "api", { kind: "http", request });
+
+      expect(request.headers.get("authorization")).toBe("Bearer fake-from-other-process");
+      expect(calls).toEqual(["acquire customer for orders"]);
+    });
+
+    it("logs in instead of refreshing a saved credential of another account", async () => {
+      const { strategy, calls } = tokenStrategy(clock, {
+        probe: (credential) => {
+          if (credential.token === "fake-from-other-process") throw new IdentityMismatch(["body.user_id"]);
+          return true;
+        },
+      });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+      const cache = new CredentialCache(join(root, "credentials"));
+      await cache.save(customerApiKey, {
+        token: "fake-from-other-process",
+        refreshToken: "fake-refresh-other",
+        expiresAt: new Date(now.getTime() + HOUR_MS).toISOString(),
+      });
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("loggedIn");
+      expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
+      expect((await cache.load(customerApiKey))?.credential).toMatchObject({ token: "fake-customer-2" });
+    });
+
+    it("does nothing for a strategy that caches nothing", async () => {
+      const { strategy, calls } = tokenStrategy(clock, { cacheable: false });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+
+      expect(await ids.recoverOrLogIn("customer", "api")).toBe("none");
+      expect(calls).toEqual(["acquire customer for orders"]);
+    });
+
+    it("throws CredentialRejected and caches nothing new when the new login fails its probe", async () => {
+      let healthy = true;
+      const { strategy } = tokenStrategy(clock, { canRefresh: () => false, probe: () => healthy });
+      const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
+      await ids.ensureCredential("customer", "api");
+      const before = await new CredentialCache(join(root, "credentials")).load(customerApiKey);
+      healthy = false;
+
+      await expect(ids.recoverOrLogIn("customer", "api")).rejects.toBeInstanceOf(CredentialRejected);
+      expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toEqual(before);
+    });
+  });
+
   it("throws CredentialRejected and saves nothing when a new credential fails the probe", async () => {
     const { strategy } = tokenStrategy(clock, { probe: () => false });
     const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);

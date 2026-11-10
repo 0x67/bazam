@@ -81,6 +81,10 @@ function route(req: IncomingMessage, res: ServerResponse): void {
       return req.headers.authorization === `Bearer ${BEARER_TOKEN}`
         ? json(res, 200, { echoed: req.headers.authorization })
         : json(res, 401, {});
+    case "GET /clerk":
+      return liveTokens.has(String(req.headers.authorization).replace("Bearer ", ""))
+        ? json(res, 200, {})
+        : json(res, 401, {});
     case "GET /locked":
       return json(res, 401, {});
     case "GET /dropped":
@@ -235,7 +239,7 @@ function issueToken(): { token: string } {
 const expiringStrategy = defineAuthStrategy<object, { token: string }>({
   name: "fake-expiring",
   config: z.object({}),
-  cacheable: false,
+  cacheable: true,
   acquire: async () => issueToken(),
   probe: async (credential) => liveTokens.has(credential.token),
   refresh: async (_credential, _config, ctx) => {
@@ -245,6 +249,19 @@ const expiringStrategy = defineAuthStrategy<object, { token: string }>({
   apply: async (credential, target) => {
     if (target.kind === "browser")
       await target.session.setExtraHeaders({ authorization: `Bearer ${credential.token}` });
+  },
+  secrets: (credential) => [credential.token],
+});
+
+// takes a new login when the app stops taking its token, and cannot refresh
+const sessionStrategy = defineAuthStrategy<object, { token: string }>({
+  name: "fake-session",
+  config: z.object({}),
+  cacheable: true,
+  acquire: async () => issueToken(),
+  probe: async (credential) => liveTokens.has(credential.token),
+  apply: async (credential, target) => {
+    if (target.kind === "http") target.request.headers.set("authorization", `Bearer ${credential.token}`);
   },
   secrets: (credential) => [credential.token],
 });
@@ -360,6 +377,7 @@ function configFor(): object {
       rejected: { auth: { api: { strategy: "fake-rejected" } } },
       waiting: { auth: { api: { strategy: "fake-locked" } } },
       rider: { auth: { web: { strategy: "fake-expiring" } } },
+      clerk: { auth: { api: { strategy: "fake-session" } } },
     },
     runners: {
       shop: {
@@ -452,7 +470,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver, phone],
     steps: pluginSteps(driver),
-    authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy],
+    authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy, sessionStrategy],
     resolvers: [otpResolver, stuckResolver],
   });
   const files: Record<string, unknown> = {
@@ -1358,6 +1376,9 @@ function pooledDriver(): FakeDriver {
       step("unauthorized", async (_payload, ctx) => {
         (await contextOf(ctx)).unauthorized();
       }),
+      step("expect", async (_payload, ctx) => {
+        ctx.evidence.record({ name: "the app took the login", kind: "ui", expected: "ok", observed: "ok", ok: true });
+      }),
     ],
     sessions,
   };
@@ -1385,6 +1406,21 @@ describe("runCases with workers and a pooled browser", () => {
       expect(existsSync(first) ? await readFile(first, "utf8") : "").not.toContain("/token");
     },
   );
+});
+
+describe("runCases after an HTTP 401", () => {
+  it("logs in again for a credential that cannot refresh, retries the request once and notes it on the case", async () => {
+    const clerk = { request: { method: "GET", url: "${env.API_URL}/clerk", as: "clerk" } };
+    const { results } = await runProject(
+      [testCase("SHOP-CLERK-001", { steps: [clerk, { expire: {} }, clerk, expectVisible] })],
+      {
+        driver: pooledDriver(),
+      },
+    );
+    expect(results[0]).toMatchObject({ status: "pass" });
+    expect(issuedTokens).toBe(2);
+    expect(results[0]?.notes).toEqual(["logged in again as clerk on api after an HTTP 401"]);
+  });
 });
 
 describe("runCases with external suites", () => {

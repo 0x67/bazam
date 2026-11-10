@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
@@ -108,6 +109,8 @@ class Run {
   // so the cases still running end blocked "run cancelled"
   readonly #stop = new AbortController();
   #caseStarted = false;
+  // the case whose steps run in this async context, for notes the shared HTTP client makes
+  readonly #runningCase = new AsyncLocalStorage<CaseEvidence>();
   #service: ChallengeService | undefined;
   // by the plan position of each external suite unit, so the summary lists them in plan order
   readonly #unmapped = new Map<number, UnmappedTest[]>();
@@ -169,7 +172,7 @@ class Run {
       browser: this.#logins,
       now: () => new Date(),
     });
-    const credentials = blockingCredentials(identities);
+    const credentials = blockingCredentials(identities, this.#runningCase);
     this.#scope = {
       ...scope,
       identities,
@@ -494,13 +497,15 @@ class Run {
       await this.#logins.within(
         async () => session,
         () =>
-          new CaseRun(this.#scope, {
-            spec: loaded.spec,
-            driver,
-            session,
-            evidence: parts.evidence,
-            runValues: parts.runValues,
-          }).run(),
+          this.#runningCase.run(parts.evidence, () =>
+            new CaseRun(this.#scope, {
+              spec: loaded.spec,
+              driver,
+              session,
+              evidence: parts.evidence,
+              runValues: parts.runValues,
+            }).run(),
+          ),
       );
     } catch (error) {
       outcome = outcomeOf(error, signal.aborted);
@@ -670,7 +675,10 @@ function loginReason(planned: PlannedCase, loginsBlocked: ReadonlyMap<string, st
 }
 
 /** Identities as the step client and browser contexts use it: a credential that cannot be had blocks the case. */
-function blockingCredentials(identities: Identities): Pick<Identities, "authorize" | "recoverFromUnauthorized"> {
+function blockingCredentials(
+  identities: Identities,
+  runningCase: AsyncLocalStorage<CaseEvidence>,
+): Pick<Identities, "authorize" | "recoverFromUnauthorized"> {
   const blocked =
     (identity: string, surface: string) =>
     (error: unknown): never => {
@@ -681,8 +689,16 @@ function blockingCredentials(identities: Identities): Pick<Identities, "authoriz
   return {
     authorize: (identity, surface, target) =>
       identities.authorize(identity, surface, target).catch(blocked(identity, surface)),
+    // the HTTP client is shared by every case, so a new login is noted on the case whose async context sent the request
     recoverFromUnauthorized: (identity, surface) =>
-      identities.recoverFromUnauthorized(identity, surface).catch(blocked(identity, surface)),
+      identities
+        .recoverOrLogIn(identity, surface)
+        .then((recovery) => {
+          if (recovery === "loggedIn")
+            runningCase.getStore()?.note(`logged in again as ${identity} on ${surface} after an HTTP 401`);
+          return recovery !== "none";
+        })
+        .catch(blocked(identity, surface)),
   };
 }
 

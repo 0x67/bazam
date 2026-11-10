@@ -231,6 +231,13 @@ describe("keepalive", () => {
     expect(await cache().load(KEY)).toBeDefined();
   });
 
+  it("never logs in for a credential that cannot refresh", async () => {
+    await seed({}, { token: "fake-session-0", lockHeld: [], refreshable: false });
+    const { stderr } = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    expect(stderr).not.toContain("the fake session logs in only in a run");
+    expect(await cache().load(KEY)).toMatchObject({ credential: { token: "fake-session-0" } });
+  });
+
   it("does not save back a credential deleted while its refresh waited for the lock", async () => {
     await seed({}, { token: "fake-session-0", lockHeld: [] });
     const running = startCli("keepalive", "--env", "demo", "--as", "customer");

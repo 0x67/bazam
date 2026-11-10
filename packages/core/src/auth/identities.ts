@@ -86,6 +86,9 @@ export interface IdentitiesDeps {
   now(): Date;
 }
 
+/** What a recovery after a 401 did: refreshed or adopted a credential, logged in again, or nothing. */
+export type Recovery = "refreshed" | "loggedIn" | "none";
+
 /** A credential that came back from a login or a refresh failed the strategy's probe. */
 export class CredentialRejected extends Error {
   constructor(slot: string, strategy: string, verdict: ProbeVerdict) {
@@ -180,6 +183,43 @@ export class Identities {
       if (previous === undefined || refresh === undefined) return false;
       await this.#adopt(slot, await refresh(previous.credential, config, this.#context(slot.identity)));
       return true;
+    });
+  }
+
+  /**
+   * For a run after a 401: refreshes as recoverFromUnauthorized does or, when the strategy cannot refresh the
+   * credential, logs in again under the refresh lock, unless another process saved a new one meanwhile.
+   * "none" for a strategy that caches nothing, such as a static secret.
+   */
+  async recoverOrLogIn(identity: string, surface: string): Promise<Recovery> {
+    const slot = this.#slot(identity, surface);
+    if (!slot.strategy.cacheable) return "none";
+    const used = this.#held.get(slot.id);
+    const config = await this.#config(slot);
+    return withRefreshLock(this.#deps.lockDir, slot.key, async () => {
+      const reloaded = await this.#loadCached(slot);
+      // a refresh keeps the account, so a credential of another account is replaced by a login
+      let wrongAccount = false;
+      if (reloaded !== undefined && !isSameCredential(reloaded, used)) {
+        const verdict = await this.#heldVerdict(slot, config, reloaded);
+        if (verdict.passes) {
+          this.#keep(slot, reloaded);
+          return "refreshed";
+        }
+        wrongAccount = verdict.mismatch !== undefined;
+      }
+      const previous = wrongAccount ? undefined : (reloaded ?? used);
+      const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+      if (previous !== undefined && refresh !== undefined) {
+        try {
+          await this.#adopt(slot, await refresh(previous.credential, config, this.#context(slot.identity)));
+          return "refreshed";
+        } catch {
+          // a refresh token can expire or be revoked; logging in again replaces it
+        }
+      }
+      await this.#renew(slot, config, undefined);
+      return "loggedIn";
     });
   }
 

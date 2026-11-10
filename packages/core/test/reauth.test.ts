@@ -28,6 +28,8 @@ let issued: number;
 let refreshable: boolean;
 let refreshDelayMs: number;
 let refreshFailure: Error | undefined;
+// what a new login throws, once a step has broken it
+let loginFailure: Error | undefined;
 // what the probe throws for a token the service no longer takes
 let probeFailure: Error | undefined;
 // what the steps and the strategies did, in order
@@ -45,6 +47,7 @@ beforeEach(() => {
   refreshable = true;
   refreshDelayMs = 0;
   refreshFailure = undefined;
+  loginFailure = undefined;
   probeFailure = undefined;
   events = [];
   probed = [];
@@ -72,12 +75,15 @@ async function probe(token: string): Promise<boolean> {
   return false;
 }
 
-function tokenStrategy(name: string, options: { probe: boolean }) {
+function tokenStrategy(name: string, options: { probe: boolean; cacheable?: boolean }) {
   return defineAuthStrategy<object, { token: string }>({
     name,
     config: z.object({}),
-    cacheable: false,
-    acquire: async () => issue(),
+    cacheable: options.cacheable ?? true,
+    acquire: async () => {
+      if (loginFailure !== undefined) throw loginFailure;
+      return issue();
+    },
     ...(options.probe ? { probe: async (credential: { token: string }) => probe(credential.token) } : {}),
     canRefresh: () => refreshable,
     refresh: async () => {
@@ -147,6 +153,14 @@ const steps: readonly StepHandler[] = [
       accepted.clear();
     },
   },
+  // the next login fails, as when the login page is down
+  {
+    kind: "break-login",
+    schema: z.unknown(),
+    run: async () => {
+      loginFailure = new Error("the login page answered 503");
+    },
+  },
   // the page gets this many 401s at once
   {
     kind: "call",
@@ -173,6 +187,7 @@ const config = {
   identities: {
     customer: { auth: { web: { strategy: "fake-token" } } },
     courier: { auth: { web: { strategy: "fake-unprobed" } } },
+    guest: { auth: { web: { strategy: "fake-static" } } },
   },
   targets: { web: { driver: "fake" } },
 };
@@ -205,7 +220,11 @@ async function startRun(cases: readonly Record<string, unknown>[]): Promise<(cas
     name: "test-reauth",
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver],
-    authStrategies: [tokenStrategy("fake-token", { probe: true }), tokenStrategy("fake-unprobed", { probe: false })],
+    authStrategies: [
+      tokenStrategy("fake-token", { probe: true }),
+      tokenStrategy("fake-unprobed", { probe: false }),
+      tokenStrategy("fake-static", { probe: true, cacheable: false }),
+    ],
   });
   const { root, project, registry } = await loadTestProject(
     { [BRAND.configFile]: config, "cases/shop/reauth.yaml": { cases } },
@@ -364,30 +383,14 @@ describe("CaseRun after a 401 in a browser context", () => {
     expect(lines).toEqual([line, line]);
   });
 
-  it.each([
-    [
-      "cannot be refreshed",
-      () => {
-        refreshable = false;
-      },
-      `got a 401 from ${ORIGIN}; the web credential of customer cannot be refreshed`,
-    ],
-    [
-      "fails to refresh",
-      () => {
-        refreshFailure = new Error("the token endpoint answered 500");
-      },
-      `refreshing customer's web credential after a 401 from ${ORIGIN} failed: the token endpoint answered 500`,
-    ],
-  ])("notes a credential that %s and lets the case go on", async (_mode, arrange, expected) => {
-    arrange();
+  it("notes a credential that cannot be cached and lets the case go on", async () => {
     const runCase = await startRun([
       testCase("SHOP-REAUTH-001", [
-        { look: true, as: "customer" },
+        { look: true, as: "guest" },
         { expire: true },
-        { call: 1, as: "customer" },
-        { look: true, as: "customer" },
-        { call: 1, as: "customer" },
+        { call: 1, as: "guest" },
+        { look: true, as: "guest" },
+        { call: 1, as: "guest" },
       ]),
     ]);
 
@@ -397,7 +400,10 @@ describe("CaseRun after a 401 in a browser context", () => {
       "look with Bearer fake-token-1",
       "look with Bearer fake-token-1",
     ]);
-    expect(notes).toEqual([expected, `another 401 from ${ORIGIN} after the refresh attempt`]);
+    expect(notes).toEqual([
+      `got a 401 from ${ORIGIN}; the web credential of guest cannot be refreshed`,
+      `another 401 from ${ORIGIN} after the refresh attempt`,
+    ]);
   });
 
   it("refreshes when the probe throws", async () => {
@@ -467,5 +473,84 @@ describe("CaseRun after a 401 in a browser context", () => {
       "look with Bearer fake-token-2",
     ]);
     expect(notes).toEqual([`refreshed customer's web credential after a 401 from ${ORIGIN}`]);
+  });
+});
+
+describe("CaseRun log in again after a 401", () => {
+  it("logs in again when the credential cannot refresh, and the next step passes with a note", async () => {
+    refreshable = false;
+    const runCase = await startRun([
+      testCase("SHOP-LOGIN-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { call: 1, as: "customer" },
+        { look: true, as: "customer" },
+      ]),
+    ]);
+
+    const { notes } = await runCase("SHOP-LOGIN-001");
+
+    expect(events).toEqual(["look with Bearer fake-token-1", "look with Bearer fake-token-2"]);
+    expect(notes).toEqual([`logged in again as customer on web after a 401 from ${ORIGIN}`]);
+  });
+
+  it("logs in again when the refresh throws", async () => {
+    refreshFailure = new Error("the token endpoint answered 500");
+    const runCase = await startRun([
+      testCase("SHOP-LOGIN-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { call: 1, as: "customer" },
+        { look: true, as: "customer" },
+      ]),
+    ]);
+
+    const { notes } = await runCase("SHOP-LOGIN-001");
+
+    expect(events.filter((event) => event.startsWith("look"))).toEqual([
+      "look with Bearer fake-token-1",
+      "look with Bearer fake-token-2",
+    ]);
+    expect(notes).toEqual([`logged in again as customer on web after a 401 from ${ORIGIN}`]);
+  });
+
+  it("blocks the case before the next step when the login fails, and still runs the finally steps", async () => {
+    refreshable = false;
+    const runCase = await startRun([
+      {
+        ...testCase("SHOP-LOGIN-001", [
+          { look: true, as: "customer" },
+          { expire: true },
+          { "break-login": true },
+          { call: 1, as: "customer" },
+          { look: true, as: "customer" },
+        ]),
+        finally: [{ look: true, as: "customer" }],
+      },
+    ]);
+
+    await expect(runCase("SHOP-LOGIN-001")).rejects.toThrow(
+      `logging in again as customer on web after a 401 from ${ORIGIN} failed: the login page answered 503`,
+    );
+
+    // the look after the 401 never runs, the finally one does
+    expect(events.filter((event) => event.startsWith("look"))).toEqual([
+      "look with Bearer fake-token-1",
+      "look with Bearer fake-token-1",
+    ]);
+  });
+
+  it("blocks the case when the login a last step started fails", async () => {
+    refreshable = false;
+    const runCase = await startRun([
+      testCase("SHOP-LOGIN-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { "break-login": true },
+        { call: 1, as: "customer" },
+      ]),
+    ]);
+
+    await expect(runCase("SHOP-LOGIN-001")).rejects.toThrow("the login page answered 503");
   });
 });
