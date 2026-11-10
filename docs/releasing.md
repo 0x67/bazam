@@ -75,7 +75,45 @@ The Release workflow (`.github/workflows/release.yml`) creates each release as a
    ```
 
 2. npm takes the `@bazam/*` packages from the sibling tarballs and the third-party dependencies, such as zod, yaml and `@modelcontextprotocol/sdk`, from the registry.
-3. The MCP server of a release reports the release's version to its clients. A build from source reports `0.0.0`.
+3. A pnpm project keeps the six tarballs of a release in the project, here for 0.5.0:
+
+   ```sh
+   gh release download v0.5.0 --repo 0x67/bazam --dir vendor/bazam --pattern '*.tgz'
+   ```
+
+   The folder then holds `bazam-0.5.0.tgz`, `bazam-core-0.5.0.tgz`, `bazam-driver-web-0.5.0.tgz`, `bazam-mcp-0.5.0.tgz`, `bazam-resolvers-0.5.0.tgz` and `bazam-tracker-jira-0.5.0.tgz`.
+
+4. List each tarball as a `file:` dependency in `package.json`:
+
+   ```json
+   {
+     "private": true,
+     "dependencies": {
+       "bazam": "file:vendor/bazam/bazam-0.5.0.tgz",
+       "@bazam/core": "file:vendor/bazam/bazam-core-0.5.0.tgz",
+       "@bazam/driver-web": "file:vendor/bazam/bazam-driver-web-0.5.0.tgz",
+       "@bazam/mcp": "file:vendor/bazam/bazam-mcp-0.5.0.tgz",
+       "@bazam/resolvers": "file:vendor/bazam/bazam-resolvers-0.5.0.tgz",
+       "@bazam/tracker-jira": "file:vendor/bazam/bazam-tracker-jira-0.5.0.tgz"
+     }
+   }
+   ```
+
+5. Point the five `@bazam/*` packages at the same paths in `pnpm-workspace.yaml`, then run `pnpm install`:
+
+   ```yaml
+   overrides:
+     "@bazam/core": file:vendor/bazam/bazam-core-0.5.0.tgz
+     "@bazam/driver-web": file:vendor/bazam/bazam-driver-web-0.5.0.tgz
+     "@bazam/mcp": file:vendor/bazam/bazam-mcp-0.5.0.tgz
+     "@bazam/resolvers": file:vendor/bazam/bazam-resolvers-0.5.0.tgz
+     "@bazam/tracker-jira": file:vendor/bazam/bazam-tracker-jira-0.5.0.tgz
+   ```
+
+6. The overrides keep one `@bazam/core` in the install. A second copy gives a plugin and the engine two `CaseBlocked` classes, and `instanceof CaseBlocked` fails between them.
+7. Release download URLs as dependencies do not work with pnpm. It stops with `Exotic dependency "@bazam/core" (resolved via url) is not allowed in subdependencies when blockExoticSubdeps is enabled`, so vendor the files as above.
+8. CI packs the packages and installs them in empty folders with npm and with this pnpm recipe on every pull request and before every release. It runs `bazam --help` and checks that each install holds one `@bazam/core`.
+9. The MCP server of a release reports the release's version to its clients. A build from source reports `0.0.0`.
 
 **Repository setup**
 

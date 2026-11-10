@@ -105,6 +105,29 @@ jobs:
 
       - run: pnpm test
 
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: ${{ inputs.ref == '' }}
+
+      - run: pnpm build
+
+      # installs the packed tarballs in empty folders with npm and with the vendored pnpm recipe of docs/releasing.md
+      - name: Pack the packages
+        run: pnpm --filter "./packages/*" pack --pack-destination "$RUNNER_TEMP/tarballs"
+
+      - name: Install the tarballs
+        run: node scripts/install-check.ts "$RUNNER_TEMP/tarballs"
+
   acceptance:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
