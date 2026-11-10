@@ -189,7 +189,29 @@ describe("report post", () => {
     ]);
   });
 
-  it("prints what it would send with --dry-run, reading no secret and sending nothing", async () => {
+  it("files a bug without an attachment that holds a fixture value", async () => {
+    const project = await trackedProject();
+    const pin = "fake-pin-8f3a2c";
+    await project.write("fixtures/identities.local.yaml", `alice:\n  pin: ${pin}\n`);
+    await run(project, "r1");
+    await project.write("runs/r1/SHOP-FAIL-001/09-notes.txt", `typed ${pin}\n`);
+    const file = "runs/r1/SHOP-FAIL-001/result.json";
+    const result = JSON.parse(await project.read(file)) as { attachments: string[] };
+    result.attachments.push("09-notes.txt");
+    await project.write(file, JSON.stringify(result));
+
+    const posted = await project.cli("report", "post", "--run", "r1");
+
+    expect(posted.code, posted.stderr).toBe(ExitCode.Pass);
+    expect(posted.stderr).toContain("post plan withholds SHOP-FAIL-001/09-notes.txt: fixture alice.pin");
+    const bug = stub.issues.get("DEMO-13");
+    expect(bug).toBeDefined();
+    expect(bug?.attachments?.map((a) => a.name) ?? []).not.toContain("09-notes.txt");
+    expect(JSON.stringify(bug?.description)).not.toContain("09-notes.txt");
+    expect(posted.stdout + posted.stderr + JSON.stringify([...stub.issues.values()])).not.toContain(pin);
+  });
+
+  it("prints what it would send with --dry-run, sending nothing", async () => {
     const project = await trackedProject({ secrets: false });
     await run(project, "r1");
     const text = await project.cli("report", "post", "--run", "r1", "--dry-run");

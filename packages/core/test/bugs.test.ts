@@ -154,6 +154,25 @@ describe("planBugs", () => {
     });
   });
 
+  it("leaves a withheld attachment out of the draft and the comment", () => {
+    const naming: TrackerRenderer = {
+      tracker: "jira",
+      render: (result) => ({ markdown: result.attachments.join(","), adf: { type: "text", text: "" } }),
+    };
+    const withheld = new Map([["CHECKOUT-CART-001/02-trace.zip", ["fixture alice.phone"]]]);
+    const [intent] = planBugs({
+      ...inputs([result({ attachments: ["01-cart.png", "02-trace.zip"] })]),
+      renderer: () => naming,
+      withheld,
+    });
+
+    expect(intent).toMatchObject({
+      comment: { markdown: "01-cart.png" },
+      draft: { attachments: [{ name: "01-cart.png" }] },
+    });
+    expect(JSON.stringify(intent)).not.toContain("02-trace.zip");
+  });
+
   it("masks the draft and the comment with the project's patterns", () => {
     const redactor = new Redactor(defaultRedactionRules());
     redactor.configure({ patterns: ["ORDER-[0-9]{4}"], screenshotSelectors: [] });

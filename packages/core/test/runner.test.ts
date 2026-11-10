@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { zipSync } from "fflate";
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
@@ -182,6 +183,14 @@ function webSteps(): StepHandler[] {
     }),
     step("screenshot", async (_payload, ctx) => {
       await ctx.evidence.attach("screen", new TextEncoder().encode("fake png bytes"), "png");
+    }),
+    // an attachment that holds the declared secret, which the redactor leaves in a zip
+    step("attach-leak", async (_payload, ctx) => {
+      const text = new TextEncoder().encode(`password ${API_PASSWORD}`);
+      await ctx.evidence.attach("leak", zipSync({ "trace.trace": text }), "zip");
+    }),
+    step("break-fixtures", async (_payload, ctx) => {
+      await writeFile(join(projectRoot(ctx), "fixtures/identities.local.yaml"), "customer: [not, a, map]\n");
     }),
     step("crash", async () => {
       throw new Error("element gone did not appear within 5000 ms");
@@ -823,6 +832,30 @@ describe("runCases", () => {
       [`${BRAND.markerPrefix}:SHOP-TWO-001:${RUN_ID}`, { tracker: "jira", key: "DEMO-7" }],
     ]);
     expect(postPlan.items[1]?.comment.markdown).toContain("**Failed** on demo: SHOP-TWO-001");
+  });
+
+  it("withholds an attachment that holds a secret and logs it", async () => {
+    const { runDir } = await runProject([testCase("SHOP-LEAK-001", { steps: [{ "attach-leak": {} }, { crash: {} }] })]);
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: { attachments: string[]; withheld?: unknown; comment: { markdown: string } }[];
+    };
+    const [item] = postPlan.items;
+    expect(item?.attachments).toEqual(["SHOP-LEAK-001/02-trace.zip"]);
+    expect(item?.withheld).toEqual([{ attachment: "SHOP-LEAK-001/01-leak.zip", kinds: ["secret API_PASSWORD"] }]);
+    expect(item?.comment.markdown).not.toContain("01-leak.zip");
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
+      "post plan withholds SHOP-LEAK-001/01-leak.zip: secret API_PASSWORD",
+    );
+  });
+
+  it("keeps the run's outcome when the scan fails", async () => {
+    const { results, runDir } = await runProject([
+      testCase("SHOP-SCAN-001", { steps: [{ "break-fixtures": {} }, { crash: {} }] }),
+    ]);
+    expect(outcomes(results).map(({ status }) => status)).toEqual(["fail"]);
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain("scanning the attachments failed:");
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: unknown[] };
+    expect(postPlan.items).toHaveLength(1);
   });
 
   it("writes account ids and receipt URLs into post-plan.json as given, though they hold long digit runs", async () => {

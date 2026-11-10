@@ -38,6 +38,27 @@ function edits(plan: PostPlan): [string, string | undefined][] {
 }
 
 describe("report", () => {
+  it("prints a line for each withheld attachment and lists it under withheld", async () => {
+    const project = await ranProject();
+    const pin = "fake-pin-8f3a2c";
+    await project.write("fixtures/identities.local.yaml", `alice:\n  pin: ${pin}\n`);
+    await project.write("runs/r1/SHOP-OK-001/09-notes.txt", `typed ${pin}\n`);
+    const result = JSON.parse(await project.read("runs/r1/SHOP-OK-001/result.json")) as { attachments: string[] };
+    result.attachments.push("09-notes.txt");
+    await project.write("runs/r1/SHOP-OK-001/result.json", JSON.stringify(result));
+
+    const { code, stdout, stderr } = await project.cli("report", "plan", "--run", "r1", "--json");
+
+    expect(code, stderr).toBe(ExitCode.Pass);
+    expect(stderr).toContain("post plan withholds SHOP-OK-001/09-notes.txt: fixture alice.pin");
+    expect(stderr).not.toContain(pin);
+    const plan = JSON.parse(stdout) as PostPlan;
+    expect(plan.items.map((item) => item.withheld)).toEqual(
+      Array(2).fill([{ attachment: "SHOP-OK-001/09-notes.txt", kinds: ["fixture alice.pin"] }]),
+    );
+    expect(plan.items.flatMap((item) => item.attachments)).not.toContain("SHOP-OK-001/09-notes.txt");
+  });
+
   it("records an ack, so the next plan for that case and ticket edits the comment", async () => {
     const project = await ranProject();
     const first = await reportPlan(project);

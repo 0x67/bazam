@@ -42,6 +42,8 @@ export interface BugInputs {
   renderer(tracker: string): TrackerRenderer;
   runDir: string;
   media?: MediaRefs;
+  /** Attachments, as `<caseId>/<name>`, that a scan found holding a value; they are left out of every intent. */
+  withheld?: ReadonlyMap<string, readonly string[]>;
   /** Masks every intent, so a value registered after the run still applies. */
   redactor: Redactor;
 }
@@ -68,7 +70,11 @@ export function bugLabel(caseId: string): string {
  */
 export function planBugs(inputs: BugInputs): BugIntent[] {
   const { config, redactor } = inputs;
-  return inputs.results.flatMap((result): BugIntent[] => {
+  return inputs.results.flatMap((full): BugIntent[] => {
+    const result = {
+      ...full,
+      attachments: full.attachments.filter((name) => !inputs.withheld?.has(`${full.caseId}/${name}`)),
+    };
     if (result.stage !== "regression" || (result.status !== "fail" && result.status !== "pass")) return [];
     const home = bugHome(config, result.links);
     if (home === undefined) return [];

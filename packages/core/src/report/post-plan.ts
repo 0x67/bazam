@@ -22,6 +22,8 @@ export interface PostPlanItem {
   edit?: { url: string };
   /** Paths relative to the run directory. */
   attachments: string[];
+  /** Attachments left out of `attachments` because they hold a fixture, secret or credential value. */
+  withheld?: { attachment: string; kinds: string[] }[];
   transition?: string;
   mentions: { role: string; accountId?: string }[];
   /** Roles (`role:<name>`) and transitions (`transition:<status>`) the agent must look up. */
@@ -70,6 +72,8 @@ export interface PostPlanInputs {
   trackers: (name: string) => TrackerRenderer;
   transitions: TransitionMap;
   media?: MediaRefs;
+  /** The kinds of value each attachment holds, by `<case-id>/<file>`; those attachments stay out of the plan. */
+  withheld?: ReadonlyMap<string, readonly string[]>;
   now: Date;
 }
 
@@ -103,14 +107,21 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
   const transition = action?.transition ?? project?.transitions[result.status];
   const receipt =
     report?.comment === "update" ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId) : undefined;
+  const held = (name: string) => inputs.withheld?.get(`${result.caseId}/${name}`);
+  const kept = result.attachments.filter((name) => held(name) === undefined);
+  const withheld = result.attachments.flatMap((name) => {
+    const kinds = held(name);
+    return kinds === undefined ? [] : [{ attachment: `${result.caseId}/${name}`, kinds: [...kinds] }];
+  });
   return {
     marker: `${BRAND.markerPrefix}:${result.caseId}:${result.runId}`,
     ticket,
     caseId: result.caseId,
     status: result.status,
-    comment: inputs.trackers(ticket.tracker).render(result, inputs.media),
+    comment: inputs.trackers(ticket.tracker).render({ ...result, attachments: kept }, inputs.media),
     ...(receipt === undefined ? {} : { edit: { url: receipt.url } }),
-    attachments: result.attachments.map((name) => `${result.caseId}/${name}`),
+    attachments: kept.map((name) => `${result.caseId}/${name}`),
+    ...(withheld.length === 0 ? {} : { withheld }),
     ...(transition === undefined ? {} : { transition }),
     mentions,
     unresolved: [

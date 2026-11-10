@@ -109,6 +109,26 @@ describe("buildPostPlans", () => {
     });
   });
 
+  it("leaves a withheld attachment out of the item and its comment, and lists it with its kinds", () => {
+    const attachments = ["01-dashboard.png", "02-trace.zip"];
+    const withheld = new Map([["AUTH-LOGIN-001/02-trace.zip", ["secret DEMO_PIN", "fixture alice.phone"]]]);
+
+    const [item] = buildPostPlans(inputs([result({ attachments })], { withheld })).items;
+
+    expect(item?.attachments).toEqual(["AUTH-LOGIN-001/01-dashboard.png"]);
+    expect(item?.comment.markdown).toContain("01-dashboard.png");
+    expect(item?.comment.markdown).not.toContain("02-trace.zip");
+    expect(item?.withheld).toEqual([
+      { attachment: "AUTH-LOGIN-001/02-trace.zip", kinds: ["secret DEMO_PIN", "fixture alice.phone"] },
+    ]);
+  });
+
+  it("has no withheld key when nothing is withheld", () => {
+    const [item] = buildPostPlans(inputs([result()], { withheld: new Map() })).items;
+
+    expect(item).not.toHaveProperty("withheld");
+  });
+
   it("a case linked to two tickets gets one item per ticket", () => {
     const plan = buildPostPlans(inputs([result({ links: ["jira:DEMO-246", "notion:release-notes-42"] })]));
 

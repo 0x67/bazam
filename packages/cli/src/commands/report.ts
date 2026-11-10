@@ -21,6 +21,7 @@ import {
   type PostPlanItem,
 } from "@bazam/core/report";
 import type { CaseResult } from "@bazam/core/result";
+import { loadScanValues, withheldAttachments } from "@bazam/core/scan";
 import { resolveSecret } from "@bazam/core/secrets";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
@@ -47,6 +48,7 @@ interface RebuiltPlan {
   runDir: string;
   results: CaseResult[];
   media: MediaRefs | undefined;
+  withheld: ReadonlyMap<string, readonly string[]>;
   plan: PostPlan;
 }
 
@@ -63,6 +65,18 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
   const [first] = results;
   if (first === undefined) throw new CommandError(`run ${flags.run} has no case results`);
   const media = flags.media === undefined ? undefined : await readMedia(resolve(ctx.io.cwd, flags.media));
+  const env = project.config.envs[first.env];
+  if (env === undefined)
+    throw new CommandError(`run ${flags.run} ran in env "${first.env}", which the config no longer has`);
+  const values = await loadScanValues({
+    project,
+    registry,
+    env,
+    redactor: ctx.redactor,
+    around: new Date(first.startedAt),
+  });
+  const withheld = await withheldAttachments(runDir, results, values);
+  for (const [attachment, kinds] of withheld) ctx.out.log(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
   const plan = buildPostPlans({
     runId: flags.run,
     env: first.env,
@@ -73,12 +87,13 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     trackers: (name) => registry.tracker(name),
     transitions: project.config.trackers,
     ...(media === undefined ? {} : { media }),
+    withheld,
     now: new Date(),
   });
   // only the comments go through the redactor whole, as a run does when it writes post-plan.json: its digit rule
   // would break account ids and receipt URLs
   const masked = { ...plan, items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })) };
-  return { project, registry, runId: flags.run, runDir, results, media, plan: masked };
+  return { project, registry, runId: flags.run, runDir, results, media, withheld, plan: masked };
 }
 
 /** Prints the rebuilt post plan. */
@@ -91,10 +106,11 @@ async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
 /**
  * Posts the rebuilt post plan through each tracker's client, then files or comments on the bugs of regression
  * results. Exits 1 when any item or bug action failed, and 2 before posting anything when a tracker it needs has
- * no `site` or no client. `--dry-run` prints the same actions and reads no secret.
+ * no `site` or no client. `--dry-run` prints the same actions and sends nothing; it still reads the
+ * declared secrets, to withhold attachments that hold them.
  */
 async function reportPost(ctx: CommandContext): Promise<ExitCode> {
-  const { project, registry, runId, runDir, results, media, plan } = await rebuildPlan(ctx);
+  const { project, registry, runId, runDir, results, media, withheld, plan } = await rebuildPlan(ctx);
   const { config } = project;
   const { redactor } = ctx;
   const intents = planBugs({
@@ -103,6 +119,7 @@ async function reportPost(ctx: CommandContext): Promise<ExitCode> {
     renderer: (tracker) => registry.tracker(tracker),
     runDir,
     ...(media === undefined ? {} : { media }),
+    withheld,
     redactor,
   });
   const trackers = new Set([...plan.items.map((item) => item.ticket.tracker), ...intents.map((bug) => bug.tracker)]);
@@ -199,7 +216,7 @@ async function reportAck(ctx: CommandContext): Promise<ExitCode> {
 }
 
 /** The results of the run's cases in the order they started; the preflight, prompts and answers folders hold no case. */
-async function readResults(runDir: string): Promise<CaseResult[]> {
+export async function readResults(runDir: string): Promise<CaseResult[]> {
   let entries;
   try {
     entries = await readdir(runDir, { withFileTypes: true });

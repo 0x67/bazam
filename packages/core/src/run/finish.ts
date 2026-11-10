@@ -8,6 +8,7 @@ import type { PluginRegistry } from "../plugin/index.ts";
 import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { buildPostPlans, loadReceipts, PeopleRegistry } from "../report/index.ts";
+import { loadScanValues, withheldAttachments } from "../scan/index.ts";
 import { writeRunStatus, writeRunSummary, type CaseResult, type RunProgress } from "../result/index.ts";
 
 export interface FinishDeps {
@@ -40,6 +41,7 @@ export async function finishRun(
     reason: redactor.text(test.reason),
   }));
   await writeRunSummary(runDir, results, masked);
+  const withheld = await withheldFrom(runDir, results, deps);
   const postPlan = buildPostPlans({
     runId: deps.runId,
     env: env.name,
@@ -49,6 +51,7 @@ export async function finishRun(
     receipts: await loadReceipts(deps.stateDir),
     trackers: (name) => registry.tracker(name),
     transitions: project.config.trackers,
+    ...(withheld === undefined ? {} : { withheld }),
     now: new Date(),
   });
   // only the comments go through the redactor again: its digit rule would break account ids and receipt URLs
@@ -61,6 +64,26 @@ export async function finishRun(
     progress.state = "finished";
   });
   await deps.log.flush(join(runDir, "run.log"));
+}
+
+// a scan that fails leaves the plan without withheld attachments and never changes the run's outcome
+async function withheldFrom(
+  runDir: string,
+  results: readonly CaseResult[],
+  deps: FinishDeps,
+): Promise<ReadonlyMap<string, readonly string[]> | undefined> {
+  try {
+    const { project, registry, env, redactor } = deps;
+    const [first] = results;
+    const around = first === undefined ? new Date() : new Date(first.startedAt);
+    const values = await loadScanValues({ project, registry, env, redactor, around });
+    const withheld = await withheldAttachments(runDir, results, values);
+    for (const [attachment, kinds] of withheld) deps.log.line(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
+    return withheld;
+  } catch (error) {
+    deps.log.line(`scanning the attachments failed: ${(error as Error).message}`);
+    return undefined;
+  }
 }
 
 /**

@@ -326,6 +326,47 @@ describe("case tools", () => {
     expect(Object.keys(plan.items[0]!.comment).sort()).toEqual(["html", "markdown"]);
   });
 
+  it("report_plan withholds an attachment that holds a fixture value and returns it under withheld", async () => {
+    const project = await fixtureProject();
+    const runId = "20261107-120000-abcd";
+    const pin = "fake-pin-8f3a2c";
+    const result = {
+      runId,
+      caseId: "DESK-LOOK-001",
+      title: "A person looks at the desk",
+      stage: "acceptance",
+      env: "demo",
+      target: "t",
+      links: ["jira:DEMO-1"],
+      status: "pass",
+      checks: [],
+      notes: [],
+      followups: [],
+      attachments: ["01-notes.txt", "02-clean.txt"],
+      challenges: [],
+      identities: [],
+      seed: 7,
+      values: {},
+      caseValues: {},
+      startedAt: "2026-11-07T12:00:00.000Z",
+      finishedAt: "2026-11-07T12:00:05.000Z",
+      durationMs: 5000,
+    };
+    const caseDir = `runs/${runId}/DESK-LOOK-001`;
+    await project.write("fixtures/identities.local.yaml", `alice:\n  pin: ${pin}\n`);
+    await project.write(`${caseDir}/result.json`, JSON.stringify(result));
+    await project.write(`${caseDir}/01-notes.txt`, `typed ${pin}\n`);
+    await project.write(`${caseDir}/02-clean.txt`, "tidy\n");
+    const mcp = await open(project.root);
+
+    const plan = await mcp.json<{ items: { attachments: string[]; withheld: unknown }[] }>("report_plan", { runId });
+
+    expect(plan.items[0]?.attachments).toEqual(["DESK-LOOK-001/02-clean.txt"]);
+    expect(plan.items[0]?.withheld).toEqual([
+      { attachment: "DESK-LOOK-001/01-notes.txt", kinds: ["fixture alice.pin"] },
+    ]);
+  });
+
   it("evidence_get returns the result, the attachment paths and, when asked, the screenshots as images", async () => {
     const project = await fixtureProject();
     const runId = "20261107-120000-abcd";

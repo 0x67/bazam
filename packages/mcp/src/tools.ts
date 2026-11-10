@@ -27,6 +27,7 @@ import {
   type PostPlan,
   type PostPlanItem,
 } from "@bazam/core/report";
+import { loadScanValues, withheldAttachments } from "@bazam/core/scan";
 import { newRunId, type CaseResult } from "@bazam/core/result";
 import { planCases } from "@bazam/core/run";
 import driverWeb from "@bazam/driver-web";
@@ -332,6 +333,17 @@ export const caseTools: readonly ToolDefinition[] = [
       const results = await readResults(join(project.root, "runs", runId), runId);
       const [first] = results;
       if (first === undefined) throw new ToolError(`run ${runId} has no case results`);
+      const env = project.config.envs[first.env];
+      if (env === undefined)
+        throw new ToolError(`run ${runId} ran in env "${first.env}", which the config no longer has`);
+      const runDir = join(project.root, "runs", runId);
+      const values = await loadScanValues({
+        project,
+        registry,
+        env,
+        redactor: deps.redactor,
+        around: new Date(first.startedAt),
+      });
       const plan = buildPostPlans({
         runId,
         env: first.env,
@@ -342,6 +354,7 @@ export const caseTools: readonly ToolDefinition[] = [
         trackers: (name) => registry.tracker(name),
         transitions: project.config.trackers,
         ...(media === undefined ? {} : { media }),
+        withheld: await withheldAttachments(runDir, results, values),
         now: new Date(),
       });
       // only the comments are masked whole, as the runner does: the digit rule would break account ids and receipt URLs;

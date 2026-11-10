@@ -21,6 +21,7 @@ import { promoteCommand } from "./commands/promote.ts";
 import { reportCommand } from "./commands/report.ts";
 import { retireCommand } from "./commands/retire.ts";
 import { runCommand } from "./commands/run.ts";
+import { scanCommand } from "./commands/scan.ts";
 import { schemaCommand } from "./commands/schema.ts";
 import { CommandError, ExitCode } from "./exit.ts";
 import { Output, type CliIo } from "./io.ts";
@@ -121,6 +122,7 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
       run: reportCommand,
     },
   ],
+  ["scan", { usage: "scan --run <id>", run: scanCommand }],
   // run_start spawns this script, from src/ or dist/ as this process runs it
   ["mcp", { usage: "mcp", run: (ctx) => mcpCommand(ctx, fileURLToPath(import.meta.url)) }],
 ]);
