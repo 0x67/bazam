@@ -14,3 +14,5 @@ cases:
             request: { method: POST, url: "${env.API_URL}/pin/start", write: false }
     checks:
       - request: { method: PATCH, url: "${env.API_URL}/orders/seen" }
+    finally:
+      - request: { method: DELETE, url: "${env.API_URL}/orders/draft" }

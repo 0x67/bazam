@@ -23,3 +23,10 @@ cases:
     stage: draft
     risk: low
     targets: [shop-chrome, web]
+  - id: AUTH-EXT-005
+    title: External case with a finally step
+    stage: draft
+    risk: low
+    targets: [shop-chrome]
+    finally:
+      - note: removes the fault row

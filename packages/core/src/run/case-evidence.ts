@@ -7,6 +7,7 @@ export class CaseEvidence extends EvidenceStore {
   readonly #dir: string;
   readonly #checks: CheckRecord[] = [];
   #captured: CheckRecord[] | undefined;
+  #aside: CheckRecord[] | undefined;
   #screenshot: string | undefined;
 
   constructor(runDir: string, caseId: string, redactor: Redactor) {
@@ -25,6 +26,10 @@ export class CaseEvidence extends EvidenceStore {
   }
 
   override record(check: CheckRecord): boolean {
+    if (this.#aside !== undefined) {
+      this.#aside.push(check);
+      return check.ok;
+    }
     if (this.#captured !== undefined) {
       this.#captured.push(check);
       return check.ok;
@@ -34,9 +39,21 @@ export class CaseEvidence extends EvidenceStore {
   }
 
   override followup(item: string, hint: string): void {
+    const check: CheckRecord = {
+      name: item,
+      kind: "followup",
+      expected: undefined,
+      observed: undefined,
+      ok: true,
+      hint,
+    };
+    if (this.#aside !== undefined) {
+      this.#aside.push(check);
+      return;
+    }
     super.followup(item, hint);
     // deriveStatus reads only the kind and ok of a followup
-    this.#checks.push({ name: item, kind: "followup", expected: undefined, observed: undefined, ok: true, hint });
+    this.#checks.push(check);
   }
 
   override async attach(label: string, bytes: Uint8Array, ext: "png" | "zip" | "txt" | "json"): Promise<string> {
@@ -55,5 +72,17 @@ export class CaseEvidence extends EvidenceStore {
       this.#captured = undefined;
     }
     return captured;
+  }
+
+  /** Runs `step` with every check and follow-up it records kept out of the case, and returns them. */
+  async recordAside(step: () => Promise<void>): Promise<CheckRecord[]> {
+    const aside: CheckRecord[] = [];
+    this.#aside = aside;
+    try {
+      await step();
+    } finally {
+      this.#aside = undefined;
+    }
+    return aside;
   }
 }

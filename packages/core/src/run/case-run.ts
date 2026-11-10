@@ -26,10 +26,11 @@ import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence } from "./case-evidence.ts";
 import { CaseBlocked, isBlocking, messageOf, StepFailed } from "./outcome.ts";
-import { caseSteps, FILL_STEP } from "./plan.ts";
+import { caseSteps, FILL_STEP, finallySteps } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
 const GUIDED_PROMPT_TIMEOUT_MS = 15 * 60_000;
+const FINALLY_BUDGET_MS = 2 * 60_000;
 
 /** What every case of a run shares. */
 export interface RunScope {
@@ -91,10 +92,13 @@ export class CaseRun {
   #recovery: Promise<void> | undefined;
   #recovered = false;
   #notedLater = false;
+  // the run's signal until the finally steps start; they get one of their own that a cancel does not abort
+  #signal: AbortSignal;
 
   constructor(scope: RunScope, parts: CaseParts) {
     this.#scope = scope;
     this.#parts = parts;
+    this.#signal = scope.signal;
     this.#values = new Map([
       ["id", parts.spec.id],
       ["title", parts.spec.title],
@@ -102,15 +106,53 @@ export class CaseRun {
     this.#sources = placeholderSources(scope, parts.runValues, this.#values);
   }
 
-  /** Runs the steps and then the checks in order; the first one that throws ends the case. */
+  /** Runs the steps and then the checks in order, the first one that throws ends them, and then the finally steps. */
   async run(): Promise<void> {
     const steps = caseSteps(this.#parts.spec, this.#scope.project.flows);
     try {
       for (const [index, step] of steps.entries()) await this.#step(step, index + 1, step.as);
     } finally {
+      await this.#recovery;
+      // the 401 listeners stay on, so a finally step that meets an expired session still recovers
+      await this.#runFinally(steps.length);
       for (const stop of this.#stops) stop();
       // the session closes after this returns, so never under a refresh
       await this.#recovery;
+    }
+  }
+
+  /** Runs every finally step under its own signal and turns what goes wrong, and each check, into notes. Never throws. */
+  async #runFinally(stepCount: number): Promise<void> {
+    const steps = finallySteps(this.#parts.spec, this.#scope.project.flows);
+    if (steps.length === 0) return;
+    const { evidence } = this.#parts;
+    this.#signal = AbortSignal.timeout(FINALLY_BUDGET_MS);
+    for (const [index, step] of steps.entries()) {
+      const number = stepCount + index + 1;
+      const kind = stepKind(step);
+      if (this.#signal.aborted) {
+        evidence.note(
+          `finally steps ${number} to ${stepCount + steps.length} did not run: the 2 minute budget ran out`,
+        );
+        return;
+      }
+      if (kind === "challenge" || kind === "guided") {
+        evidence.note(`finally step ${number} (${kind}) skipped: finally steps run unattended`);
+        continue;
+      }
+      let failure: unknown;
+      const checks = await evidence.recordAside(async () => {
+        try {
+          await this.#step(step, number, step.as);
+        } catch (error) {
+          failure = error;
+        }
+      });
+      if (failure !== undefined) {
+        const cause = failure instanceof StepFailed ? failure.cause : failure;
+        evidence.note(`finally step ${number} (${kind}) failed: ${messageOf(cause)}`);
+      }
+      for (const check of checks) evidence.note(`finally check ${check.name}: ${check.ok ? "ok" : "not ok"}`);
     }
   }
 
@@ -118,7 +160,7 @@ export class CaseRun {
   async #step(step: Step, number: number, identity: string | undefined): Promise<void> {
     // no step acts while a refresh replaces the credential under the page
     await this.#recovery;
-    this.#scope.signal.throwIfAborted();
+    this.#signal.throwIfAborted();
     const kind = stepKind(step);
     const payload = step[kind];
     if (kind === "note") return this.#parts.evidence.note(await this.#resolve(payload as string));
@@ -268,7 +310,7 @@ export class CaseRun {
 
   #context(identity: string | undefined): StepContext {
     const { session, evidence } = this.#parts;
-    const { env, identities, http, signal } = this.#scope;
+    const { env, identities, http } = this.#scope;
     const ctx: StepContext = {
       session,
       env,
@@ -277,7 +319,7 @@ export class CaseRun {
       values: this.#values,
       http,
       resolve: (value) => this.#resolve(value),
-      signal,
+      signal: this.#signal,
     };
     if (identity !== undefined) ctx.identity = identity;
     return ctx;

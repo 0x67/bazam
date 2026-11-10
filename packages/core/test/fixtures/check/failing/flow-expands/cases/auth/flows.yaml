@@ -10,3 +10,5 @@ cases:
       - use: loop-a
       - challenge: { kind: otp-email, trigger: { use: { flow: login, with: { email: ops@example.test } } }, fill: { id: code } }
       - expect: { visible: { id: dashboard } }
+    finally:
+      - use: logn

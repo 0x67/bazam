@@ -1,4 +1,6 @@
 import { rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { LoginMode } from "../src/auth/index.ts";
@@ -236,6 +238,13 @@ describe("planRun", () => {
     expect(plan.cases[0]?.blocked).toBe("driver fake-phone has no open step");
   });
 
+  it("blocks a case whose finally step has a kind the driver lacks, though another driver has it", async () => {
+    const plan = await planFor([
+      testCase("AUTH-END-002", { steps: [{ open: "${env.APP_URL}" }], finally: [{ swipe: {} }] }),
+    ]);
+    expect(plan.cases[0]?.blocked).toBe("driver fake has no swipe step");
+  });
+
   it("blocks a step as an identity that config does not define", async () => {
     const plan = await planFor([testCase("AUTH-WHO-001", { steps: [{ open: "${env.APP_URL}", as: "stranger" }] })]);
     expect(plan.cases[0]?.blocked).toBe(`identity stranger is not defined under identities in ${BRAND.configFile}`);
@@ -261,6 +270,23 @@ describe("planRun", () => {
       [{ identity: "customer", surface: "web", mode: "cached" }],
       [],
     ]);
+  });
+
+  it("plans the logins and challenges of finally steps, numbered after the checks", async () => {
+    const plan = await planFor([
+      testCase("AUTH-END-001", {
+        steps: [{ open: "${env.APP_URL}" }],
+        checks: [{ expect: { visible: "x" } }],
+        finally: [
+          { open: "${env.APP_URL}", as: "customer" },
+          { ...otp, as: "customer" },
+        ],
+      }),
+    ]);
+    expect(plan.cases[0]).toMatchObject({
+      logins: [{ identity: "customer", surface: "web", mode: "cached" }],
+      challenges: [{ step: 4, kind: "otp-email" }],
+    });
   });
 
   it("blocks an identity the caller marks blocked, also when only a placeholder names it", async () => {
@@ -463,6 +489,55 @@ describe("planCases", () => {
       signal: new AbortController().signal,
     });
     expect(plan.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
+  });
+
+  it("sends no env probe", async () => {
+    let requests = 0;
+    const server = createServer((_req, res) => {
+      requests += 1;
+      res.writeHead(200).end();
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    try {
+      const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const probed = {
+        ...config,
+        envs: {
+          ...config.envs,
+          demo: {
+            ...config.envs.demo,
+            hosts: ["app.example.test", "127.0.0.1"],
+            probes: [{ request: `GET ${origin}/health`, hint: "x" }],
+          },
+        },
+      };
+      const { root, project, registry } = await loadTestProject(
+        {
+          [BRAND.configFile]: probed,
+          "cases/auth/plan.yaml": { cases: [testCase("AUTH-OPEN-001", { steps: [{ open: "${env.APP_URL}" }] })] },
+          "interop/mapped.yaml": { tests: {} },
+        },
+        [plugin()],
+      );
+      roots.push(root);
+      const plan = await planCases({
+        project,
+        env: project.config.envs["demo"]!,
+        cases: project.cases,
+        registry,
+        channel: { ask: async () => ({ kind: "timeout" }) },
+        runDir: join(root, "runs", "20261107-101500-0a1b"),
+        runValues: new RunValues("20261107-101500-0a1b", new Date("2026-11-07T10:15:00Z"), 7),
+        seed: 7,
+        redactor: new Redactor(defaultRedactionRules()),
+        signal: new AbortController().signal,
+      });
+      expect(requests).toBe(0);
+      expect(plan.cases.map(({ blocked }) => blocked)).toEqual([undefined]);
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 
   it("probes no runner target, which has no driver", async () => {

@@ -1,0 +1,4 @@
+flows:
+  - name: confirm
+    steps:
+      - guided: { title: Confirm the row is gone, steps: [Open the admin page] }

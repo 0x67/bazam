@@ -32,7 +32,7 @@ export const pinSecretDeclared: CheckRule = {
   id: DECLARED_RULE,
   check: (project) => [
     ...project.cases.flatMap(({ spec, source }) =>
-      undeclared(project, spec.id, source, [...spec.steps, ...spec.checks]),
+      undeclared(project, spec.id, source, [...spec.steps, ...spec.checks, ...spec.finally]),
     ),
     ...[...project.flows.values()].flatMap(({ name, source, steps }) =>
       undeclared(project, `flow ${name}`, source, steps),

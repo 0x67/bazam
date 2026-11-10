@@ -1,0 +1,14 @@
+cases:
+  - id: AUTH-END-001
+    title: Case that arms a fault row
+    stage: draft
+    risk: low
+    targets: [web]
+    steps:
+      - note: arms the fault row
+    checks:
+      - expect: { visible: { id: dashboard } }
+    finally:
+      - note: removes the fault row
+      - challenge: { kind: otp-email, trigger: { tap: { id: send-code } }, fill: { id: code } }
+      - use: confirm

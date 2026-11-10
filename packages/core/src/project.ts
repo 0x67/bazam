@@ -241,7 +241,7 @@ export function runnerOf(
 export function externalCaseProblem(
   config: ProjectConfig,
   spec: CaseSpec,
-): { field: "targets" | "steps" | "checks"; message: string } | undefined {
+): { field: "targets" | "steps" | "checks" | "finally"; message: string } | undefined {
   const runnerTargets = spec.targets.filter((target) => runnerOf(config, target) !== undefined);
   if (runnerTargets.length === 0) return undefined;
   const driverTargets = spec.targets.filter(
@@ -253,7 +253,14 @@ export function externalCaseProblem(
       message: `${spec.id} lists runner targets (${runnerTargets.join(", ")}) and driver targets (${driverTargets.join(", ")})`,
     };
   }
-  const field = spec.steps.length > 0 ? "steps" : spec.checks.length > 0 ? "checks" : undefined;
+  const field =
+    spec.steps.length > 0
+      ? "steps"
+      : spec.checks.length > 0
+        ? "checks"
+        : spec.finally.length > 0
+          ? "finally"
+          : undefined;
   if (field === undefined) return undefined;
   return { field, message: `${spec.id} runs on runner target ${runnerTargets[0]} but has ${field}` };
 }

@@ -94,6 +94,14 @@ const failing: [string, Expected][] = [
       ["cases/auth/flows.yaml", 9, "flow login: missing parameter email"],
       ["cases/auth/flows.yaml", 10, "flow cycle: loop-a -> loop-b -> loop-a"],
       ["cases/auth/flows.yaml", 11, "flow login: a challenge trigger runs one step, and the flow expands to 3"],
+      ["cases/auth/flows.yaml", 14, "flow logn: no such flow"],
+    ],
+  ],
+  [
+    "finally-unattended",
+    [
+      ["cases/auth/finally.yaml", 13, "AUTH-END-001 has a challenge step in finally"],
+      ["cases/auth/finally.yaml", 14, "AUTH-END-001 has a guided step in finally"],
     ],
   ],
   [
@@ -133,6 +141,7 @@ const failing: [string, Expected][] = [
       ["cases/auth/prod.yaml", 10, "AUTH-PROD-001 is prod_safe but its DELETE request does not set write: true"],
       ["cases/auth/prod.yaml", 14, "its POST request"],
       ["cases/auth/prod.yaml", 16, "its PATCH request"],
+      ["cases/auth/prod.yaml", 18, "its DELETE request"],
     ],
   ],
   ["state-ignored", [[".gitignore", 1, `.gitignore does not ignore ${BRAND.stateDir}/`]]],
@@ -149,6 +158,7 @@ const failing: [string, Expected][] = [
       ["cases/auth/external.yaml", 12, "AUTH-EXT-002 runs on runner target shop-chrome but has steps"],
       ["cases/auth/external.yaml", 19, "AUTH-EXT-003 runs on runner target shop-chrome but has checks"],
       ["cases/auth/external.yaml", 25, "AUTH-EXT-004 lists runner targets (shop-chrome) and driver targets (web)"],
+      ["cases/auth/external.yaml", 31, "AUTH-EXT-005 runs on runner target shop-chrome but has finally"],
     ],
   ],
   ["runner-format-known", [[BRAND.configFile, 26, "runner shop-suite uses format ctrf, which no plugin registers"]]],

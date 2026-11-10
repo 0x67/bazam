@@ -35,7 +35,7 @@ export interface PlannedCase {
   identities: string[];
   /** Empty for a blocked case, which logs in nowhere. */
   logins: { identity: string; surface: string; mode: LoginMode }[];
-  /** `step` counts the case's expanded steps and then its checks from 1. */
+  /** `step` counts the case's expanded steps, its checks and then its finally steps from 1. */
   challenges: { step: number; kind: string; resolver: string | null }[];
   blocked?: string;
   /** The runner that needs a person's yes before this case runs in a production env. */
@@ -174,8 +174,10 @@ function analyseCase(loaded: LoadedCase, inputs: Omit<PlanInputs, "credentials">
   }
   const planner = new StepPlanner(analysis, inputs);
   const steps = caseSteps(spec, inputs.project.flows);
+  const cleanup = finallySteps(spec, inputs.project.flows);
   steps.forEach((step, index) => planner.visit(step, index + 1, step.as));
-  for (const name of placeholderIdentities(steps)) planner.identity(name);
+  cleanup.forEach((step, index) => planner.visit(step, steps.length + index + 1, step.as));
+  for (const name of placeholderIdentities([...steps, ...cleanup])) planner.identity(name);
   return analysis;
 }
 

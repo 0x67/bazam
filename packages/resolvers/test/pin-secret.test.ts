@@ -125,6 +125,13 @@ describe("pinSecretDeclared", () => {
       "    targets: [web]",
       "    steps:",
       `      - challenge: ${pin("PARTNER_API_KEY")}`,
+      "  - id: BANK-PIN-003",
+      "    title: Teardown confirms with a secret config does not declare",
+      "    stage: draft",
+      "    risk: low",
+      "    targets: [web]",
+      "    finally:",
+      `      - challenge: ${pin("LATE_PIN")}`,
     ];
     const flows = [
       "flows:",
@@ -156,6 +163,14 @@ describe("pinSecretDeclared", () => {
         line: 9,
         message: `BANK-PIN-002 answers pin from secret PARTNER_API_KEY, which ${BRAND.configFile} does not declare`,
         fix: `Add PARTNER_API_KEY to secrets.names in ${BRAND.configFile}, or name a declared secret in params.secret.`,
+      },
+      {
+        ruleId: "pin-secret-declared",
+        severity: "error",
+        file: "cases/bank/pin.yaml",
+        line: 16,
+        message: `BANK-PIN-003 answers pin from secret LATE_PIN, which ${BRAND.configFile} does not declare`,
+        fix: `Add LATE_PIN to secrets.names in ${BRAND.configFile}, or name a declared secret in params.secret.`,
       },
       {
         ruleId: "pin-secret-declared",

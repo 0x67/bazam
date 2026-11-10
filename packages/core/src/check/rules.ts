@@ -2,6 +2,7 @@ import { isMap, isNode, isScalar, isSeq, visit, type Document, type Node, type Y
 import { BRAND } from "../brand.ts";
 import {
   expandFlows,
+  STEP_LISTS,
   FlowCycle,
   InvalidFlowUse,
   NestedFlowNotOneStep,
@@ -55,6 +56,7 @@ export const builtinRules: readonly CheckRule[] = [
   rule("case-has-check", "error", casesWithoutCheck),
   rule("stage-link", "error", casesWithoutLink),
   rule("flow-expands", "error", flowUsesThatFail),
+  rule("finally-unattended", "error", attendedFinallySteps),
   rule("placeholder-resolves", "error", unresolvedPlaceholders),
   rule("no-literal-secret", "error", literalSecrets),
   rule("fixture-domain", "error", unreservedEmails),
@@ -122,7 +124,7 @@ function casesWithoutLink(project: Project): Finding[] {
 /** Expands each case step alone, as the run does, so each finding points at the step that causes it. */
 function flowUsesThatFail(project: Project): Finding[] {
   return project.cases.flatMap((loaded) =>
-    (["steps", "checks"] as const).flatMap((list) =>
+    STEP_LISTS.flatMap((list) =>
       loaded.spec[list].flatMap((step, index) => {
         const problem = expansionProblem(step, project);
         if (problem === undefined) return [];
@@ -131,6 +133,25 @@ function flowUsesThatFail(project: Project): Finding[] {
         ];
       }),
     ),
+  );
+}
+
+/** Finally steps run unattended, also after a cancel, so no one is there to answer a challenge or a guided step. */
+function attendedFinallySteps(project: Project): Finding[] {
+  return project.cases.flatMap((loaded) =>
+    loaded.spec.finally.flatMap((step, index) => {
+      if (expansionProblem(step, project) !== undefined) return [];
+      const kinds = expandFlows([step], project.flows).map(stepKind);
+      const kind = kinds.find((candidate) => candidate === "challenge" || candidate === "guided");
+      if (kind === undefined) return [];
+      return [
+        {
+          at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), "finally", index]),
+          message: `${loaded.spec.id} has a ${kind} step in finally`,
+          fix: "Move the step into steps, since finally steps run unattended.",
+        },
+      ];
+    }),
   );
 }
 
@@ -310,8 +331,7 @@ function writesWithoutFlag(project: Project): Finding[] {
   return project.cases
     .filter(({ spec }) => spec.prod_safe)
     .flatMap((loaded) =>
-      (["steps", "checks"] as const)
-        .flatMap((list) => loaded.spec[list].flatMap((step, index) => requestsIn(step, [list, index])))
+      STEP_LISTS.flatMap((list) => loaded.spec[list].flatMap((step, index) => requestsIn(step, [list, index])))
         .filter(({ request }) => request.method !== "GET" && request.write !== true)
         .map(({ request, path }) => ({
           at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), ...path]),
