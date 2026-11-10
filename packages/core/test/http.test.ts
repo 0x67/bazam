@@ -237,6 +237,7 @@ describe("http", () => {
       expect((failure as ConnectionFailed).message).toBe(
         `GET http://127.0.0.1:${port}/health?code=[redacted] got no answer: connect ECONNREFUSED 127.0.0.1:${port}`,
       );
+      expect((failure as ConnectionFailed).host).toBe("127.0.0.1");
     });
 
     it.each([

@@ -19,6 +19,9 @@ export interface Step {
   [kind: string]: unknown;
 }
 
+/** The lists of steps a case holds, in the order they run. */
+export const STEP_LISTS = ["steps", "checks", "finally"] as const;
+
 /** A check is a step whose handler records a check result, such as `api`. */
 export type CheckSpec = Step;
 
@@ -96,6 +99,7 @@ export type CaseSpec = {
   prod_safe: boolean;
   steps: Step[];
   checks: CheckSpec[];
+  finally: Step[];
   report?: ReportPolicy;
 };
 
@@ -200,6 +204,7 @@ export function buildCaseSchema(steps: readonly StepSchemaSource[]): z.ZodType<C
     prod_safe: z.boolean().default(false),
     steps: z.array(step).default([]),
     checks: z.array(step).default([]),
+    finally: z.array(step).default([]),
     report: ReportPolicy.optional(),
   }) as z.ZodType<CaseSpec>;
 }

@@ -55,6 +55,7 @@ function context(options: { capabilities?: readonly string[]; channel?: HumanCha
       hosts: new Set(["app.example.test"]),
       challenges: {},
       locale: "en",
+      probes: [],
     },
     http: {
       send: async () => {

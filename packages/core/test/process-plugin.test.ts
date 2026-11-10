@@ -415,7 +415,7 @@ async function runOnTarget(plugin: object, driver: string, steps: object[]): Pro
 }
 
 function demoEnv(): Environment {
-  return { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en" };
+  return { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en", probes: [] };
 }
 
 function resolverContext(): ResolverContext {

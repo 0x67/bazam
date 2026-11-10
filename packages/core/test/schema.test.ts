@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { BRAND } from "../src/brand.ts";
-import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema } from "../src/case/index.ts";
+import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema, STEP_LISTS } from "../src/case/index.ts";
 import { declaredSecretNames, loadProjectConfig, runnerOf, type ConfigLoad } from "../src/project.ts";
 
 const minimal = { id: "AUTH-LOGIN-001", title: "Customer signs in", stage: "draft", risk: "low", targets: ["web"] };
@@ -32,6 +32,7 @@ describe("CaseSpec", () => {
       prod_safe: false,
       steps: [],
       checks: [],
+      finally: [],
     });
   });
 
@@ -87,6 +88,7 @@ describe("CaseSpec", () => {
         { note: "done" },
       ],
       checks: [{ request: { method: "GET", url: "${env.API_URL}/me" } }],
+      finally: [{ request: { method: "DELETE", url: "${env.API_URL}/fault", write: true } }],
       report: { comment: "update", on: { pass: { transition: "Ready for Release", mention: ["role:qa-lead"] } } },
     };
 
@@ -106,6 +108,7 @@ describe("CaseSpec", () => {
     ["prod_safe", 1],
     ["steps", "open the app"],
     ["checks", {}],
+    ["finally", "delete the fault"],
     ["report", { comment: "edit" }],
   ])("rejects an invalid %s with an issue on that field", (field, value) => {
     expect(issuePaths(CaseSpec, { ...minimal, [field]: value })[0]?.split(".")[0]).toBe(field);
@@ -119,6 +122,15 @@ describe("CaseSpec", () => {
 
   it("rejects an unknown case field", () => {
     expect(issueMessages(CaseSpec, { ...minimal, owner: "qa" })).toEqual(['Unrecognized key: "owner"']);
+  });
+});
+
+describe("STEP_LISTS", () => {
+  it("names every list of steps a case holds, in the order they run", () => {
+    const spec = CaseSpec.parse(minimal);
+
+    expect(STEP_LISTS).toEqual(["steps", "checks", "finally"]);
+    expect(STEP_LISTS.every((list) => Array.isArray(spec[list]))).toBe(true);
   });
 });
 

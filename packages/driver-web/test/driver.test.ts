@@ -5,8 +5,9 @@ import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import type { StorageState } from "@bazam/core/auth";
-import { ConnectionFailed } from "@bazam/core/driver";
+import { ConnectionFailed, type DriverSession } from "@bazam/core/driver";
 import { HostNotAllowed, type Environment } from "@bazam/core/env";
+import { CaseBlocked } from "@bazam/core/run";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
 import { unzipSync } from "fflate";
@@ -381,8 +382,11 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     ]);
 
     await expect(refused).rejects.toThrow(
-      new ConnectionFailed(`GET http://127.0.0.1:${port}/home`, `connect ECONNREFUSED 127.0.0.1:${port}`),
+      new ConnectionFailed(`GET http://127.0.0.1:${port}/home`, `connect ECONNREFUSED 127.0.0.1:${port}`, {
+        host: "127.0.0.1",
+      }),
     );
+    await expect(refused).rejects.toMatchObject({ host: "127.0.0.1" });
   });
 
   it("throws the browser's own error when the server drops a connection it accepted", async () => {
@@ -392,6 +396,15 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
     await expect(dropped).rejects.toThrow();
     await expect(dropped).rejects.not.toBeInstanceOf(ConnectionFailed);
+  });
+
+  it("blocks the case when a web step runs in a session of another driver", async () => {
+    const { evidence } = await open();
+    const foreign = { close: async () => {} } as unknown as DriverSession;
+
+    const refused = runSteps(stepContext(foreign, { env, evidence, root }), [{ open: `${site.origin}/` }]);
+
+    await expect(refused).rejects.toBeInstanceOf(CaseBlocked);
   });
 
   it("blocks when a link takes the page outside the allowlist", async () => {

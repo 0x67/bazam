@@ -31,6 +31,8 @@ export interface StepHandler<S = unknown> {
   kind: string;
   schema: z.ZodType<S>;
   run(step: S, ctx: StepContext): Promise<void>;
+  /** A plugin step that drives the page through pageFor: its identity's browser context opens and logs in first, as for a driver step. */
+  opensBrowser?: boolean;
 }
 
 export interface LaunchOptions {

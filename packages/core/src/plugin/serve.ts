@@ -383,7 +383,7 @@ class HostValues extends Map<string, string> {
 }
 
 function environment(wire: Params<"driver.step">["context"]["env"]): Environment {
-  return { ...wire, hosts: new Set(wire.hosts) };
+  return { ...wire, hosts: new Set(wire.hosts), probes: [] };
 }
 
 /** An object that throws `message` on any use, for what stays in the host's run. */

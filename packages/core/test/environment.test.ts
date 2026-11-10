@@ -53,6 +53,7 @@ describe("EnvsConfig", () => {
       hosts: new Set(["uat.app.example.test", "api.uat.example.test"]),
       challenges: { "otp-email": ["otp-mailpit", "human"] },
       locale: "id-ID",
+      probes: [],
     });
     expect(prod).toEqual<Environment>({
       name: "prod",
@@ -61,8 +62,58 @@ describe("EnvsConfig", () => {
       hosts: new Set(["app.example.test"]),
       challenges: {},
       locale: "en",
+      probes: [],
     });
   });
+
+  it("parses a probe into its method, URL and hint, and defaults probes to none", () => {
+    const parsed = EnvsConfig.parse({
+      uat: {
+        production: false,
+        hosts: ["core.example.test"],
+        probes: [{ request: "GET https://core.example.test/health", status: 204, hint: "connect the VPN" }],
+      },
+    });
+
+    expect(parsed["uat"]?.probes).toEqual([
+      {
+        request: "GET https://core.example.test/health",
+        method: "GET",
+        url: new URL("https://core.example.test/health"),
+        status: 204,
+        hint: "connect the VPN",
+      },
+    ]);
+    expect(prod.probes).toEqual([]);
+  });
+
+  it("refuses a probe whose host is not in hosts", () => {
+    const result = EnvsConfig.safeParse({
+      uat: {
+        production: false,
+        hosts: ["app.example.test"],
+        probes: [{ request: "GET https://core.example.test/health", hint: "connect the VPN" }],
+      },
+    });
+
+    expect(result.error?.issues.map((issue) => [issue.path, issue.message])).toEqual([
+      [
+        ["uat", "probes", 0, "request"],
+        "probe GET https://core.example.test/health names host core.example.test, which is not in hosts",
+      ],
+    ]);
+  });
+
+  it.each(["POST https://core.example.test/health", "GET not a url", "https://core.example.test/health"])(
+    "refuses the probe request %s",
+    (request) => {
+      const result = EnvsConfig.safeParse({
+        uat: { production: false, hosts: ["core.example.test"], probes: [{ request, hint: "connect the VPN" }] },
+      });
+
+      expect(result.error?.issues.map((issue) => issue.path)).toEqual([["uat", "probes", 0, "request"]]);
+    },
+  );
 
   it("rejects a locale that is not a BCP 47 tag", () => {
     const result = EnvsConfig.safeParse({

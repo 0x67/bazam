@@ -52,6 +52,7 @@ const env: Environment = {
   hosts: new Set(["127.0.0.1"]),
   challenges: {},
   locale: "en",
+  probes: [],
 };
 
 /** A context for the identity customer whose HTTP client reaches 127.0.0.1 only. */

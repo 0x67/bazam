@@ -47,11 +47,19 @@ export class Unauthorized extends Error {
   }
 }
 
+/** The host the request could not reach, beside the usual cause. */
+export interface ConnectionFailedOptions extends ErrorOptions {
+  host: string;
+}
+
 /** The request never reached the server, as when the host refuses the connection or its name does not resolve. */
 export class ConnectionFailed extends Error {
-  constructor(target: string, reason: string, options?: ErrorOptions) {
+  readonly host: string;
+
+  constructor(target: string, reason: string, options: ConnectionFailedOptions) {
     super(`${target} got no answer: ${reason}`, options);
     this.name = "ConnectionFailed";
+    this.host = options.host;
   }
 }
 
@@ -66,13 +74,13 @@ const CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
   "UND_ERR_CONNECT_TIMEOUT",
 ]);
 
-function connectFailure(target: string, error: unknown): ConnectionFailed | undefined {
+function connectFailure(target: string, host: string, error: unknown): ConnectionFailed | undefined {
   // fetch rejects a failed connection with a TypeError whose cause is the socket error
   if (!(error instanceof TypeError) || !(error.cause instanceof Error)) return undefined;
   const cause = error.cause as NodeJS.ErrnoException;
   if (cause.code === undefined || !CONNECT_ERROR_CODES.has(cause.code)) return undefined;
   // a name with several addresses fails with an AggregateError whose message is empty but whose code is set
-  return new ConnectionFailed(target, cause.message || cause.code, { cause: error });
+  return new ConnectionFailed(target, cause.message || cause.code, { cause: error, host });
 }
 
 type Authorize = (request: HttpRequestDraft) => Promise<void>;
@@ -136,7 +144,7 @@ async function sendHop(
   };
   // an abort rejects with the signal's reason, a DOMException that connectFailure passes through
   const response = await fetch(draft.url, init).catch((error: unknown) => {
-    throw connectFailure(describeRequest(draft), error) ?? error;
+    throw connectFailure(describeRequest(draft), draft.url.hostname, error) ?? error;
   });
   deps.log(deps.redactor.text(`${describeRequest(draft)} ${response.status}`));
   return response;

@@ -81,6 +81,11 @@ export function caseSteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>):
   return expandFlows([...spec.steps, ...spec.checks], flows);
 }
 
+/** The case's finally steps, flows expanded; their numbers follow the last check's. */
+export function finallySteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>): Step[] {
+  return expandFlows(spec.finally, flows);
+}
+
 /** The first of the case's targets, or the first that `selected` lists. */
 export function caseTarget(spec: CaseSpec, selected: readonly string[] | undefined): string | undefined {
   return selected === undefined ? spec.targets[0] : spec.targets.find((target) => selected.includes(target));
@@ -223,7 +228,10 @@ class StepPlanner {
   visit(step: Step, number: number, identity: string | undefined): void {
     const kind = stepKind(step);
     const payload = step[kind];
-    const actsInBrowser = identity !== undefined && this.identity(identity) && this.#driverKinds.has(kind);
+    const actsInBrowser =
+      identity !== undefined &&
+      this.identity(identity) &&
+      (this.#driverKinds.has(kind) || this.#inputs.registry.stepHandler(kind, this.#driver)?.opensBrowser === true);
     if (kind === "challenge") this.#challenge(payload as ChallengeStep, number, identity);
     else if (kind === "guided") this.#guided(payload as GuidedStep, number, identity);
     else if (HTTP_KINDS.has(kind)) this.#request(payloadIdentity(payload) ?? identity);

@@ -128,7 +128,8 @@ export class CaseRun {
     const handler = this.#scope.registry.stepHandler(kind, driver);
     // the plan blocks a case with a step its target's driver lacks
     if (handler === undefined) throw new Error(`driver ${driver.name} has no ${kind} step`);
-    if (identity !== undefined && driver.steps.includes(handler)) await this.#openBrowser(identity);
+    if (identity !== undefined && (driver.steps.includes(handler) || handler.opensBrowser === true))
+      await this.#openBrowser(identity);
     try {
       await handler.run(payload, this.#context(identity));
     } catch (error) {

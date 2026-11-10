@@ -17,6 +17,7 @@ import {
   type StepHandler,
 } from "@bazam/core/driver";
 import { assertHostAllowed, type Environment } from "@bazam/core/env";
+import { CaseBlocked } from "@bazam/core/run";
 import type { Redactor } from "@bazam/core/redact";
 import type { CheckRecord } from "@bazam/core/result";
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
@@ -172,7 +173,7 @@ async function unreachable(url: URL): Promise<ConnectionFailed | undefined> {
   });
   return failure === undefined
     ? undefined
-    : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, { cause: failure });
+    : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, { cause: failure, host: url.hostname });
 }
 
 type PlaywrightStorageState = Exclude<Parameters<BrowserContext["setStorageState"]>[0], string>;
@@ -492,7 +493,8 @@ interface SavedTrace {
 }
 
 function webSession(session: DriverSession): WebSession {
-  if (!(session instanceof WebSession)) throw new Error("web steps run only in a session of the playwright driver");
+  if (!(session instanceof WebSession))
+    throw new CaseBlocked("web steps run only in a session of the playwright driver");
   return session;
 }
 

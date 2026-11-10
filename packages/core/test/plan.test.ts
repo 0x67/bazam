@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { LoginMode } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
-import { FlowCycle } from "../src/case/index.ts";
+import { CaseSpec, FlowCycle, type FlowSpec } from "../src/case/index.ts";
 import { HumanOnlyViolation, type ChallengeResolver } from "../src/challenge/index.ts";
 import type { Capability } from "../src/driver/index.ts";
 import { RunValues } from "../src/env/index.ts";
@@ -11,6 +11,7 @@ import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import type { Project } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { loginKey, planCases, planLogins, planRun, type PlanInputs, type RunPlan } from "../src/run/index.ts";
+import { finallySteps } from "../src/run/plan.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
@@ -26,6 +27,7 @@ const plugin = (driver = fakeDriver({ steps: webSteps })) =>
     name: "test-web",
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver, phone],
+    steps: [{ ...fakeStep("scrape"), opensBrowser: true }, fakeStep("scrape-quietly")],
     resolvers: [
       resolver("fake-otp", ["otp-email"]),
       resolver("fake-passkey", ["passkey"], ["webauthn.virtual"]),
@@ -247,6 +249,17 @@ describe("planRun", () => {
     expect(plan.cases.map(({ blocked, logins }) => ({ blocked, logins }))).toEqual([
       { blocked: "identity visitor has no auth for surface api", logins: [] },
       { blocked: undefined, logins: [] },
+    ]);
+  });
+
+  it("plans a web login for a plugin step that sets opensBrowser, and none for one that does not", async () => {
+    const plan = await planFor([
+      testCase("AUTH-PAGE-001", { steps: [{ scrape: {}, as: "customer" }] }),
+      testCase("AUTH-PAGE-002", { steps: [{ "scrape-quietly": {}, as: "customer" }] }),
+    ]);
+    expect(plan.cases.map(({ logins }) => logins)).toEqual([
+      [{ identity: "customer", surface: "web", mode: "cached" }],
+      [],
     ]);
   });
 
@@ -476,5 +489,21 @@ describe("planCases", () => {
       signal: new AbortController().signal,
     });
     expect([plan.cases[0]?.runner, plan.cases[0]?.blocked]).toEqual(["shop-suite", undefined]);
+  });
+});
+
+describe("finallySteps", () => {
+  it("expands use flows in the finally list and leaves steps and checks out", () => {
+    const flows = new Map<string, FlowSpec>([
+      ["disarm", { name: "disarm", params: [], steps: [{ note: "disarmed" }] }],
+    ]);
+    const spec = CaseSpec.parse({
+      ...testCase("AUTH-END-001", {}),
+      steps: [{ note: "act" }],
+      checks: [{ note: "verify" }],
+      finally: [{ use: "disarm" }, { note: "last" }],
+    });
+
+    expect(finallySteps(spec, flows)).toEqual([{ note: "disarmed" }, { note: "last" }]);
   });
 });

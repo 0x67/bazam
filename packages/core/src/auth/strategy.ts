@@ -61,6 +61,17 @@ export interface AuthStrategy<Config, Credential extends JsonValue> {
   secrets(credential: Credential): string[];
 }
 
+/** The credential works but belongs to someone else: these body paths of the probe answer did not match. */
+export class IdentityMismatch extends Error {
+  readonly paths: readonly string[];
+
+  constructor(paths: readonly string[]) {
+    super(`the probe answer does not match at ${paths.join(", ")}`);
+    this.name = "IdentityMismatch";
+    this.paths = paths;
+  }
+}
+
 export function defineAuthStrategy<Config, Credential extends JsonValue>(
   strategy: AuthStrategy<Config, Credential>,
 ): AuthStrategy<Config, Credential> {

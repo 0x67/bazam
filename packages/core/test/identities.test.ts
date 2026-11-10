@@ -38,6 +38,7 @@ const env: Environment = {
   hosts: new Set(["app.example.test"]),
   challenges: {},
   locale: "en",
+  probes: [],
 };
 const HOUR_MS = 60 * 60_000;
 const SESSION_COOKIE = { name: "session", value: "fake-session-cookie", domain: "app.example.test" };
@@ -569,7 +570,7 @@ const strategy = defineAuthStrategy({
 });
 const plugin = definePlugin({ name: "single-use", apiVersion: PLUGIN_API_VERSION, authStrategies: [strategy] });
 const identities = new Identities({
-  env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en" },
+  env: { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en", probes: [] },
   configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "single-use", with: { tokenUrl: server + "/refresh" } } } } }),
   fixtures: {},
   registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),
