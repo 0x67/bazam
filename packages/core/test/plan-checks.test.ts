@@ -40,6 +40,7 @@ function setup(options: Setup = {}): { run: PlanCheckRun; plan: RunPlan; logged:
     env: envs[options.env ?? "uat"]!,
     http: options.http ?? { send: async () => new Response("{}") as never },
     secret: async () => "fake-secret-value",
+    resolve: async (value) => value,
     redactor,
     log: (line) => logged.push(line),
   };
@@ -130,6 +131,18 @@ describe("runPlanChecks", () => {
 
     expect(plan.cases[0]?.blocked).toBe("balance read with [redacted]");
     expect(plan.cases[1]?.blocked).toBe("internal: plan check thrower failed: rejected [redacted]");
+  });
+
+  it("hands the run's resolve to each check", async () => {
+    const { run, plan } = setup({ cases: [planned("DEMO-A-001")] });
+    run.resolve = async <T>(value: T) => (value === "${env.APP_URL}" ? "https://app.example.test" : value) as T;
+
+    await runPlanChecks(
+      [check("lookup", async (input) => ({ "DEMO-A-001": `saw ${await input.resolve("${env.APP_URL}")}` }))],
+      run,
+    );
+
+    expect(plan.cases[0]?.blocked).toBe("saw https://app.example.test");
   });
 
   it("blocks every case it was given when a check throws", async () => {

@@ -1722,6 +1722,47 @@ describe("runCases plan checks", () => {
   });
 });
 
+describe("runCases plan check resolve", () => {
+  const one = [testCase("SHOP-RES-001", { prod_safe: true, steps: [expectVisible] })];
+  const planCheck = (answer: PlanCheck["check"]): PlanCheck => ({ name: "lookup", check: answer });
+
+  it("fills identity, env, secret and role placeholders", async () => {
+    const { results } = await runProject(one, {
+      roles: { tester: "shopper" },
+      planChecks: [
+        planCheck(async (input) => ({
+          "SHOP-RES-001": JSON.stringify(
+            await input.resolve([
+              "${identity.customer.email}",
+              "${identity.tester.email}",
+              "${env.API_URL}",
+              "${secret.API_PASSWORD}",
+            ]),
+          ),
+        })),
+      ],
+    });
+
+    expect(results[0]?.reason).toBe(
+      JSON.stringify(["customer@example.test", "shopper@example.test", origin, "[redacted]"]),
+    );
+  });
+
+  it.each(["${case.id}", "${run.id}", "${identity.customer.nickname}"])(
+    "blocks the cases when %s has no value",
+    async (text) => {
+      const { results } = await runProject(one, {
+        planChecks: [planCheck(async (input) => (await input.resolve(text), {}))],
+      });
+
+      expect(results[0]).toMatchObject({
+        status: "blocked",
+        reason: `internal: plan check lookup failed: unresolved placeholder ${text}`,
+      });
+    },
+  );
+});
+
 describe("runCases with external suites", () => {
   const external = (id: string, target: string, fields: CaseFields = {}) =>
     testCase(id, { targets: [target], ...fields });

@@ -18,6 +18,11 @@ export interface PlanCheckInput {
   /** The run's HTTP client; it sends as an identity when asked, and refuses writes in a production env. */
   http: GuardedHttp;
   secret(key: string): Promise<string>;
+  /**
+   * Fills `${identity.…}`, `${env.…}` and `${secret.…}` in `value` as a step's `ctx.resolve` does, a bound role included.
+   * `${case.…}` and `${run.…}` throw UnresolvedPlaceholder, since a plan check belongs to no case.
+   */
+  resolve<T>(value: T): Promise<T>;
 }
 
 export interface PlanCheck {
@@ -35,6 +40,7 @@ export interface PlanCheckRun {
   env: Environment;
   http: GuardedHttp;
   secret: (key: string) => Promise<string>;
+  resolve: <T>(value: T) => Promise<T>;
   redactor: Redactor;
   log(line: string): void;
 }
@@ -60,7 +66,13 @@ export async function runPlanChecks(checks: readonly PlanCheck[], run: PlanCheck
     if (given.length === 0) continue;
     let reasons: Readonly<Record<string, string>>;
     try {
-      reasons = await check.check({ env, cases: given.map((entry) => entry.given), http, secret: run.secret });
+      reasons = await check.check({
+        env,
+        cases: given.map((entry) => entry.given),
+        http,
+        secret: run.secret,
+        resolve: run.resolve,
+      });
     } catch (error) {
       const reason = `internal: plan check ${check.name} failed: ${messageOf(error)}`;
       reasons = Object.fromEntries(given.map((entry) => [entry.given.caseId, reason]));

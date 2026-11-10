@@ -9,7 +9,13 @@ import { BRAND } from "../brand.ts";
 import { bindRoles, roleBindings, type LoadedCase } from "../case/index.ts";
 import { oneAtATime, startChallengeService, type ChallengeService, type HumanChannel } from "../challenge/index.ts";
 import { guardedHttp, type Capability, type Driver, type DriverSession, type LaunchOptions } from "../driver/index.ts";
-import { resolvePlaceholders, type CaseRunValues, type Environment, type RunValues } from "../env/index.ts";
+import {
+  resolvePlaceholders,
+  type CaseRunValues,
+  type PlaceholderSources,
+  type Environment,
+  type RunValues,
+} from "../env/index.ts";
 import type { UnmappedTest } from "../ingest/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import {
@@ -250,6 +256,12 @@ class Run {
     for (const { runner, command } of plan.confirmations) await this.#confirm(plan, runner, command);
     const withLogins = plan.cases.filter((planned) => planned.blocked === undefined && planned.logins.length > 0);
     const blocked = withLogins.length === 0 ? new Map<string, string>() : await this.#logIn(plan, withLogins);
+    // plan checks belong to no case, so run and case placeholders have no value
+    const checkSources: PlaceholderSources = {
+      ...placeholderSources(this.#scope, this.#options.runValues.forCase("")),
+      run: () => undefined,
+      case: () => undefined,
+    };
     await runPlanChecks(this.#options.registry.planChecks(), {
       plan,
       cases,
@@ -257,6 +269,7 @@ class Run {
       env,
       http: this.#scope.http,
       secret: (key) => this.#scope.secret(key),
+      resolve: (value) => resolvePlaceholders(value, checkSources),
       redactor,
       log: this.#log.line,
     });

@@ -45,6 +45,7 @@ describe("the plan check example in examples/plugins/plan-check", () => {
       env: demo,
       http: { send: async () => new Response("{}") as never },
       secret: async () => "fake-secret-value",
+      resolve: async (value) => value,
       redactor: new Redactor(defaultRedactionRules()),
       log: () => {},
     });
