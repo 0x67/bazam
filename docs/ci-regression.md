@@ -78,6 +78,8 @@ Two GitHub Actions workflows in `examples/ci/` run a bazam project in CI. `regre
 
 1. Anyone signed in to GitHub can download the artifacts of a public repository: the regression evidence for 7 days, and the acceptance runs and the promotion patch for 1 day. The evidence and the acceptance runs hold screenshots, traces, logs and results.
 2. bazam masks the evidence it writes. It copies the screenshots of external suites as their runner wrote them, without masking.
+3. `bazam report post` leaves out of the post plan each attachment that holds a fixture, secret or credential value, on its own, and prints `post plan withholds <attachment>: <kinds>` for each. [configuration.md](configuration.md) describes it under "Scanning evidence".
+4. `examples/ci/regression.yml` has no `bazam scan` step. A scan exits 1 on the runs of 8 or more digits that app data leaves in traces, so a workflow would fail on data nobody leaked.
 
 **GitHub limits**
 

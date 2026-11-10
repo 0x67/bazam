@@ -57,6 +57,10 @@ secrets:
     - DEMO_OAUTH_CLIENT_SECRET
     - DEMO_HMAC_SECRET
 
+# The demo's cases check example.test addresses on the page, so a scan of their evidence leaves email fixtures alone.
+redaction:
+  shown: [email]
+
 identities:
   # signed in through the demo's /test/login hook, so no person and no code is needed
   customer:

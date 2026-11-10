@@ -73,7 +73,7 @@ A plugin can run as its own process, written in any language, and talk to bazam 
 The host's objects for a call, such as a step's evidence, stay in the host. Each call that may lead to callbacks carries a fresh `contextId`, and the plugin passes it back in each `host.*` request it makes while it handles that call. The id is released when the call ends, so a callback sent after the plugin answered gets `-32602`.
 
 1. `resolver.arm`, `resolver.resolve`: `host.secret`, `host.http`.
-2. `driver.step`: `host.resolve`, `host.http`, `host.evidence.record`, `host.evidence.note`, `host.evidence.followup`, `host.evidence.attach`, `host.values.set`. There is no `host.secret`; a step reads a secret with `host.resolve` of `"${secret.NAME}"`.
+2. `driver.step`: `host.resolve`, `host.http`, `host.evidence.record`, `host.evidence.note`, `host.evidence.followup`, `host.evidence.attach`, `host.values.set`, `host.mask`. There is no `host.secret`; a step reads a secret with `host.resolve` of `"${secret.NAME}"`.
 3. `driver.close`: `host.evidence.record`, `host.evidence.note`, `host.evidence.followup`, `host.evidence.attach`.
 4. `driver.probe`, `driver.launch`: no callbacks. The id only ties the call to its context.
 5. `trackerClient.connect` and every call on a connection: `host.secret`. Each call on a connection carries its own `contextId`.
@@ -136,6 +136,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
    7. Logging in again after a 401 and its note cover requests from in-process steps only. For a process plugin's `host.http`, the note is dropped, and a login that needs a browser blocks the case. `lostOn` and `SessionLost` need a driver that offers `onSessionLost`, which a process plugin's driver does not, so a redirect to the login page does not start a recovery in a case that runs on one.
 4. `host.evidence.attach`: `ext` is `png`, `txt` or `json`. A `zip` gets `-32602` "a process plugin cannot attach zip files, which core cannot scrub".
 5. `host.values.set` saves a value that later steps read as `${case.<name>}`.
+6. `host.mask`: `value` is a string the host registers with its redactor, so the trace, logs, notes and results of the run mask it from then on. A value of fewer than 4 characters is ignored. It is sent from a step's context only; any other context gets `-32602` `host.mask is not available in this context`.
 
 **Notifications**
 

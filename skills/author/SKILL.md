@@ -46,6 +46,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 10. Every `steps` entry runs first, then every `checks` entry, then `finally`. A check that reads a page therefore opens that page itself when several checks read different pages: `checks: [{ open: "${env.APP_URL}/orders", as: customer }, { expect: ..., as: customer }, { open: "${env.APP_URL}/ledger", as: customer }, { expect: ..., as: customer }]`.
 11. Write `as: <role>` instead of an identity name when a run may choose who plays the part, such as `as: tester` with `${identity.tester.email}`. The config's `roles` lists the identities each role allows and a default; `bazam run --as tester=teammate` picks one, and a case that names a role nobody plays is blocked. `AUTH-ROLE-001` shows one. Use `run_plan` with `roles` to see the binding first, and pass the same `roles` to `run_start`, or the run uses each role's default.
 12. A session the app ends mid-case needs no step: when the identity's `web` auth sets `lostOn`, a redirect to the login page logs the identity in again and the step that landed there runs once more. `AUTH-SESSION-002` shows one.
+13. A plugin step that types or reads a person's data, such as an account number from a response, calls `ctx.mask(value)` so the trace, notes and results hide it. The built-in `fill` step masks the fixture fields its placeholders fill, except those `redaction.shown` lists.
 
 **5. Write checks that observe outcomes**
 
@@ -102,6 +103,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 5. Read each outcome with `evidence_get`: `result.json`, its checks, attachments and screenshots. Report a failed or blocked case with its reason. Rerun it only after a change that could fix it.
 6. To post results, get the post plan with `report_plan`. Each item names a ticket and a comment, with the `attachments` to upload, the people in `mentions` and, when they apply, an `edit` URL and a `transition`. Upload the attachments through the tracker connector first, then call `report_plan` again with each upload's `id` (and `collection`, when the tracker gives one) in `media`, keyed by the path in `attachments`, so the comment shows the screenshots inline. Before you post, look up whatever `unresolved` lists: a role with no account id, or a transition for a tracker project the config does not list.
 7. Post the `html` field of each item's comment as the body, or `markdown` when it has no `html`; the `report_plan` reply holds no `adf`. When the item has `edit`, update the comment at `edit.url` instead of posting a new one. Mention the people in `mentions`. Confirm each comment with `report_ack` and its URL as soon as it is posted, so a later run can edit that comment, and pass the ticket too when several items share a marker. Then move the ticket to `transition`.
+8. `report_plan` leaves out each attachment that holds a fixture, secret or credential value and lists it under `withheld`. Do not upload it. Before a person posts by hand, tell them to read `bazam scan --run <id>`, which reports leaked values by file and kind without printing them.
 
 **11. Rules the tool enforces**
 

@@ -19,6 +19,11 @@ An in-process plugin is a TypeScript module listed in `plugins:` of `bazam.confi
 5. A step kind named `followup` conflicts with the core kind of that name, as `note` does, and the load fails with `PluginConflict`. Rename the plugin's kind.
 6. `result.json` holds what steps saved, through a `request` step's `save:` or `ctx.values.set`, as `caseValues`, an object of the last value each name got, finally steps included, without the `id` and `title` every case starts with. The run's redactor masks it, so a value it matches, such as a run of 8 or more digits, appears masked. A case that saved nothing, and an external case, hold `caseValues: {}`. `values` holds the run's values and is unchanged.
 
+7. `ctx.mask(value)` registers a value with the run's redactor. A trace, log, note, result and post plan written after the call mask it. A value of fewer than 4 characters is not registered. Call it for data a step types or reads that a person owns, such as an account number a step takes from a response, since a trace masks only credentials, registered values and configured patterns. Timestamps and ids stay in it.
+8. A built-in `fill` step registers each identity field its `${identity.<name>.<field>}` placeholders fill, before the step runs, so a phone number typed from a fixture never stays in the trace. A fixture field that `redaction.shown` lists is left unregistered by `fill`, while `ctx.mask` still registers it. Text without a placeholder registers nothing, and a placeholder that does not resolve is left to the step, which fails on it.
+9. A registered value is masked in notes too, so a note that names it shows it masked.
+10. A process plugin's step calls `host.mask` for the same effect. See [plugin-protocol.md](plugin-protocol.md).
+
 **Order of a case**
 
 1. Every `steps` entry runs first, then every `checks` entry, then `finally`.

@@ -227,3 +227,36 @@ Each key of `trackers.<tracker>.projects.<project>` is optional, so a project li
 1. `patterns`: `[]` when left out. Regular expressions, read with the u flag; every match is masked whole.
 2. `screenshotSelectors`: `[]` when left out. Playwright selectors, such as CSS, of the page elements masked in screenshots. Any entry also turns off DOM snapshots and network entries in traces, which these selectors cannot mask. Such a trace keeps actions, console messages and page errors.
 3. `result.json` keeps what steps saved as `caseValues`, masked by the run's redactor with the rest of the result, so a value matching a rule, such as 8 or more digits, appears masked. `patterns` only add masking and cannot unmask it, and `values` stays unmasked. See item 6 of [plugins.md](plugins.md).
+4. `shown`: `[]` when left out. Fixture field names, such as `email`, that a `fill` step leaves unregistered and that `bazam scan` leaves out. The built-in rules still apply to their values: the part before `@` of an address outside `example.*`, and runs of 8 or more digits are still masked. A plugin step's `ctx.mask` still registers one. See items 7 and 8 of [plugins.md](plugins.md).
+
+**Scanning evidence**
+
+`bazam scan --run <id>` looks through the files of a run for values that must not be there. It reads every file under `runs/<id>/` except png and jpeg images, and the text entries of each zip, such as a trace, nested zips included. A screenshot is never scanned; `redaction.screenshotSelectors` masks page elements in them.
+
+1. It looks for the value of each field of the local fixtures file, in each phone form (a number written `+447700900123` is also looked for as `7700900123` and `07700900123`), except the fields `redaction.shown` lists; the value of each declared secret it can read; the secret values of the credentials cached for the run's env; an email address outside the `example.*` domains; and a run of 8 or more digits that is not part of a run id, an epoch time in seconds or milliseconds, or a YYYYMMDD date, within 7 days of the run's start.
+2. Each value is matched as written, JSON-escaped, percent-encoded, form-encoded and base64.
+3. A finding has a kind: `fixture alice.phone`, `secret DEMO_PIN`, `credential ops/web`, `email` or `digits`. A file is named relative to the run folder, and a zip entry as `<file>:<entry>`, such as `DEMO-001/trace.zip:trace.trace`.
+4. The output has one line per file and kind, `<file>: <kind> x<count>: "<context>", ...`, with up to three contexts of up to 30 characters on each side. A fixture, secret or credential value in a context shows as `[<kind>]`, and a digit run as `<n digits, ends 1234>`. No value is printed. Then comes `<n> files, <n> findings` and one `skipped <what>` line for each secret that no provider holds, credential whose values bazam cannot tell and zip it cannot read. `--json` prints the whole report.
+5. Exit codes: 0 with no finding, 1 with any, 2 when `--run` is missing or not a plain file name, the run has no case results, its env is gone from the config, or the config does not load.
+6. A trace holds the digits of the app's own data, so a scan can exit 1 on `digits` alone. Read the few lines it prints before you act. A scan reads every declared secret through the providers, which can ask `op` for a secret the run never used.
+
+A post plan leaves out each attachment that holds a fixture, secret or credential value, whatever the run, `bazam report plan`, `bazam report post` or the MCP tool `report_plan` built it. A `digits` or `email` finding does not withhold one.
+
+1. The plan item lists each such attachment under `withheld`, as `{ attachment, kinds }`, and its comment never names it. `withheld` is left out when nothing is withheld.
+2. A run, `bazam report plan` and `bazam report post` write `post plan withholds <caseId>/<file>: <kinds>` for each one, to the run log or the terminal. `report_plan` returns `withheld` in its document.
+3. If the attachment scan throws, the run logs `scanning the attachments failed: <message>` and keeps every attachment in the plan.
+
+**Doctor**
+
+`bazam doctor --env <env>` reports whether the local secrets, fixtures and credentials are ready for the env's cases, and never prints a value.
+
+1. **Secrets**: one line for each declared secret, `<NAME>: held by <provider>` or `<NAME>: no provider holds it`. A provider that fails, such as `op` that cannot read, gets one line, `provider <name> failed: <message>`, and counts as a problem.
+2. **Local files**: `<stateDir>/secrets.env` as `absent`, `present, mode 0600` or `present, mode 0644, readable by others`. The mode is checked on POSIX only.
+3. **Identities**: the identities that the cases able to run in the env name, through `as:`, a placeholder or a role, which expands to the identities it lists. In a production env only `prod_safe` cases count. Each identity gets its fixture entry, then a line for each field judged by its name:
+   1. A field named `phone`, or ending in `phone` in any case, must parse as a phone number: `alice.phone: phone, country United Kingdom`.
+   2. A field named `email`, or ending in `email`, must look like an address: `alice.email: email, example domain` or `email, not on an example domain` in any case.
+   3. A field named `password`, `pin` or `passcode` shows its length only: `alice.pin: 4 characters`.
+   4. Any other field has no line.
+4. Each surface of those identities gets `<identity>/<surface>: credential <state>`, where the state is `cached`, `refresh`, `scripted`, `person` or `static`. Doctor reads the cache and never probes or logs in.
+5. Besides the lines above, a problem line is `<identity>: not in identities`, `<identity>: no fixture entry <entry>`, `<identity>.<field>: not a phone number`, `<identity>.<field>: not an email address` or `<identity>/<surface>: credential state unknown: <message>`. Each gets a line `fix: ...` under it: `set <NAME> in <stateDir>/secrets.env or the environment`, `add a 1Password reference under secrets.refs, or set <NAME> ...` when `1password` is a provider, `chmod 600 <path>`, `check the <name> provider's setup, then run doctor again`, `add <identity> under identities in bazam.config.yaml`, `add <entry> to fixtures/identities.local.yaml`, `fix identities.<identity>.auth.<surface> in bazam.config.yaml`, `write <identity>.<field> as +<country code><number>`, `write <identity>.<field> as name@example.test` and `use an example.test address for <identity>.<field>`.
+6. The output ends with the count, such as `2 problems` or `1 problem`. Exit codes: 0 with no problem, 1 with any, 2 when `--env` is missing or unknown, or the config does not load. `--json` prints the report.

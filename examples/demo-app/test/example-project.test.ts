@@ -135,6 +135,33 @@ describe("example project", () => {
     expect((await resultOf(copy, asTeammate.stdout, "AUTH-ROLE-001")).identities).toEqual(["teammate"])
   }, 90_000)
 
+  it("scans an acceptance run clean and lists the example identities in doctor", async () => {
+    const copy = await copyForRuns()
+    const demoSecrets = await readFile(join(EXAMPLES, ".bazam/secrets.env"), "utf8").catch(() => undefined)
+    if (demoSecrets !== undefined) {
+      await mkdir(join(copy, ".bazam"), { recursive: true })
+      await writeFile(join(copy, ".bazam/secrets.env"), demoSecrets, { mode: 0o600 })
+    }
+    const answers = join(copy, "fixtures/answers")
+    const runAcceptance = ["run", "--root", copy, "--env", "demo", "--suite", "acceptance", "--target", "web"]
+    const ran = await cli([...runAcceptance, "--channel", "answers-file", "--answers", answers, "--json"])
+    const { runId } = JSON.parse(ran.stdout) as RunSummary
+
+    const scan = await cli(["scan", "--root", copy, "--run", runId])
+    const doctor = await cli(["doctor", "--root", copy, "--env", "demo"])
+
+    expect(ran.code).toBe(0)
+    expect(scan).toMatchObject({ code: 0, stdout: expect.stringContaining("0 findings") })
+    expect(doctor.stdout).toMatch(/customer\.email: email, example domain/)
+    expect(doctor.stdout).toMatch(/teammate\.email: email, example domain/)
+    expect(doctor.stdout).toContain("customer.phone: phone, country United Kingdom")
+    const fixtures = await readFile(join(copy, "fixtures/identities.local.yaml"), "utf8")
+    const values = [...fixtures.matchAll(/^\s+\w+: "?([^"\n]+)"?$/gm)].map((match) => match[1] ?? "")
+    expect(values.length).toBeGreaterThan(0)
+    for (const value of [...values, "2468", "demo-api-key"]) expect(doctor.stdout).not.toContain(value)
+    expect(doctor.code).toBe(0)
+  }, 90_000)
+
   it("shows the role binding in plan", async () => {
     const result = await cli(["plan", "--root", EXAMPLES, "--env", "demo", "--as", "tester=teammate"])
 
