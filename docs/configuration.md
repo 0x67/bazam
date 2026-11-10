@@ -1,6 +1,54 @@
 # Configuration
 
-`bazam.config.yaml` takes the keys below for external runners, process plugins, posting to a tracker, bugs and promotion, each with its default. `redaction.screenshotSelectors` also changes what traces record. `bazam check` reports a key that does not fit with its file and line. The messages quoted here are the ones bazam prints; the Jira ones come when a command connects to Jira.
+`bazam.config.yaml` takes the keys below for envs, identities, external runners, process plugins, posting to a tracker, bugs and promotion, each with its default. `redaction.screenshotSelectors` also changes what traces record. `bazam check` reports a key that does not fit with its file and line. The messages quoted here are the ones bazam prints; the Jira ones come when a command connects to Jira.
+
+**Envs**
+
+`envs.<name>` holds `production`, `vars`, `hosts`, `challenges`, `locale` (a BCP 47 tag, `en` when left out) and `probes`. `probes` is `[]` when left out. Each probe is a request that `bazam run` sends once before any login and any case, to tell whether a host is reachable, such as one that needs a VPN.
+
+```yaml
+envs:
+  uat:
+    production: false
+    hosts: [core.example.test]
+    probes:
+      - request: GET https://core.example.test/health
+        hint: connect the VPN
+```
+
+1. `request` (required): `GET` or `HEAD`, then a URL whose host is in `hosts`. A probe sends no credentials, follows no redirect and waits 5 seconds.
+2. `status`: the status that counts as reachable, any 2xx when left out.
+3. `hint` (required): what the person does about it, such as `connect the VPN`.
+4. A probe that gets no answer, times out or answers another status blocks every case that names a URL on that host in its steps, checks, finally steps, flows or identities' auth settings. The reason reads `GET https://core.example.test/health failed: <what happened>; connect the VPN`. A case that meets a connection failure to that host later in the run gets the hint added to its reason.
+5. `bazam plan` sends no probe. `bazam check` reports a probe whose host is not in `hosts` and a method other than `GET` or `HEAD`.
+
+**Identities**
+
+`identities.<name>.auth.<surface>` sets a strategy and its `with:` settings. The session-cookie strategy takes a `probe` and a `refresh` request, and the `hmac` strategy takes a `probe`. Their values take `${env.…}`, `${secret.…}` and `${identity.…}` placeholders.
+
+```yaml
+identities:
+  ops:
+    fixture: ops
+    auth:
+      web:
+        strategy: session-cookie
+        with:
+          login: { url: "${env.APP_URL}/test/login?email=${identity.ops.email}", until: { cookie: session } }
+          probe:
+            request: GET ${env.API_URL}/me
+            body: { user_id: "${identity.ops.userId}" }
+          refresh:
+            request: POST ${env.API_URL}/auth/refresh
+            headers:
+              origin: ${env.APP_URL}
+              x-csrf-token: { cookie: csrf }
+```
+
+1. `probe.status`: the status that counts as logged in, any 2xx when left out. The probe follows no redirect.
+2. `probe.body`: values by dot path in the response body, compared as the `api` check compares them, so a number matches its text. The probe passes only when the status rule holds and every path has its value. A cached credential that fails is logged in again. A new credential that fails blocks the identity's cases with a reason such as `the new session-cookie credential for ops/web belongs to another account: body.user_id does not match`. The reason names paths and never values.
+3. `probe.headers` and `refresh.headers` (session-cookie only): headers sent with that request in a run, in preflight and in `bazam keepalive`. A string value is sent as written. `{ cookie: <name> }` sends the value of the cached cookie of that name that a browser would send to the request's URL. When no such cookie is cached, the request fails with `the session-cookie refresh of ops needs cookie csrf for header x-csrf-token, which the cached state does not send to https://api.example.test`. A header named `cookie` is refused, since the strategy sets it from the cached state.
+4. bazam writes no header value to any log.
 
 **Runners**
 
@@ -28,7 +76,7 @@ A runner name takes letters, digits, dots, dashes and underscores, starting with
 
 **Plugins**
 
-`plugins`, `[]` when left out. A string entry is the path of an in-process plugin module. An object entry is a process plugin, which [plugin-protocol.md](plugin-protocol.md) describes:
+`plugins`, `[]` when left out. A string entry is the path of an in-process plugin module, which [plugins.md](plugins.md) describes. An object entry is a process plugin, which [plugin-protocol.md](plugin-protocol.md) describes:
 
 ```yaml
 plugins:

@@ -42,6 +42,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 6. For a code or confirmation the app asks for (email or SMS code, TOTP, PIN, passkey), write a `challenge` step with its `kind`, the `trigger` step that makes the app ask, and the `fill` field for a code. The environment's resolver chain answers it, so the case never holds the code. Submit the form in the next step.
 7. A `pin` challenge names the secret that holds the PIN in `params.secret`, and config must declare it (`pin-secret-declared`). `AUTH-PIN-001` shows one.
 8. Use `note:` for context a reader of the evidence needs, such as why a step stands in for something the app does not have.
+9. Put the steps that undo data a case arms right before it acts, such as a fault row in an admin UI, under `finally:`. They run after the steps and checks however the case ends, in the case's own sessions, and never change its status or checks table. A failed finally step becomes a note. A `challenge` or `guided` step is refused there (`finally-unattended`), and the finally steps of one case get 2 minutes in all. `PROFILE-PHONE-002` shows one.
 
 **5. Write checks that observe outcomes**
 
@@ -55,7 +56,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 
 1. When a test in another framework, such as Selenium, pytest or Playwright Test, already checks the behavior, write an external case instead of steps. Its `targets` name only runner targets, the targets with `runner:` in the config (`external-case-shape`).
 2. A runner runs its command whenever a run selects a case on one of its targets, so treat runners and runner targets as code: when none fits, ask the person to add it.
-3. An external case has no `steps` and no `checks`. Each test that names the case becomes one of its checks.
+3. An external case has no `steps`, `checks` or `finally` steps. Each test that names the case becomes one of its checks.
 4. `API-OTP-001` and `API-OTP-002` in `cases/api/email-code.yaml` are the external cases in `examples/`: their target `node-test` uses runner `demo-node-test`, which runs the node:test suite in `external/node-test`. `SHOP-CART-001` below is a made-up case. A test names its case with the id in brackets in the test name, such as `[SHOP-CART-001] keeps items after sign-in`, or with a tag `@SHOP-CART-001`. When the test names cannot change, map the test's title to the case in the runner's mapping file, such as `tests: { "com.shop.CartTest › keepsItemsAfterSignIn": SHOP-CART-001 }` (`runner-mapping-valid`).
 5. Stage, links, risk and `prod_safe` work as for any other case. A skipped test leaves the case blocked, never passed.
 6. The runner's `format` names a result format the harness reads, such as `junit` or `playwright-json` (`runner-format-known`).
@@ -115,6 +116,7 @@ This skill holds the judgment calls. `bazam check` enforces the mechanical rules
 11. `state-ignored`: git ignores `runs/` and the state folder.
 12. `selector-test-id` (warning): selectors without a test id or role.
 13. `pin-secret-declared`: the secret a `pin` challenge reads.
-14. `external-case-shape`: a case on runner targets has no steps or checks and lists no driver targets.
+14. `external-case-shape`: a case on runner targets has no steps, checks or finally steps and lists no driver targets.
 15. `runner-format-known`: the result format of each runner.
 16. `runner-mapping-valid`: a runner's mapping file, and the case ids it maps tests to.
+17. `finally-unattended`: `challenge` and `guided` steps inside `finally`.

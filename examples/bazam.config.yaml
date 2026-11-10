@@ -24,6 +24,10 @@ envs:
       APP_URL: http://localhost:3300
       MAILPIT_URL: http://localhost:8325
     hosts: [localhost]
+    # sent once before the run, so a stopped demo blocks the cases that open its URLs with this hint
+    probes:
+      - request: GET http://localhost:3300/login
+        hint: start the demo app with docker compose -f examples/demo-app/docker-compose.yml up -d --build
     challenges:
       otp-email: [otp-mailpit, human]
       # the demo sends no SMS; its /test/otp hook stands in for an SMS backend's test hook
@@ -64,7 +68,9 @@ identities:
           login:
             url: ${env.APP_URL}/test/login?email=${identity.customer.email}
             until: { cookie: session }
-          probe: { request: "GET ${env.APP_URL}/api/session/me" }
+          probe:
+            request: GET ${env.APP_URL}/api/session/me
+            body: { email: "${identity.customer.email}" }
           refresh: { request: "POST ${env.APP_URL}/auth/refresh" }
       api: { strategy: session-cookie, from: web }
   teammate:
@@ -76,7 +82,9 @@ identities:
           login:
             url: ${env.APP_URL}/test/login?email=${identity.teammate.email}
             until: { cookie: session }
-          probe: { request: "GET ${env.APP_URL}/api/session/me" }
+          probe:
+            request: GET ${env.APP_URL}/api/session/me
+            body: { email: "${identity.teammate.email}" }
       api: { strategy: session-cookie, from: web }
   # signs in during the case itself, with a new address each run
   newcomer: {}
@@ -119,6 +127,10 @@ identities:
           secret: ${secret.DEMO_HMAC_SECRET}
           sign: hooks/sign-demo.ts
           probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
+
+plugins:
+  # adds the page-text step, which reads the page through pageFor
+  - ./plugins/page-step/manifest.ts
 
 runners:
   # the node:test suite in external/node-test; it signs in new addresses only, so it holds no identity's lock

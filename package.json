@@ -20,9 +20,11 @@
   },
   "devDependencies": {
     "@bazam/core": "workspace:*",
+    "@bazam/driver-web": "workspace:*",
     "@types/node": "^22.20.5",
     "bazam": "workspace:*",
     "typescript": "^7.0.2",
-    "vite-plus": "1.5.0"
+    "vite-plus": "1.5.0",
+    "zod": "^4.6.7"
   }
 }

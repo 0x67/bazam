@@ -1,0 +1,28 @@
+cases:
+  - id: PROFILE-PHONE-002
+    title: Customer's full phone number is set back to the fixture number when the case ends
+    stage: acceptance
+    risk: low
+    links: [jira:DEMO-402]
+    targets: [web]
+    tags: [profile]
+    # the case saves a test number, so finally saves the fixture number again, also when a step fails. A finally step never changes the case's status.
+    steps:
+      - open: ${env.APP_URL}/profile/phone
+        as: customer
+      - fill: { field: { id: full-number }, value: "+44 7700 900456" }
+        as: customer
+      - tap: { id: full-save }
+        as: customer
+      # a step from plugins/page-step, which reads the page through pageFor
+      - page-text: { id: full-saved, save: armed }
+        as: customer
+      - note: The page shows ${case.armed} as the saved number.
+    checks:
+      - expect: { text: { field: { id: full-saved }, equals: "+447700900456" } }
+        as: customer
+    finally:
+      - fill: { field: { id: full-number }, value: "${identity.customer.phone.e164}" }
+        as: customer
+      - tap: { id: full-save }
+        as: customer
