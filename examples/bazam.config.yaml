@@ -72,6 +72,8 @@ identities:
             request: GET ${env.APP_URL}/api/session/me
             body: { email: "${identity.customer.email}" }
           refresh: { request: "POST ${env.APP_URL}/auth/refresh" }
+        # refreshed every 2 minutes while a run acts as this identity
+        refreshEveryMs: 120000
       api: { strategy: session-cookie, from: web }
   teammate:
     fixture: teammate

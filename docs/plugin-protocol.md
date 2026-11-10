@@ -168,7 +168,7 @@ The `contributions` object of the `initialize` answer lists what the plugin offe
 4. `resultFormats`: `{ name }[]`.
 5. `trackerClients`: `{ tracker }[]`.
 6. `drivers`: `{ name, surface, steps: { kind, schema }[] }[]`, where `schema` is the step payload's JSON Schema. The host builds its validator from it, so `bazam check`, `bazam schema` and the case loader treat the step like any other. A schema the host cannot read fails the load with `plugin <name> gives step <kind> a schema that cannot be read: <message>`. A process driver has no browser objects, so its identities act through `host.http` with `as`.
-7. Any other key fails the load with `plugin <name> offers <key>, which a process plugin cannot offer; load it in-process`. Tracker renderers, auth strategies, check rules, channels and steps outside a driver stay in-process, since each needs a synchronous call or browser objects that do not cross a pipe.
+7. Any other key fails the load with `plugin <name> offers <key>, which a process plugin cannot offer; load it in-process`. Tracker renderers, auth strategies, check rules, channels and steps outside a driver stay in-process, since each needs a synchronous call or browser objects that do not cross a pipe. Plan checks stay in-process because their input holds loaded case specs and the run's HTTP client, which have no wire shape.
 
 **Resolvers**
 
@@ -181,7 +181,7 @@ The `contributions` object of the `initialize` answer lists what the plugin offe
 
 `serveProcessPlugin(manifest)` from `@bazam/core/plugin` serves an in-process manifest over stdin and stdout until stdin ends, so one manifest loads either way. It is also the reference implementation of the plugin's side. When the connection closes on a line over 64 MiB, it rejects with `received a line longer than 67108864 bytes`, so a plugin that awaits it at the top level exits with code 1 and the host fails its calls at once.
 
-1. It refuses at start a manifest that offers steps outside a driver, auth strategies, check rules, channels or tracker renderers.
+1. It refuses at start a manifest that offers steps outside a driver, auth strategies, check rules, plan checks, channels or tracker renderers.
 2. Step schemas cross as JSON Schema of the input. A schema JSON Schema cannot represent, such as a Date, fails the start with `step <kind> of driver <name> has a schema that JSON Schema cannot represent: <message>`. Refinements and transforms do not cross, so the served side parses each `driver.step` payload with the handler's own schema and answers `-32001` `step <kind> does not match its schema: <issues>`.
 3. A resolver's context calls `host.http` and `host.secret`. Its `session` and `channel` throw "a process resolver cannot reach the run's channel or session", `prompt` holds `runId` and `timeoutMs`, `now` is the plugin's clock, and `signal` aborts on `$/cancelRequest`.
 4. A step's `resolve`, `http`, `values.set` and evidence methods call the host. `identities` throws "identities are not available in a process plugin". Its `http` sends `write: true` only for a step whose payload sets `write: true`.
