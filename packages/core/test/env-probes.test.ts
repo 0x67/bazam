@@ -209,6 +209,7 @@ describe("blockUnreachable", () => {
       cases: [planned("A"), planned("B"), planned("C", "earlier reason")],
       confirmations: [],
       personSteps: 0,
+      roles: {},
     };
     const cases = [
       {

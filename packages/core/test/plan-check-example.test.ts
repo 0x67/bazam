@@ -35,6 +35,7 @@ describe("the plan check example in examples/plugins/plan-check", () => {
       cases: [planned("DEMO-HOLD-001"), planned("DEMO-OPEN-001")],
       confirmations: [],
       personSteps: 0,
+      roles: {},
     };
 
     await runPlanChecks(registry.planChecks(), {

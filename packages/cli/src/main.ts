@@ -50,7 +50,7 @@ const OPTIONS = {
   media: { type: "string" },
   ticket: { type: "string" },
   url: { type: "string" },
-  as: { type: "string" },
+  as: { type: "string", multiple: true },
   help: { type: "boolean", short: "h" },
 } as const satisfies ParseArgsOptionsConfig;
 
@@ -95,12 +95,12 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
   ["init", { usage: "init", run: initCommand }],
   ["schema", { usage: "schema", run: schemaCommand }],
   ["check", { usage: "check", run: checkCommand }],
-  ["plan", { usage: "plan --env <env> [selection]", run: planCommand }],
+  ["plan", { usage: "plan --env <env> [selection] [--as <role>=<identity>]", run: planCommand }],
   [
     "run",
     {
       usage:
-        "run --env <env> [selection] [--seed <n>] [--channel terminal|answers-file] [--answers <dir>] [--run <id>] [--workers <n>] [--dry-run]",
+        "run --env <env> [selection] [--seed <n>] [--channel terminal|answers-file] [--answers <dir>] [--run <id>] [--workers <n>] [--as <role>=<identity>] [--dry-run]",
       run: runCommand,
     },
   ],

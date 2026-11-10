@@ -189,7 +189,7 @@ describe("main", () => {
     for (const usage of [
       "report plan --run <id>",
       "report post --run <id> [--media <file>] [--dry-run] [--json]",
-      "[--run <id>] [--workers <n>] [--dry-run]",
+      "[--run <id>] [--workers <n>] [--as <role>=<identity>] [--dry-run]",
       "promote --from-tracker --env <env> [selection]",
       "ingest --env <env> --target <target> [selection] [--run <id>] <files...>",
     ]) {

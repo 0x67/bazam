@@ -84,8 +84,8 @@ describe("the server", () => {
       case_draft: ["file", "yaml"],
       case_check: ["files"],
       case_promote: ["id", "env"],
-      run_plan: ["filter", "env"],
-      run_start: ["filter", "env", "seed"],
+      run_plan: ["filter", "env", "roles"],
+      run_start: ["filter", "env", "roles", "seed"],
       run_status: ["runId"],
       evidence_get: ["runId", "caseId", "includeImages"],
       prompt_list: ["runId"],
@@ -265,6 +265,30 @@ describe("case tools", () => {
       const none = await mcp.call(tool, { env: "demo", filter: { ids: ["DESK-NONE-001"] } });
       expect(textOf(none)).toBe("no case matches the selection");
     }
+    expect(existsSync(join(project.root, "runs"))).toBe(false);
+  });
+
+  it("run_plan binds roles, and run_plan and run_start refuse an unknown role and an identity the role does not list", async () => {
+    const project = await fixtureProject();
+    const config = JSON.parse(await project.read(BRAND.configFile)) as object;
+    const roles = { tester: { identities: ["alice", "bob"], default: "alice" } };
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, identities: { alice: {}, bob: {}, ops: {} }, roles }),
+    );
+    const mcp = await open(project.root);
+    expect((await mcp.json<RunPlan>("run_plan", { env: "demo" })).roles).toEqual({ tester: "alice" });
+    expect((await mcp.json<RunPlan>("run_plan", { env: "demo", roles: { tester: "bob" } })).roles).toEqual({
+      tester: "bob",
+    });
+    for (const tool of ["run_plan", "run_start"]) {
+      const unknown = await mcp.call(tool, { env: "demo", roles: { guest: "alice" } });
+      expect(textOf(unknown)).toBe('unknown role "guest"; roles: tester');
+      const unlisted = await mcp.call(tool, { env: "demo", roles: { tester: "ops" } });
+      expect(textOf(unlisted)).toBe("role tester lists alice, bob, not ops");
+    }
+    const proto = await mcp.call("run_plan", { env: "demo", roles: JSON.parse('{"__proto__":"alice"}') as object });
+    expect(proto.isError).toBe(true);
     expect(existsSync(join(project.root, "runs"))).toBe(false);
   });
 

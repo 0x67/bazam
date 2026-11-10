@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { selectCases, Stage, type CaseFilter, type LoadedCase } from "@bazam/core/case";
+import { RoleRefused, roleBindings, selectCases, Stage, type CaseFilter, type LoadedCase } from "@bazam/core/case";
 import { RunValues, type Environment } from "@bazam/core/env";
 import type { ProjectConfig } from "@bazam/core/project";
 import { newRunId } from "@bazam/core/result";
@@ -22,6 +22,8 @@ export interface RunStart extends Workspace {
   targets: string[] | undefined;
   channel: string;
   seed: number;
+  /** The identity each `--as <role>=<identity>` asks a role to play. */
+  roles: Record<string, string>;
 }
 
 /** Prints what a run would do, with no step run and no login made. */
@@ -53,11 +55,33 @@ export async function startRun(ctx: CommandContext): Promise<RunStart> {
   registry.channel(channel);
   const { cases, targets } = selection(workspace, flags);
   if (cases.length === 0) throw new CommandError("no case matches the selection");
-  return { ...workspace, env, cases, targets, channel, seed: seedOf(flags) };
+  const roles = roleRequests(flags.as ?? []);
+  try {
+    roleBindings(project.config.roles, roles);
+  } catch (error) {
+    if (error instanceof RoleRefused) throw new CommandError(error.message);
+    throw error;
+  }
+  return { ...workspace, env, cases, targets, channel, seed: seedOf(flags), roles };
+}
+
+function roleRequests(values: readonly string[]): Record<string, string> {
+  // a Map keeps a role named __proto__ as a key for roleBindings to refuse
+  const requests = new Map<string, string>();
+  for (const value of values) {
+    const split = value.indexOf("=");
+    if (split === -1) {
+      throw new CommandError(`--as on run and plan takes <role>=<identity>, such as tester=alice, not "${value}"`);
+    }
+    const role = value.slice(0, split);
+    if (requests.has(role)) throw new CommandError(`--as names role ${role} twice`);
+    requests.set(role, value.slice(split + 1));
+  }
+  return Object.fromEntries(requests);
 }
 
 export function runOptions(ctx: CommandContext, start: RunStart, runId: string, startedAt: Date): RunOptions {
-  const { project, registry, env, cases, targets, channel, seed } = start;
+  const { project, registry, env, cases, targets, channel, seed, roles } = start;
   const runDir = runDirOf(project.root, runId);
   return {
     project,
@@ -70,6 +94,7 @@ export function runOptions(ctx: CommandContext, start: RunStart, runId: string, 
     seed,
     redactor: ctx.redactor,
     signal: ctx.io.signal,
+    roles,
     ...(targets === undefined ? {} : { targets }),
   };
 }
@@ -150,6 +175,8 @@ function planText(plan: RunPlan, config: ProjectConfig): string {
   const lines = [
     `Plan for env ${plan.env}: ${plural(plan.cases.length, "case")}, ${plural(plan.personSteps, "person step")}.`,
   ];
+  const roles = Object.entries(plan.roles);
+  if (roles.length > 0) lines.push(`  roles: ${roles.map(([role, identity]) => `${role}=${identity}`).join(", ")}`);
   for (const planned of plan.cases) {
     if (planned.blocked !== undefined) {
       lines.push(`  ${planned.caseId} on ${planned.target}: blocked: ${planned.blocked}`);

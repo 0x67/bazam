@@ -408,6 +408,7 @@ describe("planRun with external cases", () => {
       ],
       confirmations: [],
       personSteps: 0,
+      roles: {},
     });
   });
 
@@ -499,6 +500,39 @@ describe("planCases", () => {
       signal: new AbortController().signal,
     });
     expect(plan.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
+  });
+
+  it("lists the bindings in force as roles, a request over a default", async () => {
+    const { root, project, registry } = await loadTestProject(
+      {
+        [BRAND.configFile]: {
+          ...config,
+          roles: { tester: { identities: ["customer", "partner"], default: "partner" } },
+        },
+        "cases/auth/plan.yaml": {
+          cases: [testCase("AUTH-ROLE-001", { steps: [{ open: "https://app.example.test", as: "tester" }] })],
+        },
+        "interop/mapped.yaml": { tests: {} },
+      },
+      [plugin()],
+    );
+    roots.push(root);
+    const plan = async (roles?: Record<string, string>) =>
+      planCases({
+        project,
+        env: project.config.envs["demo"]!,
+        cases: project.cases,
+        registry,
+        channel: { ask: async () => ({ kind: "timeout" }) },
+        runDir: join(root, "runs", "20261107-101500-0a1b"),
+        runValues: new RunValues("20261107-101500-0a1b", new Date("2026-11-07T10:15:00Z"), 7),
+        seed: 7,
+        redactor: new Redactor(defaultRedactionRules()),
+        signal: new AbortController().signal,
+        ...(roles === undefined ? {} : { roles }),
+      });
+    expect((await plan()).roles).toEqual({ tester: "partner" });
+    expect((await plan({ tester: "customer" })).roles).toEqual({ tester: "customer" });
   });
 
   it("sends no env probe", async () => {

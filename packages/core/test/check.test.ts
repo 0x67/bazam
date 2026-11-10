@@ -306,6 +306,40 @@ describe("checkProject with the built-in rules", () => {
     expect(checkProject(await load(root), builtinRules)).toEqual([]);
   });
 
+  it("resolves a role placeholder against the fixture of each identity the role lists", async () => {
+    await cp(clean, root, { recursive: true });
+    const configPath = join(root, BRAND.configFile);
+    const config = (await readFile(configPath, "utf8")).replace(
+      "  customer:\n    fixture: customer\n",
+      "  customer:\n    fixture: customer\n  partner:\n    fixture: partner\n",
+    );
+    await writeFile(configPath, `${config}roles:\n  tester:\n    identities: [customer, partner]\n`);
+    const roleCase = [
+      "cases:",
+      "  - id: AUTH-ROLE-001",
+      "    title: Profile shows the tester's email",
+      "    stage: draft",
+      "    risk: low",
+      "    targets: [web]",
+      "    steps:",
+      '      - fill: { field: { id: email }, value: "${identity.tester.email}" }',
+      "      - expect: { visible: { id: saved } }",
+    ];
+    await writeFile(join(root, "cases/auth/role.yaml"), `${roleCase.join("\n")}\n`);
+    await appendFile(join(root, FIXTURES_FILE), "partner:\n  name: Fake Partner\n");
+
+    const issues = checkProject(await load(root), builtinRules);
+    expect(issues.map(({ ruleId, message }) => [ruleId, message])).toEqual([
+      [
+        "placeholder-resolves",
+        `\${identity.tester.email} does not resolve: ${FIXTURES_FILE} has no email for identity partner of role tester`,
+      ],
+    ]);
+
+    await appendFile(join(root, FIXTURES_FILE), "  email: partner@example.test\n");
+    expect(checkProject(await load(root), builtinRules)).toEqual([]);
+  });
+
   it("accepts a phone form of a fixture field that holds a possible number", async () => {
     await cp(clean, root, { recursive: true });
     await writeFile(join(root, FIXTURES_FILE), 'customer:\n  email: customer@example.test\n  phone: "+447700900123"\n');
@@ -490,6 +524,38 @@ describe("loadProjectConfig", () => {
       ["schema", BRAND.configFile, 2, "envs.uat.production: Invalid input: expected boolean, received undefined"],
       ["schema", BRAND.configFile, 5, 'Unrecognized key: "identity"'],
     ]);
+  });
+
+  it("reports a role named like an identity, an unknown listed identity and a default the role does not list", async () => {
+    const root = await mkdtemp(join(tmpdir(), "check-test-"));
+    try {
+      const config = [
+        "envs: {}",
+        "identities:",
+        "  alice: {}",
+        "  bob: {}",
+        "roles:",
+        "  alice: { identities: [bob] }",
+        "  tester: { identities: [alice, carol], default: bob }",
+      ];
+      await writeFile(join(root, BRAND.configFile), `${config.join("\n")}\n`);
+
+      const { config: loaded, issues } = await loadProjectConfig(root);
+
+      expect(loaded).toBeUndefined();
+      expect(issues.map((issue) => [issue.line, issue.message])).toEqual([
+        [6, expect.stringMatching(/^roles\.alice: role alice has the name of an identity/)],
+        [7, "roles.tester.identities[1]: role tester lists identity carol, which is not defined under identities"],
+        [
+          7,
+          expect.stringMatching(
+            /^roles\.tester\.default: role tester has default bob, which its identities do not list/,
+          ),
+        ],
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("reports a target without a driver on the target's line", async () => {

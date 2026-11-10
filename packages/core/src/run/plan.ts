@@ -49,6 +49,8 @@ export interface RunPlan {
   confirmations: { runner: string; command: string }[];
   /** Guided steps, challenges a person answers, person logins and confirmations, over the cases that are not blocked. */
   personSteps: number;
+  /** The identity each role plays in this run, by role. */
+  roles: Record<string, string>;
 }
 
 export interface PlanInputs {
@@ -64,6 +66,8 @@ export interface PlanInputs {
   targets?: readonly string[];
   /** Identities that cannot act in this run, with the reason, such as a fixture the local fixtures file lacks. */
   blockedIdentities?: ReadonlyMap<string, string>;
+  /** The identity each role plays in this run, by role. */
+  roles?: Readonly<Record<string, string>>;
 }
 
 /** An identity's credential for one surface, the one that holds its settings when another reuses it with `from:`. */
@@ -123,6 +127,7 @@ export function planRun(inputs: PlanInputs): RunPlan {
     cases,
     confirmations: [...confirmations].map(([runner, command]) => ({ runner, command })),
     personSteps: personSteps(analyses, cases) + confirmations.size,
+    roles: { ...inputs.roles },
   };
 }
 

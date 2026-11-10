@@ -6,7 +6,7 @@ import { parse } from "yaml";
 import { z } from "zod";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
-import type { LoadedCase } from "../case/index.ts";
+import { bindRoles, roleBindings, type LoadedCase } from "../case/index.ts";
 import { oneAtATime, startChallengeService, type ChallengeService, type HumanChannel } from "../challenge/index.ts";
 import { guardedHttp, type Capability, type Driver, type DriverSession, type LaunchOptions } from "../driver/index.ts";
 import { resolvePlaceholders, type CaseRunValues, type Environment, type RunValues } from "../env/index.ts";
@@ -65,6 +65,8 @@ export interface RunOptions {
   targets?: readonly string[];
   /** How many cases run at once; 1 by default, which runs them one after another in plan order. */
   workers?: number;
+  /** The identity each role plays in this run, by role; a role left out plays its default. */
+  roles?: Readonly<Record<string, string>>;
 }
 
 const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
@@ -104,6 +106,8 @@ class Run {
   readonly #options: RunOptions;
   readonly #runId: string;
   readonly #fixtures: IdentityFixtures | undefined;
+  // the identity each role plays; a case sees only identity names, but a placeholder that resolves later may name a role
+  readonly #roles: ReadonlyMap<string, string>;
   readonly #log: RunLog;
   readonly #progress: ProgressFile;
   readonly #logins: RunBrowserLogin;
@@ -124,15 +128,30 @@ class Run {
   readonly #readResults = new Map<string, number>();
 
   static async open(options: RunOptions): Promise<Run> {
-    return new Run(options, await readLocalFixtures(options.project.root));
+    const { project } = options;
+    const bindings = roleBindings(project.config.roles, options.roles ?? {});
+    const flows = new Map(
+      [...project.flows].map(([name, flow]) => [name, { ...flow, steps: bindRoles(flow.steps, bindings) }]),
+    );
+    const bound: RunOptions = {
+      ...options,
+      project: { ...project, flows },
+      cases: options.cases.map((loaded) => ({ ...loaded, spec: bindRoles(loaded.spec, bindings) })),
+    };
+    return new Run(bound, await readLocalFixtures(project.root), bindings);
   }
 
-  private constructor(options: RunOptions, fixtures: IdentityFixtures | undefined) {
+  private constructor(
+    options: RunOptions,
+    fixtures: IdentityFixtures | undefined,
+    bindings: ReadonlyMap<string, string>,
+  ) {
     const { project, env, registry, redactor, runDir } = options;
     const signal = AbortSignal.any([options.signal, this.#stop.signal]);
     this.#options = options;
     this.#runId = basename(runDir);
     this.#fixtures = fixtures;
+    this.#roles = bindings;
     this.#log = new RunLog(redactor);
     this.#progress = new ProgressFile(runDir, this.#runId);
     const stateDir = join(project.root, BRAND.stateDir);
@@ -206,6 +225,7 @@ class Run {
       capabilities,
       registry,
       blockedIdentities: this.#fixtureProblems(),
+      roles: Object.fromEntries(this.#roles),
     };
     if (targets !== undefined) inputs.targets = targets;
     const credentials = new Map<string, LoginMode>();
@@ -651,7 +671,7 @@ class Run {
   }
 
   #identityField(identity: string, field: string): string | undefined {
-    const fixture = this.#options.project.config.identities[identity]?.fixture;
+    const fixture = this.#options.project.config.identities[this.#roles.get(identity) ?? identity]?.fixture;
     return fixture === undefined ? undefined : this.#fixtures?.[fixture]?.[field];
   }
 
@@ -668,6 +688,13 @@ class Run {
           `identity ${identity} needs fixture ${fixture}, which ${LOCAL_FIXTURES_FILE} does not have`,
         );
       }
+    }
+    for (const [role, { identities }] of Object.entries(this.#options.project.config.roles)) {
+      if (this.#roles.has(role)) continue;
+      problems.set(
+        role,
+        `role ${role} plays no identity in this run; pass --as ${role}=<identity>, one of ${identities.join(", ")}`,
+      );
     }
     return problems;
   }

@@ -265,6 +265,94 @@ describe("plan", () => {
   });
 });
 
+describe("plan --as", () => {
+  const ROLE_CASE = [
+    "cases:",
+    "  - id: DESK-ROLE-001",
+    "    title: The tester reads the desk",
+    "    stage: regression",
+    "    risk: low",
+    "    targets: [t]",
+    "    checks:",
+    '      - api: { request: "GET ${env.API_URL}/ok", as: tester, status: 200 }',
+    "",
+  ].join("\n");
+
+  async function roleProject(): Promise<Fixture> {
+    const project = await fixtureProject(api);
+    const config = JSON.parse(await project.read(BRAND.configFile)) as object;
+    const roles = { tester: { identities: ["alice", "bob"] } };
+    const identities = { alice: {}, bob: {}, ops: {} };
+    await project.write(BRAND.configFile, JSON.stringify({ ...config, identities, roles }));
+    await project.write("cases/desk/cases.yaml", ROLE_CASE);
+    return project;
+  }
+
+  it("binds a role to the identity --as names, in the JSON and the text of the plan", async () => {
+    const project = await roleProject();
+    const plan = await planOf(project, "--case", "DESK-ROLE-001", "--as", "tester=bob");
+    expect(plan.roles).toEqual({ tester: "bob" });
+    expect(plan.cases[0]?.identities).toEqual(["bob"]);
+    const text = await project.cli("plan", "--env", "demo", "--case", "DESK-ROLE-001", "--as", "tester=bob");
+    expect(text.stdout.split("\n")[1]).toBe("  roles: tester=bob");
+    const unbound = await planOf(project, "--case", "DESK-ROLE-001");
+    expect(unbound.roles).toEqual({});
+    expect(unbound.cases[0]?.blocked).toBe(
+      "role tester plays no identity in this run; pass --as tester=<identity>, one of alice, bob",
+    );
+  });
+
+  it("exits 2 for a --as without =, a role twice, an unknown role and an identity the role does not list", async () => {
+    const project = await roleProject();
+    const errors = await Promise.all(
+      [
+        ["--as", "tester"],
+        ["--as", "tester=alice", "--as", "tester=bob"],
+        ["--as", "guest=alice"],
+        ["--as", "tester=ops"],
+      ].map(async (argv) => project.cli("plan", "--env", "demo", "--case", "DESK-ROLE-001", ...argv)),
+    );
+    expect(errors.map((run) => run.code)).toEqual(Array(4).fill(ExitCode.CouldNotStart));
+    expect(errors.map((run) => run.stderr.split("\n")[0])).toEqual([
+      'error: --as on run and plan takes <role>=<identity>, such as tester=alice, not "tester"',
+      "error: --as names role tester twice",
+      'error: unknown role "guest"; roles: tester',
+      "error: role tester lists alice, bob, not ops",
+    ]);
+  });
+
+  it("refuses --as on run before it creates a run folder", async () => {
+    const project = await roleProject();
+    const answers = join(project.root, "fixtures", "answers");
+    await mkdir(answers, { recursive: true });
+    await writeFile(join(answers, "p1.json"), JSON.stringify({ kind: "verdict", verdict: "pass", note: "ok" }));
+    const refused = await Promise.all(
+      ["tester=ops", "guest=alice", "__proto__=alice"].map(async (as) =>
+        project.cli(
+          "run",
+          "--env",
+          "demo",
+          "--case",
+          "DESK-ROLE-001",
+          "--as",
+          as,
+          "--channel",
+          "answers-file",
+          "--answers",
+          answers,
+        ),
+      ),
+    );
+    expect(refused.map((run) => run.code)).toEqual(Array(3).fill(ExitCode.CouldNotStart));
+    expect(refused.map((run) => run.stderr.split("\n")[0])).toEqual([
+      "error: role tester lists alice, bob, not ops",
+      'error: unknown role "guest"; roles: tester',
+      'error: unknown role "__proto__"; roles: tester',
+    ]);
+    expect(existsSync(join(project.root, "runs"))).toBe(false);
+  });
+});
+
 describe("run", () => {
   it("copies each answer file named for a prompt id, and nothing else, before the run", async () => {
     const project = await fixtureProject(api);

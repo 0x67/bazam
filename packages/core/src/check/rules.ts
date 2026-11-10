@@ -237,6 +237,23 @@ function placeholderProblem(project: Project, placeholder: string): Omit<Finding
 /** `path` is `<name>.<field>`, or `<name>.<field>.<form>` for a phone form of the field. */
 function identityProblem(project: Project, placeholder: string, path: string): Omit<Finding, "at"> | undefined {
   const [name, field] = splitFirst(path);
+  const role = Object.hasOwn(project.config.roles, name) ? project.config.roles[name] : undefined;
+  if (role === undefined) return fieldProblem(project, placeholder, name, field, "");
+  for (const identity of role.identities) {
+    const problem = fieldProblem(project, placeholder, identity, field, ` of role ${name}`);
+    if (problem !== undefined) return problem;
+  }
+  return undefined;
+}
+
+/** Why `field` does not resolve in the fixture of `identity`; `ofRole` is appended to the identity in the message. */
+function fieldProblem(
+  project: Project,
+  placeholder: string,
+  name: string,
+  field: string,
+  ofRole: string,
+): Omit<Finding, "at"> | undefined {
   const { identities } = project.config;
   const entry = Object.hasOwn(identities, name) ? identities[name]?.fixture : undefined;
   const fields = entry !== undefined && Object.hasOwn(project.fixtures, entry) ? project.fixtures[entry] : undefined;
@@ -250,12 +267,12 @@ function identityProblem(project: Project, placeholder: string, path: string): O
     // the locale sets only the language of a country name, never whether a form resolves
     if (phoneForm(phone, form, "en") !== undefined) return undefined;
     return {
-      message: `${placeholder} does not resolve: ${phoneField} of identity ${name} in ${FIXTURES_FILE} is not a phone number with a ${form} form`,
+      message: `${placeholder} does not resolve: ${phoneField} of identity ${name}${ofRole} in ${FIXTURES_FILE} is not a phone number with a ${form} form`,
       fix: `Store ${phoneField} in E.164 form, such as "+447700900123", in ${FIXTURES_FILE}.`,
     };
   }
   return {
-    message: `${placeholder} does not resolve: ${FIXTURES_FILE} has no ${field} for identity ${name}`,
+    message: `${placeholder} does not resolve: ${FIXTURES_FILE} has no ${field} for identity ${name}${ofRole}`,
     fix: `Give identity ${name} a fixture in ${BRAND.configFile} and add ${field} to that entry in ${FIXTURES_FILE}.`,
   };
 }

@@ -10,6 +10,7 @@ import {
   buildCaseSchema,
   buildStepSchema,
   loadCases,
+  RolesConfig,
   SuitesFile,
   type CaseFilter,
   type CaseSpec,
@@ -138,6 +139,8 @@ export const ProjectConfig = z
       })
       .prefault({}),
     identities: IdentitiesConfig.default({}),
+    /** Names a case can use in `as:` and `${identity.<role>.<field>}`; each run binds a role to one of its identities. */
+    roles: RolesConfig.default({}),
     challenges: z
       .strictObject({
         /** Kinds that only a person may answer, such as an MPIN on a real account. */
@@ -181,6 +184,30 @@ export const ProjectConfig = z
     redaction: RedactionConfig.prefault({}),
   })
   .superRefine((config, ctx) => {
+    for (const [role, { identities, default: fallback }] of Object.entries(config.roles)) {
+      if (Object.hasOwn(config.identities, role)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["roles", role],
+          message: `role ${role} has the name of an identity; rename the role, since a case could not tell them apart`,
+        });
+      }
+      identities.forEach((identity, index) => {
+        if (Object.hasOwn(config.identities, identity)) return;
+        ctx.addIssue({
+          code: "custom",
+          path: ["roles", role, "identities", index],
+          message: `role ${role} lists identity ${identity}, which is not defined under identities`,
+        });
+      });
+      if (fallback !== undefined && !identities.includes(fallback)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["roles", role, "default"],
+          message: `role ${role} has default ${fallback}, which its identities do not list; add it there or name another default`,
+        });
+      }
+    }
     for (const [name, runner] of Object.entries(config.runners)) {
       if (!PLAIN_NAME.test(name)) {
         ctx.addIssue({ code: "custom", path: ["runners", name], message: `a runner name takes ${PLAIN_NAME_RULE}` });

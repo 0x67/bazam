@@ -120,6 +120,23 @@ describe("runs over MCP", () => {
   );
 
   it(
+    "run_start passes each role to the run as --as",
+    async () => {
+      const project = await fixtureProject();
+      const config = JSON.parse(await project.read(BRAND.configFile)) as object;
+      const roles = { tester: { identities: ["alice", "bob"] } };
+      await project.write(BRAND.configFile, JSON.stringify({ ...config, identities: { alice: {}, bob: {} }, roles }));
+      const mcp = await open(project);
+      const { runId } = await mcp.json<{ runId: string }>("run_start", { env: "demo", roles: { tester: "bob" } });
+      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number; argv: string[] };
+      pids.push(record.pid);
+      watchRun(project.root, runId);
+      expect(record.argv).toContain("--as=tester=bob");
+    },
+    SPAWN_TIMEOUT_MS,
+  );
+
+  it(
     "prompt_answer lets the run finish",
     async () => {
       const project = await fixtureProject();

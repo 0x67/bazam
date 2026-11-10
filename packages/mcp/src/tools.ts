@@ -3,7 +3,16 @@ import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFi
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { BRAND } from "@bazam/core/brand";
-import { CASE_ID, promoteCase, selectCases, Stage, type CaseFilter, type LoadIssue } from "@bazam/core/case";
+import {
+  CASE_ID,
+  promoteCase,
+  RoleRefused,
+  roleBindings,
+  selectCases,
+  Stage,
+  type CaseFilter,
+  type LoadIssue,
+} from "@bazam/core/case";
 import { checkProject } from "@bazam/core/check";
 import { RunValues } from "@bazam/core/env";
 import { PluginRegistry, type PluginManifest } from "@bazam/core/plugin";
@@ -88,6 +97,22 @@ const Filter = z
   })
   .describe(
     "Each field narrows the selection, and a case matches a field when any of its values matches. Without stages, run_plan and run_start leave retired cases out, and cases_search keeps every stage.",
+  );
+
+// zod drops a __proto__ key from a record, so it would pass as no role at all
+const Roles = z
+  .preprocess(
+    (value, ctx) => {
+      if (typeof value === "object" && value !== null && Object.hasOwn(value, "__proto__")) {
+        ctx.issues.push({ code: "custom", message: 'unknown role "__proto__"', input: value });
+      }
+      return value;
+    },
+    z.record(z.string().min(1), z.string().min(1)),
+  )
+  .exactOptional()
+  .describe(
+    "The identity each role plays in this run, by role, such as { tester: alice }; a role left out plays its default.",
   );
 
 const Env = z.string().min(1).describe(`An env from ${BRAND.configFile}.`);
@@ -186,9 +211,9 @@ export const caseTools: readonly ToolDefinition[] = [
   defineTool({
     name: "run_plan",
     description: "Shows what a run would do, with no step run and no login made.",
-    input: z.object({ filter: Filter.default({}), env: Env }),
-    async handle({ filter, env }, deps) {
-      const { project, registry, environment, cases } = await selectRun(deps, filter, env);
+    input: z.object({ filter: Filter.default({}), env: Env, roles: Roles }),
+    async handle({ filter, env, roles }, deps) {
+      const { project, registry, environment, cases } = await selectRun(deps, filter, env, roles);
       const startedAt = new Date();
       const runId = newRunId(startedAt, Math.random);
       const runDir = join(project.root, "runs", runId);
@@ -205,6 +230,7 @@ export const caseTools: readonly ToolDefinition[] = [
         redactor: deps.redactor,
         signal: new AbortController().signal,
         ...(filter.targets === undefined ? {} : { targets: filter.targets }),
+        ...(roles === undefined ? {} : { roles }),
       });
       return { doc: plan };
     },
@@ -216,6 +242,7 @@ export const caseTools: readonly ToolDefinition[] = [
     input: z.object({
       filter: Filter.default({}),
       env: Env,
+      roles: Roles,
       seed: z
         .number()
         .int()
@@ -226,10 +253,10 @@ export const caseTools: readonly ToolDefinition[] = [
           "The seed of an earlier run, to replay its generated values: the seed field of any case's result.json from that run, which evidence_get returns.",
         ),
     }),
-    async handle({ filter, env, seed }, deps) {
+    async handle({ filter, env, roles, seed }, deps) {
       // refuse here what the run would refuse, so the error reaches the agent instead of a log file
-      await selectRun(deps, filter, env);
-      return { doc: await deps.supervisor.start(filter, env, seed) };
+      await selectRun(deps, filter, env, roles);
+      return { doc: await deps.supervisor.start(filter, env, seed, roles) };
     },
   }),
   defineTool({
@@ -369,7 +396,12 @@ async function loadWorkspace(deps: ToolDeps): Promise<{ project: Project; regist
 }
 
 /** Refuses, as a run does, a project with load issues, an unknown env and a selection with no case. */
-async function selectRun(deps: ToolDeps, filter: CaseFilter, env: string) {
+async function selectRun(
+  deps: ToolDeps,
+  filter: CaseFilter,
+  env: string,
+  roles: Readonly<Record<string, string>> = {},
+) {
   const { project, registry } = await loadWorkspace(deps);
   const loadErrors = project.issues.filter(isError);
   if (loadErrors.length > 0) throw new ToolError("the project has load issues; fix them and start again", loadErrors);
@@ -377,6 +409,12 @@ async function selectRun(deps: ToolDeps, filter: CaseFilter, env: string) {
   if (environment === undefined) throw new ToolError(unknownEnv(project, env));
   const cases = selectCases(project.cases, filter);
   if (cases.length === 0) throw new ToolError("no case matches the selection");
+  try {
+    roleBindings(project.config.roles, roles);
+  } catch (error) {
+    if (error instanceof RoleRefused) throw new ToolError(error.message);
+    throw error;
+  }
   return { project, registry, environment, cases };
 }
 

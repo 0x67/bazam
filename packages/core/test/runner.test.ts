@@ -408,6 +408,7 @@ function configFor(): object {
       clerk: { auth: { api: { strategy: "fake-session" } } },
       attendant: { auth: { web: { strategy: "fake-session" }, api: { strategy: "fake-session", from: "web" } } },
     },
+    roles: { tester: { identities: ["customer", "shopper"] } },
     runners: {
       shop: {
         command: SUITE_COMMAND,
@@ -467,6 +468,7 @@ interface RunSetup {
   before?: (runDir: string) => Promise<void>;
   workers?: number;
   planChecks?: PlanCheck[];
+  roles?: Record<string, string>;
 }
 
 interface Ran {
@@ -536,6 +538,7 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     redactor: new Redactor(defaultRedactionRules()),
     signal: cancel.signal,
     ...(setup.workers === undefined ? {} : { workers: setup.workers }),
+    ...(setup.roles === undefined ? {} : { roles: setup.roles }),
   });
   return { results, runDir, driver, phone };
 }
@@ -983,6 +986,42 @@ describe("runCases error outcomes", () => {
     expect(results[0]?.reason).toBe(
       "identity customer needs fixture customer, but fixtures/identities.local.yaml is missing",
     );
+  });
+
+  it("blocks a case that names a role no --as bound, listing the identities to choose from", async () => {
+    const { results } = await runProject([
+      testCase("SHOP-ROLE-001", { steps: [{ open: "${env.API_URL}", as: "tester" }, expectVisible] }),
+      testCase("SHOP-PLAIN-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] }),
+    ]);
+    expect(outcomes(results)).toEqual([
+      {
+        caseId: "SHOP-ROLE-001",
+        status: "blocked",
+        reason: "role tester plays no identity in this run; pass --as tester=<identity>, one of customer, shopper",
+      },
+      { caseId: "SHOP-PLAIN-001", status: "pass", reason: undefined },
+    ]);
+  });
+
+  it("runs a case that names a role as the identity the run binds to it, logging that identity in", async () => {
+    const channel = person();
+    const { results } = await runProject(
+      [
+        testCase("SHOP-ROLE-001", {
+          steps: [
+            { open: "${env.API_URL}", as: "tester" },
+            { fill: { field: { id: "email" }, value: "${identity.tester.email}" }, as: "tester" },
+            expectVisible,
+          ],
+        }),
+      ],
+      { channel, roles: { tester: "shopper" } },
+    );
+    expect(results[0]?.status).toBe("pass");
+    expect(results[0]?.identities).toEqual(["shopper"]);
+    expect(events).toContain("SHOP-ROLE-001 open as shopper");
+    expect(fills).toEqual([{ field: { id: "email" }, value: "shopper@example.test" }]);
+    expect(channel.prompts.map((prompt) => prompt.id)).toEqual(["shopper-session-cookie-login"]);
   });
 
   it.each([

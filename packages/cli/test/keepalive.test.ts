@@ -181,6 +181,15 @@ describe("keepalive", () => {
     expect(missing.stderr).toContain("--as is required; identities: customer, admin");
   });
 
+  it("refuses two --as values in keepalive and in logout", async () => {
+    const keepalive = await cli(["keepalive", "--env", "demo", "--as", "customer", "--as", "admin"], root);
+    expect(keepalive.code).toBe(ExitCode.CouldNotStart);
+    expect(keepalive.stderr).toContain("--as takes one identity here");
+    const logout = await cli(["logout", "--as", "customer", "--as", "admin"], root);
+    expect(logout.code).toBe(ExitCode.CouldNotStart);
+    expect(logout.stderr).toContain("--as takes one identity here");
+  });
+
   it("stops once logout deletes the credential, without refreshing or saving it again", async () => {
     await seed({}, { token: "fake-session-0", lockHeld: [] });
     const running = startCli("keepalive", "--env", "demo", "--as", "customer");

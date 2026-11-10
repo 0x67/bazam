@@ -30,7 +30,7 @@ interface Setup {
 
 function setup(options: Setup = {}): { run: PlanCheckRun; plan: RunPlan; logged: string[]; redactor: Redactor } {
   const cases = options.cases ?? [planned("DEMO-A-001"), planned("DEMO-A-002"), planned("DEMO-A-003")];
-  const plan: RunPlan = { env: "uat", cases, confirmations: [], personSteps: 0 };
+  const plan: RunPlan = { env: "uat", cases, confirmations: [], personSteps: 0, roles: {} };
   const logged: string[] = [];
   const redactor = new Redactor(defaultRedactionRules());
   const run: PlanCheckRun = {

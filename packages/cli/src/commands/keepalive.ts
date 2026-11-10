@@ -97,7 +97,7 @@ export async function keepalive(
 export async function keepaliveCommand(ctx: CommandContext): Promise<number> {
   const { config, registry } = await ctx.loadPlugins();
   const env = envOf(config, ctx.flags.env);
-  const identity = ctx.flags.as;
+  const identity = oneIdentity(ctx.flags.as);
   if (identity === undefined) throw new CommandError(`--as is required; identities: ${known(config.identities)}`);
   const auth = config.identities[identity]?.auth;
   if (auth === undefined)
@@ -216,6 +216,12 @@ export function envOf(config: ProjectConfig, name: string | undefined): Environm
   const env = config.envs[name];
   if (env === undefined) throw new CommandError(`unknown env "${name}"; envs: ${known(config.envs)}`);
   return env;
+}
+
+/** The one identity `--as` names, if any; keepalive and logout act on a single identity. */
+export function oneIdentity(values: readonly string[] | undefined): string | undefined {
+  if (values !== undefined && values.length > 1) throw new CommandError("--as takes one identity here");
+  return values?.[0];
 }
 
 export function known(names: Readonly<Record<string, unknown>>): string {

@@ -12,7 +12,7 @@ import type { Environment } from "@bazam/core/env";
 import type { PluginRegistry } from "@bazam/core/plugin";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
-import { credentialDirs, credentialScope, envOf, known, type CredentialScope } from "./keepalive.ts";
+import { credentialDirs, credentialScope, envOf, known, oneIdentity, type CredentialScope } from "./keepalive.ts";
 
 interface LoggedOut {
   env: string;
@@ -43,7 +43,8 @@ interface Entry {
 export async function logoutCommand(ctx: CommandContext): Promise<number> {
   const { config, registry } = await ctx.loadPlugins();
   const { cacheDir, lockDir } = credentialDirs(ctx.root);
-  const { env: envName, as: identityName } = ctx.flags;
+  const { env: envName } = ctx.flags;
+  const identityName = oneIdentity(ctx.flags.as);
   // read from the folder, so it also finds what an older config cached under names it no longer has
   const entries = (await cachedEntries(cacheDir, registry)).filter(
     ({ key }) => (envName ?? key.env) === key.env && (identityName ?? key.identity) === key.identity,

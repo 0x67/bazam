@@ -64,7 +64,12 @@ export class RunSupervisor {
   }
 
   /** Spawns the run and returns once the process is up; a spawn failure throws. */
-  async start(filter: CaseFilter, env: string, seed?: number): Promise<{ runId: string }> {
+  async start(
+    filter: CaseFilter,
+    env: string,
+    seed?: number,
+    roles: Readonly<Record<string, string>> = {},
+  ): Promise<{ runId: string }> {
     const runId = newRunId(new Date(), Math.random);
     const runDir = this.#runDir(runId);
     await mkdir(join(this.#root, "runs"), { recursive: true });
@@ -81,6 +86,7 @@ export class RunSupervisor {
       `--root=${this.#root}`,
       ...filterFlags(filter),
       ...(seed === undefined ? [] : [`--seed=${seed}`]),
+      ...Object.entries(roles).map(([role, identity]) => `--as=${role}=${identity}`),
     ];
     // the CLI masks what it writes; its output must never reach this process's stdout, which carries the protocol
     const out = await open(join(runDir, STDOUT_FILE), "w");
