@@ -35,6 +35,16 @@ describe("CaseSpec", () => {
     });
   });
 
+  it("takes ids with at most 7 digits in a row, since the redactor masks longer runs", () => {
+    for (const id of ["AUTH-LOGIN-001", "AUTH-LOGIN-1234567", "A1B2-C3D4567-0001", "SMOKE-JIRA261110-060129"])
+      expect(CASE_ID.test(id), id).toBe(true);
+    for (const id of ["AUTH-LOGIN-01", "AUTH-LOGIN-12345678", "PAY-REFUND20261110-001", "A12345678-LOGIN-001"])
+      expect(CASE_ID.test(id), id).toBe(false);
+    expect(issueMessages(CaseSpec, { ...minimal, id: "AUTH-LOGIN-12345678" })).toEqual([
+      "an id looks like DOMAIN-AREA-NNN, for example AUTH-LOGIN-001, with 3 to 7 digits at the end and no more than 7 digits in a row",
+    ]);
+  });
+
   it("accepts every field with a valid value", () => {
     const full = {
       ...minimal,

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-export const CASE_ID = /^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-\d{3,}$/;
+// at most 7 digits in a row: the redactor's digit rule (see redact/redactor.ts) masks longer runs, which would
+// hide the id in its own results; no lookahead, so the JSON Schema pattern works in any regex engine
+const ID_PART = String.raw`[A-Z](?:\d{0,7}[A-Z])*\d{0,7}`;
+export const CASE_ID = new RegExp(String.raw`^${ID_PART}-${ID_PART}-\d{3,7}$`);
 export const Stage = z.enum(["draft", "acceptance", "regression", "retired"]);
 export const TicketRef = z.string().regex(/^[a-z][a-z0-9-]*:[^\s]+$/, { error: 'a link looks like "jira:DEMO-246"' });
 
@@ -182,7 +185,10 @@ function stepShapeIssue(
 export function buildCaseSchema(steps: readonly StepSchemaSource[]): z.ZodType<CaseSpec> {
   const step = buildStepSchema(steps);
   return z.strictObject({
-    id: z.string().regex(CASE_ID, { error: "an id looks like DOMAIN-AREA-NNN, for example AUTH-LOGIN-001" }),
+    id: z.string().regex(CASE_ID, {
+      error:
+        "an id looks like DOMAIN-AREA-NNN, for example AUTH-LOGIN-001, with 3 to 7 digits at the end and no more than 7 digits in a row",
+    }),
     title: z.string().min(1),
     stage: Stage,
     risk: z.enum(["high", "medium", "low"]),

@@ -156,7 +156,7 @@ function schemaIssue(
   const where = formatPath(issue.path);
   const message = where === "" ? issue.message : `${where}: ${issue.message}`;
   if (at.length > 0 && issue.code === "invalid_format" && where === "id") {
-    const fix = `Use an id such as ${file.domain.toUpperCase()}-LOGIN-001: domain, area, then three or more digits.`;
+    const fix = `Use an id such as ${file.domain.toUpperCase()}-LOGIN-001: domain, area, then three to seven digits. Keep every run of digits to seven or fewer, since longer runs are masked as secrets.`;
     return errorIssue({ ruleId: "id-format", file: file.path, line, message, fix });
   }
   return errorIssue({

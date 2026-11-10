@@ -49,6 +49,14 @@ describe("mapTests", () => {
     ]);
   });
 
+  it("finds a bracketed id in a name that holds a long number elsewhere", () => {
+    const tests = [externalTest(["order 123456789 keeps items [SHOP-CART-001]"])];
+
+    expect(byCase(mapTests(inputs(tests)))).toEqual([
+      ["SHOP-CART-001", ["order 123456789 keeps items [SHOP-CART-001]"]],
+    ]);
+  });
+
   it("reads a tag with or without @ when no name has a bracketed id, and skips other tags", () => {
     const tests = [
       externalTest(["keeps items"], { tags: ["smoke", "@SHOP-CART-001"] }),
