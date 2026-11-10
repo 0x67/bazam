@@ -4,3 +4,4 @@ runs/
 .bazam/
 **/fixtures/identities.local.yaml
 .vite-hooks/_
+scripts/.jira-smoke.env
