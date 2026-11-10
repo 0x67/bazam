@@ -47,11 +47,14 @@ jobs:
       - run: pnpm check
       - run: pnpm brand:check
 
+      # ImageVersion names the runner image, whose package versions the cached .deb files must match
       - name: Find the Playwright version
         id: playwright
-        run: echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+          echo "image=$ImageVersion" >> "$GITHUB_OUTPUT"
 
-      # the browsers are cached per Playwright version; the system packages they need are not, so they install either way
+      # the browsers are cached per Playwright version, and the .deb files of the system packages they need per runner image
       - name: Restore the Playwright browsers
         id: browsers
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -62,7 +65,7 @@ jobs:
       # the driver-web unit tests launch every engine, so all three go in before pnpm test
       - name: Install Playwright browsers
         if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm --dir packages/driver-web exec playwright install --with-deps chromium firefox webkit
+        run: pnpm --dir packages/driver-web exec playwright install chromium firefox webkit
 
       - name: Save the Playwright browsers
         if: inputs.ref == '' && steps.browsers.outputs.cache-hit != 'true'
@@ -71,9 +74,28 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ steps.browsers.outputs.cache-primary-key }}
 
-      - name: Install the system packages of the cached browsers
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+      # the Ubuntu mirror can take minutes per package, so apt-get installs from the cached .deb files and
+      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives
+      - name: Restore the system packages of the browsers
+        id: packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ runner.os }}-${{ steps.playwright.outputs.image }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - name: Install the system packages of the browsers
+        run: |
+          mkdir -p ~/apt-archives
+          sudo find ~/apt-archives -maxdepth 1 -name '*.deb' -exec cp -t /var/cache/apt/archives {} +
+          pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+          find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
+
+      - name: Save the system packages of the browsers
+        if: inputs.ref == '' && steps.packages.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.packages.outputs.cache-primary-key }}
 
       - run: pnpm test
 
@@ -103,9 +125,12 @@ jobs:
             curl --silent --show-error --fail --retry 30 --retry-delay 2 --retry-all-errors --output /dev/null "$url"
           done
 
+      # ImageVersion names the runner image, whose package versions the cached .deb files must match
       - name: Find the Playwright version
         id: playwright
-        run: echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --dir packages/driver-web exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+          echo "image=$ImageVersion" >> "$GITHUB_OUTPUT"
 
       - name: Restore the Playwright browsers
         id: browsers
@@ -116,7 +141,7 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm --dir packages/driver-web exec playwright install --with-deps chromium firefox webkit
+        run: pnpm --dir packages/driver-web exec playwright install chromium firefox webkit
 
       - name: Save the Playwright browsers
         if: inputs.ref == '' && steps.browsers.outputs.cache-hit != 'true'
@@ -125,9 +150,28 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ steps.browsers.outputs.cache-primary-key }}
 
-      - name: Install the system packages of the cached browsers
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+      # the Ubuntu mirror can take minutes per package, so apt-get installs from the cached .deb files and
+      # downloads only what changed; apt-get, unlike apt, keeps what it downloads in /var/cache/apt/archives
+      - name: Restore the system packages of the browsers
+        id: packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ runner.os }}-${{ steps.playwright.outputs.image }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - name: Install the system packages of the browsers
+        run: |
+          mkdir -p ~/apt-archives
+          sudo find ~/apt-archives -maxdepth 1 -name '*.deb' -exec cp -t /var/cache/apt/archives {} +
+          pnpm --dir packages/driver-web exec playwright install-deps chromium firefox webkit
+          find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
+
+      - name: Save the system packages of the browsers
+        if: inputs.ref == '' && steps.packages.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.packages.outputs.cache-primary-key }}
 
       # The secrets are the demo's public test values from examples/demo-app/README.md ("Demo credentials").
       # Repository secrets would not reach pull requests from forks or runs that Dependabot starts, and the
