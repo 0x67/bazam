@@ -30,6 +30,7 @@ import { blockUnreachable, probeEnv, probeHint } from "./env-probes.ts";
 import { runExternalSuite, type ExternalSuiteRun } from "./external.ts";
 import { finishRun, ProgressFile, progressEntry, RunLog } from "./finish.ts";
 import { recordSuite } from "./ingest.ts";
+import { IntervalRefresh } from "./interval-refresh.ts";
 import { CaseBlocked, isBlocking, messageOf, outcomeOf } from "./outcome.ts";
 import {
   caseTarget,
@@ -113,6 +114,8 @@ class Run {
   #caseStarted = false;
   // the case whose steps run in this async context, for notes the shared HTTP client makes
   readonly #runningCase = new AsyncLocalStorage<CaseEvidence>();
+  // the case that runs for each identity it holds, which interval refresh loads credentials into
+  readonly #running = new Map<string, { run: CaseRun; evidence: CaseEvidence }>();
   #service: ChallengeService | undefined;
   // by the plan position of each external suite unit, so the summary lists them in plan order
   readonly #unmapped = new Map<number, UnmappedTest[]>();
@@ -174,7 +177,9 @@ class Run {
       browser: this.#logins,
       now: () => new Date(),
     });
-    const credentials = blockingCredentials(identities, this.#runningCase);
+    const credentials = blockingCredentials(identities, this.#runningCase, (identity, surface) =>
+      this.#running.get(identity)?.run.reloadCredential(identity, surface),
+    );
     this.#scope = {
       ...scope,
       identities,
@@ -290,7 +295,8 @@ class Run {
   }
 
   /** Runs the cases up to `workers` at once, never two that share an identity; returns the results in plan order. */
-  runPlan(plan: RunPlan, loginsBlocked: ReadonlyMap<string, string>): Promise<CaseResult[]> {
+  async runPlan(plan: RunPlan, loginsBlocked: ReadonlyMap<string, string>): Promise<CaseResult[]> {
+    const { refresh, counted } = this.#intervalRefresh(plan, loginsBlocked);
     const runUnit = async ({ positions }: WorkUnit): Promise<CaseResult[]> => {
       const position = positions[0]!;
       const planned = plan.cases[position]!;
@@ -302,11 +308,59 @@ class Run {
       } catch (error) {
         this.#stop.abort();
         throw error;
+      } finally {
+        const keys = counted.get(planned.caseId);
+        if (keys !== undefined) refresh.caseEnded(keys);
       }
     };
     const { config, root } = this.#options.project;
     const units = workUnits(plan, config, root);
-    return runUnits(units, this.#options.workers ?? 1, runUnit, this.#stop.signal);
+    refresh.start();
+    try {
+      return await runUnits(units, this.#options.workers ?? 1, runUnit, this.#stop.signal);
+    } finally {
+      await refresh.stop();
+    }
+  }
+
+  /**
+   * Counts, for each credential that sets refreshEveryMs, the cases that use it and will run; `counted` holds the
+   * loginKey of each credential a case uses, by case id.
+   */
+  #intervalRefresh(
+    plan: RunPlan,
+    loginsBlocked: ReadonlyMap<string, string>,
+  ): { refresh: IntervalRefresh; counted: Map<string, string[]> } {
+    const { identities } = this.#scope;
+    const entries = new Map<string, { identity: string; surface: string; everyMs: number; cases: number }>();
+    const counted = new Map<string, string[]>();
+    for (const planned of plan.cases) {
+      if (planned.blocked !== undefined || planned.runner !== undefined) continue;
+      if (loginReason(planned, loginsBlocked) !== undefined) continue;
+      const owners = new Map<string, { identity: string; surface: string; everyMs: number }>();
+      for (const { identity, surface } of planned.logins) {
+        const interval = identities.refreshInterval(identity, surface);
+        if (interval !== undefined)
+          owners.set(loginKey({ identity, surface: interval.surface }), { identity, ...interval });
+      }
+      if (owners.size === 0) continue;
+      counted.set(planned.caseId, [...owners.keys()]);
+      for (const [key, owner] of owners) {
+        const entry = entries.get(key) ?? { ...owner, cases: 0 };
+        entry.cases += 1;
+        entries.set(key, entry);
+      }
+    }
+    const refresh = new IntervalRefresh(
+      {
+        identities,
+        refreshed: ({ identity, surface }) => this.#running.get(identity)?.run.reloadCredential(identity, surface),
+        failed: ({ identity }, note) => this.#running.get(identity)?.evidence.note(note),
+        log: this.#log.line,
+      },
+      [...entries.values()],
+    );
+    return { refresh, counted };
   }
 
   async runCase(
@@ -514,15 +568,22 @@ class Run {
       await this.#logins.within(
         async () => session,
         () =>
-          this.#runningCase.run(parts.evidence, () =>
-            new CaseRun(this.#scope, {
+          this.#runningCase.run(parts.evidence, async () => {
+            const run = new CaseRun(this.#scope, {
               spec: loaded.spec,
               driver,
               session,
               evidence: parts.evidence,
               runValues: parts.runValues,
-            }).run(),
-          ),
+            });
+            const held = caseLocks(planned);
+            for (const identity of held) this.#running.set(identity, { run, evidence: parts.evidence });
+            try {
+              await run.run();
+            } finally {
+              for (const identity of held) this.#running.delete(identity);
+            }
+          }),
       );
     } catch (error) {
       outcome = outcomeOf(error, signal.aborted);
@@ -691,6 +752,7 @@ function caseLocks(planned: PlannedCase): string[] {
 function blockingCredentials(
   identities: Identities,
   runningCase: AsyncLocalStorage<CaseEvidence>,
+  reload: (identity: string, surface: string) => void,
 ): Pick<Identities, "authorize" | "recoverFromUnauthorized"> {
   const blocked =
     (identity: string, surface: string) =>
@@ -703,15 +765,21 @@ function blockingCredentials(
     authorize: (identity, surface, target) =>
       identities.authorize(identity, surface, target).catch(blocked(identity, surface)),
     // the HTTP client is shared by every case, so a new login is noted on the case whose async context sent the request
-    recoverFromUnauthorized: (identity, surface) =>
-      identities
+    recoverFromUnauthorized: async (identity, surface) => {
+      // a credential that still passes its probe is not the cause of the 401; a probe that throws counts as failing
+      if ((await identities.probe(identity, surface).catch(() => false)) === true) return false;
+      return identities
         .recoverOrLogIn(identity, surface)
         .then((recovery) => {
+          if (recovery === "none") return false;
           if (recovery === "loggedIn")
             runningCase.getStore()?.note(`logged in again as ${identity} on ${surface} after an HTTP 401`);
-          return recovery !== "none";
+          // the case's open browser context holds the old credential until it is loaded
+          reload(identity, surface);
+          return true;
         })
-        .catch(blocked(identity, surface)),
+        .catch(blocked(identity, surface));
+    },
   };
 }
 

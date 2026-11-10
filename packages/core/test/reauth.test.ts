@@ -40,6 +40,13 @@ let probed: string[];
 let callbacks: (string | undefined)[];
 // the case.log lines, each after the case it was logged in
 let lines: string[];
+// how long a browser credential takes to apply, and how many have been applied
+let applyDelayMs: number;
+let applied: number;
+// the notes of the case that ran last, also when it failed
+let lastNotes: string[];
+// the case that runs, for steps that reach into it
+let current: CaseRun | undefined;
 
 beforeEach(() => {
   accepted = new Set();
@@ -53,6 +60,10 @@ beforeEach(() => {
   probed = [];
   callbacks = [];
   lines = [];
+  applyDelayMs = 0;
+  applied = 0;
+  lastNotes = [];
+  current = undefined;
 });
 
 const roots: string[] = [];
@@ -94,8 +105,10 @@ function tokenStrategy(name: string, options: { probe: boolean; cacheable?: bool
       return issue();
     },
     apply: async (credential, target) => {
-      if (target.kind === "browser")
-        await target.session.setExtraHeaders({ authorization: `Bearer ${credential.token}` });
+      if (target.kind !== "browser") return;
+      await sleep(applyDelayMs);
+      await target.session.setExtraHeaders({ authorization: `Bearer ${credential.token}` });
+      applied += 1;
     },
     secrets: (credential) => [credential.token],
   });
@@ -161,6 +174,23 @@ const steps: readonly StepHandler[] = [
       loginFailure = new Error("the login page answered 503");
     },
   },
+  // the page gets a 401 and the step fails on its own
+  {
+    kind: "call-and-crash",
+    schema: z.unknown(),
+    run: async (_payload, ctx) => {
+      (await pooledContext(ctx)).unauthorized();
+      throw new Error("the page shows the login screen");
+    },
+  },
+  // the case's credential is loaded into its browser context again after this long
+  {
+    kind: "reload-later",
+    schema: z.number().int().positive(),
+    run: async (ms) => {
+      setTimeout(() => current?.reloadCredential("customer", "web"), ms as number);
+    },
+  },
   // the page gets this many 401s at once
   {
     kind: "call",
@@ -185,7 +215,7 @@ const driver: Driver = {
 const config = {
   envs: { demo: { production: false, hosts: ["shop.example.test"] } },
   identities: {
-    customer: { auth: { web: { strategy: "fake-token" } } },
+    customer: { auth: { web: { strategy: "fake-token", refreshEveryMs: 60_000 } } },
     courier: { auth: { web: { strategy: "fake-unprobed" } } },
     guest: { auth: { web: { strategy: "fake-static" } } },
   },
@@ -295,6 +325,8 @@ async function startRun(cases: readonly Record<string, unknown>[]): Promise<(cas
       evidence,
       runValues: runValues.forCase(caseId),
     });
+    lastNotes = notes;
+    current = run;
     await als.run(caseId, () => run.run());
     return { notes, browser: (identity) => contexts.get(identity) };
   };
@@ -324,7 +356,7 @@ describe("CaseRun after a 401 in a browser context", () => {
     ]);
     expect(notes).toEqual([
       `refreshed customer's web credential after a 401 from ${ORIGIN}`,
-      `another 401 from ${ORIGIN} after the refresh attempt`,
+      `another 401 from ${ORIGIN} after this case's one recovery`,
     ]);
     expect(lines).toEqual([]);
   });
@@ -402,7 +434,7 @@ describe("CaseRun after a 401 in a browser context", () => {
     ]);
     expect(notes).toEqual([
       `got a 401 from ${ORIGIN}; the web credential of guest cannot be refreshed`,
-      `another 401 from ${ORIGIN} after the refresh attempt`,
+      `another 401 from ${ORIGIN} after this case's one recovery`,
     ]);
   });
 
@@ -540,6 +572,47 @@ describe("CaseRun log in again after a 401", () => {
     ]);
   });
 
+  it("keeps the failed step's outcome and notes the reason when the step that got the 401 throws", async () => {
+    refreshable = false;
+    const runCase = await startRun([
+      testCase("SHOP-LOGIN-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { "break-login": true },
+        { "call-and-crash": true, as: "customer" },
+      ]),
+    ]);
+
+    await expect(runCase("SHOP-LOGIN-001")).rejects.toThrow("the page shows the login screen");
+
+    expect(lastNotes).toEqual([
+      `logging in again as customer on web after a 401 from ${ORIGIN} failed: the login page answered 503`,
+    ]);
+  });
+
+  it("notes a second 401 once after a login, and does not log in again", async () => {
+    refreshable = false;
+    const runCase = await startRun([
+      testCase("SHOP-LOGIN-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { call: 1, as: "customer" },
+        { look: true, as: "customer" },
+        { expire: true },
+        { call: 1, as: "customer" },
+        { look: true, as: "customer" },
+      ]),
+    ]);
+
+    const { notes } = await runCase("SHOP-LOGIN-001");
+
+    expect(issued).toBe(2);
+    expect(notes).toEqual([
+      `logged in again as customer on web after a 401 from ${ORIGIN}`,
+      `another 401 from ${ORIGIN} after this case's one recovery`,
+    ]);
+  });
+
   it("blocks the case when the login a last step started fails", async () => {
     refreshable = false;
     const runCase = await startRun([
@@ -552,5 +625,26 @@ describe("CaseRun log in again after a 401", () => {
     ]);
 
     await expect(runCase("SHOP-LOGIN-001")).rejects.toThrow("the login page answered 503");
+  });
+});
+
+describe("CaseRun closing", () => {
+  it("ignores a credential load that arrives while it waits for the last recovery", async () => {
+    refreshDelayMs = 100;
+    applyDelayMs = 30;
+    const runCase = await startRun([
+      {
+        ...testCase("SHOP-CLOSE-001", [{ look: true, as: "customer" }, { expire: true }]),
+        finally: [{ call: 1, as: "customer" }, { "reload-later": 50 }],
+      },
+    ]);
+
+    await runCase("SHOP-CLOSE-001");
+    const atReturn = applied;
+    await sleep(100);
+
+    // the look and the recovery after the 401, but not the load that came in during the wait
+    expect(atReturn).toBe(2);
+    expect(applied).toBe(2);
   });
 });

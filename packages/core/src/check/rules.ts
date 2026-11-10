@@ -66,6 +66,7 @@ export const builtinRules: readonly CheckRule[] = [
   rule("selector-test-id", "warning", selectorsWithoutTestId),
   rule("external-case-shape", "error", misshapenExternalCases),
   rule("runner-format-known", "error", unknownRunnerFormats),
+  rule("refresh-interval", "error", unrefreshableIntervals),
   withLoaderIssues(rule("runner-mapping-valid", "error", unplacedMappingEntries)),
 ];
 
@@ -383,6 +384,32 @@ function unknownRunnerFormats(project: Project): Finding[] {
       message: `runner ${name} uses format ${runner.format}, which no plugin registers`,
       fix: "Use junit or playwright-json, or add the plugin that registers this format.",
     }));
+}
+
+/** A refreshEveryMs on a surface whose strategy cannot refresh, as a session-cookie surface with no refresh request. */
+function unrefreshableIntervals(project: Project): Finding[] {
+  const findings: Finding[] = [];
+  for (const [identity, { auth }] of Object.entries(project.config.identities)) {
+    for (const [surface, settings] of Object.entries(auth)) {
+      if ("from" in settings || settings.refreshEveryMs === undefined) continue;
+      const at = spanAt(project, BRAND.configFile, ["identities", identity, "auth", surface, "refreshEveryMs"]);
+      const where = `identities.${identity}.auth.${surface}`;
+      if (!project.refreshableStrategies.has(settings.strategy)) {
+        findings.push({
+          at,
+          message: `${where} sets refreshEveryMs, but strategy ${settings.strategy} has no refresh`,
+          fix: "Remove refreshEveryMs, or use a strategy that refreshes a credential.",
+        });
+      } else if (settings.strategy === "session-cookie" && settings.with["refresh"] === undefined) {
+        findings.push({
+          at,
+          message: `${where} sets refreshEveryMs, but its session-cookie settings have no refresh request`,
+          fix: "Add a refresh request under with:, or remove refreshEveryMs.",
+        });
+      }
+    }
+  }
+  return findings;
 }
 
 /** Mapping entries whose case no case file declares, or whose case runs on no target of the runner. */

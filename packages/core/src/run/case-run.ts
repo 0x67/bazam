@@ -85,7 +85,7 @@ export class CaseRun {
   readonly #values: Map<string, string>;
   readonly #sources: PlaceholderSources;
   /** Identities whose browser context this case has opened, authorized when the identity has auth for the driver's surface. */
-  readonly #browsers = new Set<string>();
+  readonly #browsers = new Map<string, BrowserSession>();
   /** Calls that remove the 401 listener from each browser context this case authorized. */
   readonly #stops: (() => void)[] = [];
   // the probe or recovery a 401 started; a 401 that arrives meanwhile adds nothing
@@ -94,6 +94,9 @@ export class CaseRun {
   #notedLater = false;
   // set when a login after a 401 failed; the main loop throws it before the next step
   #pendingBlock: CaseBlocked | undefined;
+  #blockReported = false;
+  // set once the case's own work is done, so a refresh that fires later leaves the session alone
+  #closing = false;
   // the run's signal until the finally steps start; they get one of their own that a cancel does not abort
   #signal: AbortSignal;
 
@@ -121,16 +124,28 @@ export class CaseRun {
       this.#throwPendingBlock();
     } finally {
       await this.#recovery;
+      this.#noteUnreportedBlock();
       // the 401 listeners stay on, so a finally step that meets an expired session still recovers
       await this.#runFinally(steps.length);
       for (const stop of this.#stops) stop();
       // the session closes after this returns, so never under a refresh
-      await this.#recovery;
+      this.#closing = true;
+      while (this.#recovery !== undefined) await this.#recovery;
+      this.#noteUnreportedBlock();
     }
   }
 
   #throwPendingBlock(): void {
-    if (this.#pendingBlock !== undefined) throw this.#pendingBlock;
+    if (this.#pendingBlock === undefined) return;
+    this.#blockReported = true;
+    throw this.#pendingBlock;
+  }
+
+  // a step that failed on its own keeps the case's outcome, but the reason of the failed login stays in the result
+  #noteUnreportedBlock(): void {
+    if (this.#pendingBlock === undefined || this.#blockReported) return;
+    this.#blockReported = true;
+    this.#parts.evidence.note(this.#pendingBlock.message);
   }
 
   /** Runs every finally step under its own signal and turns what goes wrong, and each check, into notes. Never throws. */
@@ -281,20 +296,49 @@ export class CaseRun {
       const stop = browser.onUnauthorized?.(listener);
       if (stop !== undefined) this.#stops.push(stop);
     }
-    this.#browsers.add(identity);
+    this.#browsers.set(identity, browser);
   }
 
   /** Probes after a 401 until the case has had its one recovery; after that, one 401 more adds a note. */
   #unauthorized(identity: string, surface: string, browser: BrowserSession, origin: string): void {
     if (this.#recovery !== undefined) return;
     if (this.#recovered) {
-      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after the refresh attempt`);
+      if (!this.#notedLater) this.#parts.evidence.note(`another 401 from ${origin} after this case's one recovery`);
       this.#notedLater = true;
       return;
     }
-    this.#recovery = this.#recover(identity, surface, browser, origin).finally(() => {
-      this.#recovery = undefined;
+    const recovery: Promise<void> = this.#recover(identity, surface, browser, origin).finally(() => {
+      if (this.#recovery === recovery) this.#recovery = undefined;
     });
+    this.#recovery = recovery;
+  }
+
+  /**
+   * Loads the identity's current credential into its open browser context before the next step starts, when the
+   * browser's surface takes its credential from the same surface as `surface`. Never throws; a credential that
+   * fails to load becomes a note.
+   */
+  reloadCredential(identity: string, surface: string): void {
+    const browser = this.#browsers.get(identity);
+    const { driver, evidence } = this.#parts;
+    const { identities } = this.#scope;
+    if (
+      this.#closing ||
+      browser === undefined ||
+      this.#scope.project.config.identities[identity]?.auth[driver.surface] === undefined
+    )
+      return;
+    // the browser may use another surface that reuses this one with from:
+    if (identities.ownerSurface(identity, driver.surface) !== identities.ownerSurface(identity, surface)) return;
+    const loading: Promise<void> = Promise.resolve(this.#recovery)
+      .then(() => this.#scope.credentials.authorize(identity, driver.surface, { kind: "browser", session: browser }))
+      .catch((error: unknown) => {
+        evidence.note(`loading ${identity}'s refreshed ${driver.surface} credential failed: ${messageOf(error)}`);
+      })
+      .finally(() => {
+        if (this.#recovery === loading) this.#recovery = undefined;
+      });
+    this.#recovery = loading;
   }
 
   /** Never throws, so the step that saw the 401 keeps its own outcome. */

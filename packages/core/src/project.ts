@@ -341,6 +341,8 @@ export interface Project {
   challengeKinds: ReadonlyMap<string, ChallengeKindSpec>;
   /** Every resolver an env chain names that a plugin registered, as the registry defines it. */
   resolvers: ReadonlyMap<string, ChallengeResolver>;
+  /** The strategies that identities name and that can refresh a credential. */
+  refreshableStrategies: ReadonlySet<string>;
   /** The result formats `runners` name that a plugin registered. */
   resultFormats: ReadonlySet<string>;
   /** The runner mapping files that loaded, by runner name. */
@@ -394,6 +396,7 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
     retiredIds: caseLoad.retiredIds,
     challengeKinds: kinds.kinds,
     resolvers: chainResolvers(config, registry),
+    refreshableStrategies: refreshableStrategies(config, registry),
     resultFormats: runnerFormats(config, registry),
     mappings: mappings.mappings,
     files: new Map(files.map((file) => [file.path, file])),
@@ -550,6 +553,20 @@ function chainResolvers(config: ProjectConfig, registry: PluginRegistry): Map<st
     }
   }
   return resolvers;
+}
+
+function refreshableStrategies(config: ProjectConfig, registry: PluginRegistry): Set<string> {
+  const refreshable = new Set<string>();
+  for (const { auth } of Object.values(config.identities)) {
+    for (const { strategy } of Object.values(auth)) {
+      try {
+        if (registry.strategy(strategy).refresh !== undefined) refreshable.add(strategy);
+      } catch {
+        // strategy() throws only for a name no plugin registered, which a run reports when it needs the credential
+      }
+    }
+  }
+  return refreshable;
 }
 
 function runnerFormats(config: ProjectConfig, registry: PluginRegistry): Set<string> {

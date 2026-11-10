@@ -163,6 +163,17 @@ const failing: [string, Expected][] = [
   ],
   ["runner-format-known", [[BRAND.configFile, 26, "runner shop-suite uses format ctrf, which no plugin registers"]]],
   [
+    "refresh-interval",
+    [
+      [
+        BRAND.configFile,
+        26,
+        "identities.ops.auth.web sets refreshEveryMs, but its session-cookie settings have no refresh request",
+      ],
+      [BRAND.configFile, 31, "identities.ops.auth.api sets refreshEveryMs, but strategy api-key has no refresh"],
+    ],
+  ],
+  [
     "runner-mapping-valid",
     [
       [BRAND.configFile, 32, "mapping file interop/api-suite.yaml of runner api-suite is missing"],

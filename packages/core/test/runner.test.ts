@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
 import { BRAND } from "../src/brand.ts";
@@ -30,6 +30,27 @@ import { HarnessError, runCases, type PlanCheck } from "../src/run/index.ts";
 import { FakeBrowserSession } from "./support/fake-browser.ts";
 import { fakeDriver, type FakeDriver, type FakeDriverOptions, type FakeSession } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
+
+// the interval timer waits until a step fires it; every other wait runs as usual
+const intervalTimers = vi.hoisted(() => ({ everyMs: 10_000, pending: new Set<() => void>() }));
+
+vi.mock("node:timers/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:timers/promises")>();
+  return {
+    ...original,
+    setTimeout: (ms: number, value?: unknown, options?: { signal?: AbortSignal }) => {
+      if (ms !== intervalTimers.everyMs) return original.setTimeout(ms, value, options);
+      return new Promise<unknown>((resolve, reject) => {
+        const fire = () => resolve(value);
+        intervalTimers.pending.add(fire);
+        options?.signal?.addEventListener("abort", () => {
+          intervalTimers.pending.delete(fire);
+          reject(options.signal?.reason);
+        });
+      });
+    },
+  };
+});
 
 const RUN_ID = "20261107-101500-0a1b";
 const BEARER_TOKEN = "fake-bearer-token-7f3a9c";
@@ -261,7 +282,9 @@ const sessionStrategy = defineAuthStrategy<object, { token: string }>({
   acquire: async () => issueToken(),
   probe: async (credential) => liveTokens.has(credential.token),
   apply: async (credential, target) => {
-    if (target.kind === "http") target.request.headers.set("authorization", `Bearer ${credential.token}`);
+    const authorization = `Bearer ${credential.token}`;
+    if (target.kind === "http") target.request.headers.set("authorization", authorization);
+    else await target.session.setExtraHeaders({ authorization });
   },
   secrets: (credential) => [credential.token],
 });
@@ -377,7 +400,9 @@ function configFor(): object {
       rejected: { auth: { api: { strategy: "fake-rejected" } } },
       waiting: { auth: { api: { strategy: "fake-locked" } } },
       rider: { auth: { web: { strategy: "fake-expiring" } } },
+      keeper: { auth: { web: { strategy: "fake-expiring", refreshEveryMs: intervalTimers.everyMs } } },
       clerk: { auth: { api: { strategy: "fake-session" } } },
+      attendant: { auth: { web: { strategy: "fake-session" }, api: { strategy: "fake-session", from: "web" } } },
     },
     runners: {
       shop: {
@@ -1381,6 +1406,18 @@ function pooledDriver(): FakeDriver {
       step("expect", async (_payload, ctx) => {
         ctx.evidence.record({ name: "the app took the login", kind: "ui", expected: "ok", observed: "ok", ok: true });
       }),
+      // passes when the app takes the credential in the identity's browser context
+      step("take", async (_payload, ctx) => {
+        const token = String((await contextOf(ctx)).extraHeaders["authorization"]).replace("Bearer ", "");
+        const ok = liveTokens.has(token);
+        ctx.evidence.record({
+          name: "the app takes the context",
+          kind: "ui",
+          expected: "taken",
+          observed: ok ? "taken" : "ended",
+          ok,
+        });
+      }),
     ],
     sessions,
   };
@@ -1422,6 +1459,84 @@ describe("runCases after an HTTP 401", () => {
     expect(results[0]).toMatchObject({ status: "pass" });
     expect(issuedTokens).toBe(2);
     expect(results[0]?.notes).toEqual(["logged in again as clerk on api after an HTTP 401"]);
+  });
+});
+
+describe("runCases HTTP 401 and the open browser", () => {
+  const clerk = { request: { method: "GET", url: "${env.API_URL}/clerk", as: "attendant" } };
+  const look = { look: {}, as: "attendant" };
+
+  it("loads the credential an HTTP login got into the browser context the case has open", async () => {
+    const { results } = await runProject(
+      [testCase("SHOP-ATTEND-001", { steps: [look, { expire: {} }, clerk, { take: {}, as: "attendant" }] })],
+      { driver: pooledDriver() },
+    );
+
+    expect(results[0]).toMatchObject({ status: "pass" });
+    expect(issuedTokens).toBe(2);
+  });
+
+  it("leaves the credential alone when it still passes its probe and the request gets a 401", async () => {
+    const { results } = await runProject(
+      [
+        testCase("SHOP-ATTEND-001", {
+          steps: [{ request: { method: "GET", url: "${env.API_URL}/locked", as: "clerk" } }],
+        }),
+      ],
+      { driver: pooledDriver() },
+    );
+
+    expect(results[0]).toMatchObject({ status: "blocked", reason: expect.stringMatching(/answered 401 to the api/) });
+    expect(issuedTokens).toBe(1);
+    expect(results[0]?.notes).toEqual([]);
+  });
+});
+
+describe("runCases interval refresh", () => {
+  const taken = (ctx: StepContext): boolean => {
+    const browser = (ctx.session as FakeSession).browsers.get(ctx.identity ?? "");
+    return liveTokens.has(String(browser?.extraHeaders["authorization"]).replace("Bearer ", ""));
+  };
+  const steps = (): StepHandler[] => [
+    ...webSteps(),
+    step("check-session", async (_payload, ctx) => {
+      ctx.evidence.record({
+        name: "the app takes the session",
+        kind: "ui",
+        expected: "taken",
+        observed: taken(ctx) ? "taken" : "ended",
+        ok: taken(ctx),
+      });
+    }),
+    // the app ends every session it has given out
+    step("end-sessions", async () => {
+      liveTokens.clear();
+    }),
+    // a refresh interval passes; the step goes on when the refreshed credential is in the browser context
+    step("pass-interval", async (_payload, ctx) => {
+      for (const fire of intervalTimers.pending) fire();
+      intervalTimers.pending.clear();
+      const deadline = Date.now() + 5_000;
+      while (!taken(ctx)) {
+        if (Date.now() > deadline) throw new Error("the browser context never got a live credential");
+        await sleep(5);
+      }
+    }),
+  ];
+  const check = { "check-session": {}, as: "keeper" };
+
+  it("keeps a case logged in through a wait longer than the session", async () => {
+    const { results } = await runProject(
+      [
+        testCase("SHOP-KEEP-001", {
+          steps: [check, { "end-sessions": {} }, { "pass-interval": {}, as: "keeper" }, check],
+        }),
+      ],
+      { driver: fakeDriver({ capabilities: ["browser.login"], steps: steps(), loginCookies: [SESSION_COOKIE] }) },
+    );
+
+    expect(results[0]).toMatchObject({ status: "pass" });
+    expect(issuedTokens).toBe(2);
   });
 });
 

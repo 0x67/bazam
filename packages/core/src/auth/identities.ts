@@ -28,8 +28,15 @@ const StrategyName = z.string().min(1);
 const SurfaceAuth = z.union([
   // reuses the credential of another surface, such as the cookies a web login produced
   z.strictObject({ strategy: StrategyName, from: SurfaceName }),
-  z.strictObject({ strategy: StrategyName, with: z.record(z.string(), z.unknown()).default({}) }),
+  z.strictObject({
+    strategy: StrategyName,
+    with: z.record(z.string(), z.unknown()).default({}),
+    /** Refresh this often while a run acts as the identity. */
+    refreshEveryMs: z.number().int().min(10_000).optional(),
+  }),
 ]);
+
+type WithSettings = Exclude<z.infer<typeof SurfaceAuth>, { from: string }>;
 
 const IdentityConfig = z
   .strictObject({
@@ -235,6 +242,17 @@ export class Identities {
     return (await this.#probeVerdict(slot, await this.#config(slot), held.credential)).passes;
   }
 
+  /** The surface that holds the credential the surface uses, after from:. */
+  ownerSurface(identity: string, surface: string): string {
+    return this.#owner(identity, surface).owner;
+  }
+
+  /** The surface that owns the credential, after from:, and its refreshEveryMs, when it sets one. */
+  refreshInterval(identity: string, surface: string): { surface: string; everyMs: number } | undefined {
+    const { owner, settings } = this.#owner(identity, surface);
+    return settings.refreshEveryMs === undefined ? undefined : { surface: owner, everyMs: settings.refreshEveryMs };
+  }
+
   async #ensure(slot: Slot): Promise<Held> {
     const held = this.#held.get(slot.id);
     if (held !== undefined && !this.#isExpired(held)) return held;
@@ -352,6 +370,17 @@ export class Identities {
   }
 
   #slot(identity: string, surface: string): Slot {
+    const { owner, settings } = this.#owner(identity, surface);
+    return {
+      id: `${identity}/${owner}`,
+      identity,
+      key: { env: this.#deps.env.name, identity, surface: owner, strategy: settings.strategy },
+      strategy: this.#deps.registry.strategy(settings.strategy),
+      settings: settings.with,
+    };
+  }
+
+  #owner(identity: string, surface: string): { owner: string; settings: WithSettings } {
     const config = this.#deps.configs[identity];
     if (config === undefined) {
       throw new Error(`unknown identity "${identity}"; known: ${Object.keys(this.#deps.configs).join(", ") || "none"}`);
@@ -369,13 +398,7 @@ export class Identities {
         `surface "${surface}" of identity "${identity}" takes from: a surface with no settings of its own`,
       );
     }
-    return {
-      id: `${identity}/${owner}`,
-      identity,
-      key: { env: this.#deps.env.name, identity, surface: owner, strategy: settings.strategy },
-      strategy: this.#deps.registry.strategy(settings.strategy),
-      settings: settings.with,
-    };
+    return { owner, settings };
   }
 
   #context(identity: string): AuthContext {

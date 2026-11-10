@@ -452,6 +452,30 @@ describe("Identities", () => {
     expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
   });
 
+  describe("refreshEveryMs", () => {
+    const every = 120_000;
+
+    it("names the owner surface and the interval, also through from:", async () => {
+      const { strategy } = tokenStrategy(clock);
+      const ids = await identities(
+        {
+          customer: {
+            auth: {
+              web: { ...tokenSurface, refreshEveryMs: every },
+              api: { strategy: "token", from: "web" },
+              mobile: tokenSurface,
+            },
+          },
+        },
+        [strategy],
+      );
+
+      expect(ids.refreshInterval("customer", "web")).toEqual({ surface: "web", everyMs: every });
+      expect(ids.refreshInterval("customer", "api")).toEqual({ surface: "web", everyMs: every });
+      expect(ids.refreshInterval("customer", "mobile")).toBeUndefined();
+    });
+  });
+
   describe("recoverOrLogIn", () => {
     it("refreshes when it can", async () => {
       const { strategy, calls } = tokenStrategy(clock);
@@ -685,6 +709,22 @@ describe("Identities", () => {
 });
 
 describe("IdentitiesConfig", () => {
+  describe("refreshEveryMs", () => {
+    const parse = (surface: unknown) => IdentitiesConfig.safeParse({ customer: { auth: { web: surface } } });
+
+    it("takes 10000 or more beside with:, and is refused beside from:", () => {
+      expect(parse({ ...tokenSurface, refreshEveryMs: 10_000 }).success).toBe(true);
+      expect(parse({ ...tokenSurface, refreshEveryMs: 9_999 }).success).toBe(false);
+      expect(parse({ ...tokenSurface, refreshEveryMs: 12_000.5 }).success).toBe(false);
+      const reused = IdentitiesConfig.safeParse({
+        customer: {
+          auth: { web: tokenSurface, api: { strategy: "token", from: "web", refreshEveryMs: 120_000 } },
+        },
+      });
+      expect(reused.success).toBe(false);
+    });
+  });
+
   it("rejects from: naming another strategy or a surface that has no settings of its own", () => {
     const result = IdentitiesConfig.safeParse({
       customer: {
