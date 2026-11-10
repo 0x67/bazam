@@ -95,6 +95,26 @@ export function finallySteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec
   return expandFlows(spec.finally, flows);
 }
 
+/**
+ * Every name the case's steps and finally steps give to `as`, at any depth, and the identities their placeholders
+ * name, each once. A name may be a role.
+ */
+export function identitiesNamed(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>): string[] {
+  const steps = [...caseSteps(spec, flows), ...finallySteps(spec, flows)];
+  const names: string[] = [];
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(walk);
+    else if (typeof value === "object" && value !== null) {
+      for (const [key, item] of Object.entries(value)) {
+        if (key === "as" && typeof item === "string") names.push(item);
+        else walk(item);
+      }
+    }
+  };
+  walk(steps);
+  return [...new Set([...names, ...placeholderIdentities(steps)])];
+}
+
 /** The first of the case's targets, or the first that `selected` lists. */
 export function caseTarget(spec: CaseSpec, selected: readonly string[] | undefined): string | undefined {
   return selected === undefined ? spec.targets[0] : spec.targets.find((target) => selected.includes(target));

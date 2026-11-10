@@ -13,7 +13,7 @@ import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import type { Project } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { loginKey, planCases, planLogins, planRun, type PlanInputs, type RunPlan } from "../src/run/index.ts";
-import { finallySteps } from "../src/run/plan.ts";
+import { finallySteps, identitiesNamed } from "../src/run/plan.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
@@ -624,5 +624,52 @@ describe("finallySteps", () => {
     });
 
     expect(finallySteps(spec, flows)).toEqual([{ note: "disarmed" }, { note: "last" }]);
+  });
+});
+
+describe("identitiesNamed", () => {
+  const named = (fields: CaseFields, flows = new Map<string, FlowSpec>()) =>
+    identitiesNamed(CaseSpec.parse(testCase("AUTH-ID-001", fields)), flows);
+
+  it("reads a step's as, in steps, checks and finally", () => {
+    expect(
+      named({
+        steps: [{ note: "a", as: "alice" }],
+        checks: [{ note: "b", as: "bob" }],
+        finally: [{ note: "c", as: "ops" }],
+      }),
+    ).toEqual(["alice", "bob", "ops"]);
+  });
+
+  it("reads a request payload's as", () => {
+    expect(named({ steps: [{ request: { method: "GET", url: "https://app.example.test/me", as: "bob" } }] })).toEqual([
+      "bob",
+    ]);
+  });
+
+  it("reads a challenge trigger's as", () => {
+    const steps = [{ challenge: { kind: "otp-email", trigger: { note: "send", as: "alice" } } }];
+
+    expect(named({ steps })).toEqual(["alice"]);
+  });
+
+  it("reads a guided observe's as", () => {
+    const steps = [{ guided: { title: "look", steps: ["look"], observe: { note: "seen", as: "bob" } } }];
+
+    expect(named({ steps })).toEqual(["bob"]);
+  });
+
+  it("reads identity placeholders, once with an as of the same name", () => {
+    const steps = [{ note: "${identity.alice.email}", as: "alice" }, { note: "${identity.bob.pin}" }];
+
+    expect(named({ steps })).toEqual(["alice", "bob"]);
+  });
+
+  it("reads the steps of a flow", () => {
+    const flows = new Map<string, FlowSpec>([
+      ["sign-in", { name: "sign-in", params: [], steps: [{ note: "in", as: "ops" }] }],
+    ]);
+
+    expect(named({ steps: [{ use: "sign-in" }] }, flows)).toEqual(["ops"]);
   });
 });

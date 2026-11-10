@@ -14,6 +14,7 @@ import { execCommand } from "./commands/exec.ts";
 import { ingestCommand } from "./commands/ingest.ts";
 import { initCommand } from "./commands/init.ts";
 import { keepaliveCommand } from "./commands/keepalive.ts";
+import { doctorCommand } from "./commands/doctor.ts";
 import { logoutCommand } from "./commands/logout.ts";
 import { mcpCommand } from "./commands/mcp.ts";
 import { planCommand } from "./commands/plan.ts";
@@ -122,6 +123,7 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
       run: reportCommand,
     },
   ],
+  ["doctor", { usage: "doctor --env <env>", run: doctorCommand }],
   ["scan", { usage: "scan --run <id>", run: scanCommand }],
   // run_start spawns this script, from src/ or dist/ as this process runs it
   ["mcp", { usage: "mcp", run: (ctx) => mcpCommand(ctx, fileURLToPath(import.meta.url)) }],

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, posix, resolve } from "node:path";
 import { promisify } from "node:util";
-import { isMap, isNode, isScalar, isSeq, LineCounter, parse, parseDocument, type Document } from "yaml";
+import { isMap, isNode, isScalar, isSeq, LineCounter, parse, parseDocument, YAMLParseError, type Document } from "yaml";
 import { z } from "zod";
 import { IdentitiesConfig } from "./auth/index.ts";
 import { BRAND } from "./brand.ts";
@@ -338,10 +338,24 @@ export async function readLocalFixtures(root: string): Promise<IdentityFixtures 
     throw error;
   }
   // a file with only comments parses to null
-  const parsed = IdentityFixtures.safeParse(parse(text) ?? {});
+  const parsed = IdentityFixtures.safeParse(parseFixtures(text));
   if (!parsed.success)
     throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
   return parsed.data;
+}
+
+// the yaml library's messages quote the offending line, which may hold a fixture value
+function parseFixtures(text: string): unknown {
+  try {
+    return parse(text) ?? {};
+  } catch (error) {
+    if (!(error instanceof YAMLParseError)) throw error;
+    const pos = error.linePos?.[0];
+    throw new Error(
+      `${LOCAL_FIXTURES_FILE} is not valid YAML` +
+        (pos === undefined ? ` (${error.code})` : ` at line ${pos.line}, column ${pos.col}`),
+    );
+  }
 }
 
 function flowFileSchema(step: z.ZodType<Step>) {
