@@ -1,12 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { BRAND } from "@bazam/core/brand";
-import { FIXTURES_FILE, STATE_DIRS } from "@bazam/core/project";
+import { FIXTURES_FILE, LOCAL_FIXTURES_FILE, STATE_DIRS } from "@bazam/core/project";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 
-// a run reads identity fields from it (core run/runner.ts); git must never see it
-const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 const GITIGNORE = ".gitignore";
 const AGENTS_FILE = "AGENTS.md";
 const SECTION_START = `<!-- ${BRAND.markerPrefix}:start -->`;

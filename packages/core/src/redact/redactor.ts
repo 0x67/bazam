@@ -45,6 +45,14 @@ export type RedactionConfig = z.infer<typeof RedactionConfig>;
 // the domains the fixture-domain check allows, plus their subdomains
 const TEST_EMAIL_DOMAIN = /(?:^|\.)example\.(?:test|com|org|net)$/i;
 
+/** True for example.test, example.com, example.org, example.net and their subdomains. */
+export function isTestEmailDomain(domain: string): boolean {
+  return TEST_EMAIL_DOMAIN.test(domain);
+}
+
+/** An email address, as the default rules read one. */
+export const EMAIL_ADDRESS = /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu;
+
 export class Redactor {
   readonly #rules: RedactionRules;
   // what configure added, kept apart from the rules so the trace scrubber can apply the patterns alone
@@ -165,7 +173,7 @@ export function defaultRedactionRules(): RedactionRules {
     sensitiveKeys:
       /(?:^|_)(?:token|secret|password|passwd|cookie|authorization|otp|pin|session)s?(?:_|$)|api_?keys?(?:_|$)|(?:^|_)private_?keys?(?:_|$)|_seed(?:_|$)/,
     patterns: [
-      { pattern: /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu, mask: maskEmailLocalPart },
+      { pattern: EMAIL_ADDRESS, mask: maskEmailLocalPart },
       // the date that starts a run id (YYYYMMDD-HHmmss-<4 hex>) stays readable
       { pattern: /(?!\d{8}-\d{6}-[\da-f]{4}\b)\d{8,}/gi, mask: (match) => `••••${match.slice(-4)}` },
     ],
@@ -306,7 +314,7 @@ function maskStretches(
 
 function maskEmailLocalPart(email: string): string {
   const domain = email.slice(email.indexOf("@") + 1);
-  return TEST_EMAIL_DOMAIN.test(domain) ? email : `${MASK}@${domain}`;
+  return isTestEmailDomain(domain) ? email : `${MASK}@${domain}`;
 }
 
 // how URLSearchParams writes a value: a space becomes "+" and !'()~ are percent-encoded

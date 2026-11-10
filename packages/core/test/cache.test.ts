@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
@@ -57,5 +57,35 @@ describe("CredentialCache", () => {
     await cache.delete(key);
 
     expect(await cache.load(key)).toBeUndefined();
+  });
+});
+
+describe("CredentialCache.list", () => {
+  let dir: string;
+  let cache: CredentialCache;
+
+  beforeEach(async () => {
+    dir = join(await mkdtemp(join(tmpdir(), "cache-list-test-")), "credentials");
+    cache = new CredentialCache(dir);
+  });
+
+  afterEach(async () => {
+    await rm(join(dir, ".."), { recursive: true, force: true });
+  });
+
+  it("gives [] for a folder that does not exist", async () => {
+    expect(await cache.list()).toEqual([]);
+  });
+
+  it("reads each key back from the file name, also when a part holds a plus or a slash", async () => {
+    const odd: CredentialKey = { env: "demo+eu", identity: "ops/admin", surface: "api", strategy: "oauth2" };
+    await cache.save(key, "fake-token-a");
+    await cache.save(odd, { accessToken: "fake-token-b" });
+    await writeFile(join(dir, "demo+customer+web+session-cookie.json.0f3a.tmp"), "{");
+
+    expect(await cache.list()).toEqual([
+      { key: odd, credential: { accessToken: "fake-token-b" } },
+      { key, credential: "fake-token-a" },
+    ]);
   });
 });

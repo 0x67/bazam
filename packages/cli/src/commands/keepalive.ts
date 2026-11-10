@@ -1,21 +1,17 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { parse } from "yaml";
 import { CredentialCache, Identities, type CredentialKey, type JsonValue } from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import type { HumanChannel } from "@bazam/core/challenge";
 import { resolvePlaceholders, RunValues, type Environment, type PlaceholderSources } from "@bazam/core/env";
 import type { PluginRegistry } from "@bazam/core/plugin";
-import { IdentityFixtures, type ProjectConfig } from "@bazam/core/project";
+import { IdentityFixtures, readLocalFixtures, type ProjectConfig } from "@bazam/core/project";
 import { newRunId } from "@bazam/core/result";
 import { resolveSecret } from "@bazam/core/secrets";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 import { runDirOf } from "./plan.ts";
 
-// mirrors LOCAL_FIXTURES_FILE in core run/runner.ts, so credentialScope reads the identity fields a run reads
-const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 const DEFAULT_KEEPALIVE_MS = 2 * 60_000;
 const DEFAULT_CHANNEL = "terminal";
 
@@ -185,7 +181,7 @@ export async function credentialScope(
   registry: PluginRegistry,
   env: Environment,
 ): Promise<CredentialScope> {
-  const fixtures = await readLocalFixtures(ctx.root);
+  const fixtures = await localFixtures(ctx.root);
   const providers = registry.secretProviders(config.secrets.providers);
   const startedAt = new Date();
   const runId = newRunId(startedAt, Math.random);
@@ -228,19 +224,10 @@ export function known(names: Readonly<Record<string, unknown>>): string {
   return Object.keys(names).join(", ") || "none";
 }
 
-async function readLocalFixtures(root: string): Promise<IdentityFixtures> {
-  let text: string;
+async function localFixtures(root: string): Promise<IdentityFixtures> {
   try {
-    text = await readFile(join(root, LOCAL_FIXTURES_FILE), "utf8");
+    return (await readLocalFixtures(root)) ?? {};
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw error;
+    throw new CommandError((error as Error).message);
   }
-  // a file with only comments parses to null
-  const parsed = IdentityFixtures.safeParse(parse(text) ?? {});
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
-    throw new CommandError(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema: ${issues.join("; ")}`);
-  }
-  return parsed.data;
 }

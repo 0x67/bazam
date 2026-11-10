@@ -233,6 +233,9 @@ importers:
       '@rgrove/parse-xml':
         specifier: 5.1.0
         version: 5.1.0
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       libphonenumber-js:
         specifier: ^1.13.15
         version: 1.13.15

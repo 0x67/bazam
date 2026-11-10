@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { RedactionConfig, Redactor, defaultRedactionRules } from "../src/redact/index.ts";
+import { RedactionConfig, Redactor, defaultRedactionRules, isTestEmailDomain } from "../src/redact/index.ts";
 
 function defaultRedactor(): Redactor {
   return new Redactor(defaultRedactionRules());
@@ -200,6 +200,17 @@ describe("Redactor", () => {
 
     expect(redactor.selectors()).toEqual([".base", "#pan"]);
     expect(redactor.text("ACCT-42")).toBe("ACCT-42");
+  });
+});
+
+describe("isTestEmailDomain", () => {
+  it("accepts the example domains and their subdomains and refuses lookalikes", () => {
+    expect(["example.test", "uat.example.com", "EXAMPLE.ORG"].map(isTestEmailDomain)).toEqual([true, true, true]);
+    expect(["corp.example.com.evil.test", "notexample.test", "mail.invalid"].map(isTestEmailDomain)).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 });
 

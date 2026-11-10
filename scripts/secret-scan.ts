@@ -12,7 +12,6 @@
 // the runs folder holds no files, or a run read codes from a source the options leave out, so a scan that checked
 // nothing never passes.
 import { readdirSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import type { CachedCredential } from "../packages/core/src/auth/cache.ts";
@@ -22,35 +21,19 @@ import { builtinContributions } from "../packages/core/src/plugin/builtin.ts";
 import { loadProjectConfig, type ProjectConfig } from "../packages/core/src/project.ts";
 import { defaultRedactionRules, Redactor } from "../packages/core/src/redact/index.ts";
 import type { CaseResult } from "../packages/core/src/result/evidence.ts";
+import { unzipEntries } from "../packages/core/src/scan/evidence-scan.ts";
+import { MIN_ANYWHERE, MIN_SCANNED, RUN_ID, secretOf, textHits, type Secret } from "../packages/core/src/scan/forms.ts";
 import { resolveSecret, SecretMissing, type SecretProvider } from "../packages/core/src/secrets/index.ts";
 import { totpCode } from "../packages/resolvers/src/totp.ts";
 
 const USAGE = "usage: node scripts/secret-scan.ts <project root> [--totp-seed <secret name>] [--mailpit <url>]";
-const repoRoot = path.resolve(import.meta.dirname, "..");
-// the same unzipper the trace scrubber writes with, from the package that depends on it
-const { unzipSync } = createRequire(path.join(repoRoot, "packages", "driver-web", "package.json"))("fflate") as {
-  unzipSync: (zip: Uint8Array) => Record<string, Uint8Array>;
-};
 
-// the redactor ignores shorter values, so they may show up anywhere
-const MIN_SCANNED = 4;
-// A shorter form can occur by chance: inside a number a trace keeps (a timestamp that holds a 4-digit PIN), or as
-// random bytes in an image, whose compressed pixels never hold drawn text anyway. Elsewhere it counts only as a
-// whole token, and images are searched only for longer forms.
-const MIN_ANYWHERE = 8;
-const RUN_ID = /\d{8}-\d{6}-[\da-f]{4}/g;
 // the evidence store writes these result.json fields unmasked, since the harness makes them
 // (see packages/core/src/result/evidence.ts::EvidenceStore.finish)
 const HARNESS_FIELDS = ["seed", "values", "durationMs"];
 const ZIP_MAGIC = Buffer.from("PK\x03\x04", "latin1");
 // PNG and JPEG, the screenshots and screencast frames a run writes
 const IMAGE_MAGIC = [Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from([0xff, 0xd8, 0xff])];
-// a JSON string escape, and a percent escape of an ASCII character
-const JSON_ESCAPE = /\\(?:u[\da-fA-F]{4}|["\\/bfnrt])/g;
-const JSON_ESCAPED: Readonly<Record<string, string>> = { b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" };
-const PERCENT_ESCAPE = /%[0-7][\da-fA-F]/g;
-// enough for JSON inside a JSON string and for a URL encoded twice
-const MAX_DECODE_ROUNDS = 3;
 // the web driver keeps passkeys in the credential cache under its resolver's name and registers their private keys
 // (see packages/driver-web/src/passkey.ts::virtualPasskeyResolver)
 const PASSKEY_RESOLVER = "passkey-virtual";
@@ -67,14 +50,6 @@ interface Options {
   projectRoot: string;
   totpSeed: string | undefined;
   mailpit: string | undefined;
-}
-
-interface Secret {
-  name: string;
-  /** Forms of MIN_ANYWHERE or more characters, searched for anywhere. */
-  long: string[];
-  /** Shorter forms, searched for as whole tokens outside images. */
-  short: RegExp[];
 }
 
 interface Hit {
@@ -319,21 +294,6 @@ async function mailpitJson(base: string, pathAndQuery: string): Promise<unknown>
   return response.json();
 }
 
-function secretOf(name: string, values: readonly string[]): Secret {
-  const forms = [...new Set(values.filter((value) => value.length >= MIN_SCANNED).flatMap(encodedForms))];
-  return {
-    name,
-    long: forms.filter((form) => form.length >= MIN_ANYWHERE),
-    short: forms.filter((form) => form.length < MIN_ANYWHERE).map(asToken),
-  };
-}
-
-// the forms the redactor masks (see packages/core/src/redact/redactor.ts::Redactor.register)
-function encodedForms(value: string): string[] {
-  const formEncoded = new URLSearchParams({ value }).toString().slice("value=".length);
-  return [value, encodeURIComponent(value), formEncoded, Buffer.from(value, "utf8").toString("base64")];
-}
-
 function filesUnder(dir: string): string[] {
   let entries;
   try {
@@ -356,11 +316,13 @@ function nameHits(where: string, name: string, secrets: readonly Secret[]): Hit[
   return textHits(name.replaceAll(RUN_ID, " "), secrets).map((secret) => ({ where, secret }));
 }
 
+// This walk stays apart from scanFiles: it also matches entry names, searches images by their long forms and
+// fails on a bad zip, where scanFiles skips images and reports a bad zip as skipped. Both open zips through unzipEntries.
 function contentHits(where: string, bytes: Uint8Array, secrets: readonly Secret[]): Hit[] {
   if (startsWith(bytes, ZIP_MAGIC)) {
     let entries: Record<string, Uint8Array>;
     try {
-      entries = unzipSync(bytes);
+      entries = unzipEntries(bytes);
     } catch (error) {
       throw new ScanError(`cannot unzip ${where}: ${(error as Error).message}`);
     }
@@ -393,40 +355,6 @@ function parsedJson(text: string): unknown {
   } catch {
     return undefined;
   }
-}
-
-// also searches the text with its escapes undone, so a short value right after \n or %3D is the whole token it is
-function textHits(text: string, secrets: readonly Secret[]): string[] {
-  const views = [...new Set([text, unescaped(text)])];
-  return secrets
-    .filter((secret) =>
-      views.some(
-        (view) => secret.long.some((form) => view.includes(form)) || secret.short.some((token) => token.test(view)),
-      ),
-    )
-    .map((secret) => secret.name);
-}
-
-function unescaped(text: string): string {
-  let out = text;
-  for (let round = 0; round < MAX_DECODE_ROUNDS; round++) {
-    const next = out
-      .replace(JSON_ESCAPE, (escape) =>
-        escape[1] === "u"
-          ? String.fromCharCode(Number.parseInt(escape.slice(2), 16))
-          : (JSON_ESCAPED[escape.slice(1)] ?? escape.slice(1)),
-      )
-      .replace(PERCENT_ESCAPE, (escape) => String.fromCharCode(Number.parseInt(escape.slice(1), 16)));
-    if (next === out) break;
-    out = next;
-  }
-  return out;
-}
-
-// not joined to a letter or a digit, nor to a digit through a decimal point, so 12.2468 and 2468.5 are one number
-function asToken(form: string): RegExp {
-  const escaped = form.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
-  return new RegExp(`(?<![\\p{L}\\p{N}]|\\p{N}\\.)${escaped}(?![\\p{L}\\p{N}]|\\.\\p{N})`, "u");
 }
 
 function startsWith(bytes: Uint8Array, magic: Buffer): boolean {

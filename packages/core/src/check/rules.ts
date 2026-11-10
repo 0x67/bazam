@@ -16,6 +16,7 @@ import {
 } from "../case/index.ts";
 import { humanResolver } from "../challenge/index.ts";
 import { findPlaceholders, isPhoneForm, phoneForm } from "../env/index.ts";
+import { isTestEmailDomain } from "../redact/index.ts";
 import {
   externalCaseProblem,
   FIXTURES_FILE,
@@ -45,7 +46,6 @@ const SECRET_PATTERNS: readonly { what: string; pattern: RegExp }[] = [
 const SECRET_TOKEN = /[A-Za-z0-9+/=_-]{24,}/g;
 const MIN_SECRET_BITS_PER_CHAR = 4.0;
 const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
-const RESERVED_EMAIL_DOMAIN = /(?:^|\.)example\.(?:test|com|org|net)$/i;
 
 export const builtinRules: readonly CheckRule[] = [
   loaderRule("schema"),
@@ -319,7 +319,7 @@ function unreservedEmails(project: Project): Finding[] {
   return (fixtures === undefined ? [] : fileLines(fixtures)).flatMap(({ at, text }) =>
     [...text.matchAll(EMAIL)]
       .map((match) => match[1] ?? "")
-      .filter((domain) => !RESERVED_EMAIL_DOMAIN.test(domain))
+      .filter((domain) => !isTestEmailDomain(domain))
       .map((domain) => ({
         at,
         message: `an email address on ${domain}, which is not a reserved test domain`,

@@ -2,8 +2,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { parse } from "yaml";
-import { z } from "zod";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import { bindRoles, roleBindings, type LoadedCase } from "../case/index.ts";
@@ -21,6 +19,8 @@ import type { PluginRegistry } from "../plugin/index.ts";
 import {
   declaredSecretNames,
   IdentityFixtures,
+  LOCAL_FIXTURES_FILE,
+  readLocalFixtures,
   runnerOf,
   type Project,
   type ProjectConfig,
@@ -75,7 +75,6 @@ export interface RunOptions {
   roles?: Readonly<Record<string, string>>;
 }
 
-const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
 // a login trace from preflight lands here; a case id never has this shape
 const PREFLIGHT_DIR = "preflight";
 // as long as a person has to answer a challenge prompt
@@ -830,21 +829,6 @@ function blockingCredentials(
         .catch(blocked(identity, surface));
     },
   };
-}
-
-async function readLocalFixtures(root: string): Promise<IdentityFixtures | undefined> {
-  let text: string;
-  try {
-    text = await readFile(join(root, LOCAL_FIXTURES_FILE), "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
-  }
-  // a file with only comments parses to null
-  const parsed = IdentityFixtures.safeParse(parse(text) ?? {});
-  if (!parsed.success)
-    throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
-  return parsed.data;
 }
 
 function stackOf(error: unknown): string {

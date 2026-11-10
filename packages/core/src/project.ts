@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, posix, resolve } from "node:path";
 import { promisify } from "node:util";
-import { isMap, isNode, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
+import { isMap, isNode, isScalar, isSeq, LineCounter, parse, parseDocument, type Document } from "yaml";
 import { z } from "zod";
 import { IdentitiesConfig } from "./auth/index.ts";
 import { BRAND } from "./brand.ts";
@@ -325,6 +325,24 @@ export const FIXTURES_FILE = "fixtures/identities.example.yaml";
 /** Identity fields by fixture entry name, as `fixtures/identities.example.yaml` and its local copy hold them. */
 export const IdentityFixtures = z.record(z.string().min(1), z.record(z.string().min(1), z.string()));
 export type IdentityFixtures = z.infer<typeof IdentityFixtures>;
+
+export const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
+
+/** The local fixtures file, or undefined when the project has none. */
+export async function readLocalFixtures(root: string): Promise<IdentityFixtures | undefined> {
+  let text: string;
+  try {
+    text = await readFile(join(root, LOCAL_FIXTURES_FILE), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  // a file with only comments parses to null
+  const parsed = IdentityFixtures.safeParse(parse(text) ?? {});
+  if (!parsed.success)
+    throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
+  return parsed.data;
+}
 
 function flowFileSchema(step: z.ZodType<Step>) {
   return z.strictObject({

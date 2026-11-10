@@ -67,6 +67,10 @@
       "development": "./src/run/index.ts",
       "default": "./dist/run/index.js"
     },
+    "./scan": {
+      "development": "./src/scan/index.ts",
+      "default": "./dist/scan/index.js"
+    },
     "./secrets": {
       "development": "./src/secrets/index.ts",
       "default": "./dist/secrets/index.js"
@@ -77,6 +81,7 @@
   },
   "dependencies": {
     "@rgrove/parse-xml": "5.1.0",
+    "fflate": "0.8.3",
     "libphonenumber-js": "^1.13.15",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { JsonValue } from "./strategy.ts";
 
@@ -50,6 +50,27 @@ export class CredentialCache {
       await rm(temp, { force: true });
       throw error;
     }
+  }
+
+  /** Every cached credential, with its key read back from the file name. */
+  async list(): Promise<{ key: CredentialKey; credential: JsonValue }[]> {
+    let files: string[];
+    try {
+      files = await readdir(this.#dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const entries: { key: CredentialKey; credential: JsonValue }[] = [];
+    // a save in progress leaves a .tmp file
+    for (const file of files.filter((name) => name.endsWith(".json")).toSorted()) {
+      const parts = file.slice(0, -".json".length).split("+");
+      if (parts.length !== 4) continue;
+      const [env, identity, surface, strategy] = parts.map(decodeURIComponent) as [string, string, string, string];
+      const { credential } = JSON.parse(await readFile(join(this.#dir, file), "utf8")) as CachedCredential;
+      entries.push({ key: { env, identity, surface, strategy }, credential });
+    }
+    return entries;
   }
 
   async delete(key: CredentialKey): Promise<void> {
