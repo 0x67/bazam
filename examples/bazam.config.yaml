@@ -128,10 +128,6 @@ identities:
           sign: hooks/sign-demo.ts
           probe: { request: "GET ${env.APP_URL}/api/hmac/echo" }
 
-plugins:
-  # adds the page-text step, which reads the page through pageFor
-  - ./plugins/page-step/manifest.ts
-
 runners:
   # the node:test suite in external/node-test; it signs in new addresses only, so it holds no identity's lock
   demo-node-test:

@@ -11,7 +11,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, symlink, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { constants, tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
@@ -335,8 +335,6 @@ async function copyExamples(to: string): Promise<void> {
     if (file === "" || file.startsWith("demo-app/")) continue;
     await copyInto(join(EXAMPLES, file), join(to, file));
   }
-  // plugin modules in examples/ import workspace packages, as they would from an installed clone
-  await symlink(join(REPO, "node_modules"), join(to, "node_modules"), "dir");
   const secrets = join(BRAND.stateDir, "secrets.env");
   if (existsSync(join(EXAMPLES, secrets))) await copyInto(join(EXAMPLES, secrets), join(to, secrets));
   const local = join(EXAMPLES, "fixtures", "identities.local.yaml");

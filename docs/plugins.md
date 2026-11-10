@@ -24,9 +24,16 @@ An in-process plugin is a TypeScript module listed in `plugins:` of `bazam.confi
 
 **Example**
 
-`examples/plugins/page-step/manifest.ts` adds `page-text`, which reads the text of one element and saves it. `PROFILE-PHONE-002` in `examples/cases/profile/phone-restore.yaml` uses it:
+1. `examples/plugins/page-step/manifest.ts` adds `page-text`, which reads the text of one element and saves it. `packages/driver-web/test/page.test.ts` loads it and runs it against a page.
+2. `examples/bazam.config.yaml` does not list it: its imports resolve only inside this repository, through the root `package.json`, and the example project has to load from a copy outside it. A project of its own installs `@bazam/core`, `@bazam/driver-web` and `zod` instead.
+3. To try it against the demo app, add the entry and a step to a case:
 
-```yaml
-- page-text: { id: full-saved, save: armed }
-  as: customer
-```
+   ```yaml
+   plugins:
+     - ./plugins/page-step/manifest.ts
+   ```
+
+   ```yaml
+   - page-text: { id: full-saved, save: saved }
+     as: customer
+   ```

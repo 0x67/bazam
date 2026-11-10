@@ -1,6 +1,9 @@
 import { rm } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import type { DriverSession, StepHandler } from "@bazam/core/driver";
 import type { Environment } from "@bazam/core/env";
+import { PluginRegistry } from "@bazam/core/plugin";
+import { ProjectConfig } from "@bazam/core/project";
 import { CaseBlocked, HarnessError } from "@bazam/core/run";
 import { z } from "zod";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
@@ -29,6 +32,7 @@ describe.each(ENGINES)("pageFor on %s", (engine) => {
   beforeAll(async () => {
     site = await startSite({
       "/whoami": (request, response) => response.end(`cookie: ${request.headers.cookie ?? "none"}`),
+      "/saved": html('<p data-testid="full-saved"> +447700900456 </p>'),
       "/": html("<p>home</p>"),
     });
     env = demoEnv();
@@ -51,6 +55,21 @@ describe.each(ENGINES)("pageFor on %s", (engine) => {
       ctx.values.set("seen", (await page.textContent("body")) ?? "");
     },
   };
+
+  it("runs the page-text step of the example plugin in examples/plugins/page-step", async () => {
+    const { session, evidence } = await open();
+    const examples = fileURLToPath(new URL("../../../examples/", import.meta.url));
+    const config = ProjectConfig.parse({ envs: {}, plugins: ["./plugins/page-step/manifest.ts"] });
+    const registry = await PluginRegistry.load(config, examples, []);
+    const handler = registry.stepHandlers().find((step) => step.kind === "page-text");
+    const ctx = stepContext(session, { env, evidence, root });
+    await (await pageFor(ctx)).goto(`${site.origin}/saved`);
+
+    await handler?.run({ id: "full-saved", save: "saved" }, ctx);
+
+    expect(handler?.opensBrowser).toBe(true);
+    expect(ctx.values.get("saved")).toBe("+447700900456");
+  });
 
   async function open() {
     root = await tempDir();

@@ -14,10 +14,6 @@ cases:
         as: customer
       - tap: { id: full-save }
         as: customer
-      # a step from plugins/page-step, which reads the page through pageFor
-      - page-text: { id: full-saved, save: armed }
-        as: customer
-      - note: The page shows ${case.armed} as the saved number.
     checks:
       - expect: { text: { field: { id: full-saved }, equals: "+447700900456" } }
         as: customer
