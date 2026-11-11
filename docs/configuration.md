@@ -166,7 +166,7 @@ A runner name takes letters, digits, dots, dashes and underscores, starting with
    3. `headless`: `true` when left out.
    4. `testIdAttribute`: the attribute that `{ id: ... }` selectors read, `data-testid` when left out.
    5. `permissions`: the browser permissions that every context of a case and the login tab grant, such as `[geolocation]`. None are granted when left out, so a page that asks for another one, such as the camera, is refused. On Chromium the driver also grants `local-network-access` itself when it sets extra headers, with or without this list.
-   6. `args`: extra browser launch arguments, `[]` when left out. Targets that differ in `args` launch separate browsers, and targets that match share one.
+   6. `args`: extra browser launch arguments, `[]` when left out. Targets that differ in `args` launch separate browsers, and targets that match share one. Each engine's launcher reads them as given, and WebKit on Linux refuses an option it does not know, so its target cannot launch.
    7. `viewport`: the page size in CSS pixels, such as `{ width: 1600, height: 1000 }`, for every context of a case and the login tab, so screenshots and traces show that size. Playwright's 1280x720 applies when left out. Width and height are positive whole numbers.
 5. A setting that does not fit fails the plan with `target <name>:` and the problem, before any browser launches.
 
