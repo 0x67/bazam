@@ -1,6 +1,11 @@
 import type { PersonAnswer, PersonPrompt } from "./human.ts";
 import { takesValue, type ChallengeKindSpec } from "./kinds.ts";
-import type { ChallengeAnswer, ChallengeRequest, ChallengeResolver, ResolverContext } from "./resolver.ts";
+import type {
+  ChallengeAnswer,
+  ChallengeRequest,
+  ChallengeResolver,
+  ResolverContext,
+} from "./resolver.ts";
 
 type Ask = "value" | "action";
 
@@ -34,10 +39,13 @@ function challengePrompt(
 }
 
 function challengeSteps(identity: string, kind: ChallengeKindSpec, ask: Ask): string[] {
-  if (ask === "value") return [`Get the ${kind.name} code for ${identity}.`, "Answer with the code."];
+  if (ask === "value")
+    return [`Get the ${kind.name} code for ${identity}.`, "Answer with the code."];
   const act = `Complete the ${kind.name} step in the app as ${identity}.`;
   const done = "Answer done when the app accepts it.";
-  return kind.humanOnly ? [act, `Type the ${kind.name} only into the app, never into the answer.`, done] : [act, done];
+  return kind.humanOnly
+    ? [act, `Type the ${kind.name} only into the app, never into the answer.`, done]
+    : [act, done];
 }
 
 function challengeAnswer(answer: PersonAnswer, ask: Ask, timeoutMs: number): ChallengeAnswer {
@@ -51,8 +59,11 @@ function challengeAnswer(answer: PersonAnswer, ask: Ask, timeoutMs: number): Cha
       throw new Error("the person answered done, but this challenge needs a value");
     case "verdict":
       if (answer.verdict === "pass" && ask === "action") return { kind: "done" };
-      if (answer.verdict === "pass") throw new Error("the person answered pass, but this challenge needs a value");
-      throw new Error(`the person answered ${answer.verdict}${answer.note === "" ? "" : `: ${answer.note}`}`);
+      if (answer.verdict === "pass")
+        throw new Error("the person answered pass, but this challenge needs a value");
+      throw new Error(
+        `the person answered ${answer.verdict}${answer.note === "" ? "" : `: ${answer.note}`}`,
+      );
     case "timeout":
       throw new Error(`no answer from a person within ${Math.round(timeoutMs / 1000)} s`);
   }

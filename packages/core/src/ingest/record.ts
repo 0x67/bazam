@@ -2,7 +2,12 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { CaseSpec } from "../case/index.ts";
 import type { Redactor } from "../redact/index.ts";
-import { EvidenceStore, type CaseMeta, type CaseOutcome, type CaseResult } from "../result/index.ts";
+import {
+  EvidenceStore,
+  type CaseMeta,
+  type CaseOutcome,
+  type CaseResult,
+} from "../result/index.ts";
 import type { ExternalTest } from "./format.ts";
 import { testTitle, type MappedTests } from "./mapping.ts";
 
@@ -60,9 +65,11 @@ export async function recordExternalResults(inputs: ExternalRecordInputs): Promi
           ...(test.message === undefined ? {} : { hint: test.message }),
         });
       }
-      for (const attachment of test.attachments) await copyAttachment(store, test, attachment, places, inputs);
+      for (const attachment of test.attachments)
+        await copyAttachment(store, test, attachment, places, inputs);
     }
-    for (const { step, kind, resolver } of inputs.challenges.get(spec.id) ?? []) store.challenge(step, kind, resolver);
+    for (const { step, kind, resolver } of inputs.challenges.get(spec.id) ?? [])
+      store.challenge(step, kind, resolver);
     const meta: CaseMeta = {
       runId: inputs.runId,
       title: spec.title,
@@ -86,12 +93,20 @@ function observed(test: ExternalTest): string {
   return `passed after ${test.retries} ${test.retries === 1 ? "retry" : "retries"}`;
 }
 
-function outcomeOf(caseId: string, tests: readonly ExternalTest[], inputs: ExternalRecordInputs): CaseOutcome {
+function outcomeOf(
+  caseId: string,
+  tests: readonly ExternalTest[],
+  inputs: ExternalRecordInputs,
+): CaseOutcome {
   if (tests.length === 0) {
-    return { kind: "blocked", reason: inputs.failure ?? `no result from runner ${inputs.runnerName} for ${caseId}` };
+    return {
+      kind: "blocked",
+      reason: inputs.failure ?? `no result from runner ${inputs.runnerName} for ${caseId}`,
+    };
   }
   // a failed check outranks the skipped tests, so deriveStatus gives fail
-  if (tests.some((test) => test.outcome === "failed" || test.outcome === "errored")) return { kind: "completed" };
+  if (tests.some((test) => test.outcome === "failed" || test.outcome === "errored"))
+    return { kind: "completed" };
   const skipped = tests.filter((test) => test.outcome === "skipped").map(testTitle);
   if (skipped.length > 0) return { kind: "blocked", reason: `skipped: ${skipped.join(", ")}` };
   return { kind: "completed" };
@@ -121,7 +136,9 @@ async function copyAttachment(
   const ext = extname(path).toLowerCase();
   const type = ATTACHMENT_TYPES[ext];
   if (type === undefined) {
-    store.note(`left out ${name}: ${ext.slice(1) || "extensionless"} files from a runner are not copied`);
+    store.note(
+      `left out ${name}: ${ext.slice(1) || "extensionless"} files from a runner are not copied`,
+    );
     return;
   }
   const file = await findFile(path, test.source, places.cwd);
@@ -130,7 +147,8 @@ async function copyAttachment(
     return;
   }
   const { size, mtimeMs } = await stat(file);
-  const tooOld = inputs.spawnedAt !== undefined && mtimeMs < inputs.spawnedAt.getTime() - MTIME_SLACK_MS;
+  const tooOld =
+    inputs.spawnedAt !== undefined && mtimeMs < inputs.spawnedAt.getTime() - MTIME_SLACK_MS;
   if (!isInside(places.cwd, file) || places.excluded.some((dir) => isInside(dir, file)) || tooOld) {
     store.note(`left out ${name}: not a file this runner wrote`);
     return;
@@ -150,7 +168,9 @@ async function copyAttachment(
 
 /** The realpath of the first regular file the path names, from the result file's folder and then from the cwd. */
 async function findFile(path: string, source: string, cwd: string): Promise<string | undefined> {
-  const candidates = isAbsolute(path) ? [path] : [resolve(cwd, dirname(source), path), resolve(cwd, path)];
+  const candidates = isAbsolute(path)
+    ? [path]
+    : [resolve(cwd, dirname(source), path), resolve(cwd, path)];
   for (const candidate of candidates) {
     const file = await realpath(candidate).catch(() => undefined);
     if (file !== undefined && (await stat(file)).isFile()) return file;

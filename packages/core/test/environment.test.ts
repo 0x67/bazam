@@ -71,7 +71,9 @@ describe("EnvsConfig", () => {
       uat: {
         production: false,
         hosts: ["core.example.test"],
-        probes: [{ request: "GET https://core.example.test/health", status: 204, hint: "connect the VPN" }],
+        probes: [
+          { request: "GET https://core.example.test/health", status: 204, hint: "connect the VPN" },
+        ],
       },
     });
 
@@ -104,16 +106,23 @@ describe("EnvsConfig", () => {
     ]);
   });
 
-  it.each(["POST https://core.example.test/health", "GET not a url", "https://core.example.test/health"])(
-    "refuses the probe request %s",
-    (request) => {
-      const result = EnvsConfig.safeParse({
-        uat: { production: false, hosts: ["core.example.test"], probes: [{ request, hint: "connect the VPN" }] },
-      });
+  it.each([
+    "POST https://core.example.test/health",
+    "GET not a url",
+    "https://core.example.test/health",
+  ])("refuses the probe request %s", (request) => {
+    const result = EnvsConfig.safeParse({
+      uat: {
+        production: false,
+        hosts: ["core.example.test"],
+        probes: [{ request, hint: "connect the VPN" }],
+      },
+    });
 
-      expect(result.error?.issues.map((issue) => issue.path)).toEqual([["uat", "probes", 0, "request"]]);
-    },
-  );
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([
+      ["uat", "probes", 0, "request"],
+    ]);
+  });
 
   it("rejects a locale that is not a BCP 47 tag", () => {
     const result = EnvsConfig.safeParse({
@@ -125,7 +134,10 @@ describe("EnvsConfig", () => {
 
   it("rejects a host written as a URL or with a port", () => {
     const result = EnvsConfig.safeParse({
-      uat: { production: false, hosts: ["https://uat.app.example.test", "uat.app.example.test:8443"] },
+      uat: {
+        production: false,
+        hosts: ["https://uat.app.example.test", "uat.app.example.test:8443"],
+      },
     });
 
     expect(result.success).toBe(false);
@@ -144,7 +156,9 @@ describe("EnvsConfig", () => {
 
 describe("assertHostAllowed", () => {
   it("blocks a host outside the list", () => {
-    const error = thrownBy(() => assertHostAllowed(uat, new URL("https://api.example.test/orders")));
+    const error = thrownBy(() =>
+      assertHostAllowed(uat, new URL("https://api.example.test/orders")),
+    );
 
     expect(error).toBeInstanceOf(HostNotAllowed);
     expect((error as HostNotAllowed).host).toBe("api.example.test");
@@ -152,12 +166,18 @@ describe("assertHostAllowed", () => {
   });
 
   it("allows a listed host whatever the scheme, port or letter case of the URL", () => {
-    expect(() => assertHostAllowed(uat, new URL("https://UAT.app.example.test/login"))).not.toThrow();
-    expect(() => assertHostAllowed(uat, new URL("http://api.uat.example.test:8081/orders"))).not.toThrow();
+    expect(() =>
+      assertHostAllowed(uat, new URL("https://UAT.app.example.test/login")),
+    ).not.toThrow();
+    expect(() =>
+      assertHostAllowed(uat, new URL("http://api.uat.example.test:8081/orders")),
+    ).not.toThrow();
   });
 
   it("blocks a subdomain of a listed host and a URL without a host", () => {
-    expect(() => assertHostAllowed(uat, new URL("https://evil.uat.app.example.test/"))).toThrow(HostNotAllowed);
+    expect(() => assertHostAllowed(uat, new URL("https://evil.uat.app.example.test/"))).toThrow(
+      HostNotAllowed,
+    );
     expect(() => assertHostAllowed(uat, new URL("file:///etc/hosts"))).toThrow(HostNotAllowed);
   });
 });

@@ -25,9 +25,11 @@ export async function loadTestProject(
     await writeFile(join(root, path), typeof content === "string" ? content : stringify(content));
   }
   const { config, issues } = await loadProjectConfig(root);
-  if (config === undefined) throw new Error(`the test config has issues: ${JSON.stringify(issues)}`);
+  if (config === undefined)
+    throw new Error(`the test config has issues: ${JSON.stringify(issues)}`);
   const registry = await PluginRegistry.load(config, root, plugins);
   const project = await loadProject(root, registry);
-  if (project.issues.length > 0) throw new Error(`the test project has issues: ${JSON.stringify(project.issues)}`);
+  if (project.issues.length > 0)
+    throw new Error(`the test project has issues: ${JSON.stringify(project.issues)}`);
   return { root, project, registry };
 }

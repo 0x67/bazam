@@ -19,10 +19,12 @@ import {
 /** Where a credential will come from: the cache, a refresh, a scripted or person login, or static secrets. */
 export type LoginMode = "cached" | "refresh" | "scripted" | "person" | "static";
 
-const IdentityName = z
+const IdentityName = z.string().regex(/^[a-z][a-z0-9-]*$/, {
+  error: 'an identity name looks like "customer" or "partner-admin"',
+});
+const SurfaceName = z
   .string()
-  .regex(/^[a-z][a-z0-9-]*$/, { error: 'an identity name looks like "customer" or "partner-admin"' });
-const SurfaceName = z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'a surface name looks like "web" or "api"' });
+  .regex(/^[a-z][a-z0-9-]*$/, { error: 'a surface name looks like "web" or "api"' });
 const StrategyName = z.string().min(1);
 
 const SurfaceAuth = z.union([
@@ -145,7 +147,11 @@ export class Identities {
 
   constructor(deps: IdentitiesDeps) {
     this.#deps = deps;
-    this.#http = guardedHttp({ env: deps.env, redactor: deps.redactor, log: (line) => deps.log(line) });
+    this.#http = guardedHttp({
+      env: deps.env,
+      redactor: deps.redactor,
+      log: (line) => deps.log(line),
+    });
   }
 
   /** Reads only the cache: it never probes, refreshes, acquires or resolves, so it fetches no secret. */
@@ -154,7 +160,8 @@ export class Identities {
     if (!slot.strategy.cacheable) return "static";
     const held = this.#held.get(slot.id) ?? (await this.#loadCached(slot));
     if (held !== undefined && !this.#isExpired(held)) return "cached";
-    if (held !== undefined && this.#refreshFor(slot, held.credential) !== undefined) return "refresh";
+    if (held !== undefined && this.#refreshFor(slot, held.credential) !== undefined)
+      return "refresh";
     return slot.strategy.needsPerson?.(slot.settings) === true ? "person" : "scripted";
   }
 
@@ -188,9 +195,13 @@ export class Identities {
         return true;
       }
       const previous = reloaded ?? used;
-      const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+      const refresh =
+        previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
       if (previous === undefined || refresh === undefined) return false;
-      await this.#adopt(slot, await refresh(previous.credential, config, this.#context(slot.identity)));
+      await this.#adopt(
+        slot,
+        await refresh(previous.credential, config, this.#context(slot.identity)),
+      );
       return true;
     });
   }
@@ -218,10 +229,14 @@ export class Identities {
         wrongAccount = verdict.mismatch !== undefined;
       }
       const previous = wrongAccount ? undefined : (reloaded ?? used);
-      const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+      const refresh =
+        previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
       if (previous !== undefined && refresh !== undefined) {
         try {
-          await this.#adopt(slot, await refresh(previous.credential, config, this.#context(slot.identity)));
+          await this.#adopt(
+            slot,
+            await refresh(previous.credential, config, this.#context(slot.identity)),
+          );
           return "refreshed";
         } catch {
           // a refresh token can expire or be revoked; logging in again replaces it
@@ -250,9 +265,14 @@ export class Identities {
   }
 
   /** The surface that owns the credential, after from:, and its refreshEveryMs, when it sets one. */
-  refreshInterval(identity: string, surface: string): { surface: string; everyMs: number } | undefined {
+  refreshInterval(
+    identity: string,
+    surface: string,
+  ): { surface: string; everyMs: number } | undefined {
     const { owner, settings } = this.#owner(identity, surface);
-    return settings.refreshEveryMs === undefined ? undefined : { surface: owner, everyMs: settings.refreshEveryMs };
+    return settings.refreshEveryMs === undefined
+      ? undefined
+      : { surface: owner, everyMs: settings.refreshEveryMs };
   }
 
   /** The lostOn pattern of the surface that owns the credential, after from:, with its placeholders filled. */
@@ -276,7 +296,8 @@ export class Identities {
       }
       stale = cached;
     }
-    if (!slot.strategy.cacheable) return this.#renew(slot, config, wrongAccount ? undefined : stale);
+    if (!slot.strategy.cacheable)
+      return this.#renew(slot, config, wrongAccount ? undefined : stale);
     return withRefreshLock(this.#deps.lockDir, slot.key, async () => {
       // another process may have refreshed it while this one waited for the lock
       const reloaded = await this.#loadCached(slot);
@@ -297,9 +318,14 @@ export class Identities {
     return this.#adopt(slot, credential);
   }
 
-  async #refreshOrAcquire(slot: Slot, config: unknown, previous: Held | undefined): Promise<JsonValue> {
+  async #refreshOrAcquire(
+    slot: Slot,
+    config: unknown,
+    previous: Held | undefined,
+  ): Promise<JsonValue> {
     const ctx = this.#context(slot.identity);
-    const refresh = previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
+    const refresh =
+      previous === undefined ? undefined : this.#refreshFor(slot, previous.credential);
     if (previous !== undefined && refresh !== undefined) {
       try {
         return await refresh(previous.credential, config, ctx);
@@ -324,7 +350,9 @@ export class Identities {
   async #probeVerdict(slot: Slot, config: unknown, credential: JsonValue): Promise<ProbeVerdict> {
     if (slot.strategy.probe === undefined) return { passes: true };
     try {
-      return { passes: await slot.strategy.probe(credential, config, this.#context(slot.identity)) };
+      return {
+        passes: await slot.strategy.probe(credential, config, this.#context(slot.identity)),
+      };
     } catch (error) {
       if (error instanceof IdentityMismatch) return { passes: false, mismatch: error.paths };
       if (error instanceof MissingHeaderCookie) return { passes: false, reason: error.message };
@@ -373,7 +401,9 @@ export class Identities {
   async #parseSettings(slot: Slot): Promise<unknown> {
     const parsed = slot.strategy.config.safeParse(await this.#deps.resolve(slot.settings));
     if (!parsed.success)
-      throw new Error(`${slot.id} has invalid ${slot.strategy.name} settings: ${z.prettifyError(parsed.error)}`);
+      throw new Error(
+        `${slot.id} has invalid ${slot.strategy.name} settings: ${z.prettifyError(parsed.error)}`,
+      );
     return parsed.data;
   }
 
@@ -391,7 +421,9 @@ export class Identities {
   #owner(identity: string, surface: string): { owner: string; settings: WithSettings } {
     const config = this.#deps.configs[identity];
     if (config === undefined) {
-      throw new Error(`unknown identity "${identity}"; known: ${Object.keys(this.#deps.configs).join(", ") || "none"}`);
+      throw new Error(
+        `unknown identity "${identity}"; known: ${Object.keys(this.#deps.configs).join(", ") || "none"}`,
+      );
     }
     const auth = config.auth[surface];
     if (auth === undefined) {
@@ -428,7 +460,9 @@ export class Identities {
     if (fixture === undefined) return {};
     const fields = this.#deps.fixtures[fixture];
     if (fields === undefined)
-      throw new Error(`identity "${identity}" names fixture "${fixture}", which the local fixtures file does not have`);
+      throw new Error(
+        `identity "${identity}" names fixture "${fixture}", which the local fixtures file does not have`,
+      );
     return fields;
   }
 }

@@ -1,7 +1,12 @@
 import { CredentialRejected, RefreshLockTimeout } from "../auth/index.ts";
 import { ChallengeBlocked, GuidedBlocked } from "../challenge/index.ts";
 import { ConnectionFailed, Unauthorized } from "../driver/http.ts";
-import { HostNotAllowed, ProdCaseRefused, ProdWriteRefused, UnresolvedPlaceholder } from "../env/index.ts";
+import {
+  HostNotAllowed,
+  ProdCaseRefused,
+  ProdWriteRefused,
+  UnresolvedPlaceholder,
+} from "../env/index.ts";
 import type { CaseOutcome } from "../result/index.ts";
 import { SecretMissing } from "../secrets/index.ts";
 
@@ -59,7 +64,8 @@ export function isBlocking(error: unknown): error is Error {
 /** How a case ended after `error` stopped it. Anything neither blocking nor from a step is a harness error. */
 export function outcomeOf(error: unknown, cancelled: boolean): CaseOutcome {
   if (cancelled) return { kind: "blocked", reason: "run cancelled" };
-  if (error instanceof StepFailed) return { kind: "errored", source: "product", message: error.message };
+  if (error instanceof StepFailed)
+    return { kind: "errored", source: "product", message: error.message };
   if (isBlocking(error)) return { kind: "blocked", reason: error.message };
   return { kind: "errored", source: "harness", message: messageOf(error) };
 }

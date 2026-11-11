@@ -2,7 +2,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CaseSpec } from "../case/index.ts";
 import type { Redactor } from "../redact/index.ts";
-import { deriveReason, deriveStatus, type CaseOutcome, type CheckRecord, type Status } from "./status.ts";
+import {
+  deriveReason,
+  deriveStatus,
+  type CaseOutcome,
+  type CheckRecord,
+  type Status,
+} from "./status.ts";
 
 type Stage = CaseSpec["stage"];
 
@@ -87,7 +93,11 @@ export class EvidenceStore {
   }
 
   /** Writes `<NN>-<label>.<ext>` and returns that file name. A failed write uses up its number but stays out of the result. */
-  async attach(label: string, bytes: Uint8Array, ext: "png" | "zip" | "txt" | "json"): Promise<string> {
+  async attach(
+    label: string,
+    bytes: Uint8Array,
+    ext: "png" | "zip" | "txt" | "json",
+  ): Promise<string> {
     const content = maskedContent(this.#redactor, bytes, ext);
     // the number is taken before the first await, so concurrent attachments keep the order they were taken in
     const slot = this.#attachments.push(undefined) - 1;

@@ -49,7 +49,9 @@ export const jiraClient: TrackerClient = {
     const email = await ctx.secret(emailName);
     const token = await ctx.secret(tokenName);
     // tests serve the stub on loopback http
-    const siteUrl = new URL(`${isLoopback(new URL(`http://${site}`)) ? "http" : "https"}://${site}`);
+    const siteUrl = new URL(
+      `${isLoopback(new URL(`http://${site}`)) ? "http" : "https"}://${site}`,
+    );
     const http = trackerHttp({
       base: api === undefined ? siteUrl : new URL(api),
       authorization: `Basic ${Buffer.from(`${email}:${token}`, "utf8").toString("base64")}`,
@@ -76,13 +78,18 @@ class JiraConnection implements TrackerConnection {
   async ticket(key: string): Promise<TicketState> {
     checkKey(key);
     const path = trackerPath`/rest/api/3/issue/${key}`;
-    const { body } = await this.#http.send({ method: "GET", path, query: { fields: "status,assignee,reporter" } });
+    const { body } = await this.#http.send({
+      method: "GET",
+      path,
+      query: { fields: "status,assignee,reporter" },
+    });
     // Jira answers for a moved issue under its new key, which the caller checks against its projects
     const resolved = at(body, "key");
     if (typeof resolved !== "string" || !ISSUE_KEY.test(resolved))
       throw new Error(`GET ${path} answered without an issue key`);
     const status = at(body, "fields", "status", "name");
-    if (typeof status !== "string") throw new Error(`GET ${path} answered without fields.status.name`);
+    if (typeof status !== "string")
+      throw new Error(`GET ${path} answered without fields.status.name`);
     const assignee = at(body, "fields", "assignee", "accountId");
     const reporter = at(body, "fields", "reporter", "accountId");
     return {
@@ -109,12 +116,21 @@ class JiraConnection implements TrackerConnection {
     }
   }
 
-  async postComment(key: string, comment: RenderedComment, mentions: readonly Mention[]): Promise<PostedComment> {
+  async postComment(
+    key: string,
+    comment: RenderedComment,
+    mentions: readonly Mention[],
+  ): Promise<PostedComment> {
     checkKey(key);
     const path = trackerPath`/rest/api/3/issue/${key}/comment`;
-    const { body } = await this.#http.send({ method: "POST", path, json: { body: withMentions(comment, mentions) } });
+    const { body } = await this.#http.send({
+      method: "POST",
+      path,
+      json: { body: withMentions(comment, mentions) },
+    });
     const id = at(body, "id");
-    if (typeof id !== "string" || !COMMENT_ID.test(id)) throw new Error(`POST ${path} answered without a comment id`);
+    if (typeof id !== "string" || !COMMENT_ID.test(id))
+      throw new Error(`POST ${path} answered without a comment id`);
     return { url: this.#browse(key, id) };
   }
 
@@ -136,7 +152,9 @@ class JiraConnection implements TrackerConnection {
     } catch (error) {
       // an auth failure, a rate limit or a 5xx still throws, so a new comment never doubles one that may exist
       if (!(error instanceof TrackerRequestFailed) || !EDIT_REFUSED.has(error.status)) throw error;
-      this.#ctx.log(`cannot edit comment ${id} on ${key}, so a new comment takes its place: ${error.message}`);
+      this.#ctx.log(
+        `cannot edit comment ${id} on ${key}, so a new comment takes its place: ${error.message}`,
+      );
       return undefined;
     }
     return { url: this.#browse(key, id) };
@@ -147,7 +165,8 @@ class JiraConnection implements TrackerConnection {
     const path = trackerPath`/rest/api/3/issue/${key}/transitions`;
     const { body } = await this.#http.send({ method: "GET", path });
     const transitions = arrayAt(body, "transitions");
-    const named = (value: unknown): boolean => typeof value === "string" && value.toLowerCase() === name.toLowerCase();
+    const named = (value: unknown): boolean =>
+      typeof value === "string" && value.toLowerCase() === name.toLowerCase();
     const chosen =
       transitions.find((transition) => named(at(transition, "name"))) ??
       transitions.find((transition) => named(at(transition, "to", "name")));
@@ -191,7 +210,8 @@ class JiraConnection implements TrackerConnection {
       },
     });
     const bug = at(body, "key");
-    if (typeof bug !== "string" || !ISSUE_KEY.test(bug)) throw new Error(`POST ${path} answered without an issue key`);
+    if (typeof bug !== "string" || !ISSUE_KEY.test(bug))
+      throw new Error(`POST ${path} answered without an issue key`);
     // the bug exists from here on, so each later step that fails goes into problems instead of throwing
     const problems: string[] = [];
     try {
@@ -204,7 +224,12 @@ class JiraConnection implements TrackerConnection {
   }
 
   // admins can rename link types, so the configured name is checked against the site's link types, fetched once per connection
-  async #link(bug: string, project: string, keys: readonly string[], problems: string[]): Promise<void> {
+  async #link(
+    bug: string,
+    project: string,
+    keys: readonly string[],
+    problems: string[],
+  ): Promise<void> {
     const name = this.#ctx.config.projects[project]?.bugs?.linkType ?? "Relates";
     let types: string[];
     try {
@@ -257,14 +282,21 @@ function checkKey(key: string): void {
 function commentId(url: string): string | undefined {
   if (!URL.canParse(url)) return undefined;
   const parsed = new URL(url);
-  const id = parsed.searchParams.get("focusedCommentId") ?? REST_COMMENT_PATH.exec(parsed.pathname)?.[1];
+  const id =
+    parsed.searchParams.get("focusedCommentId") ?? REST_COMMENT_PATH.exec(parsed.pathname)?.[1];
   return id !== undefined && COMMENT_ID.test(id) ? id : undefined;
 }
 
 function adfOf(comment: RenderedComment): { [key: string]: JsonValue; content: JsonValue[] } {
   const adf = comment.adf;
   const content = at(adf, "content");
-  if (typeof adf !== "object" || adf === null || Array.isArray(adf) || adf["type"] !== "doc" || !Array.isArray(content))
+  if (
+    typeof adf !== "object" ||
+    adf === null ||
+    Array.isArray(adf) ||
+    adf["type"] !== "doc" ||
+    !Array.isArray(content)
+  )
     throw new Error("the comment has no ADF document for Jira");
   return { ...adf, content: content as JsonValue[] };
 }

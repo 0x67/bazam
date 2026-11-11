@@ -22,7 +22,14 @@ function planned(caseId: string): PlannedCase {
 }
 
 function loaded(caseId: string, tags: string[]): LoadedCase {
-  const spec = CaseSpec.parse({ id: caseId, title: caseId, stage: "acceptance", risk: "low", targets: ["web"], tags });
+  const spec = CaseSpec.parse({
+    id: caseId,
+    title: caseId,
+    stage: "acceptance",
+    risk: "low",
+    targets: ["web"],
+    tags,
+  });
   return { spec } as LoadedCase;
 }
 
@@ -50,6 +57,9 @@ describe("the plan check example in examples/plugins/plan-check", () => {
       log: () => {},
     });
 
-    expect(plan.cases.map((entry) => entry.blocked)).toEqual(["tagged hold; remove the tag to run it", undefined]);
+    expect(plan.cases.map((entry) => entry.blocked)).toEqual([
+      "tagged hold; remove the tag to run it",
+      undefined,
+    ]);
   });
 });

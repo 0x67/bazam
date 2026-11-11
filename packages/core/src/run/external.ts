@@ -70,7 +70,10 @@ export interface ExternalSuiteRun {
  * ids in its environment. Writes its output, masked, to `runner-<target>/runner.log` and the run log. The signal
  * sends SIGINT; `timeoutMinutes` sends SIGTERM, then SIGKILL 10 s later. Lists the result files after the exit.
  */
-export async function runExternalSuite(suite: ExternalSuite, deps: ExternalSuiteDeps): Promise<ExternalSuiteRun> {
+export async function runExternalSuite(
+  suite: ExternalSuite,
+  deps: ExternalSuiteDeps,
+): Promise<ExternalSuiteRun> {
   const cwd = resolve(deps.root, suite.runner.cwd);
   const logFile = join(deps.runDir, `runner-${suite.target}`, "runner.log");
   await mkdir(dirname(logFile), { recursive: true });
@@ -103,9 +106,11 @@ export async function runExternalSuite(suite: ExternalSuite, deps: ExternalSuite
   });
   runnerLog.end();
   await written;
-  if (exit.spawnError !== undefined || deps.signal.aborted) return { exit, files: [], skipped: [], spawnedAt };
+  if (exit.spawnError !== undefined || deps.signal.aborted)
+    return { exit, files: [], skipped: [], spawnedAt };
   const { files, skipped } = await resultFiles(suite.runner.results, cwd, spawnedAt);
-  for (const file of skipped) deps.log(`[${suite.target}] skipped ${file}: written before this run's runner started`);
+  for (const file of skipped)
+    deps.log(`[${suite.target}] skipped ${file}: written before this run's runner started`);
   return { exit, files, skipped, spawnedAt };
 }
 
@@ -120,7 +125,11 @@ interface ChildOptions {
 // mirrors runChild in the CLI's exec command, which core cannot import
 function runChild(command: readonly string[], options: ChildOptions): Promise<RunnerExit> {
   const [file = "", ...args] = command;
-  const child = spawn(file, args, { cwd: options.cwd, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(file, args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   for (const stream of [child.stdout, child.stderr])
     createInterface({ input: stream, crlfDelay: Infinity }).on("line", options.line);
   let timedOut = false;

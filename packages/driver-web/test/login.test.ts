@@ -4,7 +4,16 @@ import { HostNotAllowed, type Environment } from "@bazam/core/env";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import { urlMatches } from "../src/login.ts";
-import { demoEnv, ENGINES, html, launch, newEvidence, startSite, tempDir, type Site } from "./support/site.ts";
+import {
+  demoEnv,
+  ENGINES,
+  html,
+  launch,
+  newEvidence,
+  startSite,
+  tempDir,
+  type Site,
+} from "./support/site.ts";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
@@ -24,9 +33,12 @@ describe("urlMatches", () => {
         "https://app.example.test/callback/done?code=fake-code&state=s1",
       ),
     ).toBe(true);
-    expect(urlMatches("https://app.example.test/callback*", "https://app.example.test/login?next=/callback")).toBe(
-      false,
-    );
+    expect(
+      urlMatches(
+        "https://app.example.test/callback*",
+        "https://app.example.test/login?next=/callback",
+      ),
+    ).toBe(false);
     expect(urlMatches("https://app.example.test/a.b*", "https://app.example.test/axb")).toBe(false);
     expect(urlMatches("https://*.example.test/home", "https://uat.example.test/home")).toBe(true);
   });
@@ -111,7 +123,9 @@ describe.each(ENGINES)("browser login on %s", (engine) => {
       timeoutMs: 10_000,
     });
 
-    expect(state.cookies).toContainEqual(expect.objectContaining({ name: "sid", value: "fake-session-5d2e8b" }));
+    expect(state.cookies).toContainEqual(
+      expect.objectContaining({ name: "sid", value: "fake-session-5d2e8b" }),
+    );
   });
 
   it("returns the final URL once it matches the urlMatches glob", async () => {
@@ -126,9 +140,15 @@ describe.each(ENGINES)("browser login on %s", (engine) => {
   });
 
   it("gives up after timeoutMs when until is never reached", async () => {
-    const attempt = login.login({ url: new URL(`${site.origin}/login`), until: { cookie: "sid" }, timeoutMs: 1_000 });
+    const attempt = login.login({
+      url: new URL(`${site.origin}/login`),
+      until: { cookie: "sid" },
+      timeoutMs: 1_000,
+    });
 
-    await expect(attempt).rejects.toThrow(`the login at ${site.origin}/login did not reach cookie sid within 1000 ms`);
+    await expect(attempt).rejects.toThrow(
+      `the login at ${site.origin}/login did not reach cookie sid within 1000 ms`,
+    );
   });
 
   it("stops as soon as the signal aborts", async () => {

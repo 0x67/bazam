@@ -41,7 +41,11 @@ export interface BugDraft {
 export interface TrackerConnection {
   ticket(key: string): Promise<TicketState>;
   attach(key: string, files: readonly AttachmentFile[]): Promise<void>;
-  postComment(key: string, comment: RenderedComment, mentions: readonly Mention[]): Promise<PostedComment>;
+  postComment(
+    key: string,
+    comment: RenderedComment,
+    mentions: readonly Mention[],
+  ): Promise<PostedComment>;
   /** Undefined when `url` names no comment this client can edit, or the comment is gone. */
   editComment(
     key: string,

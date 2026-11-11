@@ -66,8 +66,15 @@ export class CredentialCache {
     for (const file of files.filter((name) => name.endsWith(".json")).toSorted()) {
       const parts = file.slice(0, -".json".length).split("+");
       if (parts.length !== 4) continue;
-      const [env, identity, surface, strategy] = parts.map(decodeURIComponent) as [string, string, string, string];
-      const { credential } = JSON.parse(await readFile(join(this.#dir, file), "utf8")) as CachedCredential;
+      const [env, identity, surface, strategy] = parts.map(decodeURIComponent) as [
+        string,
+        string,
+        string,
+        string,
+      ];
+      const { credential } = JSON.parse(
+        await readFile(join(this.#dir, file), "utf8"),
+      ) as CachedCredential;
       entries.push({ key: { env, identity, surface, strategy }, credential });
     }
     return entries;
@@ -79,7 +86,9 @@ export class CredentialCache {
 
   #file(key: CredentialKey): string {
     // encodeURIComponent escapes "+" and path separators, so the name is unambiguous and stays in the folder
-    const stem = [key.env, key.identity, key.surface, key.strategy].map(encodeURIComponent).join("+");
+    const stem = [key.env, key.identity, key.surface, key.strategy]
+      .map(encodeURIComponent)
+      .join("+");
     return join(this.#dir, `${stem}.json`);
   }
 }

@@ -64,10 +64,13 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
   const results = await readResults(runDir);
   const [first] = results;
   if (first === undefined) throw new CommandError(`run ${flags.run} has no case results`);
-  const media = flags.media === undefined ? undefined : await readMedia(resolve(ctx.io.cwd, flags.media));
+  const media =
+    flags.media === undefined ? undefined : await readMedia(resolve(ctx.io.cwd, flags.media));
   const env = project.config.envs[first.env];
   if (env === undefined)
-    throw new CommandError(`run ${flags.run} ran in env "${first.env}", which the config no longer has`);
+    throw new CommandError(
+      `run ${flags.run} ran in env "${first.env}", which the config no longer has`,
+    );
   const values = await loadScanValues({
     project,
     registry,
@@ -76,7 +79,8 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     around: new Date(first.startedAt),
   });
   const withheld = await withheldAttachments(runDir, results, values);
-  for (const [attachment, kinds] of withheld) ctx.out.log(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
+  for (const [attachment, kinds] of withheld)
+    ctx.out.log(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
   const plan = buildPostPlans({
     runId: flags.run,
     env: first.env,
@@ -92,7 +96,10 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
   });
   // only the comments go through the redactor whole, as a run does when it writes post-plan.json: its digit rule
   // would break account ids and receipt URLs
-  const masked = { ...plan, items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })) };
+  const masked = {
+    ...plan,
+    items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })),
+  };
   return { project, registry, runId: flags.run, runDir, results, media, withheld, plan: masked };
 }
 
@@ -110,7 +117,8 @@ async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
  * declared secrets, to withhold attachments that hold them.
  */
 async function reportPost(ctx: CommandContext): Promise<ExitCode> {
-  const { project, registry, runId, runDir, results, media, withheld, plan } = await rebuildPlan(ctx);
+  const { project, registry, runId, runDir, results, media, withheld, plan } =
+    await rebuildPlan(ctx);
   const { config } = project;
   const { redactor } = ctx;
   const intents = planBugs({
@@ -122,10 +130,14 @@ async function reportPost(ctx: CommandContext): Promise<ExitCode> {
     withheld,
     redactor,
   });
-  const trackers = new Set([...plan.items.map((item) => item.ticket.tracker), ...intents.map((bug) => bug.tracker)]);
+  const trackers = new Set([
+    ...plan.items.map((item) => item.ticket.tracker),
+    ...intents.map((bug) => bug.tracker),
+  ]);
   for (const tracker of trackers) trackerToPost(config, registry, tracker);
   for (const result of results) {
-    const filed = result.stage === "regression" && (result.status === "fail" || result.status === "pass");
+    const filed =
+      result.stage === "regression" && (result.status === "fail" || result.status === "pass");
     if (filed && !intents.some((bug) => bug.caseId === result.caseId))
       ctx.out.log(
         `no bug project for ${result.caseId}: it links no ticket whose project sets bugs under trackers in ${BRAND.configFile}`,
@@ -157,13 +169,25 @@ async function reportPost(ctx: CommandContext): Promise<ExitCode> {
       .trackerClient(tracker)
       .connect({ config: trackerToPost(config, registry, tracker), secret, redactor, signal, log }),
   );
-  const bugs = applied.map((bug) => (bug.error === undefined ? bug : { ...bug, error: redactor.text(bug.error) }));
-  ctx.out.result({ runId, items, bugs }, lines([...items.map(itemLine), ...bugs.map(bugLine)]), "registered");
-  return items.every((item) => item.ok) && bugs.every((bug) => bug.ok) ? ExitCode.Pass : ExitCode.Fail;
+  const bugs = applied.map((bug) =>
+    bug.error === undefined ? bug : { ...bug, error: redactor.text(bug.error) },
+  );
+  ctx.out.result(
+    { runId, items, bugs },
+    lines([...items.map(itemLine), ...bugs.map(bugLine)]),
+    "registered",
+  );
+  return items.every((item) => item.ok) && bugs.every((bug) => bug.ok)
+    ? ExitCode.Pass
+    : ExitCode.Fail;
 }
 
 /** The tracker's config, refusing to start without its `site` or its client. */
-function trackerToPost(config: ProjectConfig, registry: PluginRegistry, tracker: string): TrackerConfig {
+function trackerToPost(
+  config: ProjectConfig,
+  registry: PluginRegistry,
+  tracker: string,
+): TrackerConfig {
   // tracker names come from case links
   const settings = Object.hasOwn(config.trackers, tracker) ? config.trackers[tracker] : undefined;
   if (settings?.site === undefined) {
@@ -179,13 +203,16 @@ function trackerToPost(config: ProjectConfig, registry: PluginRegistry, tracker:
 
 function itemLine(outcome: ItemOutcome): string {
   const { key } = outcome.ticket;
-  return outcome.ok ? `posted ${key} ${outcome.url ?? ""}` : `failed ${key}: ${outcome.error ?? ""}`;
+  return outcome.ok
+    ? `posted ${key} ${outcome.url ?? ""}`
+    : `failed ${key}: ${outcome.error ?? ""}`;
 }
 
 // a failed line keeps the URL too, since a bug filed before a later step failed still exists
 function bugLine(outcome: BugOutcome): string {
   const url = outcome.url === undefined ? "" : ` ${outcome.url}`;
-  if (!outcome.ok) return `failed ${outcome.caseId}: ${outcome.action}${url}: ${outcome.error ?? ""}`;
+  if (!outcome.ok)
+    return `failed ${outcome.caseId}: ${outcome.action}${url}: ${outcome.error ?? ""}`;
   return `${outcome.caseId}: ${outcome.action}${url}`;
 }
 
@@ -204,14 +231,18 @@ async function reportAck(ctx: CommandContext): Promise<ExitCode> {
   const { flags } = ctx;
   const [, marker] = ctx.args;
   if (marker === undefined) throw new CommandError("name the marker of the item that was posted");
-  if (flags.url === undefined) throw new CommandError("--url is required: the URL of the posted comment");
+  if (flags.url === undefined)
+    throw new CommandError("--url is required: the URL of the posted comment");
   if (!URL.canParse(flags.url)) throw new CommandError(`--url "${flags.url}" is not a URL`);
   const runId = flags.run ?? runIdOf(marker);
   const plan = await readPostPlan(runDirOf(ctx.root, runId));
   const item = itemFor(plan, marker, flags.ticket);
   await recordReceipt(join(ctx.root, BRAND.stateDir), item, flags.url, new Date());
   const ticket = `${item.ticket.tracker}:${item.ticket.key}`;
-  ctx.out.result({ marker, ticket, caseId: item.caseId }, `recorded the comment for ${marker} on ${ticket}\n`);
+  ctx.out.result(
+    { marker, ticket, caseId: item.caseId },
+    `recorded the comment for ${marker} on ${ticket}\n`,
+  );
   return ExitCode.Pass;
 }
 
@@ -225,10 +256,14 @@ export async function readResults(runDir: string): Promise<CaseResult[]> {
   }
   const results: CaseResult[] = [];
   for (const entry of entries.filter((e) => e.isDirectory() && CASE_ID.test(e.name))) {
-    const text = await readFile(join(runDir, entry.name, "result.json"), "utf8").catch(ignoreMissing);
+    const text = await readFile(join(runDir, entry.name, "result.json"), "utf8").catch(
+      ignoreMissing,
+    );
     if (text !== undefined) results.push(JSON.parse(text) as CaseResult);
   }
-  return results.sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId));
+  return results.sort(
+    (a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId),
+  );
 }
 
 async function readMedia(file: string): Promise<MediaRefs> {
@@ -236,11 +271,15 @@ async function readMedia(file: string): Promise<MediaRefs> {
   try {
     json = JSON.parse(await readFile(file, "utf8"));
   } catch (error) {
-    throw new CommandError(`cannot read the media references in ${file}: ${(error as Error).message}`);
+    throw new CommandError(
+      `cannot read the media references in ${file}: ${(error as Error).message}`,
+    );
   }
   const parsed = MediaRefs.safeParse(json);
   if (parsed.success) return parsed.data;
-  const problems = parsed.error.issues.map((issue) => `${issue.path.join(".") || "(top)"}: ${issue.message}`);
+  const problems = parsed.error.issues.map(
+    (issue) => `${issue.path.join(".") || "(top)"}: ${issue.message}`,
+  );
   throw new CommandError(`${file} does not hold media references:\n${problems.join("\n")}`);
 }
 
@@ -259,8 +298,16 @@ async function readPostPlan(runDir: string): Promise<PostPlan> {
 // `<prefix>:<case-id>:<run-id>`, as buildPostPlans writes it
 function runIdOf(marker: string): string {
   const [prefix, caseId, runId, ...rest] = marker.split(":");
-  if (prefix !== BRAND.markerPrefix || caseId === undefined || !CASE_ID.test(caseId) || !runId || rest.length > 0) {
-    throw new CommandError(`"${marker}" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`);
+  if (
+    prefix !== BRAND.markerPrefix ||
+    caseId === undefined ||
+    !CASE_ID.test(caseId) ||
+    !runId ||
+    rest.length > 0
+  ) {
+    throw new CommandError(
+      `"${marker}" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`,
+    );
   }
   return runId;
 }
@@ -269,11 +316,14 @@ function runIdOf(marker: string): string {
 function itemFor(plan: PostPlan, marker: string, ticket: string | undefined): PostPlanItem {
   const items = plan.items.filter(
     (item) =>
-      item.marker === marker && (ticket === undefined || `${item.ticket.tracker}:${item.ticket.key}` === ticket),
+      item.marker === marker &&
+      (ticket === undefined || `${item.ticket.tracker}:${item.ticket.key}` === ticket),
   );
   const [item, ...others] = items;
   if (item === undefined) {
-    throw new CommandError(`run ${plan.runId} has no item ${marker}${ticket === undefined ? "" : ` for ${ticket}`}`);
+    throw new CommandError(
+      `run ${plan.runId} has no item ${marker}${ticket === undefined ? "" : ` for ${ticket}`}`,
+    );
   }
   if (others.length > 0) {
     const tickets = items.map((i) => `${i.ticket.tracker}:${i.ticket.key}`).join(", ");

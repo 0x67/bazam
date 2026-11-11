@@ -12,7 +12,14 @@ import type { Environment } from "@bazam/core/env";
 import type { PluginRegistry } from "@bazam/core/plugin";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
-import { credentialDirs, credentialScope, envOf, known, oneIdentity, type CredentialScope } from "./keepalive.ts";
+import {
+  credentialDirs,
+  credentialScope,
+  envOf,
+  known,
+  oneIdentity,
+  type CredentialScope,
+} from "./keepalive.ts";
 
 interface LoggedOut {
   env: string;
@@ -47,13 +54,16 @@ export async function logoutCommand(ctx: CommandContext): Promise<number> {
   const identityName = oneIdentity(ctx.flags.as);
   // read from the folder, so it also finds what an older config cached under names it no longer has
   const entries = (await cachedEntries(cacheDir, registry)).filter(
-    ({ key }) => (envName ?? key.env) === key.env && (identityName ?? key.identity) === key.identity,
+    ({ key }) =>
+      (envName ?? key.env) === key.env && (identityName ?? key.identity) === key.identity,
   );
   if (entries.length === 0) {
     // a name that neither the config nor the cache knows is most likely a typo
     if (envName !== undefined) envOf(config, envName);
     if (identityName !== undefined && config.identities[identityName] === undefined)
-      throw new CommandError(`unknown identity "${identityName}"; identities: ${known(config.identities)}`);
+      throw new CommandError(
+        `unknown identity "${identityName}"; identities: ${known(config.identities)}`,
+      );
   }
   const cache = new CredentialCache(cacheDir);
   const scopes = new Map<string, CredentialScope>();
@@ -65,10 +75,16 @@ export async function logoutCommand(ctx: CommandContext): Promise<number> {
     const settings = identity?.auth[key.surface];
     let slot: Slot | undefined;
     // a revoke needs the settings the credential was made with
-    if (env !== undefined && settings !== undefined && !("from" in settings) && settings.strategy === key.strategy) {
+    if (
+      env !== undefined &&
+      settings !== undefined &&
+      !("from" in settings) &&
+      settings.strategy === key.strategy
+    ) {
       const scope = scopes.get(env.name) ?? (await credentialScope(ctx, config, registry, env));
       scopes.set(env.name, scope);
-      const fields = identity?.fixture === undefined ? {} : (scope.fixtures[identity.fixture] ?? {});
+      const fields =
+        identity?.fixture === undefined ? {} : (scope.fixtures[identity.fixture] ?? {});
       slot = { env, identity: key.identity, scope, settings: settings.with, fields };
     }
     // held so a refresh in another process cannot save over the credential while it is revoked and deleted
@@ -96,13 +112,23 @@ async function cachedEntries(dir: string, registry: PluginRegistry): Promise<Ent
     // a save in progress leaves a .tmp file
     const parts = file.endsWith(".json") ? file.slice(0, -".json".length).split("+") : [];
     if (parts.length !== 4) return [];
-    const [env, identity, surface, strategy] = parts.map(decodeURIComponent) as [string, string, string, string];
+    const [env, identity, surface, strategy] = parts.map(decodeURIComponent) as [
+      string,
+      string,
+      string,
+      string,
+    ];
     const cached = cachingStrategy(registry, strategy);
-    return cached === undefined ? [] : [{ key: { env, identity, surface, strategy }, strategy: cached }];
+    return cached === undefined
+      ? []
+      : [{ key: { env, identity, surface, strategy }, strategy: cached }];
   });
 }
 
-function cachingStrategy(registry: PluginRegistry, name: string): AuthStrategy<unknown, JsonValue> | undefined {
+function cachingStrategy(
+  registry: PluginRegistry,
+  name: string,
+): AuthStrategy<unknown, JsonValue> | undefined {
   let strategy: AuthStrategy<unknown, JsonValue>;
   try {
     strategy = registry.strategy(name);
@@ -139,7 +165,8 @@ async function logOut(
   } else if (strategy.revoke !== undefined) {
     try {
       const parsed = strategy.config.safeParse(await slot.scope.resolve(slot.settings));
-      if (!parsed.success) throw new Error(`${key.identity}/${key.surface} has invalid ${strategy.name} settings`);
+      if (!parsed.success)
+        throw new Error(`${key.identity}/${key.surface} has invalid ${strategy.name} settings`);
       await strategy.revoke(cached.credential, parsed.data, authContext(ctx, slot));
       outcome.revoked = true;
     } catch (error) {
@@ -166,7 +193,8 @@ function authContext(ctx: CommandContext, slot: Slot): AuthContext {
 function logoutText(done: readonly LoggedOut[]): string {
   if (done.length === 0) return "no cached credential to delete\n";
   const lines = done.map(({ env, identity, surface, strategy, revoked, error, stale }) => {
-    if (stale === true) return `logged out ${identity}/${surface} (${strategy}) in env ${env}, left by an older config`;
+    if (stale === true)
+      return `logged out ${identity}/${surface} (${strategy}) in env ${env}, left by an older config`;
     const how = error !== undefined ? `; revoke failed: ${error}` : revoked ? ", revoked" : "";
     return `logged out ${identity}/${surface} in env ${env}${how}`;
   });

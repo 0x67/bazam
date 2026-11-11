@@ -18,10 +18,15 @@ export async function runCommand(ctx: CommandContext): Promise<ExitCode> {
   const { flags } = ctx;
   // only --answers copies answers in, so a real project never answers person steps from fixtures by accident
   if (flags.answers !== undefined && flags.channel !== ANSWERS_CHANNEL) {
-    throw new CommandError(`--answers works only with --channel ${ANSWERS_CHANNEL}, which reads the copied answers`);
+    throw new CommandError(
+      `--answers works only with --channel ${ANSWERS_CHANNEL}, which reads the copied answers`,
+    );
   }
   // read before a dry run returns, so it refuses the folder the run would refuse
-  const answers = flags.answers === undefined ? undefined : await answerFiles(ctx, resolve(ctx.io.cwd, flags.answers));
+  const answers =
+    flags.answers === undefined
+      ? undefined
+      : await answerFiles(ctx, resolve(ctx.io.cwd, flags.answers));
   const workers = workersOf(flags.workers);
   if (flags["dry-run"] === true) return planCommand(ctx);
   const start = await startRun(ctx);
@@ -29,9 +34,14 @@ export async function runCommand(ctx: CommandContext): Promise<ExitCode> {
   const runId = flags.run ?? newRunId(startedAt, Math.random);
   const runDir = newRunDir(start.project.root, runId);
   if (answers !== undefined) await copyAnswers(answers, join(runDir, "answers"));
-  ctx.out.log(`run ${runId}: ${plural(start.cases.length, "case")} on env ${start.env.name}, seed ${start.seed}`);
+  ctx.out.log(
+    `run ${runId}: ${plural(start.cases.length, "case")} on env ${start.env.name}, seed ${start.seed}`,
+  );
   const results = await runCases({ ...runOptions(ctx, start, runId, startedAt), workers });
-  ctx.out.result(summary(runId, results), summaryText(runId, results, relative(ctx.io.cwd, runDir)));
+  ctx.out.result(
+    summary(runId, results),
+    summaryText(runId, results, relative(ctx.io.cwd, runDir)),
+  );
   return exitCodeFor(results.map((result) => result.status));
 }
 
@@ -49,7 +59,9 @@ function workersOf(value: string | undefined): number {
   if (value === undefined) return 1;
   const workers = Number(value);
   if (!/^\d+$/.test(value) || workers < 1 || workers > MAX_WORKERS) {
-    throw new CommandError(`--workers takes a whole number from 1 to ${MAX_WORKERS}, not "${value}"`);
+    throw new CommandError(
+      `--workers takes a whole number from 1 to ${MAX_WORKERS}, not "${value}"`,
+    );
   }
   return workers;
 }
@@ -69,11 +81,14 @@ async function answerFiles(ctx: CommandContext, from: string): Promise<string[]>
   for (const entry of entries) {
     const id = entry.name.endsWith(".json") ? entry.name.slice(0, -".json".length) : undefined;
     if (!entry.isFile() || id === undefined || !PLAIN_NAME.test(id)) {
-      if (entry.name.endsWith(".json")) ctx.out.log(`skipped ${entry.name}: not a regular file named for a prompt id`);
+      if (entry.name.endsWith(".json"))
+        ctx.out.log(`skipped ${entry.name}: not a regular file named for a prompt id`);
       continue;
     }
     if (CONFIRMATION.test(id)) {
-      ctx.out.log(`skipped ${entry.name}: a production confirmation takes only an answer given while it waits`);
+      ctx.out.log(
+        `skipped ${entry.name}: a production confirmation takes only an answer given while it waits`,
+      );
       continue;
     }
     files.push(join(from, entry.name));
@@ -88,7 +103,8 @@ async function copyAnswers(files: readonly string[], to: string): Promise<void> 
 
 /** The shape of summary.json without its `unmapped` list: counts and one line per case. */
 export function summary(runId: string, results: readonly CaseResult[]) {
-  const count = (status: CaseResult["status"]) => results.filter((result) => result.status === status).length;
+  const count = (status: CaseResult["status"]) =>
+    results.filter((result) => result.status === status).length;
   return {
     runId,
     counts: {

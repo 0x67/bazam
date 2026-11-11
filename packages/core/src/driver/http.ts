@@ -26,7 +26,10 @@ export interface HttpResponse {
 
 export interface GuardedHttp {
   /** Sends with the identity's credential for the surface applied, or with none when `as` is left out. */
-  send(request: HttpRequestDraft, as?: { identity: string; surface: string }): Promise<HttpResponse>;
+  send(
+    request: HttpRequestDraft,
+    as?: { identity: string; surface: string },
+  ): Promise<HttpResponse>;
 }
 
 export interface GuardedHttpDeps {
@@ -74,7 +77,11 @@ const CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
   "UND_ERR_CONNECT_TIMEOUT",
 ]);
 
-function connectFailure(target: string, host: string, error: unknown): ConnectionFailed | undefined {
+function connectFailure(
+  target: string,
+  host: string,
+  error: unknown,
+): ConnectionFailed | undefined {
   // fetch rejects a failed connection with a TypeError whose cause is the socket error
   if (!(error instanceof TypeError) || !(error.cause instanceof Error)) return undefined;
   const cause = error.cause as NodeJS.ErrnoException;
@@ -91,7 +98,9 @@ export function guardedHttp(deps: GuardedHttpDeps): GuardedHttp {
       if (as === undefined) return follow(deps, request, undefined);
       const identities = deps.identities;
       if (identities === undefined)
-        throw new Error(`this HTTP client sends no credentials, so it cannot send as ${as.identity}`);
+        throw new Error(
+          `this HTTP client sends no credentials, so it cannot send as ${as.identity}`,
+        );
       const authorize: Authorize = (draft) =>
         identities.authorize(as.identity, as.surface, { kind: "http", request: draft });
       const response = await follow(deps, request, authorize);
@@ -114,9 +123,17 @@ async function follow(
   let hop = request;
   for (let redirects = 0; ; redirects += 1) {
     assertHostAllowed(deps.env, hop.url);
-    const response = await sendHop(deps, hop, hop.url.origin === request.url.origin ? authorize : undefined);
+    const response = await sendHop(
+      deps,
+      hop,
+      hop.url.origin === request.url.origin ? authorize : undefined,
+    );
     const location = response.headers.get("location");
-    if (request.redirect === "manual" || !REDIRECT_STATUSES.has(response.status) || location === null)
+    if (
+      request.redirect === "manual" ||
+      !REDIRECT_STATUSES.has(response.status) ||
+      location === null
+    )
       return readResponse(response);
     await response.body?.cancel();
     if (redirects === MAX_REDIRECTS)
@@ -131,7 +148,11 @@ async function sendHop(
   authorize: Authorize | undefined,
 ): Promise<Response> {
   // a strategy may set headers or a query parameter, and the caller's draft is sent again after a refresh
-  const draft: HttpRequestDraft = { ...hop, url: new URL(hop.url), headers: new Headers(hop.headers) };
+  const draft: HttpRequestDraft = {
+    ...hop,
+    url: new URL(hop.url),
+    headers: new Headers(hop.headers),
+  };
   if (authorize !== undefined) await authorize(draft);
   // the copy is backed by an ArrayBuffer, which fetch takes; the draft's bytes may sit in a SharedArrayBuffer
   const body = draft.body === undefined ? null : new Uint8Array(draft.body);
@@ -155,10 +176,16 @@ function redirected(hop: HttpRequestDraft, status: number, url: URL): HttpReques
   const headers = new Headers(hop.headers);
   if (url.origin !== hop.url.origin) for (const name of CREDENTIAL_HEADERS) headers.delete(name);
   const method = hop.method.toUpperCase();
-  const toGet = status === 303 ? method !== "HEAD" : (status === 301 || status === 302) && method === "POST";
+  const toGet =
+    status === 303 ? method !== "HEAD" : (status === 301 || status === 302) && method === "POST";
   if (!toGet) return { ...hop, url, headers };
   headers.delete("content-type");
-  return { method: "GET", url, headers, ...(hop.signal === undefined ? {} : { signal: hop.signal }) };
+  return {
+    method: "GET",
+    url,
+    headers,
+    ...(hop.signal === undefined ? {} : { signal: hop.signal }),
+  };
 }
 
 async function readResponse(response: Response): Promise<HttpResponse> {
@@ -188,9 +215,9 @@ function describeRequest(request: Pick<HttpRequestDraft, "method" | "url">): str
 
 const ApiCheck = z
   .strictObject({
-    request: z
-      .string()
-      .regex(REQUEST_LINE, { error: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"' }),
+    request: z.string().regex(REQUEST_LINE, {
+      error: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"',
+    }),
     as: z.string().min(1).optional(),
     write: z.boolean().optional(),
     status: z.number().int().optional(),
@@ -206,7 +233,8 @@ const RequestStepPayload = RequestStep.refine(
   (step) => Object.keys(step.save ?? {}).every((name) => !CASE_VALUES.has(name)),
   {
     path: ["save"],
-    error: "save cannot use the names id and title, which hold the case's own ${case.id} and ${case.title}",
+    error:
+      "save cannot use the names id and title, which hold the case's own ${case.id} and ${case.title}",
   },
 );
 
@@ -227,7 +255,8 @@ const requestStep: StepHandler<RequestStep> = {
       draft.body = new TextEncoder().encode(JSON.stringify(step.json));
     }
     const response = await ctx.http.send(draft, actingIdentity(step.as, ctx));
-    for (const [name, path] of Object.entries(step.save ?? {})) ctx.values.set(name, savedValue(response, path));
+    for (const [name, path] of Object.entries(step.save ?? {}))
+      ctx.values.set(name, savedValue(response, path));
   },
 };
 
@@ -268,11 +297,15 @@ function requestLine(line: string): { method: string; url: URL } {
 
 function savedValue(response: HttpResponse, path: string): string {
   const value = valueAt(response, path);
-  if (value === undefined) throw new Error(`cannot save ${path}: the ${response.status} response has no value there`);
+  if (value === undefined)
+    throw new Error(`cannot save ${path}: the ${response.status} response has no value there`);
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function compare(check: ApiCheck, response: HttpResponse): Pick<CheckRecord, "expected" | "observed" | "ok"> {
+function compare(
+  check: ApiCheck,
+  response: HttpResponse,
+): Pick<CheckRecord, "expected" | "observed" | "ok"> {
   const expected: Record<string, unknown> = {};
   const observed: Record<string, unknown> = {};
   if (check.status !== undefined) {
@@ -288,7 +321,10 @@ function compare(check: ApiCheck, response: HttpResponse): Pick<CheckRecord, "ex
 }
 
 /** The paths under `body` whose value in the response differs from the expected one, compared as the api check compares. */
-export function bodyMismatches(expected: Readonly<Record<string, unknown>>, response: HttpResponse): string[] {
+export function bodyMismatches(
+  expected: Readonly<Record<string, unknown>>,
+  response: HttpResponse,
+): string[] {
   return Object.entries(expected)
     .filter(([path, value]) => !matches(value, valueAt(response, `body.${path}`)))
     .map(([path]) => `body.${path}`);
@@ -296,7 +332,10 @@ export function bodyMismatches(expected: Readonly<Record<string, unknown>>, resp
 
 // placeholders resolve to text, so "${case.orderId}" has to match the number 42
 function matches(expected: unknown, observed: unknown): boolean {
-  if (typeof expected === "string" && (typeof observed === "number" || typeof observed === "boolean"))
+  if (
+    typeof expected === "string" &&
+    (typeof observed === "number" || typeof observed === "boolean")
+  )
     return String(observed) === expected;
   return isDeepStrictEqual(expected, observed);
 }
@@ -307,7 +346,8 @@ function valueAt(response: HttpResponse, path: string): unknown {
   if (root === "status" && rest.length === 0) return response.status;
   if (root === "headers" && rest.length === 1 && typeof rest[0] === "string")
     return response.headers.get(rest[0]) ?? undefined;
-  if (root === "body") return rest.reduce<unknown>((value, key) => child(value, key), response.body);
+  if (root === "body")
+    return rest.reduce<unknown>((value, key) => child(value, key), response.body);
   throw new Error(`${path} is not status, headers.<name> or a path under body`);
 }
 
@@ -319,13 +359,21 @@ function pathSegments(path: string): (string | number)[] {
     if (name === undefined || indexes === undefined || (name === "" && indexes === "")) {
       throw new Error(`${path} is not a dot path such as body.items[0].id`);
     }
-    return [...(name === "" ? [] : [name]), ...[...indexes.matchAll(/\d+/g)].map((index) => Number(index[0]))];
+    return [
+      ...(name === "" ? [] : [name]),
+      ...[...indexes.matchAll(/\d+/g)].map((index) => Number(index[0])),
+    ];
   });
 }
 
 function child(value: unknown, key: string | number): unknown {
   if (typeof key === "number") return Array.isArray(value) ? value[key] : undefined;
-  if (typeof value !== "object" || value === null || Array.isArray(value) || !Object.hasOwn(value, key))
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    !Object.hasOwn(value, key)
+  )
     return undefined;
   return (value as Record<string, unknown>)[key];
 }

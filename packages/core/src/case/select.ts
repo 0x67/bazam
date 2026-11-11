@@ -36,7 +36,9 @@ export function selectCases(cases: readonly LoadedCase[], filter: CaseFilter): L
     ({ spec, domain }) =>
       matches(filter.ids, [spec.id]) &&
       matches(filter.domains, [domain]) &&
-      (filter.stages === undefined ? stagePolicy(spec.stage).runs : filter.stages.includes(spec.stage)) &&
+      (filter.stages === undefined
+        ? stagePolicy(spec.stage).runs
+        : filter.stages.includes(spec.stage)) &&
       matches(filter.targets, spec.targets) &&
       matches(filter.links, spec.links) &&
       matches(filter.tags, spec.tags),
@@ -59,6 +61,8 @@ export async function loadSuites(root: string): Promise<Map<string, CaseFilter>>
   // a file with only comments parses to null
   const parsed = SuitesFile.safeParse(parse(text) ?? {});
   if (!parsed.success)
-    throw new Error(`suites.yaml does not match the suite schema:\n${z.prettifyError(parsed.error)}`);
+    throw new Error(
+      `suites.yaml does not match the suite schema:\n${z.prettifyError(parsed.error)}`,
+    );
   return new Map(Object.entries(parsed.data));
 }

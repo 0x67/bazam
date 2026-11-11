@@ -10,7 +10,9 @@ describe("/api/basic/whoami", () => {
   it("answers 200 with the demo user and password", async () => {
     const { username, password } = DEMO_BASIC_USER
 
-    const response = await new Visitor().request("/api/basic/whoami", { headers: basic(username, password) })
+    const response = await new Visitor().request("/api/basic/whoami", {
+      headers: basic(username, password),
+    })
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ auth: "basic", user: username })

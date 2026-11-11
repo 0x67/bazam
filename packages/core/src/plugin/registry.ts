@@ -123,7 +123,9 @@ interface RegisteredStep extends Registered<StepHandler> {
 type Registrations = { [K in ContributionKey]: Map<string, Registered<Contribution<K>>> };
 
 export class PluginRegistry {
-  readonly #registrations = Object.fromEntries(CONTRIBUTION_KEYS.map((key) => [key, new Map()])) as Registrations;
+  readonly #registrations = Object.fromEntries(
+    CONTRIBUTION_KEYS.map((key) => [key, new Map()]),
+  ) as Registrations;
   readonly #steps = new Map<string, RegisteredStep>();
   readonly #humanOnlyKinds: ReadonlySet<string>;
   readonly #processes: ProcessPlugin[] = [];
@@ -145,7 +147,11 @@ export class PluginRegistry {
   ): Promise<PluginRegistry> {
     const root = resolve(projectRoot);
     const registry = new PluginRegistry(new Set(config.challenges.humanOnly));
-    registry.#add({ name: CORE_PLUGIN, apiVersion: PLUGIN_API_VERSION, ...builtinContributions(config, root) });
+    registry.#add({
+      name: CORE_PLUGIN,
+      apiVersion: PLUGIN_API_VERSION,
+      ...builtinContributions(config, root),
+    });
     for (const manifest of defaults) registry.#add(manifest);
     let redactor: Redactor | undefined;
     try {
@@ -261,14 +267,27 @@ export class PluginRegistry {
   }
 
   #add(manifest: PluginManifest): void {
-    if (manifest.apiVersion !== PLUGIN_API_VERSION) throw new PluginApiMismatch(manifest.name, manifest.apiVersion);
+    if (manifest.apiVersion !== PLUGIN_API_VERSION)
+      throw new PluginApiMismatch(manifest.name, manifest.apiVersion);
     for (const key of CONTRIBUTION_KEYS) this.#addList(key, manifest);
-    for (const [kind, step] of namedItems(manifest.name, "steps", manifest.steps, STEP_KIND, stepKind)) {
+    for (const [kind, step] of namedItems(
+      manifest.name,
+      "steps",
+      manifest.steps,
+      STEP_KIND,
+      stepKind,
+    )) {
       this.#addStep(kind, { item: step, plugin: manifest.name, driver: undefined });
     }
     for (const driver of manifest.drivers ?? []) {
       const field = `steps of driver "${driver.name}"`;
-      for (const [kind, step] of namedItems(manifest.name, field, driver.steps, STEP_KIND, stepKind)) {
+      for (const [kind, step] of namedItems(
+        manifest.name,
+        field,
+        driver.steps,
+        STEP_KIND,
+        stepKind,
+      )) {
         this.#addStep(kind, { item: step, plugin: manifest.name, driver });
       }
     }
@@ -277,9 +296,16 @@ export class PluginRegistry {
   #addList<K extends ContributionKey>(key: K, manifest: PluginManifest): void {
     const list = contributionLists[key];
     const registrations = this.#registrations[key];
-    for (const [name, item] of namedItems(manifest.name, key, manifest[key], list.noun, list.name)) {
+    for (const [name, item] of namedItems(
+      manifest.name,
+      key,
+      manifest[key],
+      list.noun,
+      list.name,
+    )) {
       const earlier = registrations.get(name);
-      if (earlier !== undefined) throw new PluginConflict(`${list.noun} "${name}"`, [earlier.plugin, manifest.name]);
+      if (earlier !== undefined)
+        throw new PluginConflict(`${list.noun} "${name}"`, [earlier.plugin, manifest.name]);
       registrations.set(name, { item, plugin: manifest.name });
     }
   }
@@ -294,8 +320,10 @@ export class PluginRegistry {
       return;
     }
     // the runner sends a driver step to the driver of the case's target, so two drivers may both offer open or tap
-    const fromTwoDrivers = earlier.driver !== undefined && step.driver !== undefined && earlier.driver !== step.driver;
-    if (!fromTwoDrivers) throw new PluginConflict(`${STEP_KIND} "${kind}"`, [earlier.plugin, step.plugin]);
+    const fromTwoDrivers =
+      earlier.driver !== undefined && step.driver !== undefined && earlier.driver !== step.driver;
+    if (!fromTwoDrivers)
+      throw new PluginConflict(`${STEP_KIND} "${kind}"`, [earlier.plugin, step.plugin]);
   }
 
   #get<K extends ContributionKey>(key: K, name: string): Contribution<K> {
@@ -333,7 +361,10 @@ function namedItems<T>(
 }
 
 async function importPlugin(entry: string, root: string): Promise<unknown> {
-  const file = entry.startsWith(".") || isAbsolute(entry) ? pathInside(root, entry) : packageEntry(root, entry);
+  const file =
+    entry.startsWith(".") || isAbsolute(entry)
+      ? pathInside(root, entry)
+      : packageEntry(root, entry);
   const module: { default?: unknown } = await import(pathToFileURL(file).href);
   return module.default;
 }
@@ -349,7 +380,10 @@ function pathInside(root: string, entry: string): string {
 
 function packageEntry(root: string, name: string): string {
   // the resolver joins a name it finds no package for onto each node_modules folder, so ".." could reach any file
-  if (name.includes("\\") || name.split("/").some((segment) => segment === "" || segment === "." || segment === "..")) {
+  if (
+    name.includes("\\") ||
+    name.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+  ) {
     throw new Error(`plugin "${name}" is neither a package name nor a path that starts with "."`);
   }
   // createRequire resolves from the folder of the file it is given; that file need not exist
@@ -375,7 +409,11 @@ function processRedactor(config: ProjectConfig, given: Redactor | undefined): Re
 
 function manifestOf(value: unknown, entry: string): PluginManifest {
   const manifest = value as Partial<Record<keyof PluginManifest, unknown>> | null | undefined;
-  if (typeof manifest?.name !== "string" || manifest.name === "" || typeof manifest.apiVersion !== "number") {
+  if (
+    typeof manifest?.name !== "string" ||
+    manifest.name === "" ||
+    typeof manifest.apiVersion !== "number"
+  ) {
     throw new Error(`plugin "${entry}" has no default export with a name and an apiVersion`);
   }
   return manifest as PluginManifest;

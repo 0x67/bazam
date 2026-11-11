@@ -8,7 +8,12 @@ import { RefreshLockTimeout, withRefreshLock, type CredentialKey } from "../src/
 
 const run = promisify(execFile);
 
-const key: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "oauth2" };
+const key: CredentialKey = {
+  env: "demo",
+  identity: "customer",
+  surface: "api",
+  strategy: "oauth2",
+};
 const LOCK_FILE = "demo+customer+api.lock";
 
 describe("withRefreshLock", () => {
@@ -66,12 +71,21 @@ describe("withRefreshLock", () => {
 
   it("lets one process in at a time when several take over the same dead holder's lock", async () => {
     const pid = await exitedPid();
-    const trialDirs = await Promise.all(Array.from({ length: 6 }, () => mkdtemp(join(lockDir, "trial-"))));
+    const trialDirs = await Promise.all(
+      Array.from({ length: 6 }, () => mkdtemp(join(lockDir, "trial-"))),
+    );
     await Promise.all(trialDirs.map((dir) => writeLock(pid, 0, dir)));
     const lockModule = new URL("../src/auth/lock.ts", import.meta.url).href;
     const startAt = Date.now() + 500;
     const start = () =>
-      run(process.execPath, ["--input-type=module", "-e", TAKEOVER_WORKER, lockModule, String(startAt), ...trialDirs]);
+      run(process.execPath, [
+        "--input-type=module",
+        "-e",
+        TAKEOVER_WORKER,
+        lockModule,
+        String(startAt),
+        ...trialDirs,
+      ]);
 
     const workers = await Promise.all(Array.from({ length: 8 }, start));
 
@@ -93,7 +107,9 @@ describe("withRefreshLock", () => {
       await utimes(path, threeMinutesAgo, threeMinutesAgo);
 
       await vi.advanceTimersByTimeAsync(60_000);
-      await vi.waitFor(async () => expect(Date.now() - (await stat(path)).mtimeMs).toBeLessThan(60_000));
+      await vi.waitFor(async () =>
+        expect(Date.now() - (await stat(path)).mtimeMs).toBeLessThan(60_000),
+      );
       const waiter = await withRefreshLock(lockDir, key, async () => "taken over", 200).catch(
         (error: unknown) => error,
       );
@@ -115,7 +131,9 @@ describe("withRefreshLock", () => {
   it("throws RefreshLockTimeout naming the holder pid when the wait runs out", async () => {
     await writeLock(process.pid);
 
-    const failure = await withRefreshLock(lockDir, key, async () => "refreshed", 200).catch((error: unknown) => error);
+    const failure = await withRefreshLock(lockDir, key, async () => "refreshed", 200).catch(
+      (error: unknown) => error,
+    );
 
     expect(failure).toBeInstanceOf(RefreshLockTimeout);
     expect((failure as RefreshLockTimeout).message).toBe(

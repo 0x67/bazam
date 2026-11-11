@@ -87,9 +87,13 @@ async function listCaseFiles(root: string): Promise<CaseFileRef[]> {
     throw error;
   }
   const files: CaseFileRef[] = [];
-  for (const domain of domains.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).sort(byName)) {
+  for (const domain of domains
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .sort(byName)) {
     const entries = await readdir(join(root, "cases", domain.name), { withFileTypes: true });
-    for (const entry of entries.filter((e) => e.isFile() && e.name.endsWith(".yaml")).sort(byName)) {
+    for (const entry of entries
+      .filter((e) => e.isFile() && e.name.endsWith(".yaml"))
+      .sort(byName)) {
       files.push({ path: posix.join("cases", domain.name, entry.name), domain: domain.name });
     }
   }
@@ -119,14 +123,18 @@ function parseCaseFile(
 
   const shape = CaseFile.safeParse(doc.toJS());
   if (!shape.success) {
-    return { cases: [], issues: shape.error.issues.map((issue) => schemaIssue(file, [], issue, lineAt)) };
+    return {
+      cases: [],
+      issues: shape.error.issues.map((issue) => schemaIssue(file, [], issue, lineAt)),
+    };
   }
   const cases: ParsedCase[] = [];
   const issues: LoadIssue[] = [];
   shape.data.cases.forEach((item, index) => {
     const at = ["cases", index];
     const result = schema.safeParse(item);
-    if (!result.success) issues.push(...result.error.issues.map((issue) => schemaIssue(file, at, issue, lineAt)));
+    if (!result.success)
+      issues.push(...result.error.issues.map((issue) => schemaIssue(file, at, issue, lineAt)));
     const id = result.success ? result.data.id : wellFormedId(item);
     if (id === undefined) return;
     cases.push({
@@ -151,7 +159,8 @@ function schemaIssue(
   issue: z.core.$ZodIssue,
   lineAt: (path: readonly PropertyKey[]) => number,
 ): LoadIssue {
-  const path = issue.code === "unrecognized_keys" ? [...issue.path, ...issue.keys.slice(0, 1)] : issue.path;
+  const path =
+    issue.code === "unrecognized_keys" ? [...issue.path, ...issue.keys.slice(0, 1)] : issue.path;
   const line = lineAt([...at, ...path]);
   const where = formatPath(issue.path);
   const message = where === "" ? issue.message : `${where}: ${issue.message}`;
@@ -179,7 +188,9 @@ function checkIds(
     const file = source.file;
     if (retiredIds.has(id)) {
       const fix = "Pick a new id; ids in cases/.retired are never reused.";
-      issues.push(errorIssue({ ruleId: "id-retired", file, line: idLine, message: `${id} is retired`, fix }));
+      issues.push(
+        errorIssue({ ruleId: "id-retired", file, line: idLine, message: `${id} is retired`, fix }),
+      );
       continue;
     }
     const first = firstById.get(id);
@@ -216,7 +227,9 @@ function lineOf(doc: Document.Parsed, path: readonly PropertyKey[], lines: LineC
   let offset = startOf(node) ?? 0;
   for (const segment of path) {
     if (isMap(node)) {
-      const pair = node.items.find((item) => isScalar(item.key) && String(item.key.value) === String(segment));
+      const pair = node.items.find(
+        (item) => isScalar(item.key) && String(item.key.value) === String(segment),
+      );
       if (pair === undefined) break;
       offset = startOf(pair.key) ?? offset;
       node = pair.value;

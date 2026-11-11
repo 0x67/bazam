@@ -61,7 +61,9 @@ function settled(promise: Promise<unknown>): () => boolean {
 }
 
 /** A handler that waits until its signal aborts, then rejects with the reason. */
-function hang(aborted: { signal?: AbortSignal }): (params: unknown, signal: AbortSignal) => Promise<unknown> {
+function hang(aborted: {
+  signal?: AbortSignal;
+}): (params: unknown, signal: AbortSignal) => Promise<unknown> {
   return (_params, signal) =>
     new Promise((_resolve, reject) => {
       aborted.signal = signal;
@@ -110,7 +112,10 @@ describe("JsonRpcPeer", () => {
     });
     const broken = b.request("broken", { password: SECRET }, {});
     await expect(broken).rejects.toBeInstanceOf(RpcError);
-    await expect(broken).rejects.toMatchObject({ code: -32603, message: `token ${SECRET} was refused` });
+    await expect(broken).rejects.toMatchObject({
+      code: -32603,
+      message: `token ${SECRET} was refused`,
+    });
     await expect(b.request("missing", {}, {})).rejects.toMatchObject({ code: -32601 });
 
     expect(logged).toContain('a: answered "broken" request 2 with error -32603');
@@ -121,16 +126,19 @@ describe("JsonRpcPeer", () => {
   it.each([
     ["a string", "boom"],
     ["an object without a numeric code", { message: "boom" }],
-  ])("rejects with MalformedAnswer, not an RpcError, when the answer's error is %s", async (_label, error) => {
-    const { peer, write, next } = wired();
+  ])(
+    "rejects with MalformedAnswer, not an RpcError, when the answer's error is %s",
+    async (_label, error) => {
+      const { peer, write, next } = wired();
 
-    const call = peer.request("ping", {}, {});
-    expect(await next()).toMatchObject({ id: 1, method: "ping" });
-    write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, error })}\n`);
+      const call = peer.request("ping", {}, {});
+      expect(await next()).toMatchObject({ id: 1, method: "ping" });
+      write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, error })}\n`);
 
-    await expect(call).rejects.toBeInstanceOf(MalformedAnswer);
-    await expect(call).rejects.not.toBeInstanceOf(RpcError);
-  });
+      await expect(call).rejects.toBeInstanceOf(MalformedAnswer);
+      await expect(call).rejects.not.toBeInstanceOf(RpcError);
+    },
+  );
 
   it("rejects a request over the line limit at once, without sending it", async () => {
     const { peer, sent, next } = wired({ maxLineBytes: 64 });
@@ -158,7 +166,10 @@ describe("JsonRpcPeer", () => {
       id: 1,
       error: { code: -32003, message: "the result of big would be a line longer than 200 bytes" },
     });
-    expect(logged).toEqual(["dropped a message longer than 200 bytes", 'answered "big" request 1 with error -32003']);
+    expect(logged).toEqual([
+      "dropped a message longer than 200 bytes",
+      'answered "big" request 1 with error -32003',
+    ]);
   });
 
   it("answers a handler error over the line limit with its code and a short message", async () => {
@@ -204,7 +215,9 @@ describe("JsonRpcPeer", () => {
     });
     peer.handle("ping", async () => "pong");
 
-    write(`${JSON.stringify({ jsonrpc: "2.0", method: "host.log", params: { line: "launched" } })}\n`);
+    write(
+      `${JSON.stringify({ jsonrpc: "2.0", method: "host.log", params: { line: "launched" } })}\n`,
+    );
     write(`${JSON.stringify({ jsonrpc: "2.0", method: "unknown.notification", params: {} })}\n`);
     write(`${JSON.stringify({ jsonrpc: "2.0", id: "p1", method: "ping" })}\n`);
 
@@ -252,7 +265,9 @@ describe("JsonRpcPeer", () => {
     const { peer, next } = wired();
     const reason = new Error("already stopped");
 
-    await expect(peer.request("ping", {}, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason);
+    await expect(peer.request("ping", {}, { signal: AbortSignal.abort(reason) })).rejects.toBe(
+      reason,
+    );
     peer.notify("marker", {});
 
     expect(await next()).toEqual({ jsonrpc: "2.0", method: "marker", params: {} });
@@ -309,7 +324,9 @@ describe("JsonRpcPeer", () => {
     write("x".repeat(40));
     write("x".repeat(40));
     await expect(pending).rejects.toThrow("received a line longer than 64 bytes");
-    await expect(peer.request("ping", {}, {})).rejects.toThrow("received a line longer than 64 bytes");
+    await expect(peer.request("ping", {}, {})).rejects.toThrow(
+      "received a line longer than 64 bytes",
+    );
   });
 
   it("keeps pending requests open when the input ends and rejects them on close", async () => {
@@ -348,7 +365,9 @@ describe("JsonRpcPeer", () => {
     peer.notify("host.log", { line: "to a closed pipe" });
     await tick();
 
-    expect(logged).toEqual(expect.arrayContaining(["output stream emitted error", "input stream emitted error"]));
+    expect(logged).toEqual(
+      expect.arrayContaining(["output stream emitted error", "input stream emitted error"]),
+    );
     expect(logged.join("\n")).not.toContain(SECRET);
     peer.close(new Error("done"));
   });
@@ -379,11 +398,19 @@ describe("METHODS", () => {
       dataBase64: "",
     });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toBe("a process plugin cannot attach zip files, which core cannot scrub");
+    expect(result.error?.issues[0]?.message).toBe(
+      "a process plugin cannot attach zip files, which core cannot scrub",
+    );
   });
 
   it("takes a check record whose undefined values the JSON line dropped", () => {
-    const check = { name: "banner shows", kind: "ui", expected: "visible", observed: undefined, ok: false };
+    const check = {
+      name: "banner shows",
+      kind: "ui",
+      expected: "visible",
+      observed: undefined,
+      ok: false,
+    };
     const wire: unknown = JSON.parse(JSON.stringify({ contextId: "c1", check }));
     expect(METHODS["host.evidence.record"].params.safeParse(wire).success).toBe(true);
   });
@@ -404,10 +431,14 @@ describe("METHODS", () => {
   });
 
   it("gives a probe or launch a context id, so the driver can call the host", () => {
-    expect(METHODS["driver.launch"].params.safeParse({ driver: "fake", options: launchOptions }).success).toBe(false);
     expect(
-      METHODS["driver.probe"].params.safeParse({ driver: "fake", options: { ...launchOptions, contextId: "c1" } })
-        .success,
+      METHODS["driver.launch"].params.safeParse({ driver: "fake", options: launchOptions }).success,
+    ).toBe(false);
+    expect(
+      METHODS["driver.probe"].params.safeParse({
+        driver: "fake",
+        options: { ...launchOptions, contextId: "c1" },
+      }).success,
     ).toBe(true);
   });
 });

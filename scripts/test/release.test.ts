@@ -3,7 +3,14 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, onTestFinished } from "vite-plus/test";
-import { nextVersion, releaseLine, releaseNotes, ReleaseRefused, stamp, type ReleaseLine } from "../release.ts";
+import {
+  nextVersion,
+  releaseLine,
+  releaseNotes,
+  ReleaseRefused,
+  stamp,
+  type ReleaseLine,
+} from "../release.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const { parse } = createRequire(path.join(root, "packages", "core", "package.json"))("yaml") as {
@@ -41,7 +48,10 @@ describe("nextVersion", () => {
       target: HEAD,
       previousFinal: "v0.1.1",
     });
-    expect(nextVersion("patch", MAIN, existing, HEAD)).toMatchObject({ tag: "v0.1.2", latest: true });
+    expect(nextVersion("patch", MAIN, existing, HEAD)).toMatchObject({
+      tag: "v0.1.2",
+      latest: true,
+    });
   });
 
   it("cuts rc.1 of the next minor on main after a final, as a pre-release that is not latest", () => {
@@ -55,7 +65,9 @@ describe("nextVersion", () => {
   });
 
   it("numbers the next rc of an open candidate", () => {
-    expect(nextVersion("rc", MAIN, tags("v0.1.0", "v0.2.0-rc.1", "v0.2.0-rc.2"), HEAD).tag).toBe("v0.2.0-rc.3");
+    expect(nextVersion("rc", MAIN, tags("v0.1.0", "v0.2.0-rc.1", "v0.2.0-rc.2"), HEAD).tag).toBe(
+      "v0.2.0-rc.3",
+    );
   });
 
   it("finalizes the open candidate on its own commit", () => {
@@ -88,7 +100,9 @@ describe("nextVersion", () => {
     const refusal = new ReleaseRefused("release/0.2 has no final v0.2.<z> tag; branch it from one");
 
     for (const bump of ["patch", "rc", "final"] as const) {
-      expect(() => nextVersion(bump, RELEASE_0_2, tags("v0.1.0", "v0.2.0-rc.1"), HEAD)).toThrow(refusal);
+      expect(() => nextVersion(bump, RELEASE_0_2, tags("v0.1.0", "v0.2.0-rc.1"), HEAD)).toThrow(
+        refusal,
+      );
     }
   });
 
@@ -112,7 +126,9 @@ describe("nextVersion", () => {
   });
 
   it("marks a final release on an old line as not latest", () => {
-    expect(nextVersion("patch", RELEASE_0_2, [...tags("v0.1.0", "v0.2.0"), offLine("v0.3.0")], HEAD)).toMatchObject({
+    expect(
+      nextVersion("patch", RELEASE_0_2, [...tags("v0.1.0", "v0.2.0"), offLine("v0.3.0")], HEAD),
+    ).toMatchObject({
       tag: "v0.2.1",
       target: HEAD,
       prerelease: false,
@@ -123,14 +139,19 @@ describe("nextVersion", () => {
 
   it("counts only its own major and minor on a release line", () => {
     // release/0.2 branched from main after v0.3.0-rc.1 was cut there
-    expect(nextVersion("rc", RELEASE_0_2, tags("v0.2.0", "v0.3.0-rc.1"), HEAD).tag).toBe("v0.2.1-rc.1");
+    expect(nextVersion("rc", RELEASE_0_2, tags("v0.2.0", "v0.3.0-rc.1"), HEAD).tag).toBe(
+      "v0.2.1-rc.1",
+    );
   });
 
   it("keeps a release line's patch candidate out of main's rc and final", () => {
     // the release line was merged back, so its candidate sits on main's history
     const existing = tags("v0.2.0", "v0.2.1-rc.1");
 
-    expect(nextVersion("rc", MAIN, existing, HEAD)).toMatchObject({ tag: "v0.3.0-rc.1", target: HEAD });
+    expect(nextVersion("rc", MAIN, existing, HEAD)).toMatchObject({
+      tag: "v0.3.0-rc.1",
+      target: HEAD,
+    });
     expect(() => nextVersion("final", MAIN, existing, HEAD)).toThrow(ReleaseRefused);
     expect(nextVersion("final", RELEASE_0_2, existing, HEAD)).toMatchObject({
       tag: "v0.2.1",
@@ -143,7 +164,11 @@ describe("nextVersion", () => {
 describe("releaseLine", () => {
   it("reads main and release/<major>.<minor>", () => {
     expect(releaseLine("refs/heads/main")).toEqual(MAIN);
-    expect(releaseLine("refs/heads/release/0.12")).toEqual({ kind: "release", major: 0, minor: 12 });
+    expect(releaseLine("refs/heads/release/0.12")).toEqual({
+      kind: "release",
+      major: 0,
+      minor: 12,
+    });
   });
 
   it("refuses any other ref", () => {
@@ -210,7 +235,9 @@ describe("stamp", () => {
   function copyManifests(): string {
     const copy = mkdtempSync(path.join(tmpdir(), "release-test-"));
     onTestFinished(() => rmSync(copy, { recursive: true, force: true }));
-    const packages = readdirSync(path.join(root, "packages")).map((name) => path.join("packages", name));
+    const packages = readdirSync(path.join(root, "packages")).map((name) =>
+      path.join("packages", name),
+    );
     for (const dir of ["", path.join("examples", "demo-app"), ...packages]) {
       cpSync(path.join(root, dir, "package.json"), path.join(copy, dir, "package.json"));
     }
@@ -237,7 +264,8 @@ describe("stamp", () => {
         exports?: Record<string, Record<string, string>>;
       };
       expect(manifest.version).toBe("0.1.0-rc.1");
-      for (const entry of Object.values(manifest.exports ?? {})) expect(Object.keys(entry)).toEqual(["default"]);
+      for (const entry of Object.values(manifest.exports ?? {}))
+        expect(Object.keys(entry)).toEqual(["default"]);
     }
     expect(read(copy, "package.json")).toBe(read(root, "package.json"));
     const demo = path.join("examples", "demo-app", "package.json");
@@ -248,7 +276,14 @@ describe("stamp", () => {
     const copy = copyManifests();
     const core = path.join("packages", "core", "package.json");
 
-    for (const version of ["0.1", "v0.1.0", "0.1.0-beta.1", "01.0.0", "0.1.0-rc.0", "0.1.0\nfiles=[]"]) {
+    for (const version of [
+      "0.1",
+      "v0.1.0",
+      "0.1.0-beta.1",
+      "01.0.0",
+      "0.1.0-rc.0",
+      "0.1.0\nfiles=[]",
+    ]) {
       await expect(stamp(copy, version)).rejects.toThrow(ReleaseRefused);
     }
     expect(read(copy, core)).toBe(read(root, core));
@@ -265,7 +300,9 @@ it("passes inputs, job outputs and step outputs to run scripts only through env"
       jobs: Record<string, { steps?: { run?: string }[] }>;
     };
     return Object.entries(workflow.jobs).flatMap(([job, { steps = [] }]) =>
-      steps.filter(({ run }) => run !== undefined && expression.test(run)).map(({ run }) => `${file} ${job}: ${run}`),
+      steps
+        .filter(({ run }) => run !== undefined && expression.test(run))
+        .map(({ run }) => `${file} ${job}: ${run}`),
     );
   });
 

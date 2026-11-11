@@ -27,7 +27,10 @@ describe("checkGuidedOutcome", () => {
       { ok: true, observed: "GET /me 200" },
     );
 
-    expect(check).toMatchObject({ ok: true, observed: "pass: holdings shown; observed: GET /me 200" });
+    expect(check).toMatchObject({
+      ok: true,
+      observed: "pass: holdings shown; observed: GET /me 200",
+    });
     expect(check.hint).toBeUndefined();
   });
 
@@ -39,14 +42,26 @@ describe("checkGuidedOutcome", () => {
       { ok: true, observed: "GET /me 200" },
     );
 
-    expect(check).toMatchObject({ ok: false, observed: "fail: face check looped; observed: GET /me 200" });
+    expect(check).toMatchObject({
+      ok: false,
+      observed: "fail: face check looped; observed: GET /me 200",
+    });
   });
 
   it("blocks on a blocked verdict or a missing verdict", () => {
     expect(() =>
-      checkGuidedOutcome(NAME, EXPECTED, { kind: "verdict", verdict: "blocked", note: "no device" }, undefined),
+      checkGuidedOutcome(
+        NAME,
+        EXPECTED,
+        { kind: "verdict", verdict: "blocked", note: "no device" },
+        undefined,
+      ),
     ).toThrow(new GuidedBlocked("person: blocked: no device"));
-    expect(() => checkGuidedOutcome(NAME, EXPECTED, { kind: "timeout" }, undefined)).toThrow(GuidedBlocked);
-    expect(() => checkGuidedOutcome(NAME, EXPECTED, { kind: "done" }, undefined)).toThrow(GuidedBlocked);
+    expect(() => checkGuidedOutcome(NAME, EXPECTED, { kind: "timeout" }, undefined)).toThrow(
+      GuidedBlocked,
+    );
+    expect(() => checkGuidedOutcome(NAME, EXPECTED, { kind: "done" }, undefined)).toThrow(
+      GuidedBlocked,
+    );
   });
 });

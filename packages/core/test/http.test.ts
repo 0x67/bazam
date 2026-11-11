@@ -4,7 +4,16 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import { z } from "zod";
 import {
   CredentialCache,
@@ -43,8 +52,15 @@ interface SeenRequest {
 const seen: SeenRequest[] = [];
 const servers: Server[] = [];
 
-function json(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
-  res.writeHead(status, { "content-type": "application/json", ...headers }).end(JSON.stringify(body));
+function json(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): void {
+  res
+    .writeHead(status, { "content-type": "application/json", ...headers })
+    .end(JSON.stringify(body));
 }
 
 function redirect(res: ServerResponse, status: number, location: string): void {
@@ -111,7 +127,8 @@ function tokenStrategy() {
     acquire: async (_config, ctx) => issue(ctx.identity),
     refresh: async (_credential, _config, ctx) => issue(ctx.identity),
     apply: async (credential, target) => {
-      if (target.kind === "http") target.request.headers.set("authorization", `Bearer ${credential.token}`);
+      if (target.kind === "http")
+        target.request.headers.set("authorization", `Bearer ${credential.token}`);
     },
     secrets: (credential) => [credential.token],
   });
@@ -172,7 +189,12 @@ describe("http", () => {
   }
 
   function client(env: Environment = demo): GuardedHttp {
-    return guardedHttp({ env, redactor, log: (line) => logLines.push(line), identities: identities(env) });
+    return guardedHttp({
+      env,
+      redactor,
+      log: (line) => logLines.push(line),
+      identities: identities(env),
+    });
   }
 
   function get(path: string, headers: Record<string, string> = {}): HttpRequestDraft {
@@ -250,36 +272,52 @@ describe("http", () => {
     it.each([
       ["while the server holds it", "GET", "/held"],
       ["after a 303 turned it into a GET", "POST", "/see-other"],
-    ])("rejects with the abort reason and closes the socket when a send is aborted %s", async (_, method, path) => {
-      let arrived!: () => void;
-      const held = new Promise<void>((done) => (arrived = done));
-      let closed!: Promise<string>;
-      const holding = await serve((req, res) => {
-        if (req.url === "/see-other") return redirect(res, 303, "/held");
-        closed = new Promise((done) => req.socket.once("close", () => done("closed")));
-        arrived();
-      });
-      const abort = new AbortController();
-      const sending = client()
-        .send({ method, url: new URL(path, holding), headers: new Headers(), signal: abort.signal })
-        .catch((error: unknown) => error);
-      await held;
+    ])(
+      "rejects with the abort reason and closes the socket when a send is aborted %s",
+      async (_, method, path) => {
+        let arrived!: () => void;
+        const held = new Promise<void>((done) => (arrived = done));
+        let closed!: Promise<string>;
+        const holding = await serve((req, res) => {
+          if (req.url === "/see-other") return redirect(res, 303, "/held");
+          closed = new Promise((done) => req.socket.once("close", () => done("closed")));
+          arrived();
+        });
+        const abort = new AbortController();
+        const sending = client()
+          .send({
+            method,
+            url: new URL(path, holding),
+            headers: new Headers(),
+            signal: abort.signal,
+          })
+          .catch((error: unknown) => error);
+        await held;
 
-      abort.abort();
+        abort.abort();
 
-      expect(await Promise.race([sending, sleep(1000, "still pending")])).toBe(abort.signal.reason);
-      expect(await Promise.race([closed, sleep(1000, "still open")])).toBe("closed");
-    });
+        expect(await Promise.race([sending, sleep(1000, "still pending")])).toBe(
+          abort.signal.reason,
+        );
+        expect(await Promise.race([closed, sleep(1000, "still open")])).toBe("closed");
+      },
+    );
 
     it("logs the method, path and status with every query value masked and no header value", async () => {
-      await client().send(get("/orders/42?code=fake-query-code", { "x-trace": "fake-trace-value" }), customer);
+      await client().send(
+        get("/orders/42?code=fake-query-code", { "x-trace": "fake-trace-value" }),
+        customer,
+      );
 
       expect(logLines).toEqual([`GET ${origin}/orders/42?code=[redacted] 200`]);
     });
   });
 
   describe("httpSteps", () => {
-    function stepContext(env: Environment, identity?: string): { ctx: StepContext; checks: () => CheckRecord[] } {
+    function stepContext(
+      env: Environment,
+      identity?: string,
+    ): { ctx: StepContext; checks: () => CheckRecord[] } {
       const values = new Map<string, string>();
       const evidence = new EvidenceStore(root, "API-ORDER-001", redactor);
       const record = vi.spyOn(evidence, "record");
@@ -322,10 +360,21 @@ describe("http", () => {
       };
 
       await runStep(
-        { request: { method: "POST", url: "${env.API_URL}/orders", as: "customer", json: { amount: 10 }, save } },
+        {
+          request: {
+            method: "POST",
+            url: "${env.API_URL}/orders",
+            as: "customer",
+            json: { amount: 10 },
+            save,
+          },
+        },
         ctx,
       );
-      await runStep({ api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200 } }, ctx);
+      await runStep(
+        { api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200 } },
+        ctx,
+      );
 
       expect(Object.fromEntries(ctx.values)).toEqual({
         orderId: "42",
@@ -344,7 +393,16 @@ describe("http", () => {
 
       for (const name of ["id", "title"]) {
         await expect(
-          runStep({ request: { method: "POST", url: "${env.API_URL}/orders", save: { [name]: "body.id" } } }, ctx),
+          runStep(
+            {
+              request: {
+                method: "POST",
+                url: "${env.API_URL}/orders",
+                save: { [name]: "body.id" },
+              },
+            },
+            ctx,
+          ),
         ).rejects.toThrow("save cannot use the names id and title");
       }
       expect(seen).toEqual([]);
@@ -354,11 +412,22 @@ describe("http", () => {
       const { ctx, checks } = stepContext(demo, "customer");
 
       await runStep(
-        { api: { request: "GET ${env.API_URL}/orders/42", status: 200, body: { status: "PAID", "items[0].id": "7" } } },
+        {
+          api: {
+            request: "GET ${env.API_URL}/orders/42",
+            status: 200,
+            body: { status: "PAID", "items[0].id": "7" },
+          },
+        },
         ctx,
       );
       await runStep(
-        { api: { request: "GET ${env.API_URL}/orders/42", body: { status: "REFUNDED", "items[1].id": 8 } } },
+        {
+          api: {
+            request: "GET ${env.API_URL}/orders/42",
+            body: { status: "REFUNDED", "items[1].id": 8 },
+          },
+        },
         ctx,
       );
 
@@ -394,7 +463,10 @@ describe("http", () => {
     });
 
     it.each([
-      ["request step", { request: { method: "POST", url: "${env.API_URL}/orders", json: { amount: 10 } } }],
+      [
+        "request step",
+        { request: { method: "POST", url: "${env.API_URL}/orders", json: { amount: 10 } } },
+      ],
       ["api check", { api: { request: "DELETE ${env.API_URL}/orders/42", status: 204 } }],
     ])("refuses a non-GET %s without write: true in production", async (_, step) => {
       const { ctx } = stepContext(live, "customer");
@@ -406,13 +478,16 @@ describe("http", () => {
 });
 
 describe("bodyMismatches", () => {
-  const response = { status: 200, headers: new Headers(), body: { user: { id: 42 }, items: [{ ok: true }] } };
+  const response = {
+    status: 200,
+    headers: new Headers(),
+    body: { user: { id: 42 }, items: [{ ok: true }] },
+  };
 
   it("names each path whose value differs, reading numbers and booleans as their text", () => {
     expect(bodyMismatches({ "user.id": "42", "items[0].ok": "true" }, response)).toEqual([]);
-    expect(bodyMismatches({ "user.id": "7", "items[0].ok": "true", "user.name": "x" }, response)).toEqual([
-      "body.user.id",
-      "body.user.name",
-    ]);
+    expect(
+      bodyMismatches({ "user.id": "7", "items[0].ok": "true", "user.name": "x" }, response),
+    ).toEqual(["body.user.id", "body.user.name"]);
   });
 });

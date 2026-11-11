@@ -48,7 +48,12 @@ function watch<T>(promise: Promise<T>): { settled: () => boolean } {
 describe("runUnits", () => {
   it("starts units in plan order up to the worker count and returns results by plan position", async () => {
     const units = new Units();
-    const all = runUnits([unit(0), unit(1), unit(2), unit(3)], 2, units.run, new AbortController().signal);
+    const all = runUnits(
+      [unit(0), unit(1), unit(2), unit(3)],
+      2,
+      units.run,
+      new AbortController().signal,
+    );
     await settle();
     expect(units.started).toEqual([0, 1]);
     await units.end(1);
@@ -61,7 +66,12 @@ describe("runUnits", () => {
 
   it("puts the results of a unit with several positions at each of them", async () => {
     const units = new Units();
-    const all = runUnits([unit([0, 2], "runner:shop"), unit(1)], 2, units.run, new AbortController().signal);
+    const all = runUnits(
+      [unit([0, 2], "runner:shop"), unit(1)],
+      2,
+      units.run,
+      new AbortController().signal,
+    );
     await units.end(1);
     await units.end(0);
     expect(await all).toEqual(["result 0", "result 1", "result 2"]);
@@ -128,8 +138,8 @@ describe("runUnits", () => {
   });
 
   it.each([0, 1.5])("refuses %s workers", async (workers) => {
-    await expect(runUnits([unit(0)], workers, new Units().run, new AbortController().signal)).rejects.toThrow(
-      RangeError,
-    );
+    await expect(
+      runUnits([unit(0)], workers, new Units().run, new AbortController().signal),
+    ).rejects.toThrow(RangeError);
   });
 });

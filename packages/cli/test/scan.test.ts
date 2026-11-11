@@ -1,6 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 let api: Api;
 
@@ -19,7 +25,15 @@ const PIN = "fake-pin-8f3a2c";
 async function ranProject(): Promise<Fixture> {
   const project = await fixtureProject(api);
   await project.write("fixtures/identities.local.yaml", `alice:\n  pin: ${PIN}\n`);
-  const { code } = await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001", "--run", "r1");
+  const { code } = await project.cli(
+    "run",
+    "--env",
+    "demo",
+    "--case",
+    "SHOP-OK-001",
+    "--run",
+    "r1",
+  );
   expect(code).toBe(ExitCode.Pass);
   return project;
 }

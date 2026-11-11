@@ -6,13 +6,23 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { CredentialCache, withRefreshLock, type CredentialKey, type JsonValue } from "@bazam/core/auth";
+import {
+  CredentialCache,
+  withRefreshLock,
+  type CredentialKey,
+  type JsonValue,
+} from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import { ExitCode } from "../src/exit.ts";
 import { main } from "../src/main.ts";
 import { cli, type CliRun } from "./support/project.ts";
 
-const KEY: CredentialKey = { env: "demo", identity: "customer", surface: "web", strategy: "fake-session" };
+const KEY: CredentialKey = {
+  env: "demo",
+  identity: "customer",
+  surface: "web",
+  strategy: "fake-session",
+};
 
 /**
  * A path plugin with two cached strategies. `fake-session` refreshes and revokes, refuses to refresh a revoked
@@ -68,8 +78,16 @@ let root: string;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "cli-keepalive-"));
   const stem = (key: readonly string[]): string => key.map(encodeURIComponent).join("+");
-  const lockFile = join(root, BRAND.stateDir, "locks", `${stem([KEY.env, KEY.identity, KEY.surface])}.lock`);
-  const credentialFile = join(credentialsDir(), `${stem([KEY.env, KEY.identity, KEY.surface, KEY.strategy])}.json`);
+  const lockFile = join(
+    root,
+    BRAND.stateDir,
+    "locks",
+    `${stem([KEY.env, KEY.identity, KEY.surface])}.lock`,
+  );
+  const credentialFile = join(
+    credentialsDir(),
+    `${stem([KEY.env, KEY.identity, KEY.surface, KEY.strategy])}.json`,
+  );
   const config = {
     envs: {
       demo: { production: false, hosts: ["127.0.0.1"], vars: { AUDIENCE: "demo-app" } },
@@ -79,7 +97,10 @@ beforeEach(async () => {
       customer: {
         fixture: "customer",
         auth: {
-          web: { strategy: "fake-session", with: { audience: "${env.AUDIENCE}", email: "${identity.customer.email}" } },
+          web: {
+            strategy: "fake-session",
+            with: { audience: "${env.AUDIENCE}", email: "${identity.customer.email}" },
+          },
           api: { strategy: "fake-session", from: "web" },
         },
       },
@@ -88,7 +109,10 @@ beforeEach(async () => {
     plugins: ["./fake-strategies.mjs"],
   };
   await write(BRAND.configFile, JSON.stringify(config, null, 2));
-  await write("fake-strategies.mjs", fakeStrategies(lockFile, join(root, "revoked.jsonl"), credentialFile));
+  await write(
+    "fake-strategies.mjs",
+    fakeStrategies(lockFile, join(root, "revoked.jsonl"), credentialFile),
+  );
   await write("fixtures/identities.local.yaml", "customer:\n  email: customer@example.test\n");
 });
 
@@ -107,7 +131,9 @@ const cache = (): CredentialCache => new CredentialCache(credentialsDir());
 /** Replaces the auth settings of the customer identity. */
 async function customerAuth(auth: Record<string, unknown>): Promise<void> {
   const path = join(root, BRAND.configFile);
-  const config = JSON.parse(await readFile(path, "utf8")) as { identities: { customer: { auth: unknown } } };
+  const config = JSON.parse(await readFile(path, "utf8")) as {
+    identities: { customer: { auth: unknown } };
+  };
   config.identities.customer.auth = auth;
   await writeFile(path, JSON.stringify(config, null, 2));
 }
@@ -133,11 +159,17 @@ function startCli(...argv: string[]): { stop(): void; done: Promise<CliRun> } {
     cwd: root,
     signal: interrupt.signal,
   });
-  return { stop: () => interrupt.abort(), done: code.then((exit) => ({ code: exit, stdout, stderr })) };
+  return {
+    stop: () => interrupt.abort(),
+    done: code.then((exit) => ({ code: exit, stdout, stderr })),
+  };
 }
 
 /** How the CLI ended, or undefined when it still ran after two seconds; it is stopped either way. */
-async function endsByItself(running: { stop(): void; done: Promise<CliRun> }): Promise<CliRun | undefined> {
+async function endsByItself(running: {
+  stop(): void;
+  done: Promise<CliRun>;
+}): Promise<CliRun | undefined> {
   const ended = await Promise.race([running.done, sleep(2_000, undefined)]);
   running.stop();
   await running.done;
@@ -172,7 +204,10 @@ describe("keepalive", () => {
     expect(empty.code).toBe(ExitCode.CouldNotStart);
     expect(empty.stderr).toContain("no cached web credential for customer to keep alive");
 
-    await seed({ identity: "admin", strategy: "fake-fixed" }, { token: "fake-fixed-0", lockHeld: [] });
+    await seed(
+      { identity: "admin", strategy: "fake-fixed" },
+      { token: "fake-fixed-0", lockHeld: [] },
+    );
     const fixed = await cli(["keepalive", "--env", "demo", "--as", "admin"], root);
     expect(fixed.code).toBe(ExitCode.CouldNotStart);
     expect(fixed.stderr).toContain("the web credential of admin cannot refresh");
@@ -182,7 +217,10 @@ describe("keepalive", () => {
   });
 
   it("refuses two --as values in keepalive and in logout", async () => {
-    const keepalive = await cli(["keepalive", "--env", "demo", "--as", "customer", "--as", "admin"], root);
+    const keepalive = await cli(
+      ["keepalive", "--env", "demo", "--as", "customer", "--as", "admin"],
+      root,
+    );
     expect(keepalive.code).toBe(ExitCode.CouldNotStart);
     expect(keepalive.stderr).toContain("--as takes one identity here");
     const logout = await cli(["logout", "--as", "customer", "--as", "admin"], root);
@@ -204,7 +242,10 @@ describe("keepalive", () => {
 
   it("stops when a logout deletes the credential before a refresh that then fails", async () => {
     await seed({}, { token: "fake-session-0", lockHeld: [], logout: true });
-    const { code, stdout, stderr } = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    const { code, stdout, stderr } = await cli(
+      ["keepalive", "--env", "demo", "--as", "customer"],
+      root,
+    );
     expect(code).toBe(ExitCode.Pass);
     expect(stderr).toContain("customer/web was logged out; stopped keeping it alive");
     expect(stderr).not.toContain("refuses to refresh");
@@ -214,7 +255,10 @@ describe("keepalive", () => {
 
   it("stops when a logout deletes the credential before a refresh that then cannot run", async () => {
     await seed({}, { token: "fake-session-0", lockHeld: [], refreshable: false, logout: true });
-    const { code, stdout, stderr } = await cli(["keepalive", "--env", "demo", "--as", "customer"], root);
+    const { code, stdout, stderr } = await cli(
+      ["keepalive", "--env", "demo", "--as", "customer"],
+      root,
+    );
     expect(code).toBe(ExitCode.Pass);
     expect(stderr).toContain("customer/web was logged out; stopped keeping it alive");
     expect(stderr).not.toContain("cannot refresh");
@@ -265,12 +309,21 @@ describe("keepalive", () => {
   it("refreshes a session-cookie credential with the headers of its refresh request", async () => {
     const received: { origin: string | undefined; csrf: string | undefined }[] = [];
     const server = createServer((request, response) => {
-      received.push({ origin: request.headers.origin, csrf: request.headers["x-csrf-token"] as string | undefined });
+      received.push({
+        origin: request.headers.origin,
+        csrf: request.headers["x-csrf-token"] as string | undefined,
+      });
       response.writeHead(200).end();
     });
     await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
     const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    const cookie = (name: string, value: string) => ({ name, value, domain: "127.0.0.1", path: "/", expires: -1 });
+    const cookie = (name: string, value: string) => ({
+      name,
+      value,
+      domain: "127.0.0.1",
+      path: "/",
+      expires: -1,
+    });
     await customerAuth({
       web: {
         strategy: "session-cookie",
@@ -285,11 +338,17 @@ describe("keepalive", () => {
     });
     await seed(
       { strategy: "session-cookie" },
-      { cookies: [cookie("session", "fake-session-1"), cookie("csrf", "fake-csrf-1")], origins: [] },
+      {
+        cookies: [cookie("session", "fake-session-1"), cookie("csrf", "fake-csrf-1")],
+        origins: [],
+      },
     );
     try {
       const running = startCli("keepalive", "--env", "demo", "--as", "customer");
-      await vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(1), { timeout: 10_000, interval: 20 });
+      await vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(1), {
+        timeout: 10_000,
+        interval: 20,
+      });
       running.stop();
       expect((await running.done).code).toBe(ExitCode.Pass);
     } finally {
@@ -316,8 +375,12 @@ describe("keepalive", () => {
     const { code, stdout, stderr } = await running.done;
     expect(code).toBe(ExitCode.Pass);
     expect(stdout).toBe("stopped keeping customer alive on web in env demo\n");
-    expect(stderr).toContain("stopped keeping customer/api alive: the api credential of customer cannot refresh");
-    expect(stderr).toContain("stopped keeping customer/mobile alive: no cached mobile credential for customer");
+    expect(stderr).toContain(
+      "stopped keeping customer/api alive: the api credential of customer cannot refresh",
+    );
+    expect(stderr).toContain(
+      "stopped keeping customer/mobile alive: no cached mobile credential for customer",
+    );
   });
 });
 
@@ -333,7 +396,10 @@ describe("logout", () => {
   it("revokes and deletes the cached credentials of every env, and leaves other identities alone", async () => {
     await seed({}, { token: "fake-session-demo", lockHeld: [] });
     await seed({ env: "uat" }, { token: "fake-session-uat", lockHeld: [] });
-    await seed({ identity: "admin", strategy: "fake-fixed" }, { token: "fake-fixed-0", lockHeld: [] });
+    await seed(
+      { identity: "admin", strategy: "fake-fixed" },
+      { token: "fake-fixed-0", lockHeld: [] },
+    );
 
     const { code, stdout } = await cli(["logout", "--as", "customer", "--json"], root);
     expect(code).toBe(ExitCode.Pass);
@@ -368,8 +434,14 @@ describe("logout", () => {
 
   it("deletes a credential whose revoke fails and exits 1, and deletes one without revoke in one env", async () => {
     await seed({}, { token: "fake-unrevokable", lockHeld: [] });
-    await seed({ identity: "admin", strategy: "fake-fixed" }, { token: "fake-fixed-0", lockHeld: [] });
-    await seed({ env: "uat", identity: "admin", strategy: "fake-fixed" }, { token: "fake-fixed-1", lockHeld: [] });
+    await seed(
+      { identity: "admin", strategy: "fake-fixed" },
+      { token: "fake-fixed-0", lockHeld: [] },
+    );
+    await seed(
+      { env: "uat", identity: "admin", strategy: "fake-fixed" },
+      { token: "fake-fixed-1", lockHeld: [] },
+    );
 
     const { code, stdout } = await cli(["logout", "--env", "demo"], root);
     expect(code).toBe(ExitCode.Fail);
@@ -381,8 +453,12 @@ describe("logout", () => {
       ].join("\n"),
     );
     expect(await cache().load(KEY)).toBeUndefined();
-    expect(await cache().load({ ...KEY, identity: "admin", strategy: "fake-fixed" })).toBeUndefined();
-    expect(await cache().load({ ...KEY, env: "uat", identity: "admin", strategy: "fake-fixed" })).toBeDefined();
+    expect(
+      await cache().load({ ...KEY, identity: "admin", strategy: "fake-fixed" }),
+    ).toBeUndefined();
+    expect(
+      await cache().load({ ...KEY, env: "uat", identity: "admin", strategy: "fake-fixed" }),
+    ).toBeDefined();
 
     const unknown = await cli(["logout", "--as", "ghost"], root);
     expect(unknown.code).toBe(ExitCode.CouldNotStart);
@@ -402,7 +478,9 @@ describe("logout", () => {
 
     const renamed = await cli(["logout", "--as", "buyer"], root);
     expect(renamed.code).toBe(ExitCode.Pass);
-    expect(renamed.stdout).toBe("logged out buyer/web (fake-session) in env demo, left by an older config\n");
+    expect(renamed.stdout).toBe(
+      "logged out buyer/web (fake-session) in env demo, left by an older config\n",
+    );
 
     const { code, stdout } = await cli(["logout", "--json"], root);
     expect(code).toBe(ExitCode.Pass);

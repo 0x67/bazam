@@ -51,7 +51,9 @@ function killRuns(): void {
 }
 
 async function open(project: Fixture): Promise<Connection> {
-  const connection = await connect(project.root, { supervisor: new RunSupervisor(project.root, CLI_PATH) });
+  const connection = await connect(project.root, {
+    supervisor: new RunSupervisor(project.root, CLI_PATH),
+  });
   connections.push(connection);
   return connection;
 }
@@ -64,7 +66,11 @@ async function start(mcp: Connection, project: Fixture): Promise<string> {
   return runId;
 }
 
-async function waitFor<T>(what: string, poll: () => Promise<T | undefined>, ms = SPAWN_TIMEOUT_MS - 5000): Promise<T> {
+async function waitFor<T>(
+  what: string,
+  poll: () => Promise<T | undefined>,
+  ms = SPAWN_TIMEOUT_MS - 5000,
+): Promise<T> {
   const deadline = Date.now() + ms;
   for (;;) {
     const value = await poll();
@@ -103,7 +109,12 @@ describe("runs over MCP", () => {
 
       // the guided step waits for a person, so the run is still going once the prompt is up
       const prompt = await pendingPrompt(mcp, runId);
-      expect(prompt).toMatchObject({ id: "DESK-LOOK-001-1-guided", runId, caseId: "DESK-LOOK-001", ask: "verdict" });
+      expect(prompt).toMatchObject({
+        id: "DESK-LOOK-001-1-guided",
+        runId,
+        caseId: "DESK-LOOK-001",
+        ask: "verdict",
+      });
       expect(await mcp.json<RunStatus>("run_status", { runId })).toMatchObject({
         runId,
         state: "running",
@@ -111,9 +122,18 @@ describe("runs over MCP", () => {
         pendingPrompts: 1,
         results: [],
       });
-      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { argv: string[] };
+      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as {
+        argv: string[];
+      };
       expect(record.argv).toEqual(
-        expect.arrayContaining([CLI_PATH, "run", "--json", `--run=${runId}`, "--channel=answers-file", "--env=demo"]),
+        expect.arrayContaining([
+          CLI_PATH,
+          "run",
+          "--json",
+          `--run=${runId}`,
+          "--channel=answers-file",
+          "--env=demo",
+        ]),
       );
     },
     SPAWN_TIMEOUT_MS,
@@ -125,10 +145,19 @@ describe("runs over MCP", () => {
       const project = await fixtureProject();
       const config = JSON.parse(await project.read(BRAND.configFile)) as object;
       const roles = { tester: { identities: ["alice", "bob"] } };
-      await project.write(BRAND.configFile, JSON.stringify({ ...config, identities: { alice: {}, bob: {} }, roles }));
+      await project.write(
+        BRAND.configFile,
+        JSON.stringify({ ...config, identities: { alice: {}, bob: {} }, roles }),
+      );
       const mcp = await open(project);
-      const { runId } = await mcp.json<{ runId: string }>("run_start", { env: "demo", roles: { tester: "bob" } });
-      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number; argv: string[] };
+      const { runId } = await mcp.json<{ runId: string }>("run_start", {
+        env: "demo",
+        roles: { tester: "bob" },
+      });
+      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as {
+        pid: number;
+        argv: string[];
+      };
       pids.push(record.pid);
       watchRun(project.root, runId);
       expect(record.argv).toContain("--as=tester=bob");
@@ -145,11 +174,19 @@ describe("runs over MCP", () => {
       const prompt = await pendingPrompt(mcp, runId);
 
       // a verdict prompt takes no done, and a refused answer writes no file
-      const refused = await mcp.call("prompt_answer", { runId, promptId: prompt.id, answer: { kind: "done" } });
+      const refused = await mcp.call("prompt_answer", {
+        runId,
+        promptId: prompt.id,
+        answer: { kind: "done" },
+      });
       expect(textOf(refused)).toBe(`prompt ${prompt.id} asks for verdict: answer with a verdict`);
-      expect(existsSync(join(project.root, "runs", runId, "answers", `${prompt.id}.json`))).toBe(false);
+      expect(existsSync(join(project.root, "runs", runId, "answers", `${prompt.id}.json`))).toBe(
+        false,
+      );
 
-      expect(await mcp.json("prompt_answer", { runId, promptId: prompt.id, answer: PASS })).toEqual({ ok: true });
+      expect(await mcp.json("prompt_answer", { runId, promptId: prompt.id, answer: PASS })).toEqual(
+        { ok: true },
+      );
       const status = await finished(mcp, runId);
       expect(status).toMatchObject({ state: "finished", total: 1, pendingPrompts: 0 });
       expect(status.results).toEqual([{ caseId: "DESK-LOOK-001", status: "pass" }]);
@@ -164,7 +201,11 @@ describe("runs over MCP", () => {
         runId,
         counts: { pass: 1, total: 1 },
       });
-      const answered = await mcp.call("prompt_answer", { runId, promptId: prompt.id, answer: PASS });
+      const answered = await mcp.call("prompt_answer", {
+        runId,
+        promptId: prompt.id,
+        answer: PASS,
+      });
       expect(textOf(answered)).toBe(
         `prompt ${prompt.id} is not pending in run ${runId}; prompt_list shows the prompts still waiting`,
       );
@@ -189,7 +230,9 @@ describe("runs over MCP", () => {
         pendingPrompts: 1,
       });
       await second.json("prompt_answer", { runId, promptId: prompt.id, answer: PASS });
-      expect((await finished(second, runId)).results).toEqual([{ caseId: "DESK-LOOK-001", status: "pass" }]);
+      expect((await finished(second, runId)).results).toEqual([
+        { caseId: "DESK-LOOK-001", status: "pass" },
+      ]);
     },
     SPAWN_TIMEOUT_MS,
   );
@@ -213,7 +256,9 @@ describe("runs over MCP", () => {
         if (host.exitCode !== null) throw new Error(`the server exited: ${stderr}`);
         return stdout.endsWith("\n") ? stdout.trim() : undefined;
       });
-      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number };
+      const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as {
+        pid: number;
+      };
       // not watched: the supervisor that would record the exit ends with the host
       pids.push(record.pid);
       const supervisor = new RunSupervisor(project.root, CLI_PATH);
@@ -254,12 +299,22 @@ describe("runs over MCP", () => {
         return current.state === "stopped" ? current : undefined;
       });
       expect(status.exit).toEqual({ code: null, signal: "SIGTERM" });
-      expect(existsSync(join(project.root, "runs", runId, "prompts", `${prompt.id}.json`))).toBe(true);
+      expect(existsSync(join(project.root, "runs", runId, "prompts", `${prompt.id}.json`))).toBe(
+        true,
+      );
 
       expect(await mcp.json("prompt_list", { runId })).toEqual({ prompts: [] });
-      const answered = await mcp.call("prompt_answer", { runId, promptId: prompt.id, answer: PASS });
-      expect(textOf(answered)).toBe(`run ${runId} has stopped, so prompt ${prompt.id} can no longer be answered`);
-      expect(existsSync(join(project.root, "runs", runId, "answers", `${prompt.id}.json`))).toBe(false);
+      const answered = await mcp.call("prompt_answer", {
+        runId,
+        promptId: prompt.id,
+        answer: PASS,
+      });
+      expect(textOf(answered)).toBe(
+        `run ${runId} has stopped, so prompt ${prompt.id} can no longer be answered`,
+      );
+      expect(existsSync(join(project.root, "runs", runId, "answers", `${prompt.id}.json`))).toBe(
+        false,
+      );
     },
     SPAWN_TIMEOUT_MS,
   );
@@ -333,12 +388,16 @@ describe("fixture teardown", () => {
           const project = await fixtureProject();
           const { runId } = await new RunSupervisor(project.root, CLI_PATH).start({}, "demo", 42);
           watchRun(project.root, runId);
-          const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as { pid: number };
+          const record = JSON.parse(await project.read(`runs/${runId}/supervisor.json`)) as {
+            pid: number;
+          };
           pids.push(record.pid);
           // a full folder keeps rm busy long enough for the exit write to land in it
           const bulk = join(project.root, "runs", runId, "bulk");
           await mkdir(bulk);
-          await Promise.all(Array.from({ length: 2000 }, (_, n) => writeFile(join(bulk, `${n}.txt`), "x")));
+          await Promise.all(
+            Array.from({ length: 2000 }, (_, n) => writeFile(join(bulk, `${n}.txt`), "x")),
+          );
           return project.root;
         }),
       );
@@ -365,30 +424,47 @@ describe("RunSupervisor answers", () => {
   it("writes an answer the prompt takes, as given, and refuses one it does not", async () => {
     const project = await fixtureProject();
     for (const ask of ["action", "value", "verdict"] as const) {
-      await project.write(`runs/${runId}/prompts/P-${ask}.json`, JSON.stringify(prompt(`P-${ask}`, ask)));
+      await project.write(
+        `runs/${runId}/prompts/P-${ask}.json`,
+        JSON.stringify(prompt(`P-${ask}`, ask)),
+      );
     }
     await project.write(`runs/${runId}/prompts/P-temp.json.0000.tmp`, "{");
     const supervisor = new RunSupervisor(project.root, CLI_PATH);
-    expect((await supervisor.prompts(runId)).map((p) => p.id)).toEqual(["P-action", "P-value", "P-verdict"]);
+    expect((await supervisor.prompts(runId)).map((p) => p.id)).toEqual([
+      "P-action",
+      "P-value",
+      "P-verdict",
+    ]);
 
-    await expect(supervisor.answer(runId, "P-action", { kind: "value", value: "2468" })).rejects.toThrow(
-      "prompt P-action asks for action: answer done or a verdict, never a value",
-    );
-    await expect(supervisor.answer(runId, "P-value", { kind: "verdict", verdict: "pass", note: "" })).rejects.toThrow(
-      "answer with the value, or a fail or blocked verdict",
-    );
+    await expect(
+      supervisor.answer(runId, "P-action", { kind: "value", value: "2468" }),
+    ).rejects.toThrow("prompt P-action asks for action: answer done or a verdict, never a value");
+    await expect(
+      supervisor.answer(runId, "P-value", { kind: "verdict", verdict: "pass", note: "" }),
+    ).rejects.toThrow("answer with the value, or a fail or blocked verdict");
     await expect(supervisor.answer(runId, "P-gone", { kind: "done" })).rejects.toThrow(
       `prompt P-gone is not pending in run ${runId}`,
     );
-    await expect(supervisor.answer(runId, "../P-action", { kind: "done" })).rejects.toThrow("not a plain file name");
+    await expect(supervisor.answer(runId, "../P-action", { kind: "done" })).rejects.toThrow(
+      "not a plain file name",
+    );
     await expect(supervisor.prompts("..")).rejects.toThrow("not a plain file name");
     expect(existsSync(join(project.root, "runs", runId, "answers"))).toBe(false);
 
     await supervisor.answer(runId, "P-action", { kind: "done" });
     await supervisor.answer(runId, "P-value", { kind: "value", value: "2468" });
-    await supervisor.answer(runId, "P-verdict", { kind: "verdict", verdict: "blocked", note: "no desk" });
+    await supervisor.answer(runId, "P-verdict", {
+      kind: "verdict",
+      verdict: "blocked",
+      note: "no desk",
+    });
     const answers = join(project.root, "runs", runId, "answers");
-    expect((await readdir(answers)).sort()).toEqual(["P-action.json", "P-value.json", "P-verdict.json"]);
+    expect((await readdir(answers)).sort()).toEqual([
+      "P-action.json",
+      "P-value.json",
+      "P-verdict.json",
+    ]);
     expect(JSON.parse(await project.read(`runs/${runId}/answers/P-value.json`))).toEqual({
       kind: "value",
       value: "2468",
@@ -402,14 +478,17 @@ describe("RunSupervisor answers", () => {
     await once(gone, "exit");
     const record = { runId, pid: gone.pid, argv: [], startedAt: "2026-11-07T12:00:00.000Z" };
     await project.write(`runs/${runId}/supervisor.json`, JSON.stringify(record));
-    await project.write(`runs/${runId}/prompts/P-value.json`, JSON.stringify(prompt("P-value", "value")));
+    await project.write(
+      `runs/${runId}/prompts/P-value.json`,
+      JSON.stringify(prompt("P-value", "value")),
+    );
     const supervisor = new RunSupervisor(project.root, CLI_PATH);
 
     expect(await supervisor.status(runId)).toMatchObject({ state: "stopped", pid: gone.pid });
     expect(await supervisor.prompts(runId)).toEqual([]);
-    await expect(supervisor.answer(runId, "P-value", { kind: "value", value: "2468" })).rejects.toThrow(
-      `run ${runId} has stopped, so prompt P-value can no longer be answered`,
-    );
+    await expect(
+      supervisor.answer(runId, "P-value", { kind: "value", value: "2468" }),
+    ).rejects.toThrow(`run ${runId} has stopped, so prompt P-value can no longer be answered`);
     expect(existsSync(join(project.root, "runs", runId, "answers"))).toBe(false);
   });
 });

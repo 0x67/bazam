@@ -4,10 +4,27 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import { BRAND } from "../src/brand.ts";
-import { buildCaseSchema, CASE_ID, CaseSpec, caseJsonSchema, STEP_LISTS } from "../src/case/index.ts";
-import { declaredSecretNames, loadProjectConfig, runnerOf, type ConfigLoad } from "../src/project.ts";
+import {
+  buildCaseSchema,
+  CASE_ID,
+  CaseSpec,
+  caseJsonSchema,
+  STEP_LISTS,
+} from "../src/case/index.ts";
+import {
+  declaredSecretNames,
+  loadProjectConfig,
+  runnerOf,
+  type ConfigLoad,
+} from "../src/project.ts";
 
-const minimal = { id: "AUTH-LOGIN-001", title: "Customer signs in", stage: "draft", risk: "low", targets: ["web"] };
+const minimal = {
+  id: "AUTH-LOGIN-001",
+  title: "Customer signs in",
+  stage: "draft",
+  risk: "low",
+  targets: ["web"],
+};
 
 const tap = { kind: "tap", schema: z.strictObject({ id: z.string() }) };
 
@@ -37,9 +54,19 @@ describe("CaseSpec", () => {
   });
 
   it("takes ids with at most 7 digits in a row, since the redactor masks longer runs", () => {
-    for (const id of ["AUTH-LOGIN-001", "AUTH-LOGIN-1234567", "A1B2-C3D4567-0001", "SMOKE-JIRA261110-060129"])
+    for (const id of [
+      "AUTH-LOGIN-001",
+      "AUTH-LOGIN-1234567",
+      "A1B2-C3D4567-0001",
+      "SMOKE-JIRA261110-060129",
+    ])
       expect(CASE_ID.test(id), id).toBe(true);
-    for (const id of ["AUTH-LOGIN-01", "AUTH-LOGIN-12345678", "PAY-REFUND20261110-001", "A12345678-LOGIN-001"])
+    for (const id of [
+      "AUTH-LOGIN-01",
+      "AUTH-LOGIN-12345678",
+      "PAY-REFUND20261110-001",
+      "A12345678-LOGIN-001",
+    ])
       expect(CASE_ID.test(id), id).toBe(false);
     expect(issueMessages(CaseSpec, { ...minimal, id: "AUTH-LOGIN-12345678" })).toEqual([
       "an id looks like DOMAIN-AREA-NNN, for example AUTH-LOGIN-001, with 3 to 7 digits at the end and no more than 7 digits in a row",
@@ -89,7 +116,10 @@ describe("CaseSpec", () => {
       ],
       checks: [{ request: { method: "GET", url: "${env.API_URL}/me" } }],
       finally: [{ request: { method: "DELETE", url: "${env.API_URL}/fault", write: true } }],
-      report: { comment: "update", on: { pass: { transition: "Ready for Release", mention: ["role:qa-lead"] } } },
+      report: {
+        comment: "update",
+        on: { pass: { transition: "Ready for Release", mention: ["role:qa-lead"] } },
+      },
     };
 
     expect(CaseSpec.safeParse(full).success).toBe(true);
@@ -121,7 +151,9 @@ describe("CaseSpec", () => {
   });
 
   it("rejects an unknown case field", () => {
-    expect(issueMessages(CaseSpec, { ...minimal, owner: "qa" })).toEqual(['Unrecognized key: "owner"']);
+    expect(issueMessages(CaseSpec, { ...minimal, owner: "qa" })).toEqual([
+      'Unrecognized key: "owner"',
+    ]);
   });
 });
 
@@ -138,7 +170,9 @@ describe("buildCaseSchema", () => {
   it("rejects an unknown step kind and lists the known kinds, plugin kinds included", () => {
     const schema = buildCaseSchema([tap]);
 
-    expect(issuePaths(schema, { ...minimal, steps: [{ hover: { id: "menu" } }] })).toEqual(["steps.0.hover"]);
+    expect(issuePaths(schema, { ...minimal, steps: [{ hover: { id: "menu" } }] })).toEqual([
+      "steps.0.hover",
+    ]);
     expect(issueMessages(schema, { ...minimal, steps: [{ hover: { id: "menu" } }] })).toEqual([
       'unknown step kind "hover"; known kinds: challenge, followup, guided, note, request, tap, use',
     ]);
@@ -149,19 +183,27 @@ describe("buildCaseSchema", () => {
     const followup = (payload: unknown) => ({ ...minimal, checks: [{ followup: payload }] });
 
     for (const list of ["checks", "steps", "finally"])
-      expect(schema.safeParse({ ...minimal, [list]: [{ followup: { name: "badge", hint: "look" } }] }).success).toBe(
-        true,
-      );
-    expect(issuePaths(schema, followup({ name: "badge", hint: "" }))).toEqual(["checks.0.followup.hint"]);
+      expect(
+        schema.safeParse({ ...minimal, [list]: [{ followup: { name: "badge", hint: "look" } }] })
+          .success,
+      ).toBe(true);
+    expect(issuePaths(schema, followup({ name: "badge", hint: "" }))).toEqual([
+      "checks.0.followup.hint",
+    ]);
 
     expect(schema.safeParse(followup({ name: "badge", hint: "look at it" })).success).toBe(true);
     expect(schema.safeParse(followup({ name: "badge" })).success).toBe(false);
     expect(schema.safeParse(followup({ name: "", hint: "look" })).success).toBe(false);
-    expect(schema.safeParse(followup({ name: "badge", hint: "look", extra: 1 })).success).toBe(false);
+    expect(schema.safeParse(followup({ name: "badge", hint: "look", extra: 1 })).success).toBe(
+      false,
+    );
   });
 
   it("accepts a plugin step kind with an identity", () => {
-    const parsed = buildCaseSchema([tap]).parse({ ...minimal, steps: [{ tap: { id: "sign-in" }, as: "customer" }] });
+    const parsed = buildCaseSchema([tap]).parse({
+      ...minimal,
+      steps: [{ tap: { id: "sign-in" }, as: "customer" }],
+    });
 
     expect(parsed.steps).toEqual([{ tap: { id: "sign-in" }, as: "customer" }]);
   });
@@ -188,7 +230,11 @@ describe("buildCaseSchema", () => {
       "a step has exactly one kind key, found note, request",
     ],
     ["no kind key", { as: "customer" }, "a step has exactly one kind key, found none"],
-    ["a plain string", "open the app", "a step is a mapping with one kind key, such as `note: text`"],
+    [
+      "a plain string",
+      "open the app",
+      "a step is a mapping with one kind key, such as `note: text`",
+    ],
   ])("rejects a step with %s", (_, step, message) => {
     expect(issueMessages(CaseSpec, { ...minimal, steps: [step] })).toEqual([message]);
   });
@@ -210,7 +256,9 @@ describe("buildCaseSchema", () => {
 
 describe("caseJsonSchema", () => {
   const json = caseJsonSchema(buildCaseSchema([tap])) as {
-    properties: { cases: { items: { required: string[]; properties: Record<string, { pattern?: string }> } } };
+    properties: {
+      cases: { items: { required: string[]; properties: Record<string, { pattern?: string }> } };
+    };
     $defs: Record<string, { anyOf?: { required: string[] }[] }>;
   };
   const item = json.properties.cases.items;
@@ -221,22 +269,20 @@ describe("caseJsonSchema", () => {
   });
 
   it("lists every step kind, plugin kinds included, as one anyOf branch", () => {
-    const stepBranches = Object.values(json.$defs).find((def) => def.anyOf !== undefined)?.anyOf ?? [];
+    const stepBranches =
+      Object.values(json.$defs).find((def) => def.anyOf !== undefined)?.anyOf ?? [];
 
-    expect(stepBranches.map((branch) => branch.required).sort((a, b) => a.join().localeCompare(b.join()))).toEqual([
-      ["challenge"],
-      ["followup"],
-      ["guided"],
-      ["note"],
-      ["request"],
-      ["tap"],
-      ["use"],
-    ]);
+    expect(
+      stepBranches
+        .map((branch) => branch.required)
+        .sort((a, b) => a.join().localeCompare(b.join())),
+    ).toEqual([["challenge"], ["followup"], ["guided"], ["note"], ["request"], ["tap"], ["use"]]);
   });
 });
 
 describe("runner targets and process plugin entries", () => {
-  const PLAIN_NAME_RULE = "letters, digits, dots, dashes and underscores, starting with a letter or digit";
+  const PLAIN_NAME_RULE =
+    "letters, digits, dots, dashes and underscores, starting with a letter or digit";
   const roots: string[] = [];
   const runner = [
     "envs: {}",
@@ -282,7 +328,12 @@ describe("runner targets and process plugin entries", () => {
     ]);
 
     if (config === undefined) throw new Error(`the config has issues: ${JSON.stringify(issues)}`);
-    expect(declaredSecretNames(config)).toEqual(["SHOP_PASSWORD", "JIRA_EMAIL", "JIRA_API_TOKEN", "CUSTOMER_PASSWORD"]);
+    expect(declaredSecretNames(config)).toEqual([
+      "SHOP_PASSWORD",
+      "JIRA_EMAIL",
+      "JIRA_API_TOKEN",
+      "CUSTOMER_PASSWORD",
+    ]);
   });
 
   it("loads runners, runner targets, a process plugin entry and the new tracker fields", async () => {
@@ -347,7 +398,9 @@ describe("runner targets and process plugin entries", () => {
   });
 
   it("refuses a runner identity the config does not define, on its line", async () => {
-    expect(await issues([...runner, "    identities:", "      - customer", "      - admin"])).toEqual([
+    expect(
+      await issues([...runner, "    identities:", "      - customer", "      - admin"]),
+    ).toEqual([
       [
         11,
         "runners.shop-selenium.identities[1]: runner shop-selenium lists identity admin, which is not defined under identities",
@@ -356,9 +409,9 @@ describe("runner targets and process plugin entries", () => {
   });
 
   it("refuses a target that names both a driver and a runner", async () => {
-    expect(await issues([...runner, "targets:", "  web: { driver: playwright, runner: shop-selenium }"])).toEqual([
-      [10, "targets.web: a target names a driver or a runner, not both"],
-    ]);
+    expect(
+      await issues([...runner, "targets:", "  web: { driver: playwright, runner: shop-selenium }"]),
+    ).toEqual([[10, "targets.web: a target names a driver or a runner, not both"]]);
   });
 
   it.each([["shop-selenum"], ["toString"]])(
@@ -381,8 +434,14 @@ describe("runner targets and process plugin entries", () => {
 
   it("reports a runner target's env value that is not a string", async () => {
     expect(
-      await issues([...runner, "targets:", "  shop-chrome: { runner: shop-selenium, env: { PORT: 8080 } }"]),
-    ).toEqual([[10, "targets.shop-chrome: env.PORT: Invalid input: expected string, received number"]]);
+      await issues([
+        ...runner,
+        "targets:",
+        "  shop-chrome: { runner: shop-selenium, env: { PORT: 8080 } }",
+      ]),
+    ).toEqual([
+      [10, "targets.shop-chrome: env.PORT: Invalid input: expected string, received number"],
+    ]);
   });
 
   it.each([
@@ -419,19 +478,21 @@ describe("runner targets and process plugin entries", () => {
         "plugins[0].timeoutSeconds: timeoutSeconds takes at most 2147483 (about 24 days), the longest delay a Node timer holds",
       ],
     ]);
-    expect((await load(entry(2_147_483))).config?.plugins[0]).toMatchObject({ timeoutSeconds: 2_147_483 });
+    expect((await load(entry(2_147_483))).config?.plugins[0]).toMatchObject({
+      timeoutSeconds: 2_147_483,
+    });
   });
 
   it.each([[".."], ["shop/chrome"]])("refuses a runner target named %s", async (name) => {
-    expect(await issues([...runner, "targets:", `  "${name}": { runner: shop-selenium }`])).toEqual([
-      [10, `targets.${name}: a runner target's name takes ${PLAIN_NAME_RULE}`],
-    ]);
+    expect(await issues([...runner, "targets:", `  "${name}": { runner: shop-selenium }`])).toEqual(
+      [[10, `targets.${name}: a runner target's name takes ${PLAIN_NAME_RULE}`]],
+    );
   });
 
   it.each([["shop selenium"], ["../shop"]])("refuses a runner named %s", async (name) => {
-    expect(await issues(runner.map((line) => line.replace("shop-selenium:", `"${name}":`)))).toEqual([
-      [5, `runners.${name}: a runner name takes ${PLAIN_NAME_RULE}`],
-    ]);
+    expect(
+      await issues(runner.map((line) => line.replace("shop-selenium:", `"${name}":`))),
+    ).toEqual([[5, `runners.${name}: a runner name takes ${PLAIN_NAME_RULE}`]]);
   });
 
   it.each([
@@ -453,7 +514,13 @@ describe("runner targets and process plugin entries", () => {
   });
 
   it("allows an http api only on 127.0.0.1 or localhost with a port", async () => {
-    const api = (url: string) => ["envs: {}", "trackers:", "  jira:", "    site: 127.0.0.1:8080", `    api: ${url}`];
+    const api = (url: string) => [
+      "envs: {}",
+      "trackers:",
+      "  jira:",
+      "    site: 127.0.0.1:8080",
+      `    api: ${url}`,
+    ];
     const refused = [
       5,
       "trackers.jira.api: api must be an https URL; http only for 127.0.0.1 or localhost with a port",

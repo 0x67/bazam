@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { BRAND } from "@bazam/core/brand";
@@ -16,7 +26,13 @@ import {
 import { checkProject } from "@bazam/core/check";
 import { RunValues } from "@bazam/core/env";
 import { PluginRegistry, type PluginManifest } from "@bazam/core/plugin";
-import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project, type ProjectConfig } from "@bazam/core/project";
+import {
+  FIXTURES_FILE,
+  loadProject,
+  loadProjectConfig,
+  type Project,
+  type ProjectConfig,
+} from "@bazam/core/project";
 import type { Redactor } from "@bazam/core/redact";
 import {
   buildPostPlans,
@@ -189,11 +205,17 @@ export const caseTools: readonly ToolDefinition[] = [
         .array(z.string().min(1))
         .min(1)
         .exactOptional()
-        .describe("Report only the issues in these files, relative to the root with forward slashes."),
+        .describe(
+          "Report only the issues in these files, relative to the root with forward slashes.",
+        ),
     }),
     async handle({ files }, deps) {
       const issues = await checkIssues(deps);
-      return { doc: issueReport(files === undefined ? issues : issues.filter((issue) => files.includes(issue.file))) };
+      return {
+        doc: issueReport(
+          files === undefined ? issues : issues.filter((issue) => files.includes(issue.file)),
+        ),
+      };
     },
   }),
   defineTool({
@@ -204,7 +226,8 @@ export const caseTools: readonly ToolDefinition[] = [
     async handle({ id, env }, deps) {
       const { project } = await loadWorkspace(deps);
       const target = project.cases.find((loaded) => loaded.spec.id === id);
-      if (target === undefined) throw new ToolError(`no case ${id} loaded; case_check reports cases that do not load`);
+      if (target === undefined)
+        throw new ToolError(`no case ${id} loaded; case_check reports cases that do not load`);
       if (project.config.envs[env] === undefined) throw new ToolError(unknownEnv(project, env));
       return { doc: { caseId: id, ...(await promoteCase(project.root, target, env)) } };
     },
@@ -262,7 +285,8 @@ export const caseTools: readonly ToolDefinition[] = [
   }),
   defineTool({
     name: "run_status",
-    description: "The run's state, its results so far and the number of prompts waiting for a person.",
+    description:
+      "The run's state, its results so far and the number of prompts waiting for a person.",
     input: z.object({ runId: RunId }),
     async handle({ runId }, deps) {
       return { doc: await deps.supervisor.status(runId) };
@@ -297,7 +321,8 @@ export const caseTools: readonly ToolDefinition[] = [
   }),
   defineTool({
     name: "prompt_list",
-    description: "The prompts in a run that wait for a person; relay each one and answer it with prompt_answer.",
+    description:
+      "The prompts in a run that wait for a person; relay each one and answer it with prompt_answer.",
     input: z.object({ runId: RunId }),
     async handle({ runId }, deps) {
       return { doc: { prompts: await deps.supervisor.prompts(runId) } };
@@ -335,7 +360,9 @@ export const caseTools: readonly ToolDefinition[] = [
       if (first === undefined) throw new ToolError(`run ${runId} has no case results`);
       const env = project.config.envs[first.env];
       if (env === undefined)
-        throw new ToolError(`run ${runId} ran in env "${first.env}", which the config no longer has`);
+        throw new ToolError(
+          `run ${runId} ran in env "${first.env}", which the config no longer has`,
+        );
       const runDir = join(project.root, "runs", runId);
       const values = await loadScanValues({
         project,
@@ -371,7 +398,10 @@ export const caseTools: readonly ToolDefinition[] = [
     description:
       "Records the URL of a posted comment. When the case sets report.comment to update, the next post plan for that case and ticket edits this comment instead of posting a new one.",
     input: z.object({
-      marker: z.string().min(1).describe(`The item's marker, ${BRAND.markerPrefix}:<case-id>:<run-id>.`),
+      marker: z
+        .string()
+        .min(1)
+        .describe(`The item's marker, ${BRAND.markerPrefix}:<case-id>:<run-id>.`),
       ticket: z
         .string()
         .min(1)
@@ -384,16 +414,21 @@ export const caseTools: readonly ToolDefinition[] = [
       const plan = await readPostPlan(join(deps.projectRoot, "runs", runIdOf(marker)));
       const item = itemFor(plan, marker, ticket);
       await recordReceipt(join(deps.projectRoot, BRAND.stateDir), item, url, new Date());
-      return { doc: { marker, ticket: `${item.ticket.tracker}:${item.ticket.key}`, caseId: item.caseId } };
+      return {
+        doc: { marker, ticket: `${item.ticket.tracker}:${item.ticket.key}`, caseId: item.caseId },
+      };
     },
   }),
 ];
 
 /** Loads the registry from the real root, where path plugins resolve, and adds it to the call's registries. */
-async function loadPlugins(deps: ToolDeps): Promise<{ config: ProjectConfig; registry: PluginRegistry }> {
+async function loadPlugins(
+  deps: ToolDeps,
+): Promise<{ config: ProjectConfig; registry: PluginRegistry }> {
   const root = deps.projectRoot;
   const { config, issues } = await loadProjectConfig(root);
-  if (config === undefined) throw new ToolError(`the project config in ${root} does not load`, issues);
+  if (config === undefined)
+    throw new ToolError(`the project config in ${root} does not load`, issues);
   const registry = await PluginRegistry.load(config, root, DEFAULT_PLUGINS, {
     // stdout carries the protocol, so plugin output goes to stderr
     log: (line) => process.stderr.write(`${deps.redactor.text(line)}\n`),
@@ -403,7 +438,9 @@ async function loadPlugins(deps: ToolDeps): Promise<{ config: ProjectConfig; reg
   return { config, registry };
 }
 
-async function loadWorkspace(deps: ToolDeps): Promise<{ project: Project; registry: PluginRegistry }> {
+async function loadWorkspace(
+  deps: ToolDeps,
+): Promise<{ project: Project; registry: PluginRegistry }> {
   const { registry } = await loadPlugins(deps);
   return { project: await loadProject(deps.projectRoot, registry), registry };
 }
@@ -417,7 +454,8 @@ async function selectRun(
 ) {
   const { project, registry } = await loadWorkspace(deps);
   const loadErrors = project.issues.filter(isError);
-  if (loadErrors.length > 0) throw new ToolError("the project has load issues; fix them and start again", loadErrors);
+  if (loadErrors.length > 0)
+    throw new ToolError("the project has load issues; fix them and start again", loadErrors);
   const environment = project.config.envs[env];
   if (environment === undefined) throw new ToolError(unknownEnv(project, env));
   const cases = selectCases(project.cases, filter);
@@ -459,7 +497,8 @@ function issueReport(issues: readonly LoadIssue[]) {
 async function draftCase(deps: ToolDeps, file: string, yaml: string) {
   const root = deps.projectRoot;
   const match = DRAFT_PATH.exec(file);
-  if (match === null) throw new ToolError(`"${file}" is not a case file; name it cases/<domain>/<name>.yaml`);
+  if (match === null)
+    throw new ToolError(`"${file}" is not a case file; name it cases/<domain>/<name>.yaml`);
   // the loader skips linked domain folders, and a write through a link could land outside cases/
   await refuseLink(root, "cases");
   await refuseLink(root, `cases/${match[1]}`);
@@ -478,7 +517,9 @@ async function draftCase(deps: ToolDeps, file: string, yaml: string) {
   }
   const known = new Set(before.filter(isError).map(issueKey));
   // a duplicate id is reported on whichever file comes later, which may be another file than the draft
-  const issues = after.filter((issue) => issue.file === file || (isError(issue) && !known.has(issueKey(issue))));
+  const issues = after.filter(
+    (issue) => issue.file === file || (isError(issue) && !known.has(issueKey(issue))),
+  );
   const written = !issues.some(isError);
   // the case text is written as given: the check rules guard it, and masking would rewrite valid YAML
   if (written) await writeAtomically(join(root, file), yaml);
@@ -491,7 +532,9 @@ async function refuseLink(root: string, folder: string): Promise<void> {
     throw error;
   });
   if (stats !== undefined && !stats.isDirectory()) {
-    throw new ToolError(`${folder} is a link or a file; case_draft writes only into plain folders under cases/`);
+    throw new ToolError(
+      `${folder} is a link or a file; case_draft writes only into plain folders under cases/`,
+    );
   }
 }
 
@@ -520,15 +563,20 @@ function mappingFiles(root: string, config: ProjectConfig): string[] {
   return Object.values(config.runners).flatMap(({ mapping }) => {
     if (mapping === undefined) return [];
     const path = relative(root, resolve(root, mapping));
-    return path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path) ? [] : [path];
+    return path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)
+      ? []
+      : [path];
   });
 }
 
 // cases/<domain>/*.yaml, skipping domain folders whose names start with a dot, as the loader does
 async function caseFiles(root: string): Promise<string[]> {
-  const domains = (await entries(join(root, "cases"))).filter((e) => e.isDirectory() && !e.name.startsWith("."));
+  const domains = (await entries(join(root, "cases"))).filter(
+    (e) => e.isDirectory() && !e.name.startsWith("."),
+  );
   const files: string[] = [];
-  for (const domain of domains) files.push(...(await yamlFiles(root, posix.join("cases", domain.name))));
+  for (const domain of domains)
+    files.push(...(await yamlFiles(root, posix.join("cases", domain.name))));
   return files;
 }
 
@@ -565,13 +613,17 @@ async function readResults(runDir: string, runId: string): Promise<CaseResult[]>
   }
   const results: CaseResult[] = [];
   for (const entry of found.filter((e) => e.isDirectory() && CASE_ID.test(e.name))) {
-    const text = await readFile(join(runDir, entry.name, "result.json"), "utf8").catch((error: unknown) => {
-      if (isMissing(error)) return undefined;
-      throw error;
-    });
+    const text = await readFile(join(runDir, entry.name, "result.json"), "utf8").catch(
+      (error: unknown) => {
+        if (isMissing(error)) return undefined;
+        throw error;
+      },
+    );
     if (text !== undefined) results.push(JSON.parse(text) as CaseResult);
   }
-  return results.sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId));
+  return results.sort(
+    (a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId),
+  );
 }
 
 async function readPostPlan(runDir: string): Promise<PostPlan> {
@@ -599,7 +651,9 @@ function runIdOf(marker: string): string {
     !PLAIN_NAME.test(runId) ||
     rest.length > 0
   ) {
-    throw new ToolError(`"${marker}" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`);
+    throw new ToolError(
+      `"${marker}" is not a marker; one looks like ${BRAND.markerPrefix}:<case-id>:<run-id>`,
+    );
   }
   return runId;
 }
@@ -608,11 +662,14 @@ function runIdOf(marker: string): string {
 function itemFor(plan: PostPlan, marker: string, ticket: string | undefined): PostPlanItem {
   const items = plan.items.filter(
     (item) =>
-      item.marker === marker && (ticket === undefined || `${item.ticket.tracker}:${item.ticket.key}` === ticket),
+      item.marker === marker &&
+      (ticket === undefined || `${item.ticket.tracker}:${item.ticket.key}` === ticket),
   );
   const [item, ...others] = items;
   if (item === undefined) {
-    throw new ToolError(`run ${plan.runId} has no item ${marker}${ticket === undefined ? "" : ` for ${ticket}`}`);
+    throw new ToolError(
+      `run ${plan.runId} has no item ${marker}${ticket === undefined ? "" : ` for ${ticket}`}`,
+    );
   }
   if (others.length > 0) {
     const tickets = items.map((i) => `${i.ticket.tracker}:${i.ticket.key}`).join(", ");

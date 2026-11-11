@@ -9,7 +9,9 @@ export function locate(page: Page, selector: Selector, idAttribute: string): Loc
   if ("role" in selector) {
     // an unknown role matches nothing, which the step then reports
     const role = selector.role as AriaRole;
-    return selector.name === undefined ? page.getByRole(role) : page.getByRole(role, { name: selector.name });
+    return selector.name === undefined
+      ? page.getByRole(role)
+      : page.getByRole(role, { name: selector.name });
   }
   if ("text" in selector) return page.getByText(selector.text);
   return page.locator(selector.css);
@@ -19,12 +21,16 @@ export function locate(page: Page, selector: Selector, idAttribute: string): Loc
 export function describeSelector(selector: Selector): string {
   if ("id" in selector) return `id=${selector.id}`;
   if ("role" in selector)
-    return selector.name === undefined ? `role=${selector.role}` : `role=${selector.role}[name="${selector.name}"]`;
+    return selector.name === undefined
+      ? `role=${selector.role}`
+      : `role=${selector.role}[name="${selector.name}"]`;
   if ("text" in selector) return `text="${selector.text}"`;
   return `css=${selector.css}`;
 }
 
 /** The text escaped for a double-quoted CSS string. */
 function cssString(text: string): string {
-  return text.replace(/["\\]/g, "\\$&").replace(/[\n\r\f]/g, (end) => `\\${end.charCodeAt(0).toString(16)} `);
+  return text
+    .replace(/["\\]/g, "\\$&")
+    .replace(/[\n\r\f]/g, (end) => `\\${end.charCodeAt(0).toString(16)} `);
 }

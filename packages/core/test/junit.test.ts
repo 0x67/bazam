@@ -4,7 +4,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { ResultParseError, type ExternalTest, type TestOutcome } from "../src/ingest/format.ts";
 import { junitFormat } from "../src/ingest/junit.ts";
 
-const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/results/${name}`, import.meta.url));
+const fixture = (name: string) =>
+  fileURLToPath(new URL(`./fixtures/results/${name}`, import.meta.url));
 const INLINE = "results/junit.xml";
 const MARKER = "marker-7f3a";
 
@@ -26,8 +27,13 @@ describe("junitFormat", () => {
     const source = fixture("surefire.xml");
 
     expect(await parseFixture("surefire.xml")).toEqual([
-      external(source, ["com.shop.CartTest", "keepsItemsAfterSignIn"], "passed", { durationMs: 412 }),
-      external(source, ["com.shop.CartTest", "mergesGuestCart"], "passed", { retries: 2, durationMs: 731 }),
+      external(source, ["com.shop.CartTest", "keepsItemsAfterSignIn"], "passed", {
+        durationMs: 412,
+      }),
+      external(source, ["com.shop.CartTest", "mergesGuestCart"], "passed", {
+        retries: 2,
+        durationMs: 731,
+      }),
       external(source, ["com.shop.CartTest", "removesItem"], "failed", {
         message: "java.lang.AssertionError",
         retries: 1,
@@ -63,15 +69,31 @@ describe("junitFormat", () => {
     const tests = await parseFixture("playwright-junit.xml");
 
     expect(tests.map((test) => [test.title, test.outcome, test.message])).toEqual([
-      [["auth/login.spec.ts", "login › signs in with an email code [AUTH-LOGIN-001]"], "passed", undefined],
-      [["auth/login.spec.ts", "login › keeps the session after reload [AUTH-LOGIN-002]"], "passed", undefined],
+      [
+        ["auth/login.spec.ts", "login › signs in with an email code [AUTH-LOGIN-001]"],
+        "passed",
+        undefined,
+      ],
+      [
+        ["auth/login.spec.ts", "login › keeps the session after reload [AUTH-LOGIN-002]"],
+        "passed",
+        undefined,
+      ],
       [
         ["auth/login.spec.ts", "login › lockout › locks after five tries [AUTH-LOGIN-003]"],
         "failed",
         "expect(received).toBe(expected) // Object.is equality",
       ],
-      [["auth/login.spec.ts", "login › signs out [AUTH-LOGIN-004]"], "errored", "session store unavailable"],
-      [["auth/login.spec.ts", "login › resets the password [AUTH-LOGIN-005]"], "skipped", undefined],
+      [
+        ["auth/login.spec.ts", "login › signs out [AUTH-LOGIN-004]"],
+        "errored",
+        "session store unavailable",
+      ],
+      [
+        ["auth/login.spec.ts", "login › resets the password [AUTH-LOGIN-005]"],
+        "skipped",
+        undefined,
+      ],
       [["home.spec.ts", "home page loads [WEB-HOME-001]"], "passed", undefined],
     ]);
     // relative to the XML file's folder, which the recorder resolves from the source
@@ -95,9 +117,12 @@ describe("junitFormat", () => {
     expect(await parseFixture("mocha.xml")).toEqual([
       external(source, ["cart adds an item [SHOP-CART-002]"], "passed", { durationMs: 1102 }),
       external(source, ["cart removes an item [SHOP-CART-003]"], "failed", {
-        message: "Timed out retrying after 4000ms: expected '<span.count>' to have text '0', but the text was '1'",
+        message:
+          "Timed out retrying after 4000ms: expected '<span.count>' to have text '0', but the text was '1'",
         durationMs: 2112,
-        attachments: [{ name: screenshot, path: `/home/ci/shop/cypress/screenshots/cart.cy.ts/${screenshot}` }],
+        attachments: [
+          { name: screenshot, path: `/home/ci/shop/cypress/screenshots/cart.cy.ts/${screenshot}` },
+        ],
       }),
       external(source, ["cart shows the total [SHOP-CART-004]"], "skipped", { durationMs: 0 }),
     ]);
@@ -137,13 +162,17 @@ describe("junitFormat", () => {
   it("expands no entity, neither a DOCTYPE one nor an HTML name", async () => {
     const text = `<!DOCTYPE testsuites [<!ENTITY team "payments">]><testsuites><testcase classname="test" name="&team; &nbsp;checkout"/></testsuites>`;
 
-    expect((await junitFormat.parse({ path: INLINE, text }))[0]?.title).toEqual(["&team; &nbsp;checkout"]);
+    expect((await junitFormat.parse({ path: INLINE, text }))[0]?.title).toEqual([
+      "&team; &nbsp;checkout",
+    ]);
   });
 
   it("reads a status attribute when a testcase has no outcome child", async () => {
     const text = `<testsuite name="Login"><testcase name="a" status="FAILED"/><testcase name="b" status="ERROR"/><testcase name="c" status="SKIPPED"/><testcase name="d" status="PASSED"/></testsuite>`;
 
-    expect((await junitFormat.parse({ path: INLINE, text })).map((test) => [test.title, test.outcome])).toEqual([
+    expect(
+      (await junitFormat.parse({ path: INLINE, text })).map((test) => [test.title, test.outcome]),
+    ).toEqual([
       [["Login", "a"], "failed"],
       [["Login", "b"], "errored"],
       [["Login", "c"], "skipped"],
@@ -154,7 +183,9 @@ describe("junitFormat", () => {
   it("reads a testcase under a wrapper element that is not a testsuite", async () => {
     const text = `<testsuites><group><testcase name="a" classname="c"/></group></testsuites>`;
 
-    expect(await junitFormat.parse({ path: INLINE, text })).toEqual([external(INLINE, ["c", "a"], "passed")]);
+    expect(await junitFormat.parse({ path: INLINE, text })).toEqual([
+      external(INLINE, ["c", "a"], "passed"),
+    ]);
   });
 
   it.each([
@@ -173,12 +204,17 @@ describe("junitFormat", () => {
       `<html><body title="${MARKER}">${MARKER}</body></html>`,
       `${INLINE}: the root element is neither testsuites nor testsuite`,
     ],
-  ])("throws ResultParseError for %s, naming the file and quoting none of it", async (_, text, message) => {
-    const failure: unknown = await junitFormat.parse({ path: INLINE, text }).catch((error: unknown) => error);
+  ])(
+    "throws ResultParseError for %s, naming the file and quoting none of it",
+    async (_, text, message) => {
+      const failure: unknown = await junitFormat
+        .parse({ path: INLINE, text })
+        .catch((error: unknown) => error);
 
-    expect(failure).toBeInstanceOf(ResultParseError);
-    expect((failure as ResultParseError).message).toBe(message);
-    expect((failure as ResultParseError).message).not.toContain(MARKER);
-    expect((failure as ResultParseError).message).not.toContain("\n");
-  });
+      expect(failure).toBeInstanceOf(ResultParseError);
+      expect((failure as ResultParseError).message).toBe(message);
+      expect((failure as ResultParseError).message).not.toContain(MARKER);
+      expect((failure as ResultParseError).message).not.toContain("\n");
+    },
+  );
 });

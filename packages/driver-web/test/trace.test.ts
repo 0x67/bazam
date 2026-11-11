@@ -41,11 +41,9 @@ describe("scrubTrace", () => {
     site = await startSite({
       "/": (_request, response, current) => {
         response.setHeader("set-cookie", `sid=${SESSION_COOKIE}; Path=/; HttpOnly`);
-        html('<label>Code <input data-testid="otp"></label><button onclick="fetch(\'/api/me\')">Check</button>')(
-          _request,
-          response,
-          current,
-        );
+        html(
+          '<label>Code <input data-testid="otp"></label><button onclick="fetch(\'/api/me\')">Check</button>',
+        )(_request, response, current);
       },
       "/api/me": (_request, response) => {
         response.setHeader("content-type", "application/json");
@@ -71,7 +69,9 @@ describe("scrubTrace", () => {
         await context.route(
           () => true,
           (route) =>
-            route.continue({ headers: { ...route.request().headers(), authorization: `Bearer ${BEARER_TOKEN}` } }),
+            route.continue({
+              headers: { ...route.request().headers(), authorization: `Bearer ${BEARER_TOKEN}` },
+            }),
         );
         const page = await context.newPage();
         await page.goto(`${site.origin}/`);
@@ -111,7 +111,11 @@ describe("scrubTrace", () => {
     const snapshot = (text: string) =>
       JSON.stringify({
         type: "frame-snapshot",
-        snapshot: { callId: "call@12345678", timestamp: 7391506.2, html: ["DIV", { id: "account" }, text] },
+        snapshot: {
+          callId: "call@12345678",
+          timestamp: 7391506.2,
+          html: ["DIV", { id: "account" }, text],
+        },
       });
     const zip = zipSync({
       "trace.trace": strToU8(`${snapshot("ACCT-4821")}\n`),
@@ -122,12 +126,16 @@ describe("scrubTrace", () => {
     const scrubbed = unzipSync(scrubTrace(zip, redactor));
 
     expect(strFromU8(scrubbed["trace.trace"]!)).toBe(`${snapshot("[redacted]")}\n`);
-    expect(strFromU8(scrubbed["resources/0c35.json"]!)).toBe('{"account":"[redacted]","sentAt":1731234567890}');
+    expect(strFromU8(scrubbed["resources/0c35.json"]!)).toBe(
+      '{"account":"[redacted]","sentAt":1731234567890}',
+    );
     expect(strFromU8(scrubbed["resources/e160.html"]!)).toBe('<div id="account">[redacted]</div>');
   });
 
   it("copies binary entries unchanged", () => {
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0x01]);
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0x01,
+    ]);
     const redactor = new Redactor(defaultRedactionRules());
     redactor.register(OTP);
     const zip = zipSync({
@@ -150,7 +158,9 @@ describe("scrubTrace", () => {
 
     const scrubbed = unzipSync(scrubTrace(zip, redactor));
 
-    expect(strFromU8(scrubbed["resources/5c2e.json"]!)).toBe('{"code":"[redacted]","sentAt":7391506.2}');
+    expect(strFromU8(scrubbed["resources/5c2e.json"]!)).toBe(
+      '{"code":"[redacted]","sentAt":7391506.2}',
+    );
   });
 
   it("masks a JSON number that is a registered value without its leading zeros and keeps a timestamp that contains it", () => {
@@ -161,7 +171,9 @@ describe("scrubTrace", () => {
 
     const scrubbed = unzipSync(scrubTrace(zip, redactor));
 
-    expect(strFromU8(scrubbed["resources/9a4d.json"]!)).toBe('{"code":"[redacted]","sentAt":7123450.2}');
+    expect(strFromU8(scrubbed["resources/9a4d.json"]!)).toBe(
+      '{"code":"[redacted]","sentAt":7123450.2}',
+    );
   });
 
   it("masks a registered number inside a JSON body held as a string and keeps an unrelated JSON string as it was", () => {
@@ -172,7 +184,10 @@ describe("scrubTrace", () => {
       JSON.stringify({
         type: "resource-snapshot",
         snapshot: {
-          request: { method: "POST", postData: { mimeType: "application/x-www-form-urlencoded", text: "", params } },
+          request: {
+            method: "POST",
+            postData: { mimeType: "application/x-www-form-urlencoded", text: "", params },
+          },
         },
       });
     const unrelated = { name: '{ "sentAt": 7123450.2, "page": [1, 2] }', value: "" };
@@ -193,7 +208,9 @@ describe("scrubTrace", () => {
     const root = await tempDir();
     const env = demoEnv();
     /** The entries of the trace a failed case attaches, with the given screenshot selectors. */
-    const recordTrace = async (screenshotSelectors: string[]): Promise<Record<string, Uint8Array>> => {
+    const recordTrace = async (
+      screenshotSelectors: string[],
+    ): Promise<Record<string, Uint8Array>> => {
       const runDir = join(root, `runs-${screenshotSelectors.length}`);
       const redactor = new Redactor({ ...defaultRedactionRules(), screenshotSelectors });
       const session = await launch("chromium", { env, runDir, redactor });
@@ -222,9 +239,13 @@ describe("scrubTrace", () => {
       expect(events.map((event) => event["type"])).not.toContain("frame-snapshot");
       expect(lines(masked, "trace.network")).toEqual([]);
       expect(Object.keys(masked).filter((name) => name.startsWith("resources/"))).toEqual([]);
-      const actions = events.filter((event) => event["type"] === "before").map((event) => event["method"]);
+      const actions = events
+        .filter((event) => event["type"] === "before")
+        .map((event) => event["method"]);
       expect(actions).toEqual(expect.arrayContaining(["goto", "fill", "click"]));
-      const messages = events.filter((event) => event["type"] === "console").map((event) => event["text"]);
+      const messages = events
+        .filter((event) => event["type"] === "console")
+        .map((event) => event["text"]);
       expect(messages).toEqual(["checked order"]);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -242,7 +263,11 @@ describe("scrubTrace", () => {
     const scratch = join(root, "tmp");
     await mkdir(scratch);
     try {
-      const session = await launch("chromium", { env, runDir: join(root, "runs"), redactor: failing });
+      const session = await launch("chromium", {
+        env,
+        runDir: join(root, "runs"),
+        redactor: failing,
+      });
       const evidence = newEvidence(join(root, "runs"), "WEB-TRACE-001");
       const note = vi.spyOn(evidence, "note");
       await runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.origin}/` }]);

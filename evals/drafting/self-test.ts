@@ -20,7 +20,16 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { appendFile, copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { text } from "node:stream/consumers";
@@ -125,7 +134,11 @@ async function actAsAgent(ticketFile: string, args: readonly string[]): Promise<
   const serverArgs = config.mcpServers?.[BRAND.mcpServerName]?.args ?? [];
   assert.ok(serverArgs.includes("mcp"), "the MCP config starts the server");
   const skill = await readFile(process.env.EVAL_SKILL_FILE ?? "", "utf8");
-  assert.match(skill, new RegExp(`^name: ${BRAND.skillName}$`, "m"), "EVAL_SKILL_FILE is the authoring skill");
+  assert.match(
+    skill,
+    new RegExp(`^name: ${BRAND.skillName}$`, "m"),
+    "EVAL_SKILL_FILE is the authoring skill",
+  );
   assert.ok(existsSync(BRAND.configFile), "the agent starts in the copy of the example project");
   const scratch = process.env[SCRATCH];
   assert.ok(scratch !== undefined, `${SCRATCH} reaches the agent`);
@@ -145,8 +158,18 @@ async function actAsAgent(ticketFile: string, args: readonly string[]): Promise<
   if (key === LINK_ONLY) await linkOnly(key);
   if (key === PLUGIN) await addPlugin(scratch);
   if (key === CONFIG_PLUGIN) await addConfigPlugin(scratch);
-  const modelUsage = Object.fromEntries(CLAUDE_MODELS.map((model) => [model, { inputTokens: 1, outputTokens: 1 }]));
-  console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "drafted", modelUsage }));
+  const modelUsage = Object.fromEntries(
+    CLAUDE_MODELS.map((model) => [model, { inputTokens: 1, outputTokens: 1 }]),
+  );
+  console.log(
+    JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "drafted",
+      modelUsage,
+    }),
+  );
 }
 
 /** The flags of the default agent command, as claude gets them once the shell expanded them. */
@@ -156,12 +179,23 @@ function checkDefaultFlags(args: readonly string[], skill: string): void {
     return at === -1 ? undefined : args[at + 1];
   };
   assert.equal(args[0], "-p");
-  assert.ok(args.includes("--restricted"), "the agent runs restricted: no tools that run code, no user settings");
-  assert.equal(valueOf("--tools"), "Read,Glob,Grep,Edit,Write", "the agent has the file tools and no other");
+  assert.ok(
+    args.includes("--restricted"),
+    "the agent runs restricted: no tools that run code, no user settings",
+  );
+  assert.equal(
+    valueOf("--tools"),
+    "Read,Glob,Grep,Edit,Write",
+    "the agent has the file tools and no other",
+  );
   assert.equal(valueOf("--permission-mode"), "dontAsk", "anything not allowed is denied");
   assert.equal(valueOf("--mcp-config"), process.env.EVAL_MCP_CONFIG);
   assert.ok(args.includes("--strict-mcp-config"));
-  assert.equal(valueOf("--append-system-prompt"), skill.replace(/\n+$/, ""), "the skill is in the system prompt");
+  assert.equal(
+    valueOf("--append-system-prompt"),
+    skill.replace(/\n+$/, ""),
+    "the skill is in the system prompt",
+  );
   const allowed = args.slice(args.indexOf("--allowedTools") + 1);
   const until = allowed.findIndex((arg) => arg.startsWith("--"));
   assert.deepEqual(allowed.slice(0, until === -1 ? undefined : until), [
@@ -173,7 +207,10 @@ function checkDefaultFlags(args: readonly string[], skill: string): void {
     "Write",
   ]);
   const flags = args.filter((arg) => arg.startsWith("--"));
-  assert.ok(!flags.some((flag) => /dangerously|bypass/i.test(flag)), `no permission bypass: ${flags.join(" ")}`);
+  assert.ok(
+    !flags.some((flag) => /dangerously|bypass/i.test(flag)),
+    `no permission bypass: ${flags.join(" ")}`,
+  );
 }
 
 /**
@@ -228,7 +265,10 @@ async function addPlugin(scratch: string): Promise<void> {
 async function addConfigPlugin(scratch: string): Promise<void> {
   const script = `require("node:fs").writeFileSync(${JSON.stringify(join(scratch, CONFIG_PLUGIN_MARK))}, "started")`;
   // JSON is YAML flow syntax, so the command needs no quoting
-  await appendFile(BRAND.configFile, `\nplugins: [{ command: ${JSON.stringify([process.execPath, "-e", script])} }]\n`);
+  await appendFile(
+    BRAND.configFile,
+    `\nplugins: [{ command: ${JSON.stringify([process.execPath, "-e", script])} }]\n`,
+  );
 }
 
 /** Says where it works, then works until the eval stops it. */
@@ -296,7 +336,10 @@ function checkReport(report: Report, version: string): void {
   assert.equal(report.stopped, undefined);
   const kinds = report.tickets.map((ticket) => ticket.kind);
   const count = (kind: string): number => kinds.filter((one) => one === kind).length;
-  assert.ok(count("new") >= 3 && count("extend") >= 2 && count("guided") >= 1, `ticket kinds: ${kinds.join(", ")}`);
+  assert.ok(
+    count("new") >= 3 && count("extend") >= 2 && count("guided") >= 1,
+    `ticket kinds: ${kinds.join(", ")}`,
+  );
   for (const ticket of report.tickets) {
     const [first] = ticket.attempts;
     assert.ok(first !== undefined, `${ticket.key} has an attempt`);
@@ -317,7 +360,9 @@ function checkReport(report: Report, version: string): void {
       // the linked case runs and passes, yet the draft tests nothing of the ticket
       assert.deepEqual(rates(ticket), [1, 0, null], ticket.key);
       assert.equal(first.run.exit, 0, `${LINKED_ID} passes`);
-      assert.ok(first.run.cases?.some(({ caseId, status }) => caseId === LINKED_ID && status === "pass"));
+      assert.ok(
+        first.run.cases?.some(({ caseId, status }) => caseId === LINKED_ID && status === "pass"),
+      );
       assert.deepEqual(first.run.drafted, []);
     } else if (ticket.key === PLUGIN) {
       assert.deepEqual(rates(ticket), [0, 0, null], ticket.key);
@@ -341,7 +386,10 @@ function checkReport(report: Report, version: string): void {
 }
 
 /** Runs `check` on the result file and deletes it once that holds; on a failure the file stays and is named. */
-async function checked(file: string, check: (report: Report, source: string) => void): Promise<void> {
+async function checked(
+  file: string,
+  check: (report: Report, source: string) => void,
+): Promise<void> {
   const source = await readFile(file, "utf8");
   try {
     check(JSON.parse(source) as Report, source);
@@ -362,9 +410,13 @@ async function defaultCommandRun(scratch: string, version: string): Promise<void
   const bin = join(scratch, "bin");
   const stub = join(bin, "claude");
   await mkdir(bin);
-  await writeFile(stub, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(import.meta.filename)} "$@"\n`, {
-    mode: 0o755,
-  });
+  await writeFile(
+    stub,
+    `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(import.meta.filename)} "$@"\n`,
+    {
+      mode: 0o755,
+    },
+  );
   const env = {
     ...process.env,
     PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
@@ -374,9 +426,16 @@ async function defaultCommandRun(scratch: string, version: string): Promise<void
     [SCRATCH]: scratch,
   };
   // the default command starts claude; the real one must never start here
-  const found = spawnSync("sh", ["-c", "command -v claude"], { env, encoding: "utf8" }).stdout.trim();
+  const found = spawnSync("sh", ["-c", "command -v claude"], {
+    env,
+    encoding: "utf8",
+  }).stdout.trim();
   assert.equal(found, stub, "the claude stub comes first on PATH");
-  const finished = spawnSync(process.execPath, [RUN], { env, stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
+  const finished = spawnSync(process.execPath, [RUN], {
+    env,
+    stdio: ["ignore", "pipe", "inherit"],
+    encoding: "utf8",
+  });
   const leftover = existsSync(join(scratch, LEFTOVER_PID))
     ? Number(await readFile(join(scratch, LEFTOVER_PID), "utf8"))
     : undefined;
@@ -390,22 +449,38 @@ async function defaultCommandRun(scratch: string, version: string): Promise<void
     : "never";
   const decoy = Number(await readFile(join(scratch, DECOY_PID), "utf8"));
   await checked(file, (report) => {
-    assert.ok(!existsSync(join(scratch, PLUGIN_MARK)), "the eval never loaded the plugin the agent wrote");
+    assert.ok(
+      !existsSync(join(scratch, PLUGIN_MARK)),
+      "the eval never loaded the plugin the agent wrote",
+    );
     assert.ok(
       !existsSync(join(scratch, CONFIG_PLUGIN_MARK)),
       "the eval never started the process plugin the agent added to the config",
     );
     checkReport(report, version);
-    assert.equal(spawnSync("git", ["check-ignore", "-q", file], { cwd: REPO }).status, 0, "git ignores the file");
+    assert.equal(
+      spawnSync("git", ["check-ignore", "-q", file], { cwd: REPO }).status,
+      0,
+      "git ignores the file",
+    );
     assert.ok(ended, "the eval stopped the run the agent left behind");
     assert.equal(stopped, "before grading", "the eval stopped the run before it graded");
-    assert.ok(isAlive(decoy), "the eval left alone a process whose command line does not name the copy");
+    assert.ok(
+      isAlive(decoy),
+      "the eval left alone a process whose command line does not name the copy",
+    );
   });
 }
 
 async function interruptedRun(scratch: string): Promise<void> {
   const agentCommand = `EVAL_SELF_TEST_KEY=${FAKE_KEY} ${quote(process.execPath)} ${quote(import.meta.filename)}`;
-  const env = { ...process.env, EVAL_AGENT_CMD: agentCommand, EVAL_TICKETS: "", EVAL_REPEATS: "1", [SCRATCH]: scratch };
+  const env = {
+    ...process.env,
+    EVAL_AGENT_CMD: agentCommand,
+    EVAL_TICKETS: "",
+    EVAL_REPEATS: "1",
+    [SCRATCH]: scratch,
+  };
   const harness = spawn(process.execPath, [RUN], { env, stdio: ["ignore", "pipe", "inherit"] });
   const exited = once(harness, "exit") as Promise<[number | null, NodeJS.Signals | null]>;
   let stdout = "";
@@ -471,7 +546,9 @@ async function brokenTicketRun(scratch: string): Promise<void> {
 }
 
 async function selfTest(): Promise<void> {
-  const { version } = JSON.parse(await readFile(join(REPO, "packages", "cli", "package.json"), "utf8")) as {
+  const { version } = JSON.parse(
+    await readFile(join(REPO, "packages", "cli", "package.json"), "utf8"),
+  ) as {
     version: string;
   };
   const scratch = await mkdtemp(join(tmpdir(), `${BRAND.name}-self-test-`));

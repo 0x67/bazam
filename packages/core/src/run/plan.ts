@@ -14,7 +14,12 @@ import {
 } from "../case/index.ts";
 import { chooseResolver, takesValue, type ChallengeResolver } from "../challenge/index.ts";
 import type { Capability, Driver } from "../driver/index.ts";
-import { assertProdSafe, findPlaceholders, ProdCaseRefused, type Environment } from "../env/index.ts";
+import {
+  assertProdSafe,
+  findPlaceholders,
+  ProdCaseRefused,
+  type Environment,
+} from "../env/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
 import { externalCaseProblem, runnerOf, type Project, type RunnerConfig } from "../project.ts";
 
@@ -81,8 +86,13 @@ export function loginKey(login: Login): string {
 }
 
 /** The reason of the first login of the case that preflight could not get. */
-export function loginReason(planned: PlannedCase, loginsBlocked: ReadonlyMap<string, string>): string | undefined {
-  return planned.logins.map((login) => loginsBlocked.get(loginKey(login))).find((reason) => reason !== undefined);
+export function loginReason(
+  planned: PlannedCase,
+  loginsBlocked: ReadonlyMap<string, string>,
+): string | undefined {
+  return planned.logins
+    .map((login) => loginsBlocked.get(loginKey(login)))
+    .find((reason) => reason !== undefined);
 }
 
 /** The case's steps and then its checks, flows expanded, in the order they run; a step's number is its index plus one. */
@@ -116,8 +126,13 @@ export function identitiesNamed(spec: CaseSpec, flows: ReadonlyMap<string, FlowS
 }
 
 /** The first of the case's targets, or the first that `selected` lists. */
-export function caseTarget(spec: CaseSpec, selected: readonly string[] | undefined): string | undefined {
-  return selected === undefined ? spec.targets[0] : spec.targets.find((target) => selected.includes(target));
+export function caseTarget(
+  spec: CaseSpec,
+  selected: readonly string[] | undefined,
+): string | undefined {
+  return selected === undefined
+    ? spec.targets[0]
+    : spec.targets.find((target) => selected.includes(target));
 }
 
 /** The driver `targets.<target>.driver` names, and the rest of that entry as its settings. */
@@ -127,8 +142,10 @@ export function targetDriver(
   target: string,
 ): { driver: Driver; settings: Record<string, JsonValue> } {
   const entry = project.config.targets[target];
-  if (entry === undefined) throw new Error(`target ${target} is not defined under targets in ${BRAND.configFile}`);
-  if (!("driver" in entry)) throw new Error(`target ${target} names runner ${entry.runner}, not a driver`);
+  if (entry === undefined)
+    throw new Error(`target ${target} is not defined under targets in ${BRAND.configFile}`);
+  if (!("driver" in entry))
+    throw new Error(`target ${target} names runner ${entry.runner}, not a driver`);
   const { driver, ...settings } = entry;
   return { driver: registry.driver(driver), settings };
 }
@@ -140,7 +157,8 @@ export function planRun(inputs: PlanInputs): RunPlan {
   const confirmations = new Map<string, string>();
   for (const { confirm } of cases) {
     const runner = confirm === undefined ? undefined : inputs.project.config.runners[confirm];
-    if (confirm !== undefined && runner !== undefined) confirmations.set(confirm, runner.command.join(" "));
+    if (confirm !== undefined && runner !== undefined)
+      confirmations.set(confirm, runner.command.join(" "));
   }
   return {
     env: inputs.env.name,
@@ -155,7 +173,8 @@ export function planRun(inputs: PlanInputs): RunPlan {
 export function planLogins(inputs: Omit<PlanInputs, "credentials">): Login[] {
   const logins = new Map<string, Login>();
   for (const analysis of inputs.cases.map((loaded) => analyseCase(loaded, inputs))) {
-    if (analysis.reasons.length === 0) for (const [key, login] of analysis.logins) logins.set(key, login);
+    if (analysis.reasons.length === 0)
+      for (const [key, login] of analysis.logins) logins.set(key, login);
   }
   return [...logins.values()];
 }
@@ -192,7 +211,9 @@ function analyseCase(loaded: LoadedCase, inputs: Omit<PlanInputs, "credentials">
   const refusal =
     caseRefusal(spec, target, inputs) ??
     externalCaseProblem(inputs.project.config, spec)?.message ??
-    (external === undefined ? undefined : runnerRefusal(external.name, external.runner, inputs.project));
+    (external === undefined
+      ? undefined
+      : runnerRefusal(external.name, external.runner, inputs.project));
   if (refusal !== undefined) {
     analysis.reasons.push(refusal);
     return analysis;
@@ -263,11 +284,15 @@ class StepPlanner {
     const actsInBrowser =
       identity !== undefined &&
       this.identity(identity) &&
-      (this.#driverKinds.has(kind) || this.#inputs.registry.stepHandler(kind, this.#driver)?.opensBrowser === true);
+      (this.#driverKinds.has(kind) ||
+        this.#inputs.registry.stepHandler(kind, this.#driver)?.opensBrowser === true);
     if (kind === "challenge") this.#challenge(payload as ChallengeStep, number, identity);
     else if (kind === "guided") this.#guided(payload as GuidedStep, number, identity);
     else if (HTTP_KINDS.has(kind)) this.#request(payloadIdentity(payload) ?? identity);
-    else if (!RECORDED_STEPS.has(kind) && this.#inputs.registry.stepHandler(kind, this.#driver) === undefined) {
+    else if (
+      !RECORDED_STEPS.has(kind) &&
+      this.#inputs.registry.stepHandler(kind, this.#driver) === undefined
+    ) {
       this.#block(`driver ${this.#driver.name} has no ${kind} step`);
     } else if (actsInBrowser) this.#addLogin(identity, this.#driver.surface);
   }
@@ -276,18 +301,23 @@ class StepPlanner {
     const { registry, env } = this.#inputs;
     const kind = registry.kind(challenge.kind);
     const chain = registry.resolverChain(env, challenge.kind);
-    const capabilities = this.#inputs.capabilities.get(this.#analysis.target) ?? new Set<Capability>();
+    const capabilities =
+      this.#inputs.capabilities.get(this.#analysis.target) ?? new Set<Capability>();
     const resolver = chooseResolver(chain, capabilities);
     this.#analysis.challenges.push({ step: number, kind: challenge.kind, resolver });
     if (identity === undefined) this.#block("challenge step names no identity");
     else this.#addLogin(identity, this.#driver.surface);
     if (resolver === undefined)
-      this.#block(noResolverReason(challenge.kind, chain, capabilities, env, this.#analysis.target));
+      this.#block(
+        noResolverReason(challenge.kind, chain, capabilities, env, this.#analysis.target),
+      );
     if (takesValue(kind) && challenge.fill === undefined) {
       this.#block(`challenge step ${number} (${challenge.kind}) names no fill field for its code`);
     }
     if (takesValue(kind) && !this.#driverKinds.has(FILL_STEP)) {
-      this.#block(`driver ${this.#driver.name} has no ${FILL_STEP} step for the code of challenge step ${number}`);
+      this.#block(
+        `driver ${this.#driver.name} has no ${FILL_STEP} step for the code of challenge step ${number}`,
+      );
     }
     const { trigger } = challenge;
     if (trigger !== undefined) this.visit(trigger, number, trigger.as ?? identity);
@@ -302,7 +332,8 @@ class StepPlanner {
   /** A request or api check sends with the actor's api credential, so the actor needs one. */
   #request(actor: string | undefined): void {
     if (actor === undefined || !this.identity(actor)) return;
-    if (!this.#addLogin(actor, API_SURFACE)) this.#block(`identity ${actor} has no auth for surface ${API_SURFACE}`);
+    if (!this.#addLogin(actor, API_SURFACE))
+      this.#block(`identity ${actor} has no auth for surface ${API_SURFACE}`);
   }
 
   /** Notes the identity and returns whether it can act: config defines it and nothing blocks it. */
@@ -311,7 +342,9 @@ class StepPlanner {
     const undefinedInConfig = this.#inputs.project.config.identities[name] === undefined;
     const problem =
       this.#inputs.blockedIdentities?.get(name) ??
-      (undefinedInConfig ? `identity ${name} is not defined under identities in ${BRAND.configFile}` : undefined);
+      (undefinedInConfig
+        ? `identity ${name} is not defined under identities in ${BRAND.configFile}`
+        : undefined);
     if (problem === undefined) return true;
     this.#block(problem);
     return false;
@@ -356,12 +389,16 @@ function noResolverReason(
 ): string {
   if (chain.length === 0) return `env ${env.name} has no resolver chain for challenge ${kind}`;
   const missing = chain.map(
-    (resolver) => `${resolver.name} needs ${resolver.requires.filter((c) => !capabilities.has(c)).join(", ")}`,
+    (resolver) =>
+      `${resolver.name} needs ${resolver.requires.filter((c) => !capabilities.has(c)).join(", ")}`,
   );
   return `no resolver for challenge ${kind} can run on target ${target}: ${missing.join("; ")}`;
 }
 
-function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, LoginMode>): PlannedCase {
+function plannedCase(
+  analysis: CaseAnalysis,
+  credentials: ReadonlyMap<string, LoginMode>,
+): PlannedCase {
   const blocked = analysis.reasons[0];
   const planned: PlannedCase = {
     caseId: analysis.caseId,
@@ -371,7 +408,10 @@ function plannedCase(analysis: CaseAnalysis, credentials: ReadonlyMap<string, Lo
     identities: [...analysis.identities],
     logins:
       blocked === undefined
-        ? [...analysis.logins.values()].map((login) => ({ ...login, mode: loginMode(credentials, login) }))
+        ? [...analysis.logins.values()].map((login) => ({
+            ...login,
+            mode: loginMode(credentials, login),
+          }))
         : [],
     challenges: analysis.challenges.map(({ step, kind, resolver }) => ({
       step,
@@ -398,8 +438,10 @@ function personSteps(analyses: readonly CaseAnalysis[], cases: readonly PlannedC
     const planned = cases[index];
     if (planned === undefined || planned.blocked !== undefined) return;
     steps +=
-      analysis.guidedSteps + analysis.challenges.filter((challenge) => challenge.resolver?.automated === false).length;
-    for (const login of planned.logins) if (login.mode === "person") personLogins.add(loginKey(login));
+      analysis.guidedSteps +
+      analysis.challenges.filter((challenge) => challenge.resolver?.automated === false).length;
+    for (const login of planned.logins)
+      if (login.mode === "person") personLogins.add(loginKey(login));
   });
   return steps + personLogins.size;
 }

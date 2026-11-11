@@ -47,7 +47,9 @@ export function phoneForm(e164: string, form: PhoneForm, locale: string): string
     case "region":
       return region;
     case "countryName":
-      return region === undefined ? undefined : new Intl.DisplayNames([locale], { type: "region" }).of(region);
+      return region === undefined
+        ? undefined
+        : new Intl.DisplayNames([locale], { type: "region" }).of(region);
     case "flag":
       return region === undefined ? undefined : flagOf(region);
     case "national":
@@ -61,6 +63,8 @@ export function phoneForm(e164: string, form: PhoneForm, locale: string): string
 function flagOf(region: string): string {
   const REGIONAL_INDICATOR_A = 0x1f1e6;
   return String.fromCodePoint(
-    ...region.split("").map((letter) => REGIONAL_INDICATOR_A + letter.charCodeAt(0) - "A".charCodeAt(0)),
+    ...region
+      .split("")
+      .map((letter) => REGIONAL_INDICATOR_A + letter.charCodeAt(0) - "A".charCodeAt(0)),
   );
 }

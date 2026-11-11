@@ -34,7 +34,8 @@ export const totpResolver: ChallengeResolver = {
     const seed = await ctx.secrets(seedName);
     const now = ctx.now().getTime();
     const remaining = STEP_MS - (now % STEP_MS);
-    if (remaining >= MIN_REMAINING_MS) return { kind: "value", value: totpCode(seed, new Date(now)) };
+    if (remaining >= MIN_REMAINING_MS)
+      return { kind: "value", value: totpCode(seed, new Date(now)) };
     await sleep(remaining, undefined, { signal: ctx.signal });
     return { kind: "value", value: totpCode(seed, new Date(now + remaining)) };
   },
@@ -45,7 +46,9 @@ function base32Decode(seed: string): Buffer {
   const text = seed.replace(/[\s=]/g, "").toUpperCase();
   // the message leaves out the seed, which is a secret
   if (text === "" || !text.split("").every((char) => BASE32.includes(char)))
-    throw new Error("the TOTP seed is not base32, which uses only the letters A to Z and the digits 2 to 7");
+    throw new Error(
+      "the TOTP seed is not base32, which uses only the letters A to Z and the digits 2 to 7",
+    );
   const bytes: number[] = [];
   let bits = 0;
   let value = 0;

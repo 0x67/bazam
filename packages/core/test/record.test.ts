@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  truncate,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
@@ -84,7 +93,13 @@ async function caseFile(name: string): Promise<string> {
 
 describe("recordExternalResults outcomes", () => {
   it("fails on a failed or errored test, blocks on a skipped one, and blocks a case with no test", async () => {
-    const ids = ["SHOP-CART-001", "SHOP-CART-002", "SHOP-CART-003", "SHOP-CART-004", "SHOP-CART-005"];
+    const ids = [
+      "SHOP-CART-001",
+      "SHOP-CART-002",
+      "SHOP-CART-003",
+      "SHOP-CART-004",
+      "SHOP-CART-005",
+    ];
     const tests = new Map([
       [ids[0]!, [externalTest("flaky", { retries: 2 }), externalTest("steady")]],
       [
@@ -94,7 +109,10 @@ describe("recordExternalResults outcomes", () => {
           externalTest("pending", { outcome: "skipped" }),
         ],
       ],
-      [ids[2]!, [externalTest("keeps items"), externalTest("needs a coupon", { outcome: "skipped" })]],
+      [
+        ids[2]!,
+        [externalTest("keeps items"), externalTest("needs a coupon", { outcome: "skipped" })],
+      ],
       [ids[3]!, [externalTest("loads", { outcome: "errored", message: "setup threw" })]],
     ]);
 
@@ -116,7 +134,13 @@ describe("recordExternalResults outcomes", () => {
           observed: "passed after 2 retries",
           ok: true,
         },
-        { name: "CartTest › steady", kind: "external", expected: "passed", observed: "passed", ok: true },
+        {
+          name: "CartTest › steady",
+          kind: "external",
+          expected: "passed",
+          observed: "passed",
+          ok: true,
+        },
       ],
       [
         {
@@ -128,7 +152,15 @@ describe("recordExternalResults outcomes", () => {
           hint: "expected 2 items, got 1",
         },
       ],
-      [{ name: "CartTest › keeps items", kind: "external", expected: "passed", observed: "passed", ok: true }],
+      [
+        {
+          name: "CartTest › keeps items",
+          kind: "external",
+          expected: "passed",
+          observed: "passed",
+          ok: true,
+        },
+      ],
       [
         {
           name: "CartTest › loads",
@@ -158,7 +190,9 @@ describe("recordExternalResults outcomes", () => {
   });
 
   it("writes result.json with no identities or values and the challenges the service answered", async () => {
-    const challenges = new Map([[CASE_ID, [{ step: 0, kind: "otp-email", resolver: "otp-mailpit" }]]]);
+    const challenges = new Map([
+      [CASE_ID, [{ step: 0, kind: "otp-email", resolver: "otp-mailpit" }]],
+    ]);
     const tests = new Map([[CASE_ID, [externalTest("keeps items", { project: "chromium" })]]]);
 
     const [returned] = await recordExternalResults(inputs({ tests, challenges }));
@@ -188,7 +222,10 @@ describe("recordExternalResults outcomes", () => {
 describe("recordExternalResults attachments", () => {
   const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-  async function record(attachments: ExternalTest["attachments"], extra: Partial<ExternalRecordInputs>) {
+  async function record(
+    attachments: ExternalTest["attachments"],
+    extra: Partial<ExternalRecordInputs>,
+  ) {
     const tests = new Map([[CASE_ID, [externalTest("keeps items", { attachments })]]]);
     const [result] = await recordExternalResults(inputs({ tests, ...extra }));
     return result!;
@@ -220,10 +257,15 @@ describe("recordExternalResults attachments", () => {
       ["01-home.png", "02-console.txt", "03-stdout.txt", "04-body.json"],
       [],
     ]);
-    expect(new Uint8Array(await readFile(join(root, "runs", RUN_ID, CASE_ID, "01-home.png")))).toEqual(pngBytes);
+    expect(
+      new Uint8Array(await readFile(join(root, "runs", RUN_ID, CASE_ID, "01-home.png"))),
+    ).toEqual(pngBytes);
     expect(await caseFile("02-console.txt")).toBe("sent [redacted]");
     expect(await caseFile("03-stdout.txt")).toBe("token [redacted]");
-    expect(JSON.parse(await caseFile("04-body.json"))).toEqual({ access_token: "[redacted]", user: "customer-1" });
+    expect(JSON.parse(await caseFile("04-body.json"))).toEqual({
+      access_token: "[redacted]",
+      user: "customer-1",
+    });
   });
 
   it("leaves out a file outside the cwd, in the state dir or the runs folder, or older than the spawn", async () => {
@@ -232,10 +274,18 @@ describe("recordExternalResults attachments", () => {
     await put(join(root, BRAND.stateDir, "cache.json"), "{}");
     await put(join(root, "runs", "20261107-090000-a1b2", CASE_ID, "01-home.png"), pngBytes);
     const stale = await put(join(root, "stale.log"), "an earlier run");
-    await utimes(stale, new Date(spawnedAt.getTime() - 10_000), new Date(spawnedAt.getTime() - 10_000));
+    await utimes(
+      stale,
+      new Date(spawnedAt.getTime() - 10_000),
+      new Date(spawnedAt.getTime() - 10_000),
+    );
     // within 2 s of the spawn, for file systems with coarse timestamps
     const coarse = await put(join(root, "coarse.log"), "this run");
-    await utimes(coarse, new Date(spawnedAt.getTime() - 1500), new Date(spawnedAt.getTime() - 1500));
+    await utimes(
+      coarse,
+      new Date(spawnedAt.getTime() - 1500),
+      new Date(spawnedAt.getTime() - 1500),
+    );
 
     const result = await record(
       [

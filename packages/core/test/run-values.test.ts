@@ -10,7 +10,11 @@ function runValues(seed: number): RunValues {
 }
 
 function draws(values: CaseRunValues): string[] {
-  return [values.value("random(1, 9, 2)"), values.value("random(100, 999, 0)"), values.value("random(-1.5, 1.5, 3)")];
+  return [
+    values.value("random(1, 9, 2)"),
+    values.value("random(100, 999, 0)"),
+    values.value("random(-1.5, 1.5, 3)"),
+  ];
 }
 
 describe("RunValues", () => {
@@ -59,7 +63,13 @@ describe("RunValues", () => {
   it("throws UnresolvedPlaceholder for an unknown expression and for bounds it cannot draw from", () => {
     const values = runValues(1).forCase("PAY-ORDER-001");
 
-    for (const expression of ["seed", "random(9, 1, 0)", "random(1, 9)", "random(1.555, 9, 2)", "random(1, 9, 400)"]) {
+    for (const expression of [
+      "seed",
+      "random(9, 1, 0)",
+      "random(1, 9)",
+      "random(1.555, 9, 2)",
+      "random(1, 9, 400)",
+    ]) {
       expect(() => values.value(expression)).toThrow(UnresolvedPlaceholder);
     }
     expect(values.recorded()).toEqual({});

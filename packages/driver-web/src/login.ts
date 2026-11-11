@@ -29,7 +29,8 @@ export class PlaywrightLogin implements BrowserLogin {
 
   async login(request: BrowserLoginRequest): Promise<{ state: StorageState; finalUrl: URL }> {
     const timeout = AbortSignal.timeout(request.timeoutMs);
-    const signal = request.signal === undefined ? timeout : AbortSignal.any([request.signal, timeout]);
+    const signal =
+      request.signal === undefined ? timeout : AbortSignal.any([request.signal, timeout]);
     const tab = await this.#open(request);
     try {
       return await abortable(drive(tab, request, signal), signal);
@@ -71,7 +72,8 @@ async function drive(
 }
 
 async function isDone(tab: LoginTab, until: LoginDone): Promise<boolean> {
-  if ("cookie" in until) return (await tab.context.cookies()).some((cookie) => cookie.name === until.cookie);
+  if ("cookie" in until)
+    return (await tab.context.cookies()).some((cookie) => cookie.name === until.cookie);
   return urlMatches(until.urlMatches, tab.page.url());
 }
 

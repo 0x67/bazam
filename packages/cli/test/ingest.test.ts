@@ -3,7 +3,13 @@ import { basename, join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 let api: Api;
 
@@ -49,12 +55,16 @@ const SECRET_VALUE = "probe-secret-value-xyz";
 /** The fixture project plus a runner, never started here, and the runner target its cases name. */
 async function runnerProject(): Promise<Fixture> {
   const project = await fixtureProject(api);
-  const config = JSON.parse(await project.read(BRAND.configFile)) as { targets: Record<string, unknown> };
+  const config = JSON.parse(await project.read(BRAND.configFile)) as {
+    targets: Record<string, unknown>;
+  };
   await project.write(
     BRAND.configFile,
     JSON.stringify({
       ...config,
-      runners: { shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" } },
+      runners: {
+        shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" },
+      },
       targets: { ...config.targets, "shop-chrome": { runner: "shop" } },
     }),
   );
@@ -75,13 +85,30 @@ describe("ingest", () => {
       runId: "in1",
       counts: { pass: 1, fail: 1, blocked: 0, followup: 0, total: 2 },
       cases: [
-        { caseId: "CART-KEEP-001", title: "The cart keeps items after sign-in", target: "shop-chrome", status: "pass" },
-        { caseId: "CART-EMPTY-001", title: "The cart empties on checkout", target: "shop-chrome", status: "fail" },
+        {
+          caseId: "CART-KEEP-001",
+          title: "The cart keeps items after sign-in",
+          target: "shop-chrome",
+          status: "pass",
+        },
+        {
+          caseId: "CART-EMPTY-001",
+          title: "The cart empties on checkout",
+          target: "shop-chrome",
+          status: "fail",
+        },
       ],
     });
-    expect(JSON.parse(await project.read("runs/in1/status.json"))).toMatchObject({ state: "finished", total: 2 });
-    expect(JSON.parse(await project.read("runs/in1/summary.json"))).toMatchObject({ counts: { total: 2 } });
-    const postPlan = JSON.parse(await project.read("runs/in1/post-plan.json")) as { items: { caseId: string }[] };
+    expect(JSON.parse(await project.read("runs/in1/status.json"))).toMatchObject({
+      state: "finished",
+      total: 2,
+    });
+    expect(JSON.parse(await project.read("runs/in1/summary.json"))).toMatchObject({
+      counts: { total: 2 },
+    });
+    const postPlan = JSON.parse(await project.read("runs/in1/post-plan.json")) as {
+      items: { caseId: string }[];
+    };
     expect(postPlan.items.map((item) => item.caseId)).toEqual(["CART-KEEP-001", "CART-EMPTY-001"]);
     const again = await project.cli(...argv);
     expect(again.code).toBe(ExitCode.CouldNotStart);
@@ -92,7 +119,10 @@ describe("ingest", () => {
     const project = await runnerProject();
     // the fixture loads only a module plugin, so no process plugin registers the value as it starts
     const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
-    await project.write(BRAND.configFile, JSON.stringify({ ...config, secrets: { names: [SECRET_NAME] } }));
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, secrets: { names: [SECRET_NAME] } }),
+    );
     await project.write(
       "reports/results.xml",
       RESULTS.replace(
@@ -129,7 +159,16 @@ describe("ingest", () => {
     const file = join(project.root, "reports", "results.xml");
     const runs = [
       await project.cli("ingest", "--env", "demo", "--target", "t", file),
-      await project.cli("ingest", "--env", "demo", "--target", "shop-chrome", "--target", "t", file),
+      await project.cli(
+        "ingest",
+        "--env",
+        "demo",
+        "--target",
+        "shop-chrome",
+        "--target",
+        "t",
+        file,
+      ),
       await project.cli("ingest", "--env", "demo", file),
       await project.cli("ingest", "--env", "demo", "--target", "shop-chrome"),
       await project.cli(
@@ -140,9 +179,25 @@ describe("ingest", () => {
         "shop-chrome",
         join(project.root, "reports", "none.xml"),
       ),
-      await project.cli("ingest", "--env", "demo", "--target", "shop-chrome", "--case", "CART-NONE-001", file),
+      await project.cli(
+        "ingest",
+        "--env",
+        "demo",
+        "--target",
+        "shop-chrome",
+        "--case",
+        "CART-NONE-001",
+        file,
+      ),
       await project.cli("ingest", "--target", "shop-chrome", file),
-      await project.cli("ingest", "--env", "demo", "--target", "shop-chrome", join(project.root, "reports")),
+      await project.cli(
+        "ingest",
+        "--env",
+        "demo",
+        "--target",
+        "shop-chrome",
+        join(project.root, "reports"),
+      ),
     ];
     expect(runs.map((run) => run.code)).toEqual(Array(8).fill(ExitCode.CouldNotStart));
     const errors = runs.map((run) => run.stderr.split("\n")[0]);

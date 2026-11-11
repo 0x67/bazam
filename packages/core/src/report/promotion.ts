@@ -18,13 +18,18 @@ export function ticketsReadyForPromotion(
   for (const link of spec.links) {
     const { tracker, key } = ticketRef(link);
     const project = trackerProject(key);
-    const trackerConfig = Object.hasOwn(config.trackers, tracker) ? config.trackers[tracker] : undefined;
+    const trackerConfig = Object.hasOwn(config.trackers, tracker)
+      ? config.trackers[tracker]
+      : undefined;
     const projectConfig =
       trackerConfig !== undefined && Object.hasOwn(trackerConfig.projects, project)
         ? trackerConfig.projects[project]
         : undefined;
     if (projectConfig === undefined)
-      return { ready: false, reason: `project ${project} is not listed under trackers.${tracker}.projects` };
+      return {
+        ready: false,
+        reason: `project ${project} is not listed under trackers.${tracker}.projects`,
+      };
     const state = states.get(link);
     if (state === undefined) return { ready: false, reason: `${key} was not read` };
     const { promoteOn } = projectConfig;

@@ -113,7 +113,9 @@ describe("masking typed values", () => {
   });
 
   it("registers the identity field a fill types before the handler runs", async () => {
-    const { result, files } = await run([{ fill: { value: "${identity.alice.phone.national}" }, as: "alice" }]);
+    const { result, files } = await run([
+      { fill: { value: "${identity.alice.phone.national}" }, as: "alice" },
+    ]);
     expect(result.notes).toEqual(["fill ran", "typed [redacted]"]);
     expect(JSON.stringify(files)).not.toContain("7700900123");
   });
@@ -121,10 +123,16 @@ describe("masking typed values", () => {
   it("registers nothing for a field that redaction.shown lists", async () => {
     const fill = [{ fill: { value: "${identity.alice.badge}" }, as: "alice" }];
     expect((await run(fill)).result.notes).toEqual(["fill ran", "typed [redacted]"]);
-    expect((await run(fill, { shown: ["badge"] })).result.notes).toEqual(["fill ran", "typed BADGE-4417"]);
+    expect((await run(fill, { shown: ["badge"] })).result.notes).toEqual([
+      "fill ran",
+      "typed BADGE-4417",
+    ]);
 
     const phone = [{ fill: { value: "${identity.alice.phone.national}" }, as: "alice" }];
-    expect((await run(phone, { shown: ["phone"] })).result.notes).toEqual(["fill ran", "typed ••••0123"]);
+    expect((await run(phone, { shown: ["phone"] })).result.notes).toEqual([
+      "fill ran",
+      "typed ••••0123",
+    ]);
   });
 
   it("registers nothing for plain text", async () => {

@@ -22,7 +22,9 @@ export class PeopleRegistry {
   readonly #roles: ReadonlyMap<string, ReadonlyMap<string, string>>;
 
   constructor(roles: PeopleFile["roles"]) {
-    this.#roles = new Map(Object.entries(roles).map(([role, accounts]) => [role, new Map(Object.entries(accounts))]));
+    this.#roles = new Map(
+      Object.entries(roles).map(([role, accounts]) => [role, new Map(Object.entries(accounts))]),
+    );
   }
 
   /** Reads `people.yaml`. A project without the file maps no role. */
@@ -37,7 +39,9 @@ export class PeopleRegistry {
     // a file with only comments parses to null
     const parsed = PeopleFile.safeParse(parse(text) ?? {});
     if (!parsed.success)
-      throw new Error(`${PEOPLE_FILE} does not match the people schema:\n${z.prettifyError(parsed.error)}`);
+      throw new Error(
+        `${PEOPLE_FILE} does not match the people schema:\n${z.prettifyError(parsed.error)}`,
+      );
     return new PeopleRegistry(parsed.data.roles);
   }
 

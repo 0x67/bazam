@@ -121,11 +121,18 @@ describe("EvidenceStore", () => {
     const bytes = new Uint8Array(pngHeader);
 
     const first = await store.attach("Login page", bytes, "png");
-    const rest = await Promise.all([store.attach("After submit!", bytes, "png"), store.attach("trace", bytes, "zip")]);
+    const rest = await Promise.all([
+      store.attach("After submit!", bytes, "png"),
+      store.attach("trace", bytes, "zip"),
+    ]);
     const result = await store.finish(completed, meta, finishedAt);
 
     expect([first, ...rest]).toEqual(["01-login-page.png", "02-after-submit.png", "03-trace.zip"]);
-    expect(result.attachments).toEqual(["01-login-page.png", "02-after-submit.png", "03-trace.zip"]);
+    expect(result.attachments).toEqual([
+      "01-login-page.png",
+      "02-after-submit.png",
+      "03-trace.zip",
+    ]);
     expect((await readdir(join(runDir, CASE_ID))).sort()).toEqual([
       "01-login-page.png",
       "02-after-submit.png",
@@ -201,7 +208,9 @@ describe("EvidenceStore", () => {
 
     expect(result.caseValues).toEqual({ order: "••••5867", note: "ok" });
     expect(result.values).toEqual({ n: "66655867" });
-    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ caseValues: result.caseValues });
+    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({
+      caseValues: result.caseValues,
+    });
   });
 
   it("keeps run values and the duration readable when they hold eight or more digits", async () => {
@@ -216,7 +225,10 @@ describe("EvidenceStore", () => {
     );
 
     expect([result.values, result.durationMs]).toEqual([values, 10_802_500]);
-    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ values, durationMs: 10_802_500 });
+    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({
+      values,
+      durationMs: 10_802_500,
+    });
   });
 
   it("lists only attachments that reached disk", async () => {
@@ -226,18 +238,26 @@ describe("EvidenceStore", () => {
     await mkdir(join(runDir, CASE_ID, "01-blocked.png"), { recursive: true });
 
     await expect(store.attach("blocked", png, "png")).rejects.toThrow();
-    await expect(store.attach("body", new TextEncoder().encode("not json"), "json")).rejects.toThrow();
+    await expect(
+      store.attach("body", new TextEncoder().encode("not json"), "json"),
+    ).rejects.toThrow();
     const written = await store.attach("retry", png, "png");
     const result = await store.finish(completed, meta, finishedAt);
 
     expect(written).toBe("02-retry.png");
     expect(result.attachments).toEqual(["02-retry.png"]);
-    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({ attachments: ["02-retry.png"] });
+    expect(JSON.parse(await readCaseFile("result.json"))).toMatchObject({
+      attachments: ["02-retry.png"],
+    });
   });
 });
 
 describe("writeRunSummary", () => {
-  function caseResult(caseId: string, status: CaseResult["status"], extra: Partial<CaseResult> = {}): CaseResult {
+  function caseResult(
+    caseId: string,
+    status: CaseResult["status"],
+    extra: Partial<CaseResult> = {},
+  ): CaseResult {
     return {
       runId: RUN_ID,
       caseId,
@@ -266,8 +286,12 @@ describe("writeRunSummary", () => {
   it("writes summary.json and summary.md with a row per case and a count per status", async () => {
     const results = [
       caseResult("AUTH-LOGIN-001", "pass"),
-      caseResult("AUTH-LOGIN-002", "fail", { checks: [heading, { ...heading, name: "role badge", ok: false }] }),
-      caseResult("BILLING-REFUND-001", "blocked", { reason: "internal: driver | crashed\nafter launch" }),
+      caseResult("AUTH-LOGIN-002", "fail", {
+        checks: [heading, { ...heading, name: "role badge", ok: false }],
+      }),
+      caseResult("BILLING-REFUND-001", "blocked", {
+        reason: "internal: driver | crashed\nafter launch",
+      }),
       caseResult("BILLING-REFUND-002", "followup", {
         followups: [{ item: "refund email arrives", hint: "check the ops@example.test inbox" }],
       }),
@@ -279,8 +303,18 @@ describe("writeRunSummary", () => {
       runId: RUN_ID,
       counts: { pass: 1, fail: 1, blocked: 1, followup: 1, total: 4 },
       cases: [
-        { caseId: "AUTH-LOGIN-001", title: "Title of AUTH-LOGIN-001", target: "web", status: "pass" },
-        { caseId: "AUTH-LOGIN-002", title: "Title of AUTH-LOGIN-002", target: "web", status: "fail" },
+        {
+          caseId: "AUTH-LOGIN-001",
+          title: "Title of AUTH-LOGIN-001",
+          target: "web",
+          status: "pass",
+        },
+        {
+          caseId: "AUTH-LOGIN-002",
+          title: "Title of AUTH-LOGIN-002",
+          target: "web",
+          status: "fail",
+        },
         {
           caseId: "BILLING-REFUND-001",
           title: "Title of BILLING-REFUND-001",
@@ -288,7 +322,12 @@ describe("writeRunSummary", () => {
           status: "blocked",
           reason: "internal: driver | crashed\nafter launch",
         },
-        { caseId: "BILLING-REFUND-002", title: "Title of BILLING-REFUND-002", target: "web", status: "followup" },
+        {
+          caseId: "BILLING-REFUND-002",
+          title: "Title of BILLING-REFUND-002",
+          target: "web",
+          status: "followup",
+        },
       ],
     });
     expect(await readFile(join(runDir, "summary.md"), "utf8")).toBe(
@@ -324,9 +363,15 @@ describe("writeRunSummary", () => {
       },
     ];
 
-    await writeRunSummary(runDir, [caseResult("SHOP-CART-001", "pass", { target: "shop-chrome" })], unmapped);
+    await writeRunSummary(
+      runDir,
+      [caseResult("SHOP-CART-001", "pass", { target: "shop-chrome" })],
+      unmapped,
+    );
 
-    expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).toMatchObject({ unmapped });
+    expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).toMatchObject({
+      unmapped,
+    });
     const markdown = await readFile(join(runDir, "summary.md"), "utf8");
     expect(markdown.slice(markdown.indexOf("## Follow-up"))).toBe(
       [
@@ -353,7 +398,9 @@ describe("writeRunSummary", () => {
     );
 
     await writeRunSummary(runDir, results, []);
-    const after = await Promise.all(["summary.json", "summary.md"].map((name) => readFile(join(runDir, name), "utf8")));
+    const after = await Promise.all(
+      ["summary.json", "summary.md"].map((name) => readFile(join(runDir, name), "utf8")),
+    );
 
     expect(after).toEqual(before);
     expect(JSON.parse(after[0]!)).not.toHaveProperty("unmapped");
@@ -362,7 +409,13 @@ describe("writeRunSummary", () => {
 
 describe("writeRunStatus", () => {
   it("replaces status.json on each write and leaves no temporary file", async () => {
-    await writeRunStatus(runDir, { runId: RUN_ID, state: "running", total: 2, pendingPrompts: 1, results: [] });
+    await writeRunStatus(runDir, {
+      runId: RUN_ID,
+      state: "running",
+      total: 2,
+      pendingPrompts: 1,
+      results: [],
+    });
     const progress = {
       runId: RUN_ID,
       state: "finished" as const,

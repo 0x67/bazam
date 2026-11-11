@@ -42,7 +42,11 @@ describe("resolvePlaceholders", () => {
         method: "POST",
         url: "${env.API_URL}/orders/${case.orderId}",
         headers: { "X-Key-Id": "${secret.PARTNER_KEY_ID}" },
-        json: { email: "${identity.customer.email}", amount: "${run.random(1, 9, 2)}", note: "run ${run.id}" },
+        json: {
+          email: "${identity.customer.email}",
+          amount: "${run.random(1, 9, 2)}",
+          note: "run ${run.id}",
+        },
       },
     };
 
@@ -63,7 +67,9 @@ describe("resolvePlaceholders", () => {
   });
 
   it("throws UnresolvedPlaceholder naming the placeholder", async () => {
-    const error = await rejectionOf(resolvePlaceholders({ steps: ["${env.APP_URL}/login"] }, sources()));
+    const error = await rejectionOf(
+      resolvePlaceholders({ steps: ["${env.APP_URL}/login"] }, sources()),
+    );
 
     expect(error).toBeInstanceOf(UnresolvedPlaceholder);
     expect((error as UnresolvedPlaceholder).placeholder).toBe("${env.APP_URL}");
@@ -79,39 +85,59 @@ describe("resolvePlaceholders", () => {
 
   it("throws when a source hands back an inherited member instead of a string", async () => {
     const vars: Record<string, string> = {};
-    const error = await rejectionOf(resolvePlaceholders("${env.constructor}", sources({ env: (key) => vars[key] })));
+    const error = await rejectionOf(
+      resolvePlaceholders("${env.constructor}", sources({ env: (key) => vars[key] })),
+    );
 
     expect(error).toBeInstanceOf(UnresolvedPlaceholder);
   });
 
   it("resolves a phone form from an identity field", async () => {
-    expect(await resolvePlaceholders("${identity.customer.phone.domestic}", sources())).toBe("07700900123");
-    expect(await resolvePlaceholders("${identity.customer.phone.countryName}", sources({ locale: "id-ID" }))).toBe(
-      "Inggris Raya",
+    expect(await resolvePlaceholders("${identity.customer.phone.domestic}", sources())).toBe(
+      "07700900123",
     );
+    expect(
+      await resolvePlaceholders(
+        "${identity.customer.phone.countryName}",
+        sources({ locale: "id-ID" }),
+      ),
+    ).toBe("Inggris Raya");
   });
 
   it("composes several phone forms in one string", async () => {
-    const picker = "${identity.customer.phone.countryName} (${identity.customer.phone.countryCode})";
+    const picker =
+      "${identity.customer.phone.countryName} (${identity.customer.phone.countryCode})";
 
     expect(await resolvePlaceholders(picker, sources())).toBe("United Kingdom (+44)");
   });
 
   it("prefers a literal field over a phone form", async () => {
-    const fields: Record<string, string> = { phone: "+447700900123", "phone.national": "07700 900123" };
+    const fields: Record<string, string> = {
+      phone: "+447700900123",
+      "phone.national": "07700 900123",
+    };
     const literal = sources({ identity: (_, field) => fields[field] });
 
-    expect(await resolvePlaceholders("${identity.customer.phone.national}", literal)).toBe("07700 900123");
+    expect(await resolvePlaceholders("${identity.customer.phone.national}", literal)).toBe(
+      "07700 900123",
+    );
   });
 
   it("throws UnresolvedPlaceholder for an unknown phone form", async () => {
-    const error = await rejectionOf(resolvePlaceholders("${identity.customer.phone.areaCode}", sources()));
+    const error = await rejectionOf(
+      resolvePlaceholders("${identity.customer.phone.areaCode}", sources()),
+    );
 
-    expect((error as UnresolvedPlaceholder).placeholder).toBe("${identity.customer.phone.areaCode}");
+    expect((error as UnresolvedPlaceholder).placeholder).toBe(
+      "${identity.customer.phone.areaCode}",
+    );
   });
 
   it("throws UnresolvedPlaceholder for a phone form of a field that holds no possible number", async () => {
-    for (const text of ["${identity.customer.email.national}", "${identity.customer.fax.national}"]) {
+    for (const text of [
+      "${identity.customer.email.national}",
+      "${identity.customer.fax.national}",
+    ]) {
       const error = await rejectionOf(resolvePlaceholders(text, sources()));
       expect((error as UnresolvedPlaceholder).placeholder).toBe(text);
     }
@@ -120,7 +146,9 @@ describe("resolvePlaceholders", () => {
   it("leaves numbers, booleans, null and keys alone and does not scan resolved text again", async () => {
     const secret = sources({ secret: async () => "pa${env.API_URL}ss" });
 
-    expect(await resolvePlaceholders({ "${env.API_URL}": [1, true, null, "${secret.X}"] }, secret)).toEqual({
+    expect(
+      await resolvePlaceholders({ "${env.API_URL}": [1, true, null, "${secret.X}"] }, secret),
+    ).toEqual({
       "${env.API_URL}": [1, true, null, "pa${env.API_URL}ss"],
     });
   });
@@ -139,7 +167,10 @@ describe("resolvePlaceholders", () => {
       },
     });
 
-    await resolvePlaceholders({ a: "${run.a}", b: ["${secret.B}", "${run.c} ${run.d}"] }, recording);
+    await resolvePlaceholders(
+      { a: "${run.a}", b: ["${secret.B}", "${run.c} ${run.d}"] },
+      recording,
+    );
 
     expect(asked).toEqual(["a", "B", "c", "d"]);
   });
@@ -148,11 +179,20 @@ describe("resolvePlaceholders", () => {
 describe("findPlaceholders", () => {
   it("lists each unescaped placeholder once, in order of appearance", () => {
     const steps = [
-      { request: { url: "${env.API_URL}/orders", json: { id: "${case.orderId}", raw: "$${env.SKIPPED}" } } },
+      {
+        request: {
+          url: "${env.API_URL}/orders",
+          json: { id: "${case.orderId}", raw: "$${env.SKIPPED}" },
+        },
+      },
       { note: "${env.API_URL} again, then ${secret.TOKEN}" },
     ];
 
-    expect(findPlaceholders(steps)).toEqual(["${env.API_URL}", "${case.orderId}", "${secret.TOKEN}"]);
+    expect(findPlaceholders(steps)).toEqual([
+      "${env.API_URL}",
+      "${case.orderId}",
+      "${secret.TOKEN}",
+    ]);
   });
 });
 

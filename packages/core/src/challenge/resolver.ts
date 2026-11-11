@@ -84,7 +84,8 @@ export async function resolveChallenge(
   assertHumanOnly(kind, chain);
   const capabilities: ReadonlySet<Capability> = ctx.session?.capabilities ?? new Set();
   const runnable = chain.filter((resolver) => canRun(resolver, capabilities));
-  if (runnable.length === 0) throw new ChallengeBlocked(noRunnableReason(kind, chain, capabilities, ctx.env));
+  if (runnable.length === 0)
+    throw new ChallengeBlocked(noRunnableReason(kind, chain, capabilities, ctx.env));
 
   // nothing has happened in the app before the trigger, so a resolver that cannot arm gives way to the next
   let armed: ChallengeResolver | undefined;
@@ -105,7 +106,9 @@ export async function resolveChallenge(
   if (typeof first !== "string") return first;
 
   const person =
-    armed.automated && kind.fallbackAfterTrigger ? runnable.find((resolver) => !resolver.automated) : undefined;
+    armed.automated && kind.fallbackAfterTrigger
+      ? runnable.find((resolver) => !resolver.automated)
+      : undefined;
   if (person === undefined) throw new ChallengeBlocked(first);
   const second = await attempt(person, request, kind, ctx);
   if (typeof second !== "string") return second;

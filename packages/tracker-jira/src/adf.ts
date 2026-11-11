@@ -30,15 +30,22 @@ export function renderJiraAdf(result: CaseResult): AdfDoc {
   const evidence: JsonValue[] = [
     ...(result.checks.length === 0 ? [] : [checksTable(result.checks)]),
     ...list("Notes:", result.notes),
-    ...(result.attachments.length === 0 ? [] : [paragraph(`Attached files: ${result.attachments.join(", ")}`)]),
+    ...(result.attachments.length === 0
+      ? []
+      : [paragraph(`Attached files: ${result.attachments.join(", ")}`)]),
   ];
   const full = doc([
     ...head,
-    ...(evidence.length === 0 ? [] : [{ type: "heading", attrs: { level: 3 }, content: textNodes("Evidence") }]),
+    ...(evidence.length === 0
+      ? []
+      : [{ type: "heading", attrs: { level: 3 }, content: textNodes("Evidence") }]),
     ...evidence,
   ]);
   if (JSON.stringify(full).length <= MAX_DOC_LENGTH) return full;
-  return doc([...head, paragraph(`The evidence is too long for a Jira comment; it is in run ${result.runId}`)]);
+  return doc([
+    ...head,
+    paragraph(`The evidence is too long for a Jira comment; it is in run ${result.runId}`),
+  ]);
 }
 
 export function resultSubject(result: CaseResult): string {
@@ -71,7 +78,10 @@ function list(label: string, items: readonly string[]): JsonValue[] {
   if (items.length === 0) return [];
   return [
     paragraph(label),
-    { type: "bulletList", content: items.map((item) => ({ type: "listItem", content: [paragraph(item)] })) },
+    {
+      type: "bulletList",
+      content: items.map((item) => ({ type: "listItem", content: [paragraph(item)] })),
+    },
   ];
 }
 
@@ -85,7 +95,12 @@ function checksTable(checks: readonly CheckRecord[]): JsonValue {
     content: [
       row("tableHeader", CHECK_HEADERS),
       ...checks.map((check) =>
-        row("tableCell", [check.name, cellText(check.expected), cellText(check.observed), checkResult(check)]),
+        row("tableCell", [
+          check.name,
+          cellText(check.expected),
+          cellText(check.observed),
+          checkResult(check),
+        ]),
       ),
     ],
   };

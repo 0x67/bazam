@@ -109,7 +109,10 @@ describe("canPromote", () => {
   it("refuses a case outside acceptance and a latest result other than pass", () => {
     const pass = result("20261106-093000-a1b2", "demo", "pass", "2026-11-06T09:30:02.000Z");
 
-    expect(canPromote(spec({ stage: "draft" }), pass)).toEqual({ ok: false, reason: expect.stringContaining("draft") });
+    expect(canPromote(spec({ stage: "draft" }), pass)).toEqual({
+      ok: false,
+      reason: expect.stringContaining("draft"),
+    });
     expect(canPromote(spec({}), { ...pass, status: "followup" })).toEqual({
       ok: false,
       reason: expect.stringContaining("followup"),
@@ -154,12 +157,20 @@ describe("promoteCase", () => {
   });
 
   it("refuses once cases", async () => {
-    await write("cases/auth/login.yaml", LOGIN_FILE.replace("    risk: high\n", "    risk: high\n    once: true\n"));
+    await write(
+      "cases/auth/login.yaml",
+      LOGIN_FILE.replace("    risk: high\n", "    risk: high\n    once: true\n"),
+    );
     await writeResult(result("20261106-090000-0001", "demo", "pass", "2026-11-06T09:00:02.000Z"));
     const target = await loaded("AUTH-LOGIN-001");
 
-    expect(await promoteCase(root, target, "demo")).toEqual({ ok: false, reason: expect.stringContaining("once") });
-    expect(await readFile(join(root, "cases/auth/login.yaml"), "utf8")).toContain("stage: acceptance");
+    expect(await promoteCase(root, target, "demo")).toEqual({
+      ok: false,
+      reason: expect.stringContaining("once"),
+    });
+    expect(await readFile(join(root, "cases/auth/login.yaml"), "utf8")).toContain(
+      "stage: acceptance",
+    );
   });
 });
 
@@ -199,7 +210,9 @@ describe("retireCase", () => {
 
     await retireCase(root, await loaded("AUTH-RELOAD-001"));
 
-    await expect(readFile(join(root, "cases/auth/reload.yaml"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(join(root, "cases/auth/reload.yaml"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     expect(await readFile(join(root, "cases/.retired"), "utf8")).toBe("AUTH-RELOAD-001\n");
   });
 });

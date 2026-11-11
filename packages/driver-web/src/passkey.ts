@@ -51,7 +51,8 @@ export const virtualPasskeyResolver: ChallengeResolver = {
   },
   async resolve(request, ctx) {
     const armed = armedCounters.get(request);
-    if (armed === undefined) throw new Error(`${RESOLVER} answers only a challenge it armed before the trigger`);
+    if (armed === undefined)
+      throw new Error(`${RESOLVER} answers only a challenge it armed before the trigger`);
     const { context, session } = await identityContext(request, ctx);
     const passkeys = await waitForUse(context, armed, ctx.signal);
     if (passkeys === undefined) return undefined;
@@ -81,7 +82,8 @@ async function waitForUse(
   for (;;) {
     const passkeys = await context.credentials.get();
     // a new passkey starts at 0, and each sign-in adds one
-    if (passkeys.some((passkey) => passkey.signCount > (armed.get(passkey.id) ?? -1))) return passkeys;
+    if (passkeys.some((passkey) => passkey.signCount > (armed.get(passkey.id) ?? -1)))
+      return passkeys;
     if (Date.now() >= deadline) return undefined;
     await sleep(USE_POLL_MS, undefined, { signal });
   }
@@ -98,5 +100,10 @@ function cache(ctx: ResolverContext): CredentialCache {
 
 function cacheKey(request: ChallengeRequest, ctx: ResolverContext): CredentialKey {
   // the resolver stands where an auth strategy's name goes, so passkeys never share a file with a login's credential
-  return { env: ctx.env.name, identity: request.identity, surface: playwrightDriver.surface, strategy: RESOLVER };
+  return {
+    env: ctx.env.name,
+    identity: request.identity,
+    surface: playwrightDriver.surface,
+    strategy: RESOLVER,
+  };
 }

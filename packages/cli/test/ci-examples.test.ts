@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +18,10 @@ import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 const CI = join(REPO, "examples", "ci");
-const PLAN_SOURCE = readFileSync(join(REPO, "packages", "cli", "src", "commands", "plan.ts"), "utf8");
+const PLAN_SOURCE = readFileSync(
+  join(REPO, "packages", "cli", "src", "commands", "plan.ts"),
+  "utf8",
+);
 
 interface Step {
   id?: string;
@@ -90,7 +101,9 @@ function canWrite(workflow: Workflow, job: Job, scope?: string): boolean {
   const permissions = job.permissions ?? workflow.permissions;
   if (permissions === undefined || permissions === "write-all") return true;
   if (typeof permissions !== "object" || permissions === null) return false;
-  return Object.entries(permissions).some(([name, level]) => level === "write" && (scope ?? name) === name);
+  return Object.entries(permissions).some(
+    ([name, level]) => level === "write" && (scope ?? name) === name,
+  );
 }
 
 function isTracker(environment: unknown): boolean {
@@ -108,7 +121,8 @@ interface Found {
 /** Every key and string value in `node`, with its path. */
 function texts(node: unknown, path: (string | number)[] = []): Found[] {
   if (typeof node === "string") return [{ path, text: node, key: false }];
-  if (Array.isArray(node)) return node.flatMap((item: unknown, index) => texts(item, [...path, index]));
+  if (Array.isArray(node))
+    return node.flatMap((item: unknown, index) => texts(item, [...path, index]));
   if (typeof node !== "object" || node === null) return [];
   return Object.entries(node).flatMap(([key, value]) => [
     { path: [...path, key], text: key, key: true },
@@ -119,7 +133,13 @@ function texts(node: unknown, path: (string | number)[] = []): Found[] {
 /** The job and step when `path` names an entry of a step's `env`. */
 function stepEnv(workflow: Workflow, path: Found["path"]): { job: Job; step: Step } | undefined {
   const [jobs, name, steps, index, env] = path;
-  if (path.length !== 6 || jobs !== "jobs" || steps !== "steps" || env !== "env" || typeof index !== "number") {
+  if (
+    path.length !== 6 ||
+    jobs !== "jobs" ||
+    steps !== "steps" ||
+    env !== "env" ||
+    typeof index !== "number"
+  ) {
     return undefined;
   }
   const job = workflow.jobs[String(name)];
@@ -136,7 +156,9 @@ function forbiddenTriggers(sources: Sources): string[] {
           ? on.filter((item): item is string => typeof item === "string")
           : Object.keys(on ?? {});
     return triggers
-      .filter((trigger) => ["pull_request", "pull_request_target", "workflow_run"].includes(trigger))
+      .filter((trigger) =>
+        ["pull_request", "pull_request_target", "workflow_run"].includes(trigger),
+      )
       .map((trigger) => `${file}: ${trigger}`);
   });
 }
@@ -168,7 +190,9 @@ function writableJobsRunningBazam(sources: Sources): string[] {
 
 /** The bodies of the `${{ }}` expressions in `text` that read the secrets context. */
 function secretReads(text: string): string[] {
-  return [...text.matchAll(EXPRESSION)].map(([, body = ""]) => body).filter((body) => SECRETS_CONTEXT.test(body));
+  return [...text.matchAll(EXPRESSION)]
+    .map(([, body = ""]) => body)
+    .filter((body) => SECRETS_CONTEXT.test(body));
 }
 
 /**
@@ -242,8 +266,12 @@ function writeTokenProblems(sources: Sources): string[] {
       .flatMap(([name, job]) => {
         const at = `${file} jobs.${name}`;
         const steps = (job.steps ?? []).flatMap(({ uses, run }, index) => [
-          ...(uses?.startsWith("actions/setup-node@") ? [`${at}.steps.${index}: sets up Node`] : []),
-          ...(run !== undefined && NPM_CODE.test(run) ? [`${at}.steps.${index}: runs npm code`] : []),
+          ...(uses?.startsWith("actions/setup-node@")
+            ? [`${at}.steps.${index}: sets up Node`]
+            : []),
+          ...(run !== undefined && NPM_CODE.test(run)
+            ? [`${at}.steps.${index}: runs npm code`]
+            : []),
         ]);
         const secrets = texts(job)
           .filter(({ text }) => secretReads(text).length > 0)
@@ -263,7 +291,9 @@ function patchProblems(sources: Sources): string[] {
       const list = script.indexOf("diff --cached --name-only");
       const commit = script.indexOf("git commit");
       if ([apply, list, commit].includes(-1) || apply > list || list > commit) {
-        return [`${file} ${name}: does not apply the patch, list its paths and commit in that order`];
+        return [
+          `${file} ${name}: does not apply the patch, list its paths and commit in that order`,
+        ];
       }
       const check = script.slice(script.lastIndexOf("\n", list) + 1, commit);
       const listing = check.split("\n")[0] ?? "";
@@ -313,13 +343,16 @@ function emptyStageProblems(sources: Sources, plan: string): string[] {
   const compared = [...run.matchAll(/ = "([^"$]+)"/g)].map((match) => match[1]);
   const problems: string[] = [];
   if (compared.length !== 1 || !plan.includes(`CommandError("${compared[0]}")`)) {
-    problems.push(`the run step compares ${JSON.stringify(compared)}, which plan.ts does not throw`);
+    problems.push(
+      `the run step compares ${JSON.stringify(compared)}, which plan.ts does not throw`,
+    );
   }
   if (jobs["acceptance"]?.outputs?.["empty"] !== "${{ steps.run.outputs.empty }}") {
     problems.push("the acceptance job does not output empty");
   }
   const upload = steps.find(({ uses }) => uses?.startsWith("actions/upload-artifact@"));
-  if (upload?.if !== "steps.run.outputs.empty != 'true'") problems.push("the upload runs on an empty stage");
+  if (upload?.if !== "steps.run.outputs.empty != 'true'")
+    problems.push("the upload runs on an empty stage");
   if (jobs["promote"]?.if !== "needs.acceptance.outputs.empty != 'true'") {
     problems.push("the promote job runs on an empty stage");
   }
@@ -356,7 +389,11 @@ const PATCHES: [string, (repo: string, git: (...args: string[]) => string) => vo
 
 /** Runs the pull-request job's commit step on each patch and says how it ended. */
 function commitOutcomes(sources: Sources): string[] {
-  const script = promoteScript(sources, "pull-request", ({ name }) => name === "Commit the stage changes");
+  const script = promoteScript(
+    sources,
+    "pull-request",
+    ({ name }) => name === "Commit the stage changes",
+  );
   return PATCHES.map(([label, change]) => {
     const temp = mkdtempSync(join(tmpdir(), "promote-commit-"));
     try {
@@ -380,7 +417,16 @@ function commitOutcomes(sources: Sources): string[] {
       git("init", "-q", "-b", "main");
       writeFileSync(join(repo, "x.yml"), "name: x\non: push\n");
       git("add", "x.yml");
-      git("-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "base");
+      git(
+        "-c",
+        "user.name=test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-q",
+        "-m",
+        "base",
+      );
       const base = git("rev-parse", "HEAD");
       change(repo, git);
       git("add", "-A");
@@ -436,7 +482,11 @@ function credentialedCheckouts(sources: Sources): string[] {
   return workflows(sources).flatMap(([file, workflow]) =>
     Object.entries(workflow.jobs).flatMap(([name, { steps = [] }]) =>
       steps
-        .filter((step) => step.uses?.startsWith("actions/checkout@") && step.with?.["persist-credentials"] !== false)
+        .filter(
+          (step) =>
+            step.uses?.startsWith("actions/checkout@") &&
+            step.with?.["persist-credentials"] !== false,
+        )
         .map(() => `${file} ${name}`),
     ),
   );
@@ -451,7 +501,9 @@ function expressionsInRun(sources: Sources): string[] {
   return [...sources].flatMap(([file, text]) => {
     const workflow = parse(text) as { jobs: Record<string, { steps?: { run?: string }[] }> };
     return Object.entries(workflow.jobs).flatMap(([job, { steps = [] }]) =>
-      steps.filter(({ run }) => run !== undefined && expression.test(run)).map(({ run }) => `${file} ${job}: ${run}`),
+      steps
+        .filter(({ run }) => run !== undefined && expression.test(run))
+        .map(({ run }) => `${file} ${job}: ${run}`),
     );
   });
 }
@@ -461,7 +513,10 @@ function runIds(sources: Sources): { at: string; id: string }[] {
   return workflows(sources).flatMap(([file, workflow]) =>
     Object.entries(workflow.jobs).flatMap(([name, { steps = [] }]) =>
       steps.flatMap(({ run = "" }) =>
-        [...run.matchAll(RUN_ID)].map(([, id = ""]) => ({ at: `${file} ${name}`, id: id.replace(/^"|"$/g, "") })),
+        [...run.matchAll(RUN_ID)].map(([, id = ""]) => ({
+          at: `${file} ${name}`,
+          id: id.replace(/^"|"$/g, ""),
+        })),
       ),
     ),
   );
@@ -477,8 +532,12 @@ function maskedRunIds(sources: Sources): string[] {
     const unknown = [...id.matchAll(/\$\{?(\w+)/g)]
       .map(([, variable = ""]) => variable)
       .filter((v) => !Object.hasOwn(RUN_VARIABLES, v));
-    if (unknown.length > 0) return [`${at}: ${id} uses ${unknown.join(", ")}, which has no sample value`];
-    const sample = id.replace(/\$\{?(\w+)\}?/g, (_, variable: string) => RUN_VARIABLES[variable] ?? "");
+    if (unknown.length > 0)
+      return [`${at}: ${id} uses ${unknown.join(", ")}, which has no sample value`];
+    const sample = id.replace(
+      /\$\{?(\w+)\}?/g,
+      (_, variable: string) => RUN_VARIABLES[variable] ?? "",
+    );
     const shown = redactor.text(sample);
     return shown === sample ? [] : [`${at}: ${sample} reads ${shown}`];
   });
@@ -500,12 +559,20 @@ describe("the example CI workflows", () => {
   });
 
   it("give contents: write to no job that runs bazam run", () => {
-    expect(jobsRunningBazam(EXAMPLES)).toEqual(["promote.yml acceptance", "regression.yml regression"]);
+    expect(jobsRunningBazam(EXAMPLES)).toEqual([
+      "promote.yml acceptance",
+      "regression.yml regression",
+    ]);
     expect(writableJobsRunningBazam(EXAMPLES)).toEqual([]);
-    const unset = broken("regression.yml", (text) => text.replace("permissions:\n  contents: read\n", ""));
+    const unset = broken("regression.yml", (text) =>
+      text.replace("permissions:\n  contents: read\n", ""),
+    );
     expect(writableJobsRunningBazam(unset)).toEqual(["regression.yml regression"]);
     const write = broken("promote.yml", (text) =>
-      text.replace("    permissions:\n      contents: read\n", "    permissions:\n      contents: write\n"),
+      text.replace(
+        "    permissions:\n      contents: read\n",
+        "    permissions:\n      contents: write\n",
+      ),
     );
     expect(writableJobsRunningBazam(write)).toEqual(["promote.yml acceptance"]);
   });
@@ -513,15 +580,22 @@ describe("the example CI workflows", () => {
   it("use secrets only in the env of the steps allowed them", () => {
     expect(misplacedSecrets(EXAMPLES)).toEqual([]);
     const jobLevel = broken("regression.yml", (text) =>
-      text.replace("    environment: tracker\n", "    environment: tracker\n    env:\n      JIRA_EMAIL: x\n"),
+      text.replace(
+        "    environment: tracker\n",
+        "    environment: tracker\n    env:\n      JIRA_EMAIL: x\n",
+      ),
     );
     expect(misplacedSecrets(jobLevel)).toEqual(["regression.yml jobs.regression.env.JIRA_EMAIL"]);
-    const notPosting = broken("regression.yml", (text) => text.replace("bazam report post", "bazam report plan"));
+    const notPosting = broken("regression.yml", (text) =>
+      text.replace("bazam report post", "bazam report plan"),
+    );
     expect(misplacedSecrets(notPosting)).toEqual([
       "regression.yml jobs.regression.steps.7.env.JIRA_EMAIL",
       "regression.yml jobs.regression.steps.7.env.JIRA_API_TOKEN",
     ]);
-    const noEnvironment = broken("regression.yml", (text) => text.replace("    environment: tracker\n", ""));
+    const noEnvironment = broken("regression.yml", (text) =>
+      text.replace("    environment: tracker\n", ""),
+    );
     expect(misplacedSecrets(noEnvironment)).toEqual([
       "regression.yml jobs.regression.steps.7.env.JIRA_EMAIL",
       "regression.yml jobs.regression.steps.7.env.JIRA_API_TOKEN",
@@ -532,11 +606,15 @@ describe("the example CI workflows", () => {
         "JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}\n          X: ${{ secrets.X }}",
       ),
     );
-    expect(misplacedSecrets(appSecretInPromote)).toEqual(["promote.yml jobs.promote.steps.4.env.X"]);
+    expect(misplacedSecrets(appSecretInPromote)).toEqual([
+      "promote.yml jobs.promote.steps.4.env.X",
+    ]);
     const repositoryToken = broken("promote.yml", (text) =>
       text.replace("GH_TOKEN: ${{ github.token }}", "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}"),
     );
-    expect(misplacedSecrets(repositoryToken)).toEqual(["promote.yml jobs.pull-request.steps.3.env.GH_TOKEN"]);
+    expect(misplacedSecrets(repositoryToken)).toEqual([
+      "promote.yml jobs.pull-request.steps.3.env.GH_TOKEN",
+    ]);
     const wholeContext = broken("regression.yml", (text) =>
       text.replace(
         "continue-on-error: true\n",
@@ -561,7 +639,9 @@ describe("the example CI workflows", () => {
         "- name: Commit the stage changes\n        env:\n          DEBUG: ${{ toJSON(secrets) }}\n",
       ),
     );
-    expect(misplacedSecrets(commitStep)).toEqual(["promote.yml jobs.pull-request.steps.2.env.DEBUG"]);
+    expect(misplacedSecrets(commitStep)).toEqual([
+      "promote.yml jobs.pull-request.steps.2.env.DEBUG",
+    ]);
   });
 
   it("push the branch before gh pr create, which takes its body with --body-file", () => {
@@ -573,13 +653,19 @@ describe("the example CI workflows", () => {
         .replace("git push -u origin HEAD\n", "")
         .replace(`${body}\n`, `${body}\n          git push -u origin HEAD\n`),
     );
-    expect(pullRequestProblems(late)).toEqual(["promote.yml pull-request: gh pr create runs before git push"]);
+    expect(pullRequestProblems(late)).toEqual([
+      "promote.yml pull-request: gh pr create runs before git push",
+    ]);
     const unpushed = broken("promote.yml", (text) => text.replace("git push -u origin HEAD\n", ""));
-    expect(pullRequestProblems(unpushed)).toEqual(["promote.yml pull-request: gh pr create has no git push before it"]);
+    expect(pullRequestProblems(unpushed)).toEqual([
+      "promote.yml pull-request: gh pr create has no git push before it",
+    ]);
     const inline = broken("promote.yml", (text) =>
       text.replace(body, '--body "$(cat "$RUNNER_TEMP/promotion/promote-pr.md")"'),
     );
-    expect(pullRequestProblems(inline)).toEqual(["promote.yml pull-request: gh pr create takes its body inline"]);
+    expect(pullRequestProblems(inline)).toEqual([
+      "promote.yml pull-request: gh pr create takes its body inline",
+    ]);
   });
 
   it("run no npm code, set up no Node and read no secret in a job whose token can write", () => {
@@ -588,22 +674,41 @@ describe("the example CI workflows", () => {
     const install = broken("promote.yml", (text) =>
       text.replace(download, `      - run: npm ci --ignore-scripts\n\n${download}`),
     );
-    expect(writeTokenProblems(install)).toEqual(["promote.yml jobs.pull-request.steps.1: runs npm code"]);
+    expect(writeTokenProblems(install)).toEqual([
+      "promote.yml jobs.pull-request.steps.1: runs npm code",
+    ]);
     const node = broken("promote.yml", (text) =>
       text.replace(
         download,
         `      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1\n\n${download}`,
       ),
     );
-    expect(writeTokenProblems(node)).toEqual(["promote.yml jobs.pull-request.steps.1: sets up Node"]);
-    for (const call of ["npx tsx x.ts", "pnpm install", "node x.js", "node_modules/.bin/tsx x.ts", "bazam check"]) {
-      const calls = broken("promote.yml", (text) => text.replace("git commit -m", `${call}\n          git commit -m`));
-      expect(writeTokenProblems(calls), call).toEqual(["promote.yml jobs.pull-request.steps.2: runs npm code"]);
+    expect(writeTokenProblems(node)).toEqual([
+      "promote.yml jobs.pull-request.steps.1: sets up Node",
+    ]);
+    for (const call of [
+      "npx tsx x.ts",
+      "pnpm install",
+      "node x.js",
+      "node_modules/.bin/tsx x.ts",
+      "bazam check",
+    ]) {
+      const calls = broken("promote.yml", (text) =>
+        text.replace("git commit -m", `${call}\n          git commit -m`),
+      );
+      expect(writeTokenProblems(calls), call).toEqual([
+        "promote.yml jobs.pull-request.steps.2: runs npm code",
+      ]);
     }
     const secret = broken("promote.yml", (text) =>
-      text.replace("GH_TOKEN: ${{ github.token }}", "GH_TOKEN: ${{ github.token }}\n          X: ${{ secrets.X }}"),
+      text.replace(
+        "GH_TOKEN: ${{ github.token }}",
+        "GH_TOKEN: ${{ github.token }}\n          X: ${{ secrets.X }}",
+      ),
     );
-    expect(writeTokenProblems(secret)).toEqual(["promote.yml jobs.pull-request.steps.3.env.X: reads a secret"]);
+    expect(writeTokenProblems(secret)).toEqual([
+      "promote.yml jobs.pull-request.steps.3.env.X: reads a secret",
+    ]);
     const pullRequests = broken("promote.yml", (text) =>
       text.replace(
         "      contents: read\n    outputs:\n      changed:",
@@ -621,15 +726,23 @@ describe("the example CI workflows", () => {
 
   it("apply the promotion patch and refuse paths other than YAML files under cases/ before the commit", () => {
     expect(patchProblems(EXAMPLES)).toEqual([]);
-    const order = "promote.yml pull-request: does not apply the patch, list its paths and commit in that order";
-    const unapplied = broken("promote.yml", (text) => text.replace("git apply --index", "git apply"));
+    const order =
+      "promote.yml pull-request: does not apply the patch, list its paths and commit in that order";
+    const unapplied = broken("promote.yml", (text) =>
+      text.replace("git apply --index", "git apply"),
+    );
     expect(patchProblems(unapplied)).toEqual([order]);
     const unlisted = broken("promote.yml", (text) =>
-      text.replace("git -c core.quotePath=false diff --cached --name-only --no-renames", "git ls-files"),
+      text.replace(
+        "git -c core.quotePath=false diff --cached --name-only --no-renames",
+        "git ls-files",
+      ),
     );
     expect(patchProblems(unlisted)).toEqual([order]);
     const renames = broken("promote.yml", (text) => text.replace(" --no-renames)", ")"));
-    expect(patchProblems(renames)).toEqual(["promote.yml pull-request: lists a renamed path by its new name only"]);
+    expect(patchProblems(renames)).toEqual([
+      "promote.yml pull-request: lists a renamed path by its new name only",
+    ]);
     const quoted = broken("promote.yml", (text) => text.replace("-c core.quotePath=false ", ""));
     expect(patchProblems(quoted)).toEqual([
       "promote.yml pull-request: lists a non-ASCII path quoted, so the check refuses it",
@@ -676,7 +789,11 @@ describe("the example CI workflows", () => {
     ];
     expect(acceptanceOutcomes(EXAMPLES)).toEqual(expected);
     const mutants: [string, string, string][] = [
-      ['echo "empty=true"', 'echo "empty=false"', 'an empty stage: exit 0, output "empty=false\\n"'],
+      [
+        'echo "empty=true"',
+        'echo "empty=false"',
+        'an empty stage: exit 0, output "empty=false\\n"',
+      ],
       ['[ "$status" -eq 2 ]', '[ "$status" -eq 3 ]', 'an empty stage: exit 2, output ""'],
       ["0 | 1 | 3) ;;", "0 | 3) ;;", 'a failed case: exit 1, output ""'],
     ];
@@ -704,7 +821,10 @@ describe("the example CI workflows", () => {
 
   it("skip promotion on an empty acceptance stage, told by the message plan.ts throws", () => {
     expect(emptyStageProblems(EXAMPLES, PLAN_SOURCE)).toEqual([]);
-    const reworded = PLAN_SOURCE.replace('"no case matches the selection"', '"the selection matches no case"');
+    const reworded = PLAN_SOURCE.replace(
+      '"no case matches the selection"',
+      '"the selection matches no case"',
+    );
     expect(reworded).not.toBe(PLAN_SOURCE);
     expect(emptyStageProblems(EXAMPLES, reworded)).toEqual([
       'the run step compares ["no case matches the selection"], which plan.ts does not throw',
@@ -712,15 +832,27 @@ describe("the example CI workflows", () => {
     const unguarded = broken("promote.yml", (text) =>
       text.replace("    if: needs.acceptance.outputs.empty != 'true'\n", ""),
     );
-    expect(emptyStageProblems(unguarded, PLAN_SOURCE)).toEqual(["the promote job runs on an empty stage"]);
+    expect(emptyStageProblems(unguarded, PLAN_SOURCE)).toEqual([
+      "the promote job runs on an empty stage",
+    ]);
     const uploadInverted = broken("promote.yml", (text) =>
-      text.replace("if: steps.run.outputs.empty != 'true'", "if: steps.run.outputs.empty == 'true'"),
+      text.replace(
+        "if: steps.run.outputs.empty != 'true'",
+        "if: steps.run.outputs.empty == 'true'",
+      ),
     );
-    expect(emptyStageProblems(uploadInverted, PLAN_SOURCE)).toEqual(["the upload runs on an empty stage"]);
+    expect(emptyStageProblems(uploadInverted, PLAN_SOURCE)).toEqual([
+      "the upload runs on an empty stage",
+    ]);
     const promoteInverted = broken("promote.yml", (text) =>
-      text.replace("if: needs.acceptance.outputs.empty != 'true'", "if: needs.acceptance.outputs.empty == 'true'"),
+      text.replace(
+        "if: needs.acceptance.outputs.empty != 'true'",
+        "if: needs.acceptance.outputs.empty == 'true'",
+      ),
     );
-    expect(emptyStageProblems(promoteInverted, PLAN_SOURCE)).toEqual(["the promote job runs on an empty stage"]);
+    expect(emptyStageProblems(promoteInverted, PLAN_SOURCE)).toEqual([
+      "the promote job runs on an empty stage",
+    ]);
   });
 
   it("check out without persisting credentials", () => {
@@ -741,7 +873,9 @@ describe("the example CI workflows", () => {
     const commitMessage = broken("regression.yml", (text) =>
       text.replace("run: exit 1", 'run: echo "${{ github.event.head_commit.message }}" && exit 1'),
     );
-    expect(expressionsInRun(commitMessage)).toEqual([expect.stringMatching(/^regression\.yml regression: /)]);
+    expect(expressionsInRun(commitMessage)).toEqual([
+      expect.stringMatching(/^regression\.yml regression: /),
+    ]);
     const wrapped = broken("promote.yml", (text) =>
       text.replace('echo "changed=true"', 'echo "${{ toJSON(steps.run.outputs) }}"'),
     );
@@ -763,10 +897,17 @@ describe("the example CI workflows", () => {
       "regression.yml regression: ci-42747674372-1 reads ci-••••4372-1",
     ]);
     const joined = broken("promote.yml", (text) =>
-      text.replace("$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT", "$GITHUB_RUN_NUMBER$GITHUB_RUN_ATTEMPT"),
+      text.replace(
+        "$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT",
+        "$GITHUB_RUN_NUMBER$GITHUB_RUN_ATTEMPT",
+      ),
     );
-    expect(maskedRunIds(joined)).toEqual(["promote.yml acceptance: acceptance-12345671 reads acceptance-••••5671"]);
-    const unknown = broken("promote.yml", (text) => text.replace("acceptance-$GITHUB_RUN_NUMBER", "$GITHUB_SHA"));
+    expect(maskedRunIds(joined)).toEqual([
+      "promote.yml acceptance: acceptance-12345671 reads acceptance-••••5671",
+    ]);
+    const unknown = broken("promote.yml", (text) =>
+      text.replace("acceptance-$GITHUB_RUN_NUMBER", "$GITHUB_SHA"),
+    );
     expect(maskedRunIds(unknown)).toEqual([
       "promote.yml acceptance: $GITHUB_SHA-$GITHUB_RUN_ATTEMPT uses GITHUB_SHA, which has no sample value",
     ]);

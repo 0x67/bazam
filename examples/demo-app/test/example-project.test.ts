@@ -22,7 +22,11 @@ interface CliResult {
 
 async function cli(args: readonly string[], cwd = REPO_ROOT): Promise<CliResult> {
   try {
-    const { stdout, stderr } = await run(process.execPath, ["--conditions=development", CLI, ...args], { cwd })
+    const { stdout, stderr } = await run(
+      process.execPath,
+      ["--conditions=development", CLI, ...args],
+      { cwd },
+    )
     return { code: 0, stdout, stderr }
   } catch (error) {
     const failed = error as { code?: unknown; stdout?: string; stderr?: string }
@@ -40,9 +44,13 @@ afterEach(async () => {
 // what a fresh clone holds of the example project: the files git does not ignore, without the demo app,
 // in a folder outside any repository
 async function cloneOfExamples(): Promise<string> {
-  const { stdout } = await run("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: EXAMPLES,
-  })
+  const { stdout } = await run(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
+      cwd: EXAMPLES,
+    },
+  )
   const copy = await mkdtemp(join(tmpdir(), "example-project-"))
   copies.push(copy)
   for (const file of stdout.split("\0")) {
@@ -66,13 +74,18 @@ interface CaseResult {
 // a copy of the examples that holds the fixtures a run reads
 async function copyForRuns(): Promise<string> {
   const copy = await cloneOfExamples()
-  await copyFile(join(copy, "fixtures/identities.example.yaml"), join(copy, "fixtures/identities.local.yaml"))
+  await copyFile(
+    join(copy, "fixtures/identities.example.yaml"),
+    join(copy, "fixtures/identities.local.yaml"),
+  )
   return copy
 }
 
 async function resultOf(copy: string, stdout: string, caseId: string): Promise<CaseResult> {
   const { runId } = JSON.parse(stdout) as RunSummary
-  return JSON.parse(await readFile(join(copy, "runs", runId, caseId, "result.json"), "utf8")) as CaseResult
+  return JSON.parse(
+    await readFile(join(copy, "runs", runId, caseId, "result.json"), "utf8"),
+  ) as CaseResult
 }
 
 describe("example project", () => {
@@ -86,8 +99,20 @@ describe("example project", () => {
 
   it("fails PROFILE-PHONE-001 when the demo refuses a save, also after an earlier run saved the number", async () => {
     const copy = await cloneOfExamples()
-    await copyFile(join(copy, "fixtures/identities.example.yaml"), join(copy, "fixtures/identities.local.yaml"))
-    const phoneRun = ["run", "--root", copy, "--env", "demo", "--case", "PROFILE-PHONE-001", "--json"]
+    await copyFile(
+      join(copy, "fixtures/identities.example.yaml"),
+      join(copy, "fixtures/identities.local.yaml"),
+    )
+    const phoneRun = [
+      "run",
+      "--root",
+      copy,
+      "--env",
+      "demo",
+      "--case",
+      "PROFILE-PHONE-001",
+      "--json",
+    ]
     expect((await cli(phoneRun)).code).toBe(0)
     // the demo refuses this number and shows the page again with whatever the account saved before
     const file = join(copy, "cases/profile/phone.yaml")
@@ -130,21 +155,44 @@ describe("example project", () => {
     const asTeammate = await cli([...runRole, "--as", "tester=teammate"])
 
     expect(byDefault.code).toBe(0)
-    expect((await resultOf(copy, byDefault.stdout, "AUTH-ROLE-001")).identities).toEqual(["customer"])
+    expect((await resultOf(copy, byDefault.stdout, "AUTH-ROLE-001")).identities).toEqual([
+      "customer",
+    ])
     expect(asTeammate.code).toBe(0)
-    expect((await resultOf(copy, asTeammate.stdout, "AUTH-ROLE-001")).identities).toEqual(["teammate"])
+    expect((await resultOf(copy, asTeammate.stdout, "AUTH-ROLE-001")).identities).toEqual([
+      "teammate",
+    ])
   }, 90_000)
 
   it("scans an acceptance run clean and lists the example identities in doctor", async () => {
     const copy = await copyForRuns()
-    const demoSecrets = await readFile(join(EXAMPLES, ".bazam/secrets.env"), "utf8").catch(() => undefined)
+    const demoSecrets = await readFile(join(EXAMPLES, ".bazam/secrets.env"), "utf8").catch(
+      () => undefined,
+    )
     if (demoSecrets !== undefined) {
       await mkdir(join(copy, ".bazam"), { recursive: true })
       await writeFile(join(copy, ".bazam/secrets.env"), demoSecrets, { mode: 0o600 })
     }
     const answers = join(copy, "fixtures/answers")
-    const runAcceptance = ["run", "--root", copy, "--env", "demo", "--suite", "acceptance", "--target", "web"]
-    const ran = await cli([...runAcceptance, "--channel", "answers-file", "--answers", answers, "--json"])
+    const runAcceptance = [
+      "run",
+      "--root",
+      copy,
+      "--env",
+      "demo",
+      "--suite",
+      "acceptance",
+      "--target",
+      "web",
+    ]
+    const ran = await cli([
+      ...runAcceptance,
+      "--channel",
+      "answers-file",
+      "--answers",
+      answers,
+      "--json",
+    ])
     const { runId } = JSON.parse(ran.stdout) as RunSummary
 
     const scan = await cli(["scan", "--root", copy, "--run", runId])
@@ -156,16 +204,30 @@ describe("example project", () => {
     expect(doctor.stdout).toMatch(/teammate\.email: email, example domain/)
     expect(doctor.stdout).toContain("customer.phone: phone, country United Kingdom")
     const fixtures = await readFile(join(copy, "fixtures/identities.local.yaml"), "utf8")
-    const values = [...fixtures.matchAll(/^\s+\w+: "?([^"\n]+)"?$/gm)].map((match) => match[1] ?? "")
+    const values = [...fixtures.matchAll(/^\s+\w+: "?([^"\n]+)"?$/gm)].map(
+      (match) => match[1] ?? "",
+    )
     expect(values.length).toBeGreaterThan(0)
-    for (const value of [...values, "2468", "demo-api-key"]) expect(doctor.stdout).not.toContain(value)
+    for (const value of [...values, "2468", "demo-api-key"])
+      expect(doctor.stdout).not.toContain(value)
     expect(doctor.code).toBe(0)
   }, 90_000)
 
   it("shows the role binding in plan", async () => {
-    const result = await cli(["plan", "--root", EXAMPLES, "--env", "demo", "--as", "tester=teammate"])
+    const result = await cli([
+      "plan",
+      "--root",
+      EXAMPLES,
+      "--env",
+      "demo",
+      "--as",
+      "tester=teammate",
+    ])
 
-    expect(result).toMatchObject({ code: 0, stdout: expect.stringContaining("roles: tester=teammate") })
+    expect(result).toMatchObject({
+      code: 0,
+      stdout: expect.stringContaining("roles: tester=teammate"),
+    })
   })
 
   it("runs the otp client with the command its header documents, from the repository root", async () => {
@@ -176,6 +238,9 @@ describe("example project", () => {
 
     const result = await cli(documented?.split(" ") ?? [])
 
-    expect(result).toMatchObject({ code: 0, stdout: expect.stringMatching(/got a 6-character code/) })
+    expect(result).toMatchObject({
+      code: 0,
+      stdout: expect.stringMatching(/got a 6-character code/),
+    })
   }, 30_000)
 })

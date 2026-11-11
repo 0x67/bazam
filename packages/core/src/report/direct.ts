@@ -63,7 +63,13 @@ async function postItem(
   connect: (tracker: string, config: TrackerConfig) => Promise<TrackerConnection>,
 ): Promise<ItemOutcome> {
   const { tracker, key } = item.ticket;
-  const outcome: ItemOutcome = { marker: item.marker, ticket: item.ticket, ok: false, actions: [], unresolved: [] };
+  const outcome: ItemOutcome = {
+    marker: item.marker,
+    ticket: item.ticket,
+    ok: false,
+    actions: [],
+    unresolved: [],
+  };
   const guarded = guard(item.ticket, deps.config);
   if ("refused" in guarded) return { ...outcome, error: guarded.refused };
   try {
@@ -136,7 +142,8 @@ async function comment(
 function resolveMentions(item: PostPlanItem, state: TicketState, unresolved: string[]): Mention[] {
   const mentions: Mention[] = [];
   for (const { role, accountId } of item.mentions) {
-    const id = role === "assignee" ? state.assignee : role === "reporter" ? state.reporter : accountId;
+    const id =
+      role === "assignee" ? state.assignee : role === "reporter" ? state.reporter : accountId;
     if (id === undefined) unresolved.push(`role:${role}`);
     else mentions.push({ role, accountId: id });
   }
@@ -144,12 +151,19 @@ function resolveMentions(item: PostPlanItem, state: TicketState, unresolved: str
 }
 
 // a link names its tracker and project, so a typo must not reach another site or another team's project
-function guard(ticket: TicketRef, config: ProjectConfig): { config: TrackerConfig } | { refused: string } {
-  const tracker = Object.hasOwn(config.trackers, ticket.tracker) ? config.trackers[ticket.tracker] : undefined;
+function guard(
+  ticket: TicketRef,
+  config: ProjectConfig,
+): { config: TrackerConfig } | { refused: string } {
+  const tracker = Object.hasOwn(config.trackers, ticket.tracker)
+    ? config.trackers[ticket.tracker]
+    : undefined;
   if (tracker?.site === undefined) return { refused: `trackers.${ticket.tracker}.site is not set` };
   const project = unlistedProject(tracker, ticket.key);
   if (project !== undefined)
-    return { refused: `project ${project} is not listed under trackers.${ticket.tracker}.projects` };
+    return {
+      refused: `project ${project} is not listed under trackers.${ticket.tracker}.projects`,
+    };
   return { config: tracker };
 }
 
@@ -171,7 +185,9 @@ export function describeDirectPost(plan: PostPlan, config: ProjectConfig): strin
     return [
       `${ticket} read the ticket`,
       ...(files.length === 0 ? [] : [`${ticket} attach ${files.join(", ")}`]),
-      item.edit === undefined ? `${ticket} post ${comment}` : `${ticket} edit ${comment} at ${item.edit.url}`,
+      item.edit === undefined
+        ? `${ticket} post ${comment}`
+        : `${ticket} edit ${comment} at ${item.edit.url}`,
       ...(item.transition === undefined ? [] : [`${ticket} move to ${item.transition}`]),
     ];
   });

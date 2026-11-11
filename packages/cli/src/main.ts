@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { BRAND } from "@bazam/core/brand";
 import { PluginRegistry, type PluginManifest } from "@bazam/core/plugin";
-import { loadProject, loadProjectConfig, type Project, type ProjectConfig } from "@bazam/core/project";
+import {
+  loadProject,
+  loadProjectConfig,
+  type Project,
+  type ProjectConfig,
+} from "@bazam/core/project";
 import { defaultRedactionRules, Redactor } from "@bazam/core/redact";
 import driverWeb from "@bazam/driver-web";
 import resolvers from "@bazam/resolvers";
@@ -106,13 +111,28 @@ const COMMANDS: ReadonlyMap<string, Command> = new Map([
       run: runCommand,
     },
   ],
-  ["ingest", { usage: "ingest --env <env> --target <target> [selection] [--run <id>] <files...>", run: ingestCommand }],
+  [
+    "ingest",
+    {
+      usage: "ingest --env <env> --target <target> [selection] [--run <id>] <files...>",
+      run: ingestCommand,
+    },
+  ],
   [
     "promote",
-    { usage: "promote <case-id> --env <env> | promote --from-tracker --env <env> [selection]", run: promoteCommand },
+    {
+      usage: "promote <case-id> --env <env> | promote --from-tracker --env <env> [selection]",
+      run: promoteCommand,
+    },
   ],
   ["retire", { usage: "retire <case-id>", run: retireCommand }],
-  ["exec", { usage: "exec --env <env> [--channel terminal|answers-file] -- <command> [args]", run: execCommand }],
+  [
+    "exec",
+    {
+      usage: "exec --env <env> [--channel terminal|answers-file] -- <command> [args]",
+      run: execCommand,
+    },
+  ],
   ["keepalive", { usage: "keepalive --env <env> --as <identity>", run: keepaliveCommand }],
   ["logout", { usage: "logout [--as <identity>] [--env <env>]", run: logoutCommand }],
   [
@@ -162,7 +182,9 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   }
   const command = name === undefined ? undefined : COMMANDS.get(name);
   if (command === undefined) {
-    out.error(new CommandError(name === undefined ? "no command given" : `unknown command "${name}"`));
+    out.error(
+      new CommandError(name === undefined ? "no command given" : `unknown command "${name}"`),
+    );
     io.stderr.write(redactor.text(usage()));
     return ExitCode.CouldNotStart;
   }
@@ -171,7 +193,8 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   const registries: PluginRegistry[] = [];
   const loadPlugins = async () => {
     const { config, issues } = await loadProjectConfig(root);
-    if (config === undefined) throw new CommandError(`the project config in ${root} does not load`, issues);
+    if (config === undefined)
+      throw new CommandError(`the project config in ${root} does not load`, issues);
     // output written before this point is masked by the default rules only
     redactor.configure(config.redaction);
     const registry = await PluginRegistry.load(config, root, DEFAULT_PLUGINS, {

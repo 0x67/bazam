@@ -72,7 +72,10 @@ function renderer(tracker: string): TrackerRenderer {
   };
 }
 
-function inputs(results: CaseResult[], redactor = new Redactor(defaultRedactionRules())): BugInputs {
+function inputs(
+  results: CaseResult[],
+  redactor = new Redactor(defaultRedactionRules()),
+): BugInputs {
   return { results, config: CONFIG, renderer, runDir: RUN_DIR, redactor };
 }
 
@@ -97,7 +100,9 @@ describe("planBugs", () => {
           summary: "[CHECKOUT-CART-001] Cart total includes the discount fails in uat",
           labels: ["regression", LABEL],
           description: comment,
-          attachments: [{ name: "01-cart.png", path: join(RUN_DIR, "CHECKOUT-CART-001", "01-cart.png") }],
+          attachments: [
+            { name: "01-cart.png", path: join(RUN_DIR, "CHECKOUT-CART-001", "01-cart.png") },
+          ],
           relatesTo: ["SHOP-3", "DEMO-12", "BUGS-1"],
         },
         comment,
@@ -143,21 +148,32 @@ describe("planBugs", () => {
       ["regression", "fail", []],
     ];
 
-    expect(planBugs(inputs(quiet.map(([stage, status, links]) => result({ stage, status, links }))))).toEqual([]);
+    expect(
+      planBugs(inputs(quiet.map(([stage, status, links]) => result({ stage, status, links })))),
+    ).toEqual([]);
   });
 
   it("leaves out an attachment whose name leads outside the run folder", () => {
-    const [intent] = planBugs(inputs([result({ attachments: ["01-cart.png", "../../outside.txt"] })]));
+    const [intent] = planBugs(
+      inputs([result({ attachments: ["01-cart.png", "../../outside.txt"] })]),
+    );
 
     expect(intent).toMatchObject({
-      draft: { attachments: [{ name: "01-cart.png", path: join(RUN_DIR, "CHECKOUT-CART-001", "01-cart.png") }] },
+      draft: {
+        attachments: [
+          { name: "01-cart.png", path: join(RUN_DIR, "CHECKOUT-CART-001", "01-cart.png") },
+        ],
+      },
     });
   });
 
   it("leaves a withheld attachment out of the draft and the comment", () => {
     const naming: TrackerRenderer = {
       tracker: "jira",
-      render: (result) => ({ markdown: result.attachments.join(","), adf: { type: "text", text: "" } }),
+      render: (result) => ({
+        markdown: result.attachments.join(","),
+        adf: { type: "text", text: "" },
+      }),
     };
     const withheld = new Map([["CHECKOUT-CART-001/02-trace.zip", ["fixture alice.phone"]]]);
     const [intent] = planBugs({
@@ -176,7 +192,10 @@ describe("planBugs", () => {
   it("masks the draft and the comment with the project's patterns", () => {
     const redactor = new Redactor(defaultRedactionRules());
     redactor.configure({ patterns: ["ORDER-[0-9]{4}"], screenshotSelectors: [] });
-    const failed = result({ title: "ORDER-7731 checks out", reason: "ORDER-7731 was charged twice" });
+    const failed = result({
+      title: "ORDER-7731 checks out",
+      reason: "ORDER-7731 was charged twice",
+    });
 
     const [intent] = planBugs(inputs([failed], redactor));
 
@@ -231,7 +250,9 @@ describe("applyBugs", () => {
   });
 
   it("comments on a passing case's open bug and moves it, and does nothing when no bug is open", async () => {
-    const connection = new FakeTrackerConnection([{ key: "DEMO-77", status: "Open", labels: ["regression", LABEL] }]);
+    const connection = new FakeTrackerConnection([
+      { key: "DEMO-77", status: "Open", labels: ["regression", LABEL] },
+    ]);
     const intents = planBugs(
       inputs([result({ status: "pass" }), result({ caseId: "CHECKOUT-CART-002", status: "pass" })]),
     );
@@ -249,13 +270,21 @@ describe("applyBugs", () => {
       { caseId: "CHECKOUT-CART-002", ok: true, action: "no open bug in DEMO" },
     ]);
     expect(connection.tickets.get("DEMO-77")?.status).toBe("Done");
-    expect(connection.methods()).toEqual(["findOpenBug", "postComment", "transition", "findOpenBug"]);
+    expect(connection.methods()).toEqual([
+      "findOpenBug",
+      "postComment",
+      "transition",
+      "findOpenBug",
+    ]);
   });
 
   it("keeps a failed intent's error and goes on with the next", async () => {
     const connection = new FakeTrackerConnection();
-    connection.failures.createBug = "POST /rest/api/3/issue answered 400: issue type Bug is not valid";
-    const intents = planBugs(inputs([result(), result({ caseId: "CHECKOUT-CART-002", status: "pass" })]));
+    connection.failures.createBug =
+      "POST /rest/api/3/issue answered 400: issue type Bug is not valid";
+    const intents = planBugs(
+      inputs([result(), result({ caseId: "CHECKOUT-CART-002", status: "pass" })]),
+    );
 
     const outcomes = await applyBugs(intents, connected(connection));
 

@@ -8,7 +8,11 @@ const CONFIG = ProjectConfig.parse({
   trackers: {
     jira: {
       site: "tracker.example.test",
-      projects: { DEMO: { promoteOn: ["Done", "Released"] }, SHOP: { promoteOn: ["Shipped"] }, OPS: {} },
+      projects: {
+        DEMO: { promoteOn: ["Done", "Released"] },
+        SHOP: { promoteOn: ["Shipped"] },
+        OPS: {},
+      },
     },
   },
 });
@@ -26,7 +30,10 @@ function spec(links: string[]): CaseSpec {
 
 function states(entries: Record<string, string>): Map<string, TicketState> {
   return new Map(
-    Object.entries(entries).map(([link, status]) => [link, { key: link.split(":")[1]!, status, done: false }]),
+    Object.entries(entries).map(([link, status]) => [
+      link,
+      { key: link.split(":")[1]!, status, done: false },
+    ]),
   );
 }
 
@@ -48,11 +55,18 @@ describe("ticketsReadyForPromotion", () => {
       CONFIG,
     );
 
-    expect(verdict).toEqual({ ready: false, reason: "DEMO-14 is In Review; promoteOn lists Done, Released" });
+    expect(verdict).toEqual({
+      ready: false,
+      reason: "DEMO-14 is In Review; promoteOn lists Done, Released",
+    });
   });
 
   it("says when the project's promoteOn lists no status", () => {
-    const verdict = ticketsReadyForPromotion(spec(["jira:OPS-7"]), states({ "jira:OPS-7": "Done" }), CONFIG);
+    const verdict = ticketsReadyForPromotion(
+      spec(["jira:OPS-7"]),
+      states({ "jira:OPS-7": "Done" }),
+      CONFIG,
+    );
 
     expect(verdict).toEqual({
       ready: false,
@@ -74,7 +88,10 @@ describe("ticketsReadyForPromotion", () => {
       CONFIG,
     );
 
-    expect(verdict).toEqual({ ready: false, reason: "project WEB is not listed under trackers.jira.projects" });
+    expect(verdict).toEqual({
+      ready: false,
+      reason: "project WEB is not listed under trackers.jira.projects",
+    });
   });
 
   it("keeps a case whose linked ticket was not read", () => {

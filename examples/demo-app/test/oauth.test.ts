@@ -13,12 +13,21 @@ const clientBasic = {
   Authorization: `Basic ${Buffer.from(`${DEMO_OAUTH_CLIENT.id}:${DEMO_OAUTH_CLIENT.secret}`).toString("base64")}`,
 }
 
-async function token(fields: Record<string, string>, headers: Record<string, string> = clientBasic): Promise<Response> {
-  return new Visitor().request("/oauth/token", { method: "POST", headers, body: new URLSearchParams(fields) })
+async function token(
+  fields: Record<string, string>,
+  headers: Record<string, string> = clientBasic,
+): Promise<Response> {
+  return new Visitor().request("/oauth/token", {
+    method: "POST",
+    headers,
+    body: new URLSearchParams(fields),
+  })
 }
 
 function whoami(accessToken: string): Promise<Response> {
-  return new Visitor().request("/api/oauth/whoami", { headers: { Authorization: `Bearer ${accessToken}` } })
+  return new Visitor().request("/api/oauth/whoami", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
 }
 
 describe("OAuth2 token endpoint", () => {
@@ -36,7 +45,11 @@ describe("OAuth2 token endpoint", () => {
 
   it("accepts client credentials in the form body", async () => {
     const response = await token(
-      { grant_type: "client_credentials", client_id: DEMO_OAUTH_CLIENT.id, client_secret: DEMO_OAUTH_CLIENT.secret },
+      {
+        grant_type: "client_credentials",
+        client_id: DEMO_OAUTH_CLIENT.id,
+        client_secret: DEMO_OAUTH_CLIENT.secret,
+      },
       {},
     )
 
@@ -44,9 +57,14 @@ describe("OAuth2 token endpoint", () => {
   })
 
   it("swaps a refresh token for new tokens once", async () => {
-    const first = (await (await token({ grant_type: "client_credentials" })).json()) as TokenResponse
+    const first = (await (
+      await token({ grant_type: "client_credentials" })
+    ).json()) as TokenResponse
 
-    const refreshed = await token({ grant_type: "refresh_token", refresh_token: first.refresh_token })
+    const refreshed = await token({
+      grant_type: "refresh_token",
+      refresh_token: first.refresh_token,
+    })
     expect(refreshed.status).toBe(200)
     const second = (await refreshed.json()) as TokenResponse
     expect(second.access_token).not.toBe(first.access_token)

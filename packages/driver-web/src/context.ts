@@ -52,7 +52,11 @@ export class GuardedContext {
     this.#engine = context.browser()?.browserType().name();
   }
 
-  static async open(context: BrowserContext, env: Environment, refusals: Refusals): Promise<GuardedContext> {
+  static async open(
+    context: BrowserContext,
+    env: Environment,
+    refusals: Refusals,
+  ): Promise<GuardedContext> {
     const guarded = new GuardedContext(context, env, refusals);
     await context.route(
       () => true,
@@ -146,7 +150,8 @@ export class GuardedContext {
   #checkRedirect(request: Request, landed: string): void {
     if (this.#watchers.length === 0 || !isMainFrameNavigation(request)) return;
     let first = request;
-    for (let from = first.redirectedFrom(); from !== null; from = first.redirectedFrom()) first = from;
+    for (let from = first.redirectedFrom(); from !== null; from = first.redirectedFrom())
+      first = from;
     if (first === request && landed === request.url()) return;
     if (this.#lostSeen.has(first)) return;
     const matching = this.#watchers.filter(
@@ -201,7 +206,10 @@ export class GuardedContext {
       // WebKit keeps the header on a same-origin redirect and drops it on a cross-origin one, so a hop to another
       // allowlisted host goes without credentials; an Authorization header the page set itself wins
       return route.continue({
-        headers: { ...request.headers(), authorization: request.headers()["authorization"] ?? this.#authorization },
+        headers: {
+          ...request.headers(),
+          authorization: request.headers()["authorization"] ?? this.#authorization,
+        },
       });
     }
     if (isMainFrameNavigation(request)) return this.#refuse(route, refusal);
@@ -245,7 +253,8 @@ export class GuardedContext {
     const request = route.request();
     let response: APIResponse;
     try {
-      const authorization = this.#authorization === undefined ? {} : { authorization: this.#authorization };
+      const authorization =
+        this.#authorization === undefined ? {} : { authorization: this.#authorization };
       response = await route.fetch({
         headers: { ...authorization, ...request.headers(), ...this.#headers },
         maxRedirects: 0,
@@ -263,7 +272,8 @@ export class GuardedContext {
     }
     // so the guard checks where a redirect followed here landed
     const landing = hostRefusal(this.#env, new URL(response.url()));
-    if (landing !== undefined && isMainFrameNavigation(request)) return this.#refuse(route, landing);
+    if (landing !== undefined && isMainFrameNavigation(request))
+      return this.#refuse(route, landing);
     return route.fulfill({ response });
   }
 
@@ -288,7 +298,13 @@ const FETCH_TYPES: ReadonlySet<string> = new Set(["fetch", "xhr"]);
 const BASIC_SCHEME = /(?:^|,)\s*basic\b/i;
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // the headers fetch drops when a redirect turns a request into a GET
-const BODY_HEADERS = ["content-encoding", "content-language", "content-length", "content-location", "content-type"];
+const BODY_HEADERS = [
+  "content-encoding",
+  "content-language",
+  "content-length",
+  "content-location",
+  "content-type",
+];
 
 function isRedirect(response: APIResponse): boolean {
   return REDIRECT_STATUSES.has(response.status()) && response.headers()["location"] !== undefined;
@@ -303,7 +319,11 @@ interface RedirectHop {
  * The request a redirect leads to, with the page's own headers and none of the extra ones, built the way fetch
  * builds it. Playwright's request client keeps to the same rules for any hop after it.
  */
-function redirectHop(request: Request, redirect: APIResponse, authorization: string | undefined): RedirectHop {
+function redirectHop(
+  request: Request,
+  redirect: APIResponse,
+  authorization: string | undefined,
+): RedirectHop {
   const from = new URL(request.url());
   const to = new URL(redirect.headers()["location"]!, from);
   const status = redirect.status();
@@ -318,11 +338,15 @@ function redirectHop(request: Request, redirect: APIResponse, authorization: str
     ...(to.origin === from.origin ? [] : ["authorization"]),
     ...(toGet ? BODY_HEADERS : []),
   ]);
-  const headers = Object.fromEntries(Object.entries(request.headers()).filter(([name]) => !dropped.has(name)));
+  const headers = Object.fromEntries(
+    Object.entries(request.headers()).filter(([name]) => !dropped.has(name)),
+  );
   // basic credentials stay on a same-origin hop, as they do on a redirect WebKit follows itself, unless the page set its own
-  if (authorization !== undefined && to.origin === from.origin) headers["authorization"] ??= authorization;
+  if (authorization !== undefined && to.origin === from.origin)
+    headers["authorization"] ??= authorization;
   const body = request.postDataBuffer();
-  if (toGet || body === null) return { url: to.href, options: { method: toGet ? "GET" : method, headers } };
+  if (toGet || body === null)
+    return { url: to.href, options: { method: toGet ? "GET" : method, headers } };
   return { url: to.href, options: { method, headers, data: body } };
 }
 

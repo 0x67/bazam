@@ -11,7 +11,13 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 describe("resolvers plugin", () => {
   it("refuses pin-secret in the chain of pin when config lists pin as human-only", async () => {
     const config = ProjectConfig.parse({
-      envs: { live: { production: true, hosts: ["app.example.test"], challenges: { pin: ["pin-secret"] } } },
+      envs: {
+        live: {
+          production: true,
+          hosts: ["app.example.test"],
+          challenges: { pin: ["pin-secret"] },
+        },
+      },
       challenges: { humanOnly: ["pin"] },
     });
     const registry = await PluginRegistry.load(config, root, [resolvers]);
@@ -20,7 +26,9 @@ describe("resolvers plugin", () => {
   });
 
   it("adds the check rule for the secret pin-secret reads", async () => {
-    const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [resolvers]);
+    const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [
+      resolvers,
+    ]);
 
     expect(registry.checkRules()).toContain(pinSecretDeclared);
   });
@@ -42,7 +50,8 @@ describe("resolvers plugin", () => {
     });
     const registry = await PluginRegistry.load(config, root, [resolvers]);
     const demo = config.envs["demo"]!;
-    const names = (kind: string) => registry.resolverChain(demo, kind).map((resolver) => resolver.name);
+    const names = (kind: string) =>
+      registry.resolverChain(demo, kind).map((resolver) => resolver.name);
     expect(names("otp-email")).toEqual(["otp-mailpit", "otp-http-hook", "human"]);
     expect(names("otp-sms")).toEqual(["otp-http-hook"]);
     expect(names("totp")).toEqual(["totp"]);

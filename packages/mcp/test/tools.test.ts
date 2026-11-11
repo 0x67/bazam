@@ -78,7 +78,9 @@ describe("the server", () => {
       "run_start",
       "run_status",
     ]);
-    const fields = Object.fromEntries(tools.map((tool) => [tool.name, Object.keys(tool.inputSchema.properties ?? {})]));
+    const fields = Object.fromEntries(
+      tools.map((tool) => [tool.name, Object.keys(tool.inputSchema.properties ?? {})]),
+    );
     expect(fields).toEqual({
       cases_search: ["text", "filter"],
       case_draft: ["file", "yaml"],
@@ -110,10 +112,16 @@ describe("the server", () => {
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
-      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test-client", version: "0" } },
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "0" },
+      },
     };
     stdin.write(`${JSON.stringify(initialize)}\n`);
-    const [line] = (await new Promise<Buffer>((done) => stdout.once("data", done))).toString().split("\n");
+    const [line] = (await new Promise<Buffer>((done) => stdout.once("data", done)))
+      .toString()
+      .split("\n");
     const reply = JSON.parse(line!) as { result: { serverInfo: { name: string } } };
     expect(reply.result.serverInfo.name).toBe(BRAND.mcpServerName);
     stdin.end();
@@ -127,13 +135,24 @@ describe("case tools", () => {
     const mcp = await open(project.root);
     const all = await mcp.json<{ cases: { id: string }[] }>("cases_search", {});
     expect(all.cases.map((c) => c.id)).toEqual(["DESK-LOOK-001", "DESK-OLD-001"]);
-    const found = await mcp.json("cases_search", { text: "LAMP old", filter: { domains: ["desk"] } });
+    const found = await mcp.json("cases_search", {
+      text: "LAMP old",
+      filter: { domains: ["desk"] },
+    });
     expect(found).toEqual({
       cases: [
-        { id: "DESK-OLD-001", title: "The old desk lamp", stage: "retired", links: [], file: "cases/desk/cases.yaml" },
+        {
+          id: "DESK-OLD-001",
+          title: "The old desk lamp",
+          stage: "retired",
+          links: [],
+          file: "cases/desk/cases.yaml",
+        },
       ],
     });
-    const tagged = await mcp.json<{ cases: { id: string }[] }>("cases_search", { filter: { tags: ["visual"] } });
+    const tagged = await mcp.json<{ cases: { id: string }[] }>("cases_search", {
+      filter: { tags: ["visual"] },
+    });
     expect(tagged.cases.map((c) => c.id)).toEqual(["DESK-LOOK-001"]);
   });
 
@@ -143,11 +162,16 @@ describe("case tools", () => {
     await project.write(BRAND.configFile, JSON.stringify({ ...config, typoKey: true }));
     const mcp = await open(project.root);
     const titles = async () =>
-      (await mcp.json<{ cases: { title: string }[] }>("cases_search", {})).cases.map((c) => c.title);
+      (await mcp.json<{ cases: { title: string }[] }>("cases_search", {})).cases.map(
+        (c) => c.title,
+      );
 
     expect((await mcp.call("cases_search", {})).isError).toBe(true);
 
-    await project.write(BRAND.configFile, JSON.stringify({ ...config, redaction: { patterns: ["desk lamp"] } }));
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, redaction: { patterns: ["desk lamp"] } }),
+    );
 
     expect(await titles()).toEqual(["A person looks at the desk", "The old [redacted]"]);
 
@@ -160,16 +184,26 @@ describe("case tools", () => {
     const project = await fixtureProject();
     const mcp = await open(project.root);
     const broken = SHELF_CASE.replace("    title: The shelf holds the books\n", "");
-    const report = await mcp.json<DraftReport>("case_draft", { file: "cases/desk/shelf.yaml", yaml: broken });
+    const report = await mcp.json<DraftReport>("case_draft", {
+      file: "cases/desk/shelf.yaml",
+      yaml: broken,
+    });
     expect(report.written).toBe(false);
     expect(report.issues).toContainEqual(
-      expect.objectContaining({ ruleId: "schema", severity: "error", file: "cases/desk/shelf.yaml" }),
+      expect.objectContaining({
+        ruleId: "schema",
+        severity: "error",
+        file: "cases/desk/shelf.yaml",
+      }),
     );
     expect(existsSync(join(project.root, "cases/desk/shelf.yaml"))).toBe(false);
 
     // the first file in load order keeps an id, so the duplicate is reported on the file already there
     const duplicate = SHELF_CASE.replace("DESK-SHELF-001", "DESK-LOOK-001");
-    const twice = await mcp.json<DraftReport>("case_draft", { file: "cases/desk/a-first.yaml", yaml: duplicate });
+    const twice = await mcp.json<DraftReport>("case_draft", {
+      file: "cases/desk/a-first.yaml",
+      yaml: duplicate,
+    });
     expect(twice.written).toBe(false);
     expect(twice.issues).toContainEqual(
       expect.objectContaining({ ruleId: "id-unique", file: "cases/desk/cases.yaml" }),
@@ -185,8 +219,15 @@ describe("case tools", () => {
       file: "cases/shelf/cases.yaml",
       yaml: SHELF_CASE.replaceAll("DESK-", "SHELF-"),
     });
-    expect(report).toMatchObject({ file: "cases/shelf/cases.yaml", written: true, errors: 0, issues: [] });
-    expect(await project.read("cases/shelf/cases.yaml")).toBe(SHELF_CASE.replaceAll("DESK-", "SHELF-"));
+    expect(report).toMatchObject({
+      file: "cases/shelf/cases.yaml",
+      written: true,
+      errors: 0,
+      issues: [],
+    });
+    expect(await project.read("cases/shelf/cases.yaml")).toBe(
+      SHELF_CASE.replaceAll("DESK-", "SHELF-"),
+    );
     expect((await readdir(join(project.root, "cases/shelf"))).sort()).toEqual(["cases.yaml"]);
   });
 
@@ -218,9 +259,16 @@ describe("case tools", () => {
 
   it("case_draft checks a copy that holds the runner mapping files inside the root", async () => {
     const project = await fixtureProject();
-    const config = JSON.parse(await project.read(BRAND.configFile)) as { targets: Record<string, unknown> };
+    const config = JSON.parse(await project.read(BRAND.configFile)) as {
+      targets: Record<string, unknown>;
+    };
     const runners = {
-      desk: { command: ["node", "desk-suite.js"], results: "out/*.xml", format: "junit", mapping: "interop/desk.yaml" },
+      desk: {
+        command: ["node", "desk-suite.js"],
+        results: "out/*.xml",
+        format: "junit",
+        mapping: "interop/desk.yaml",
+      },
     };
     const targets = { ...config.targets, "desk-suite": { runner: "desk" } };
     await project.write(BRAND.configFile, JSON.stringify({ ...config, runners, targets }));
@@ -228,14 +276,18 @@ describe("case tools", () => {
     const mcp = await open(project.root);
 
     // the drafted case runs on no target of runner desk, which only a copy holding the mapping file can see
-    const report = await mcp.json<DraftReport>("case_draft", { file: "cases/desk/shelf.yaml", yaml: SHELF_CASE });
+    const report = await mcp.json<DraftReport>("case_draft", {
+      file: "cases/desk/shelf.yaml",
+      yaml: SHELF_CASE,
+    });
 
     expect(report.written).toBe(false);
     expect(report.issues).toContainEqual(
       expect.objectContaining({
         ruleId: "runner-mapping-valid",
         file: "interop/desk.yaml",
-        message: 'test "shelf holds books" maps to case DESK-SHELF-001, which does not run on a target of runner desk',
+        message:
+          'test "shelf holds books" maps to case DESK-SHELF-001, which does not run on a target of runner desk',
       }),
     );
     expect(existsSync(join(project.root, "cases/desk/shelf.yaml"))).toBe(false);
@@ -247,7 +299,9 @@ describe("case tools", () => {
     const mcp = await open(project.root);
     const all = await mcp.json<{ issues: Issue[]; errors: number }>("case_check", {});
     expect(all.errors).toBeGreaterThan(0);
-    expect(new Set(all.issues.map((issue) => issue.file))).toEqual(new Set(["cases/attic/cases.yaml"]));
+    expect(new Set(all.issues.map((issue) => issue.file))).toEqual(
+      new Set(["cases/attic/cases.yaml"]),
+    );
     const desk = await mcp.json("case_check", { files: ["cases/desk/cases.yaml"] });
     expect(desk).toEqual({ issues: [], errors: 0, warnings: 0 });
   });
@@ -277,8 +331,12 @@ describe("case tools", () => {
       JSON.stringify({ ...config, identities: { alice: {}, bob: {}, ops: {} }, roles }),
     );
     const mcp = await open(project.root);
-    expect((await mcp.json<RunPlan>("run_plan", { env: "demo" })).roles).toEqual({ tester: "alice" });
-    expect((await mcp.json<RunPlan>("run_plan", { env: "demo", roles: { tester: "bob" } })).roles).toEqual({
+    expect((await mcp.json<RunPlan>("run_plan", { env: "demo" })).roles).toEqual({
+      tester: "alice",
+    });
+    expect(
+      (await mcp.json<RunPlan>("run_plan", { env: "demo", roles: { tester: "bob" } })).roles,
+    ).toEqual({
       tester: "bob",
     });
     for (const tool of ["run_plan", "run_start"]) {
@@ -287,7 +345,10 @@ describe("case tools", () => {
       const unlisted = await mcp.call(tool, { env: "demo", roles: { tester: "ops" } });
       expect(textOf(unlisted)).toBe("role tester lists alice, bob, not ops");
     }
-    const proto = await mcp.call("run_plan", { env: "demo", roles: JSON.parse('{"__proto__":"alice"}') as object });
+    const proto = await mcp.call("run_plan", {
+      env: "demo",
+      roles: JSON.parse('{"__proto__":"alice"}') as object,
+    });
     expect(proto.isError).toBe(true);
     expect(existsSync(join(project.root, "runs"))).toBe(false);
   });
@@ -304,7 +365,15 @@ describe("case tools", () => {
       target: "t",
       links: ["jira:DEMO-1"],
       status: "pass",
-      checks: [{ name: "Look at the desk", kind: "guided", expected: "The desk is tidy", observed: "tidy", ok: true }],
+      checks: [
+        {
+          name: "Look at the desk",
+          kind: "guided",
+          expected: "The desk is tidy",
+          observed: "tidy",
+          ok: true,
+        },
+      ],
       notes: [],
       followups: [],
       attachments: [],
@@ -320,7 +389,9 @@ describe("case tools", () => {
     await project.write(`runs/${runId}/DESK-LOOK-001/result.json`, JSON.stringify(result));
     const mcp = await open(project.root);
 
-    const plan = await mcp.json<{ items: { comment: Record<string, unknown> }[] }>("report_plan", { runId });
+    const plan = await mcp.json<{ items: { comment: Record<string, unknown> }[] }>("report_plan", {
+      runId,
+    });
 
     expect(plan.items).toHaveLength(1);
     expect(Object.keys(plan.items[0]!.comment).sort()).toEqual(["html", "markdown"]);
@@ -359,7 +430,10 @@ describe("case tools", () => {
     await project.write(`${caseDir}/02-clean.txt`, "tidy\n");
     const mcp = await open(project.root);
 
-    const plan = await mcp.json<{ items: { attachments: string[]; withheld: unknown }[] }>("report_plan", { runId });
+    const plan = await mcp.json<{ items: { attachments: string[]; withheld: unknown }[] }>(
+      "report_plan",
+      { runId },
+    );
 
     expect(plan.items[0]?.attachments).toEqual(["DESK-LOOK-001/02-clean.txt"]);
     expect(plan.items[0]?.withheld).toEqual([
@@ -372,7 +446,9 @@ describe("case tools", () => {
     const runId = "20261107-120000-abcd";
     const caseDir = join(project.root, "runs", runId, "DESK-LOOK-001");
     await mkdir(caseDir, { recursive: true });
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ]);
     await writeFile(join(caseDir, "01-desk.png"), png);
     await writeFile(join(caseDir, "02-notes.txt"), "tidy");
     await writeFile(join(project.root, "escape.png"), png);
@@ -388,10 +464,17 @@ describe("case tools", () => {
     expect(plain.content).toHaveLength(1);
     expect(JSON.parse(textOf(plain))).toEqual({
       result,
-      attachments: [`runs/${runId}/DESK-LOOK-001/01-desk.png`, `runs/${runId}/DESK-LOOK-001/02-notes.txt`],
+      attachments: [
+        `runs/${runId}/DESK-LOOK-001/01-desk.png`,
+        `runs/${runId}/DESK-LOOK-001/02-notes.txt`,
+      ],
     });
 
-    const withImages = await mcp.call("evidence_get", { runId, caseId: "DESK-LOOK-001", includeImages: true });
+    const withImages = await mcp.call("evidence_get", {
+      runId,
+      caseId: "DESK-LOOK-001",
+      includeImages: true,
+    });
     expect(withImages.content.slice(1)).toEqual([
       { type: "text", text: `runs/${runId}/DESK-LOOK-001/01-desk.png` },
       { type: "image", data: png.toString("base64"), mimeType: "image/png" },
@@ -426,7 +509,12 @@ describe("case tools", () => {
     const runId = "20261107-120000-abcd";
     await project.write(
       `runs/${runId}/DESK-LOOK-001/result.json`,
-      JSON.stringify({ runId, caseId: "DESK-LOOK-001", notes: ["code 4321-9876"], attachments: [] }),
+      JSON.stringify({
+        runId,
+        caseId: "DESK-LOOK-001",
+        notes: ["code 4321-9876"],
+        attachments: [],
+      }),
     );
     await project.write(
       `runs/${runId}/prompts/DESK-LOOK-001-1-otp-email.json`,

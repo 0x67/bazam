@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, onTestFinished } from "vite-plus/test";
@@ -13,7 +21,8 @@ function copyRepository(): string {
   const copy = mkdtempSync(path.join(tmpdir(), "rename-test-"));
   cpSync(root, copy, {
     recursive: true,
-    filter: (source) => !notCopied.has(path.basename(source)) && !notCopiedAtRoot.has(path.relative(root, source)),
+    filter: (source) =>
+      !notCopied.has(path.basename(source)) && !notCopiedAtRoot.has(path.relative(root, source)),
   });
   return copy;
 }
@@ -70,10 +79,14 @@ it("leaves run evidence and state in a nested project folder unchanged", () => {
     writeFileSync(path.join(copy, file), marker);
   }
 
-  const result = spawnSync(process.execPath, [path.join(copy, "scripts", "rename.ts"), "demo-x"], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [path.join(copy, "scripts", "rename.ts"), "demo-x"], {
+    encoding: "utf8",
+  });
 
   expect(result.status, result.stderr).toBe(0);
   expect(readFileSync(path.join(copy, files.evidence), "utf8")).toBe(marker);
   expect(readFileSync(path.join(copy, files.state), "utf8")).toBe(marker);
-  expect(readFileSync(path.join(copy, files.doc), "utf8")).toBe("demo-x:AUTH-LOGIN-001:20261106-164200-ab12");
+  expect(readFileSync(path.join(copy, files.doc), "utf8")).toBe(
+    "demo-x:AUTH-LOGIN-001:20261106-164200-ab12",
+  );
 });

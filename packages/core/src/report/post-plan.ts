@@ -46,7 +46,10 @@ export type MediaRefs = z.infer<typeof MediaRefs>;
 
 /** Default transition names by tracker, tracker project and status, as the config's `trackers` block holds them. */
 export type TransitionMap = Readonly<
-  Record<string, { projects: Readonly<Record<string, { transitions: Partial<Record<Status, string>> }>> }>
+  Record<
+    string,
+    { projects: Readonly<Record<string, { transitions: Partial<Record<Status, string>> }>> }
+  >
 >;
 
 /** One result as a tracker comment; `adf` is the Atlassian Document Format body, for Jira. */
@@ -103,15 +106,20 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
   });
   // a configured project without the status means no transition; a project missing from the config cannot be mapped
   const projects = ownEntry(inputs.transitions, ticket.tracker)?.projects;
-  const project = projects === undefined ? undefined : ownEntry(projects, trackerProject(ticket.key));
+  const project =
+    projects === undefined ? undefined : ownEntry(projects, trackerProject(ticket.key));
   const transition = action?.transition ?? project?.transitions[result.status];
   const receipt =
-    report?.comment === "update" ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId) : undefined;
+    report?.comment === "update"
+      ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId)
+      : undefined;
   const held = (name: string) => inputs.withheld?.get(`${result.caseId}/${name}`);
   const kept = result.attachments.filter((name) => held(name) === undefined);
   const withheld = result.attachments.flatMap((name) => {
     const kinds = held(name);
-    return kinds === undefined ? [] : [{ attachment: `${result.caseId}/${name}`, kinds: [...kinds] }];
+    return kinds === undefined
+      ? []
+      : [{ attachment: `${result.caseId}/${name}`, kinds: [...kinds] }];
   });
   return {
     marker: `${BRAND.markerPrefix}:${result.caseId}:${result.runId}`,
@@ -125,8 +133,12 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
     ...(transition === undefined ? {} : { transition }),
     mentions,
     unresolved: [
-      ...mentions.filter((mention) => mention.accountId === undefined).map((mention) => `role:${mention.role}`),
-      ...(action?.transition === undefined && project === undefined ? [`transition:${result.status}`] : []),
+      ...mentions
+        .filter((mention) => mention.accountId === undefined)
+        .map((mention) => `role:${mention.role}`),
+      ...(action?.transition === undefined && project === undefined
+        ? [`transition:${result.status}`]
+        : []),
     ],
   };
 }

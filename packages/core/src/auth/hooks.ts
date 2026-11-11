@@ -21,6 +21,7 @@ export async function loadAuthHook(projectRoot: string, modulePath: string): Pro
     throw new Error(`auth hook "${modulePath}" is outside the project root ${root}`);
   }
   const module: { default?: unknown } = await import(pathToFileURL(file).href);
-  if (typeof module.default !== "function") throw new Error(`auth hook "${modulePath}" has no default export function`);
+  if (typeof module.default !== "function")
+    throw new Error(`auth hook "${modulePath}" has no default export function`);
   return module.default as AuthHook;
 }

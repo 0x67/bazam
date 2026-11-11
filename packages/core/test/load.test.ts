@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 import { CaseSpec, loadCases } from "../src/case/index.ts";
 
-const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/cases/${name}`, import.meta.url));
+const fixture = (name: string) =>
+  fileURLToPath(new URL(`./fixtures/cases/${name}`, import.meta.url));
 
 describe("loadCases", () => {
   it("loads every case under cases/<domain>/ with its domain and the line of its list item", async () => {
@@ -29,7 +30,9 @@ describe("loadCases", () => {
       ["id-retired", "cases/auth/ids.yaml", 13],
       ["id-domain", "cases/auth/ids.yaml", 18],
     ]);
-    expect(idIssues.find((issue) => issue.ruleId === "id-unique")?.message).toContain("cases/auth/ids.yaml:3");
+    expect(idIssues.find((issue) => issue.ruleId === "id-unique")?.message).toContain(
+      "cases/auth/ids.yaml:3",
+    );
     expect(idIssues.find((issue) => issue.ruleId === "id-domain")?.fix).toContain("AUTH-");
     expect(idIssues.every((issue) => issue.severity === "error" && issue.fix !== "")).toBe(true);
   });
@@ -38,15 +41,19 @@ describe("loadCases", () => {
     const load = await loadCases(fixture("broken"), CaseSpec);
     const issues = load.issues.filter((issue) => issue.file === "cases/auth/schema-ids.yaml");
 
-    expect(issues.filter((issue) => issue.ruleId.startsWith("id-")).map((issue) => [issue.ruleId, issue.line])).toEqual(
-      [
-        ["id-retired", 3],
-        ["id-domain", 9],
-        ["id-unique", 19],
-      ],
-    );
+    expect(
+      issues
+        .filter((issue) => issue.ruleId.startsWith("id-"))
+        .map((issue) => [issue.ruleId, issue.line]),
+    ).toEqual([
+      ["id-retired", 3],
+      ["id-domain", 9],
+      ["id-unique", 19],
+    ]);
     expect(issues.filter((issue) => issue.ruleId === "schema")).toHaveLength(3);
-    expect(issues.find((issue) => issue.ruleId === "id-unique")?.message).toContain("cases/auth/schema-ids.yaml:13");
+    expect(issues.find((issue) => issue.ruleId === "id-unique")?.message).toContain(
+      "cases/auth/schema-ids.yaml:13",
+    );
   });
 
   it("keeps only the cases without issues, and the first case of a duplicated id", async () => {
@@ -73,7 +80,8 @@ describe("loadCases", () => {
 
   it("reports YAML syntax errors and a file without a cases list on their lines", async () => {
     const load = await loadCases(fixture("broken"), CaseSpec);
-    const byFile = (file: string) => load.issues.filter((issue) => issue.file === file).map((i) => [i.ruleId, i.line]);
+    const byFile = (file: string) =>
+      load.issues.filter((issue) => issue.file === file).map((i) => [i.ruleId, i.line]);
 
     expect(byFile("cases/auth/syntax.yaml")).toEqual([["schema", 4]]);
     expect(byFile("cases/auth/shape.yaml")).toEqual([

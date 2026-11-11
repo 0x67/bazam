@@ -15,7 +15,8 @@ export default definePlugin({
       automated: true,
       async resolve(request, ctx) {
         const url = request.params["url"];
-        if (url === undefined || url === "") throw new Error("demo-otp-hook needs params.url, the hook to GET");
+        if (url === undefined || url === "")
+          throw new Error("demo-otp-hook needs params.url, the hook to GET");
         const response = await ctx.http.send({
           method: "GET",
           url: new URL(url),
@@ -27,7 +28,8 @@ export default definePlugin({
         // the query may hold the recipient, so the message leaves the URL out
         if (response.status !== 200) throw new Error(`the hook answered ${response.status}`);
         const body = response.body;
-        const code = typeof body === "object" && body !== null && "code" in body ? body.code : undefined;
+        const code =
+          typeof body === "object" && body !== null && "code" in body ? body.code : undefined;
         if (typeof code !== "string") throw new Error("the hook's answer holds no code");
         return { kind: "value", value: code };
       },

@@ -19,13 +19,17 @@ export async function ingestCommand(ctx: CommandContext): Promise<ExitCode> {
   const { flags } = ctx;
   const [target, ...others] = flags.target ?? [];
   if (target === undefined || others.length > 0) {
-    throw new CommandError("ingest takes one --target, the runner target whose runner wrote the files");
+    throw new CommandError(
+      "ingest takes one --target, the runner target whose runner wrote the files",
+    );
   }
   if (ctx.args.length === 0) throw new CommandError("name the result files to ingest");
   const start = await startRun(ctx);
   const { project } = start;
   if (runnerOf(project.config, target) === undefined) {
-    const entry = Object.hasOwn(project.config.targets, target) ? project.config.targets[target] : undefined;
+    const entry = Object.hasOwn(project.config.targets, target)
+      ? project.config.targets[target]
+      : undefined;
     throw new CommandError(
       entry === undefined
         ? `target ${target} is not defined under targets in ${BRAND.configFile}`
@@ -55,6 +59,9 @@ export async function ingestCommand(ctx: CommandContext): Promise<ExitCode> {
     redactor: ctx.redactor,
     seed: start.seed,
   });
-  ctx.out.result(summary(runId, results), summaryText(runId, results, relative(ctx.io.cwd, runDir)));
+  ctx.out.result(
+    summary(runId, results),
+    summaryText(runId, results, relative(ctx.io.cwd, runDir)),
+  );
   return exitCodeFor(results.map((result) => result.status));
 }

@@ -67,7 +67,9 @@ export const mailpitResolver: ChallengeResolver = {
       const from = (lookBackFrom ??= (found.date ?? ctx.now().getTime()) - LOOK_BACK_MS);
       return found.mail.filter((mail) => mail.created >= from);
     };
-    const code = await withTimeout(inbox, ctx.signal, (stop) => poll(ctx.http, inbox, newMail, stop));
+    const code = await withTimeout(inbox, ctx.signal, (stop) =>
+      poll(ctx.http, inbox, newMail, stop),
+    );
     return code === undefined ? undefined : { kind: "value", value: code };
   },
 };
@@ -126,7 +128,13 @@ async function findCode(
 ): Promise<string | undefined> {
   for (const mail of newMail(await search(http, inbox, stop))) {
     const text = textOf(
-      (await getJson(http, new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`), stop)).body,
+      (
+        await getJson(
+          http,
+          new URL(`${inbox.url}${inbox.messagePath}/${encodeURIComponent(mail.id)}`),
+          stop,
+        )
+      ).body,
     );
     const match = inbox.pattern.exec(text);
     if (match !== null) return match[1] ?? match[0];

@@ -29,7 +29,8 @@ export const httpHookResolver: ChallengeResolver = {
     if (response.status !== 200)
       throw new Error(`the hook answered ${response.status} to GET ${hook.origin}${hook.pathname}`);
     const value = valueAt(response.body, field);
-    if (typeof value === "string" || typeof value === "number") return { kind: "value", value: String(value) };
+    if (typeof value === "string" || typeof value === "number")
+      return { kind: "value", value: String(value) };
     throw new Error(`the hook's answer holds no text or number at ${field}`);
   },
 };
@@ -39,6 +40,8 @@ function valueAt(body: unknown, field: string): unknown {
   return keys.reduce<unknown>((value, key) => {
     if (Array.isArray(value)) return /^\d+$/.test(key) ? value[Number(key)] : undefined;
     const isRecord = typeof value === "object" && value !== null;
-    return isRecord && Object.hasOwn(value, key) ? (value as Record<string, unknown>)[key] : undefined;
+    return isRecord && Object.hasOwn(value, key)
+      ? (value as Record<string, unknown>)[key]
+      : undefined;
   }, body);
 }

@@ -43,7 +43,11 @@ const env: Environment = {
   probes: [],
 };
 const HOUR_MS = 60 * 60_000;
-const SESSION_COOKIE = { name: "session", value: "fake-session-cookie", domain: "app.example.test" };
+const SESSION_COOKIE = {
+  name: "session",
+  value: "fake-session-cookie",
+  domain: "app.example.test",
+};
 const person: HumanChannel = { ask: async () => ({ kind: "timeout" }) };
 
 type Token = { token: string; refreshToken: string; expiresAt: string };
@@ -68,7 +72,11 @@ function tokenStrategy(clock: () => Date, options: TokenStrategyOptions = {}) {
   const issue = (identity: string): Token => {
     issued += 1;
     const expiresAt = new Date(clock().getTime() + HOUR_MS).toISOString();
-    const token = { token: `fake-${identity}-${issued}`, refreshToken: `fake-refresh-${issued}`, expiresAt };
+    const token = {
+      token: `fake-${identity}-${issued}`,
+      refreshToken: `fake-refresh-${issued}`,
+      expiresAt,
+    };
     return options.undefinedField === true ? ({ ...token, scope: undefined } as Token) : token;
   };
   const strategy = defineAuthStrategy<{ audience: string }, Token>({
@@ -107,13 +115,21 @@ const cookieStrategy = defineAuthStrategy<{ loginUrl: string }, StorageState>({
   needsPerson: () => true,
   acquire: async (config, ctx) => {
     if (ctx.browser === undefined) throw new Error("the cookie login needs browser.login");
-    return (await ctx.browser.login({ url: new URL(config.loginUrl), until: { cookie: "session" }, timeoutMs: 1_000 }))
-      .state;
+    return (
+      await ctx.browser.login({
+        url: new URL(config.loginUrl),
+        until: { cookie: "session" },
+        timeoutMs: 1_000,
+      })
+    ).state;
   },
   apply: async (state, target) => {
     if (target.kind === "browser") return target.session.loadStorageState(state);
     const cookies = state.cookies as { name: string; value: string }[];
-    target.request.headers.set("cookie", cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "));
+    target.request.headers.set(
+      "cookie",
+      cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "),
+    );
   },
   secrets: (state) => (state.cookies as { value: string }[]).map((cookie) => cookie.value),
 });
@@ -124,18 +140,28 @@ const endpointStrategy = defineAuthStrategy<{ tokenUrl: string }, { accessToken:
   config: z.object({ tokenUrl: z.string() }),
   cacheable: false,
   acquire: async (config, ctx) => {
-    const response = await ctx.http.send({ method: "POST", url: new URL(config.tokenUrl), headers: new Headers() });
+    const response = await ctx.http.send({
+      method: "POST",
+      url: new URL(config.tokenUrl),
+      headers: new Headers(),
+    });
     return { accessToken: (response.body as { accessToken: string }).accessToken };
   },
   apply: async (credential, target) => {
-    if (target.kind === "http") target.request.headers.set("authorization", `Bearer ${credential.accessToken}`);
+    if (target.kind === "http")
+      target.request.headers.set("authorization", `Bearer ${credential.accessToken}`);
   },
   secrets: (credential) => [credential.accessToken],
 });
 
 const cookieSurface = { strategy: "cookie", with: { loginUrl: "https://app.example.test/login" } };
 const tokenSurface = { strategy: "token", with: { audience: "orders" } };
-const customerApiKey: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "token" };
+const customerApiKey: CredentialKey = {
+  env: "demo",
+  identity: "customer",
+  surface: "api",
+  strategy: "token",
+};
 
 function draft(): HttpRequestDraft {
   return { method: "GET", url: new URL("https://app.example.test/me"), headers: new Headers() };
@@ -205,7 +231,11 @@ describe("Identities", () => {
     expect(customerPage.extraHeaders).toEqual({ authorization: "Bearer fake-customer-1" });
     expect(adminPage.extraHeaders).toEqual({ authorization: "Bearer fake-admin-2" });
     expect(customerRequest.headers.get("authorization")).toBe("Bearer fake-customer-3");
-    expect(calls).toEqual(["acquire customer for web", "acquire admin for web", "acquire customer for api"]);
+    expect(calls).toEqual([
+      "acquire customer for web",
+      "acquire admin for web",
+      "acquire customer for api",
+    ]);
   });
 
   it("reuses another surface with from:", async () => {
@@ -231,7 +261,10 @@ describe("Identities", () => {
 
   it("runs acquire, apply, refresh for a strategy from defineAuthStrategy", async () => {
     const { strategy, calls, contexts } = tokenStrategy(clock);
-    const ids = await identities({ customer: { fixture: "customer", auth: { api: tokenSurface } } }, [strategy]);
+    const ids = await identities(
+      { customer: { fixture: "customer", auth: { api: tokenSurface } } },
+      [strategy],
+    );
     const first = draft();
     const second = draft();
 
@@ -250,17 +283,31 @@ describe("Identities", () => {
   it("lets a strategy reach an allowed host through AuthContext.http and refuses a host outside the list", async () => {
     const received: string[] = [];
     const server = createServer((request, response) => {
-      received.push(`${request.method} ${request.url} ${request.headers.authorization ?? "no authorization"}`);
-      response.writeHead(200, { "content-type": "application/json" }).end('{"accessToken":"fake-access-1"}');
+      received.push(
+        `${request.method} ${request.url} ${request.headers.authorization ?? "no authorization"}`,
+      );
+      response
+        .writeHead(200, { "content-type": "application/json" })
+        .end('{"accessToken":"fake-access-1"}');
     });
     await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
     const { port } = server.address() as AddressInfo;
     try {
       const configs = {
-        customer: { auth: { api: { strategy: "endpoint", with: { tokenUrl: `http://127.0.0.1:${port}/token` } } } },
-        partner: { auth: { api: { strategy: "endpoint", with: { tokenUrl: "https://outside.example.test/token" } } } },
+        customer: {
+          auth: {
+            api: { strategy: "endpoint", with: { tokenUrl: `http://127.0.0.1:${port}/token` } },
+          },
+        },
+        partner: {
+          auth: {
+            api: { strategy: "endpoint", with: { tokenUrl: "https://outside.example.test/token" } },
+          },
+        },
       };
-      const ids = await identities(configs, [endpointStrategy], { env: { ...env, hosts: new Set(["127.0.0.1"]) } });
+      const ids = await identities(configs, [endpointStrategy], {
+        env: { ...env, hosts: new Set(["127.0.0.1"]) },
+      });
       const request = draft();
 
       await ids.authorize("customer", "api", { kind: "http", request });
@@ -278,7 +325,9 @@ describe("Identities", () => {
 
   it("calls log on the deps it was given when a strategy sends a request", async () => {
     const server = createServer((_request, response) => {
-      response.writeHead(200, { "content-type": "application/json" }).end('{"accessToken":"fake-access-1"}');
+      response
+        .writeHead(200, { "content-type": "application/json" })
+        .end('{"accessToken":"fake-access-1"}');
     });
     await new Promise<void>((listening) => server.listen(0, "127.0.0.1", listening));
     const { port } = server.address() as AddressInfo;
@@ -292,7 +341,9 @@ describe("Identities", () => {
       // a deps object whose log is a method that reads its own fields
       const deps: IdentitiesDeps & { lines: string[] } = {
         env: { ...env, hosts: new Set(["127.0.0.1"]) },
-        configs: IdentitiesConfig.parse({ customer: { auth: { api: { strategy: "endpoint", with: { tokenUrl } } } } }),
+        configs: IdentitiesConfig.parse({
+          customer: { auth: { api: { strategy: "endpoint", with: { tokenUrl } } } },
+        }),
         fixtures: {},
         registry: await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), root, [plugin]),
         cache: new CredentialCache(join(root, "credentials")),
@@ -405,7 +456,11 @@ describe("Identities", () => {
     });
     const cache = new CredentialCache(join(root, "credentials"));
     const expiresAt = new Date(now.getTime() + HOUR_MS).toISOString();
-    await cache.save(customerApiKey, { token: "fake-stale", refreshToken: "fake-refresh-stale", expiresAt });
+    await cache.save(customerApiKey, {
+      token: "fake-stale",
+      refreshToken: "fake-refresh-stale",
+      expiresAt,
+    });
     const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
     let ensured: Promise<void> | undefined;
 
@@ -435,7 +490,11 @@ describe("Identities", () => {
     now = new Date(now.getTime() + 2 * HOUR_MS);
     await ids.ensureCredential("customer", "api");
 
-    expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1", "acquire customer for orders"]);
+    expect(calls).toEqual([
+      "acquire customer for orders",
+      "refresh fake-customer-1",
+      "acquire customer for orders",
+    ]);
   });
 
   it("logs in again instead of refreshing when the strategy cannot refresh the credential", async () => {
@@ -492,7 +551,10 @@ describe("Identities", () => {
           },
         },
         [strategy],
-        { resolve: async (value) => (value as string).replace("${env.APP_URL}", "https://app.example.test") as never },
+        {
+          resolve: async (value) =>
+            (value as string).replace("${env.APP_URL}", "https://app.example.test") as never,
+        },
       );
 
       expect(await ids.lostOn("customer", "web")).toBe("https://app.example.test/login*");
@@ -530,7 +592,11 @@ describe("Identities", () => {
       await ids.ensureCredential("customer", "api");
 
       expect(await ids.recoverOrLogIn("customer", "api")).toBe("loggedIn");
-      expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1", "acquire customer for orders"]);
+      expect(calls).toEqual([
+        "acquire customer for orders",
+        "refresh fake-customer-1",
+        "acquire customer for orders",
+      ]);
     });
 
     it("adopts a credential another process saved", async () => {
@@ -555,7 +621,8 @@ describe("Identities", () => {
     it("logs in instead of refreshing a saved credential of another account", async () => {
       const { strategy, calls } = tokenStrategy(clock, {
         probe: (credential) => {
-          if (credential.token === "fake-from-other-process") throw new IdentityMismatch(["body.user_id"]);
+          if (credential.token === "fake-from-other-process")
+            throw new IdentityMismatch(["body.user_id"]);
           return true;
         },
       });
@@ -570,7 +637,9 @@ describe("Identities", () => {
 
       expect(await ids.recoverOrLogIn("customer", "api")).toBe("loggedIn");
       expect(calls).toEqual(["acquire customer for orders", "acquire customer for orders"]);
-      expect((await cache.load(customerApiKey))?.credential).toMatchObject({ token: "fake-customer-2" });
+      expect((await cache.load(customerApiKey))?.credential).toMatchObject({
+        token: "fake-customer-2",
+      });
     });
 
     it("does nothing for a strategy that caches nothing", async () => {
@@ -590,8 +659,12 @@ describe("Identities", () => {
       const before = await new CredentialCache(join(root, "credentials")).load(customerApiKey);
       healthy = false;
 
-      await expect(ids.recoverOrLogIn("customer", "api")).rejects.toBeInstanceOf(CredentialRejected);
-      expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toEqual(before);
+      await expect(ids.recoverOrLogIn("customer", "api")).rejects.toBeInstanceOf(
+        CredentialRejected,
+      );
+      expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toEqual(
+        before,
+      );
     });
   });
 
@@ -599,7 +672,9 @@ describe("Identities", () => {
     const { strategy } = tokenStrategy(clock, { probe: () => false });
     const ids = await identities({ customer: { auth: { api: tokenSurface } } }, [strategy]);
 
-    await expect(ids.ensureCredential("customer", "api")).rejects.toBeInstanceOf(CredentialRejected);
+    await expect(ids.ensureCredential("customer", "api")).rejects.toBeInstanceOf(
+      CredentialRejected,
+    );
     expect(await cacheFiles()).toEqual([]);
   });
 
@@ -622,7 +697,8 @@ describe("Identities", () => {
     const { strategy, calls } = tokenStrategy(clock, {
       refreshKeepsToken: true,
       probe: (credential) => {
-        if (mismatched && credential.token === "fake-customer-1") throw new IdentityMismatch(["body.user_id"]);
+        if (mismatched && credential.token === "fake-customer-1")
+          throw new IdentityMismatch(["body.user_id"]);
         return true;
       },
     });
@@ -639,7 +715,13 @@ describe("Identities", () => {
   });
 
   it("logs in again when the probe header needs a cookie the cached state lacks, and says so when the new one lacks it too", async () => {
-    const missing = new MissingHeaderCookie("probe", "customer", "csrf", "x-csrf-token", "https://app.example.test");
+    const missing = new MissingHeaderCookie(
+      "probe",
+      "customer",
+      "csrf",
+      "x-csrf-token",
+      "https://app.example.test",
+    );
     let lacking = false;
     const { strategy, calls } = tokenStrategy(clock, {
       canRefresh: () => false,
@@ -681,9 +763,11 @@ describe("Identities", () => {
     expect(recovered).toBe(true);
     expect(calls).toEqual(["acquire customer for orders", "refresh fake-customer-1"]);
     expect(retry.headers.get("authorization")).toBe("Bearer fake-customer-2");
-    expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toMatchObject({
-      credential: { token: "fake-customer-2" },
-    });
+    expect(await new CredentialCache(join(root, "credentials")).load(customerApiKey)).toMatchObject(
+      {
+        credential: { token: "fake-customer-2" },
+      },
+    );
   });
 
   it("refreshes on a 401 when the credential holds a field set to undefined", async () => {
@@ -707,9 +791,18 @@ describe("Identities", () => {
   it("two processes refreshing a single-use token both end valid", async () => {
     const server = await startTokenServer();
     try {
-      const key: CredentialKey = { env: "demo", identity: "customer", surface: "api", strategy: "single-use" };
+      const key: CredentialKey = {
+        env: "demo",
+        identity: "customer",
+        surface: "api",
+        strategy: "single-use",
+      };
       const expired = new Date(Date.now() - 60_000);
-      const stale = { accessToken: "fake-access-0", refreshToken: "fake-refresh-0", expiresAt: expired.toISOString() };
+      const stale = {
+        accessToken: "fake-access-0",
+        refreshToken: "fake-refresh-0",
+        expiresAt: expired.toISOString(),
+      };
       await new CredentialCache(join(root, "credentials")).save(key, stale, expired);
       const modules = [
         "../src/auth/index.ts",
@@ -719,13 +812,20 @@ describe("Identities", () => {
       ].map((path) => new URL(path, import.meta.url).href);
       const coreDir = fileURLToPath(new URL("..", import.meta.url));
       const start = () =>
-        run(process.execPath, ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url], {
-          cwd: coreDir,
-        });
+        run(
+          process.execPath,
+          ["--input-type=module", "-e", REFRESH_WORKER, ...modules, root, server.url],
+          {
+            cwd: coreDir,
+          },
+        );
 
       const [first, second] = await Promise.all([start(), start()]);
 
-      expect([first.stdout, second.stdout]).toEqual(["Bearer fake-access-1", "Bearer fake-access-1"]);
+      expect([first.stdout, second.stdout]).toEqual([
+        "Bearer fake-access-1",
+        "Bearer fake-access-1",
+      ]);
       expect(server.issued).toEqual(["fake-access-1"]);
     } finally {
       await server.close();
@@ -735,7 +835,8 @@ describe("Identities", () => {
 
 describe("IdentitiesConfig", () => {
   describe("refreshEveryMs", () => {
-    const parse = (surface: unknown) => IdentitiesConfig.safeParse({ customer: { auth: { web: surface } } });
+    const parse = (surface: unknown) =>
+      IdentitiesConfig.safeParse({ customer: { auth: { web: surface } } });
 
     it("takes 10000 or more beside with:, and is refused beside from:", () => {
       expect(parse({ ...tokenSurface, refreshEveryMs: 10_000 }).success).toBe(true);
@@ -743,7 +844,10 @@ describe("IdentitiesConfig", () => {
       expect(parse({ ...tokenSurface, refreshEveryMs: 12_000.5 }).success).toBe(false);
       const reused = IdentitiesConfig.safeParse({
         customer: {
-          auth: { web: tokenSurface, api: { strategy: "token", from: "web", refreshEveryMs: 120_000 } },
+          auth: {
+            web: tokenSurface,
+            api: { strategy: "token", from: "web", refreshEveryMs: 120_000 },
+          },
         },
       });
       expect(reused.success).toBe(false);
@@ -757,7 +861,10 @@ describe("IdentitiesConfig", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(IdentitiesConfig.safeParse({ customer: { auth: { web: { ...tokenSurface, lostOn } } } }).success).toBe(true);
+    expect(
+      IdentitiesConfig.safeParse({ customer: { auth: { web: { ...tokenSurface, lostOn } } } })
+        .success,
+    ).toBe(true);
   });
 
   it("rejects from: naming another strategy or a surface that has no settings of its own", () => {
@@ -776,7 +883,10 @@ describe("IdentitiesConfig", () => {
         "customer.auth.api.from",
         'surface "web" uses strategy cookie, not token; give surface "api" strategy: cookie or point its from: at a surface that uses strategy token',
       ],
-      ["customer.auth.mobile.from", 'from: "api" must name a surface of this identity with its own settings'],
+      [
+        "customer.auth.mobile.from",
+        'from: "api" must name a surface of this identity with its own settings',
+      ],
     ]);
   });
 });

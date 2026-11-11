@@ -3,7 +3,13 @@ import { BRAND } from "@bazam/core/brand";
 import { bugLabel } from "@bazam/core/report";
 import { startJiraStub, type JiraStub } from "../../tracker-jira/test/support/jira-stub.ts";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 const EMAIL = "qa@example.test";
 const TOKEN = "not-a-real-jira-token";
@@ -41,7 +47,13 @@ afterEach(async () => {
   await removeFixtures();
 });
 
-function shopCase(id: string, stage: string, links: string[], path: string, title: string): string[] {
+function shopCase(
+  id: string,
+  stage: string,
+  links: string[],
+  path: string,
+  title: string,
+): string[] {
   return [
     `  - id: ${id}`,
     `    title: ${title}`,
@@ -60,15 +72,29 @@ function shopCases(options: { okLinks?: string[]; failPath?: string } = {}): str
   return [
     "cases:",
     ...shopCase("SHOP-OK-001", "acceptance", okLinks, "ok", "The shop answers"),
-    ...shopCase("SHOP-FAIL-001", "regression", ["jira:DEMO-12"], failPath, "The shop reports an error"),
+    ...shopCase(
+      "SHOP-FAIL-001",
+      "regression",
+      ["jira:DEMO-12"],
+      failPath,
+      "The shop reports an error",
+    ),
     ...shopCase("SHOP-BACK-001", "regression", ["jira:DEMO-12"], "ok", "The shop is back"),
-    ...shopCase("SHOP-LOOSE-001", "regression", [], "broken", "The shop fails where no one tracks it"),
+    ...shopCase(
+      "SHOP-LOOSE-001",
+      "regression",
+      [],
+      "broken",
+      "The shop fails where no one tracks it",
+    ),
     "",
   ].join("\n");
 }
 
 /** The fixture project with a Jira tracker on the stub; without `site` when `site` is false. */
-async function trackedProject(options: { site?: boolean; secrets?: boolean } = {}): Promise<Fixture> {
+async function trackedProject(
+  options: { site?: boolean; secrets?: boolean } = {},
+): Promise<Fixture> {
   const project = await fixtureProject(api);
   const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
   const jira = {
@@ -83,7 +109,10 @@ async function trackedProject(options: { site?: boolean; secrets?: boolean } = {
   };
   await project.write(BRAND.configFile, JSON.stringify({ ...config, trackers: { jira } }));
   if (options.secrets !== false) {
-    await project.write(`${BRAND.stateDir}/secrets.env`, `DEMO_JIRA_EMAIL=${EMAIL}\nDEMO_JIRA_TOKEN=${TOKEN}\n`);
+    await project.write(
+      `${BRAND.stateDir}/secrets.env`,
+      `DEMO_JIRA_EMAIL=${EMAIL}\nDEMO_JIRA_TOKEN=${TOKEN}\n`,
+    );
   }
   await project.write("cases/shop/cases.yaml", shopCases());
   return project;
@@ -108,10 +137,17 @@ describe("report post", () => {
     const posted = lines(first.stdout);
     // items first, then bug outcomes
     expect(posted.slice(0, 2)).toEqual(
-      Array(2).fill(expect.stringMatching(new RegExp(`^posted DEMO-12 ${browse}/DEMO-12\\?focusedCommentId=\\d+$`))),
+      Array(2).fill(
+        expect.stringMatching(
+          new RegExp(`^posted DEMO-12 ${browse}/DEMO-12\\?focusedCommentId=\\d+$`),
+        ),
+      ),
     );
     expect(posted.slice(2).sort()).toEqual(
-      ["SHOP-BACK-001: no open bug in DEMO", `SHOP-FAIL-001: filed DEMO-13 ${browse}/DEMO-13`].sort(),
+      [
+        "SHOP-BACK-001: no open bug in DEMO",
+        `SHOP-FAIL-001: filed DEMO-13 ${browse}/DEMO-13`,
+      ].sort(),
     );
     expect(first.stderr).toContain("no bug project for SHOP-LOOSE-001");
     expect(first.stdout + first.stderr).not.toContain(TOKEN);
@@ -124,7 +160,11 @@ describe("report post", () => {
     await run(project, "r2", "--case", "SHOP-FAIL-001");
     const second = await project.cli("report", "post", "--run", "r2", "--json");
     expect(second.code, second.stderr).toBe(ExitCode.Pass);
-    const doc = JSON.parse(second.stdout) as { runId: string; items: { ok: boolean }[]; bugs: unknown[] };
+    const doc = JSON.parse(second.stdout) as {
+      runId: string;
+      items: { ok: boolean }[];
+      bugs: unknown[];
+    };
     expect(doc.runId).toBe("r2");
     expect(doc.items).toMatchObject([{ ok: true, ticket: { tracker: "jira", key: "DEMO-12" } }]);
     expect(doc.bugs).toEqual([
@@ -139,7 +179,9 @@ describe("report post", () => {
 
     // the case passes now, so its open bug gets a comment and moves to onPass
     await project.write("cases/shop/cases.yaml", shopCases({ failPath: "ok" }));
-    stub.issues.get("DEMO-13")!.transitions = [{ id: "41", name: "Done", to: "Done", category: "done" }];
+    stub.issues.get("DEMO-13")!.transitions = [
+      { id: "41", name: "Done", to: "Done", category: "done" },
+    ];
     await run(project, "r3", "--case", "SHOP-FAIL-001");
     const third = await project.cli("report", "post", "--run", "r3");
     expect(third.code, third.stderr).toBe(ExitCode.Pass);
@@ -155,7 +197,10 @@ describe("report post", () => {
 
   it("exits 1 when an item fails, and sends nothing for a project the config does not list", async () => {
     const project = await trackedProject();
-    await project.write("cases/shop/cases.yaml", shopCases({ okLinks: ["jira:DEMO-12", "jira:OTHER-3"] }));
+    await project.write(
+      "cases/shop/cases.yaml",
+      shopCases({ okLinks: ["jira:DEMO-12", "jira:OTHER-3"] }),
+    );
     await run(project, "r1", "--case", "SHOP-OK-001");
     const { code, stdout } = await project.cli("report", "post", "--run", "r1");
     expect(code).toBe(ExitCode.Fail);
@@ -169,7 +214,10 @@ describe("report post", () => {
   it("exits 1 when a bug action fails, and masks its error by the configured patterns", async () => {
     const project = await trackedProject();
     const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
-    await project.write(BRAND.configFile, JSON.stringify({ ...config, redaction: { patterns: ["offers none"] } }));
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, redaction: { patterns: ["offers none"] } }),
+    );
     const labels = [bugLabel("SHOP-BACK-001")];
     stub.issues.set("DEMO-13", { key: "DEMO-13", status: "Open", labels, transitions: [] });
     await run(project, "r1", "--case", "SHOP-BACK-001");
@@ -179,7 +227,9 @@ describe("report post", () => {
     // the failed line still names the comment that was posted
     const [posted] = stub.issues.get("DEMO-13")?.comments ?? [];
     const url = `http://${stub.site}/browse/DEMO-13?focusedCommentId=${posted?.id}`;
-    expect(lines(text.stdout)).toEqual([`failed SHOP-BACK-001: commented on DEMO-13 ${url}: ${error}`]);
+    expect(lines(text.stdout)).toEqual([
+      `failed SHOP-BACK-001: commented on DEMO-13 ${url}: ${error}`,
+    ]);
     const json = await project.cli("report", "post", "--run", "r1", "--json");
     expect(json.code, json.stderr).toBe(ExitCode.Fail);
     const doc = JSON.parse(json.stdout) as { items: unknown[]; bugs: unknown[] };
@@ -203,12 +253,16 @@ describe("report post", () => {
     const posted = await project.cli("report", "post", "--run", "r1");
 
     expect(posted.code, posted.stderr).toBe(ExitCode.Pass);
-    expect(posted.stderr).toContain("post plan withholds SHOP-FAIL-001/09-notes.txt: fixture alice.pin");
+    expect(posted.stderr).toContain(
+      "post plan withholds SHOP-FAIL-001/09-notes.txt: fixture alice.pin",
+    );
     const bug = stub.issues.get("DEMO-13");
     expect(bug).toBeDefined();
     expect(bug?.attachments?.map((a) => a.name) ?? []).not.toContain("09-notes.txt");
     expect(JSON.stringify(bug?.description)).not.toContain("09-notes.txt");
-    expect(posted.stdout + posted.stderr + JSON.stringify([...stub.issues.values()])).not.toContain(pin);
+    expect(posted.stdout + posted.stderr + JSON.stringify([...stub.issues.values()])).not.toContain(
+      pin,
+    );
   });
 
   it("prints what it would send with --dry-run, sending nothing", async () => {

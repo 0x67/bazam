@@ -63,7 +63,11 @@ export class JsonRpcPeer {
   /** Resolves with the reason once the peer closes, also when it closes itself after a line over its limit. */
   readonly closed: Promise<Error> = this.#closing.promise;
 
-  constructor(input: Readable, output: Writable, options: { maxLineBytes?: number; log?(line: string): void }) {
+  constructor(
+    input: Readable,
+    output: Writable,
+    options: { maxLineBytes?: number; log?(line: string): void },
+  ) {
     this.#output = output;
     this.#maxLineBytes = options.maxLineBytes ?? MAX_LINE_BYTES;
     this.#log = (line) => options.log?.(line);
@@ -82,7 +86,11 @@ export class JsonRpcPeer {
    * `timeoutMs` passes; either way the other side gets `$/cancelRequest`. A request whose line would pass the line
    * limit rejects at once with an `RpcError` of code `LINE_TOO_LONG` and sends nothing.
    */
-  request<T>(method: string, params: unknown, options: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> {
+  request<T>(
+    method: string,
+    params: unknown,
+    options: { signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<T> {
     if (this.#closed !== undefined) return Promise.reject(this.#closed);
     const { signal, timeoutMs } = options;
     if (signal?.aborted === true) return Promise.reject(signal.reason);
@@ -90,7 +98,10 @@ export class JsonRpcPeer {
     const line = JSON.stringify({ jsonrpc: "2.0", id, method, params });
     if (!this.#fits(line)) {
       return Promise.reject(
-        new RpcError(LINE_TOO_LONG, `${method} would send a line longer than ${this.#maxLineBytes} bytes`),
+        new RpcError(
+          LINE_TOO_LONG,
+          `${method} would send a line longer than ${this.#maxLineBytes} bytes`,
+        ),
       );
     }
     const { promise, resolve, reject } = Promise.withResolvers<T>();
@@ -109,7 +120,10 @@ export class JsonRpcPeer {
       timeoutMs === undefined
         ? undefined
         : setTimeout(
-            () => abandon(new DOMException(`${method} got no answer within ${timeoutMs} ms`, "TimeoutError")),
+            () =>
+              abandon(
+                new DOMException(`${method} got no answer within ${timeoutMs} ms`, "TimeoutError"),
+              ),
             Math.min(timeoutMs, MAX_TIMER_MS),
           );
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -218,7 +232,9 @@ export class JsonRpcPeer {
   #settle(answer: Record<string, unknown>): void {
     const pending = typeof answer.id === "number" ? this.#pending.get(answer.id) : undefined;
     if (pending === undefined) {
-      this.#log(`ignored an answer to unknown request ${isId(answer.id) ? JSON.stringify(answer.id) : "null"}`);
+      this.#log(
+        `ignored an answer to unknown request ${isId(answer.id) ? JSON.stringify(answer.id) : "null"}`,
+      );
       return;
     }
     const error = answer.error;
@@ -228,7 +244,8 @@ export class JsonRpcPeer {
 
   async #notification(method: string, params: unknown): Promise<void> {
     if (method === CANCEL_METHOD) {
-      const id: unknown = typeof params === "object" && params !== null ? (params as { id?: unknown }).id : undefined;
+      const id: unknown =
+        typeof params === "object" && params !== null ? (params as { id?: unknown }).id : undefined;
       if (isId(id)) this.#running.get(id)?.abort();
       return;
     }
@@ -247,7 +264,10 @@ export class JsonRpcPeer {
   async #answer(id: Id, method: string, params: unknown): Promise<void> {
     const handler = this.#handlers.get(method);
     if (handler === undefined) {
-      this.#answerError(id, method, { code: METHOD_NOT_FOUND, message: `unknown method ${method}` });
+      this.#answerError(id, method, {
+        code: METHOD_NOT_FOUND,
+        message: `unknown method ${method}`,
+      });
       return;
     }
     const controller = new AbortController();
@@ -272,9 +292,15 @@ export class JsonRpcPeer {
     this.#write(line);
   }
 
-  #answerError(id: Id, method: string, error: { code: number; message: string; data?: unknown }): void {
+  #answerError(
+    id: Id,
+    method: string,
+    error: { code: number; message: string; data?: unknown },
+  ): void {
     if (this.#closed !== undefined) return;
-    this.#log(`answered ${JSON.stringify(method)} request ${JSON.stringify(id)} with error ${error.code}`);
+    this.#log(
+      `answered ${JSON.stringify(method)} request ${JSON.stringify(id)} with error ${error.code}`,
+    );
     const line = JSON.stringify({ jsonrpc: "2.0", id, error });
     if (this.#fits(line)) {
       this.#write(line);
@@ -316,12 +342,15 @@ function cancelled(id: Id): { code: number; message: string } {
 
 /** A handler's own `RpcError` keeps its code; any other failure is an internal error with the error's message. */
 function wireError(error: unknown): { code: number; message: string; data?: unknown } {
-  if (error instanceof RpcError) return { code: error.code, message: error.message, data: error.data };
+  if (error instanceof RpcError)
+    return { code: error.code, message: error.message, data: error.data };
   return { code: INTERNAL_ERROR, message: error instanceof Error ? error.message : String(error) };
 }
 
 function rpcErrorOf(error: unknown): RpcError | MalformedAnswer {
-  const { code, message, data } = (typeof error === "object" && error !== null ? error : {}) as Record<string, unknown>;
+  const { code, message, data } = (
+    typeof error === "object" && error !== null ? error : {}
+  ) as Record<string, unknown>;
   if (typeof code !== "number" || typeof message !== "string") {
     return new MalformedAnswer("the answer held an error that is not a JSON-RPC error object");
   }

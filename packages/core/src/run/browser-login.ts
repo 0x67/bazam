@@ -53,7 +53,11 @@ export class RunBrowserLogin implements BrowserLogin {
         "no driver session offers browser.login; run the cases that need this login on a target whose driver offers it, such as one with driver: playwright",
       );
     const stop = new AbortController();
-    const signals = [stop.signal, this.#scope.signal, ...(request.signal === undefined ? [] : [request.signal])];
+    const signals = [
+      stop.signal,
+      this.#scope.signal,
+      ...(request.signal === undefined ? [] : [request.signal]),
+    ];
     const forDriver: BrowserLoginRequest = {
       url: request.url,
       until: request.until,
@@ -64,16 +68,29 @@ export class RunBrowserLogin implements BrowserLogin {
       forDriver.flow = await this.#scope.resolve(expandFlows(request.flow, this.#scope.flows));
     if (request.prompt === undefined) return browserLogin.login(forDriver);
     // the driver never shows the prompt, but learns from it that a person acts and needs a visible browser
-    forDriver.prompt = maskPrompt({ ...request.prompt, runId: this.#scope.runId }, this.#scope.redactor);
+    forDriver.prompt = maskPrompt(
+      { ...request.prompt, runId: this.#scope.runId },
+      this.#scope.redactor,
+    );
     return this.#withPerson(browserLogin.login(forDriver), forDriver.prompt, stop);
   }
 
   /** `prompt` is already masked. */
-  async #withPerson(login: Promise<LoginResult>, prompt: PersonPrompt, stop: AbortController): Promise<LoginResult> {
+  async #withPerson(
+    login: Promise<LoginResult>,
+    prompt: PersonPrompt,
+    stop: AbortController,
+  ): Promise<LoginResult> {
     const asked = new AbortController();
-    const answer = this.#scope.channel.ask(prompt, AbortSignal.any([asked.signal, this.#scope.signal]));
+    const answer = this.#scope.channel.ask(
+      prompt,
+      AbortSignal.any([asked.signal, this.#scope.signal]),
+    );
     try {
-      const first = await Promise.race([login.then((done) => ({ done })), answer.then((reply) => ({ reply }))]);
+      const first = await Promise.race([
+        login.then((done) => ({ done })),
+        answer.then((reply) => ({ reply })),
+      ]);
       if ("done" in first) return first.done;
       const refusal = refusalOf(first.reply);
       if (refusal === undefined) return await login;

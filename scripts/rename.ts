@@ -16,7 +16,9 @@ function main(args: string[]): number {
     return 1;
   }
   renameTree(root, nameReplacer(BRAND.name, newName));
-  console.log(`Renamed ${BRAND.name} to ${newName}. Run pnpm install to relink the workspace packages.`);
+  console.log(
+    `Renamed ${BRAND.name} to ${newName}. Run pnpm install to relink the workspace packages.`,
+  );
   return 0;
 }
 
@@ -29,7 +31,8 @@ function nameReplacer(oldName: string, newName: string): (text: string) => strin
 
 function casedLike(match: string, name: string): string {
   if (match === match.toUpperCase()) return name.toUpperCase().replaceAll("-", "_");
-  if (match.charAt(0) === match.charAt(0).toUpperCase()) return name.charAt(0).toUpperCase() + name.slice(1);
+  if (match.charAt(0) === match.charAt(0).toUpperCase())
+    return name.charAt(0).toUpperCase() + name.slice(1);
   return name;
 }
 

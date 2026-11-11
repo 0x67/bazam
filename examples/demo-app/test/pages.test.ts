@@ -11,7 +11,13 @@ function elementsWithoutTestId(html: string): string[] {
 
 describe("pages", () => {
   const publicPages = ["/login", "/login/verify?email=someone%40example.test", "/login/totp"]
-  const signedInPages = ["/dashboard", "/account/totp", "/account/passkey", "/transfer/confirm", "/profile/phone"]
+  const signedInPages = [
+    "/dashboard",
+    "/account/totp",
+    "/account/passkey",
+    "/transfer/confirm",
+    "/profile/phone",
+  ]
 
   it.each(publicPages)("%s gives every interactive element a data-testid", async (path) => {
     const response = await new Visitor().request(path)
@@ -36,7 +42,9 @@ describe("pages", () => {
 
     const response = await visitor.request("/dashboard")
 
-    expect(await response.text()).toContain('<a href="/profile/phone" data-testid="profile-phone-link">')
+    expect(await response.text()).toContain(
+      '<a href="/profile/phone" data-testid="profile-phone-link">',
+    )
   })
 
   it("serves the passkey script from public/", async () => {

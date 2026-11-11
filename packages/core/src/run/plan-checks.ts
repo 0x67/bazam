@@ -48,19 +48,24 @@ export interface PlanCheckRun {
 const READ_ONLY_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD"]);
 
 /** Runs each plan check over the cases still unblocked and blocks the ones it names. */
-export async function runPlanChecks(checks: readonly PlanCheck[], run: PlanCheckRun): Promise<void> {
+export async function runPlanChecks(
+  checks: readonly PlanCheck[],
+  run: PlanCheckRun,
+): Promise<void> {
   const { plan, cases, env, redactor } = run;
   const http: GuardedHttp = {
     send: async (request, as) => {
       const method = request.method.toUpperCase();
-      if (env.production && !READ_ONLY_METHODS.has(method)) throw new ProdWriteRefused(method, env.name);
+      if (env.production && !READ_ONLY_METHODS.has(method))
+        throw new ProdWriteRefused(method, env.name);
       return run.http.send(request, as);
     },
   };
   for (const check of checks) {
     const given = plan.cases.flatMap((planned, position) => {
       const loaded = cases[position];
-      const open = planned.blocked === undefined && loginReason(planned, run.loginsBlocked) === undefined;
+      const open =
+        planned.blocked === undefined && loginReason(planned, run.loginsBlocked) === undefined;
       return open && loaded !== undefined ? [{ planned, given: toCase(planned, loaded) }] : [];
     });
     if (given.length === 0) continue;
@@ -79,12 +84,18 @@ export async function runPlanChecks(checks: readonly PlanCheck[], run: PlanCheck
     }
     for (const [caseId, reason] of Object.entries(reasons)) {
       const entry = given.find((candidate) => candidate.given.caseId === caseId);
-      if (entry === undefined) run.log(`plan check ${check.name} named ${caseId}, which is not a case it was given`);
+      if (entry === undefined)
+        run.log(`plan check ${check.name} named ${caseId}, which is not a case it was given`);
       else entry.planned.blocked = redactor.text(reason);
     }
   }
 }
 
 function toCase(planned: RunPlan["cases"][number], loaded: LoadedCase): PlanCheckCase {
-  return { caseId: planned.caseId, target: planned.target, identities: planned.identities, spec: loaded.spec };
+  return {
+    caseId: planned.caseId,
+    target: planned.target,
+    identities: planned.identities,
+    spec: loaded.spec,
+  };
 }

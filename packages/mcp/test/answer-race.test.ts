@@ -32,7 +32,11 @@ const prompt: PersonPrompt = {
 };
 
 /** A pending value prompt in a run whose process is this test's own, so the supervisor sees it alive. */
-async function pending(): Promise<{ project: Fixture; supervisor: RunSupervisor; answerFile: string }> {
+async function pending(): Promise<{
+  project: Fixture;
+  supervisor: RunSupervisor;
+  answerFile: string;
+}> {
   const project = await fixtureProject();
   const record = { runId, pid: process.pid, argv: [], startedAt: "2026-11-07T12:00:00.000Z" };
   await project.write(`runs/${runId}/supervisor.json`, JSON.stringify(record));
@@ -42,7 +46,10 @@ async function pending(): Promise<{ project: Fixture; supervisor: RunSupervisor;
 }
 
 /** Runs `before` just before the answer file lands and `after` just after. */
-function aroundAnswer(answerFile: string, hooks: { before?: () => Promise<void>; after?: () => Promise<void> }): void {
+function aroundAnswer(
+  answerFile: string,
+  hooks: { before?: () => Promise<void>; after?: () => Promise<void> },
+): void {
   vi.mocked(fs.rename).mockImplementation(async (from, to) => {
     if (to !== answerFile) return actual.rename(from, to);
     await hooks.before?.();
@@ -59,12 +66,15 @@ describe("an answer racing the run", () => {
     aroundAnswer(answerFile, {
       before: async () => {
         await fs.mkdir(join(project.root, "runs", runId, "prompts", "done"));
-        await actual.rename(promptFile, join(project.root, "runs", runId, "prompts", "done", `${promptId}.json`));
+        await actual.rename(
+          promptFile,
+          join(project.root, "runs", runId, "prompts", "done", `${promptId}.json`),
+        );
       },
     });
-    await expect(supervisor.answer(runId, promptId, { kind: "value", value: "834512" })).rejects.toThrow(
-      `prompt ${promptId} is not pending in run ${runId}`,
-    );
+    await expect(
+      supervisor.answer(runId, promptId, { kind: "value", value: "834512" }),
+    ).rejects.toThrow(`prompt ${promptId} is not pending in run ${runId}`);
     expect(existsSync(answerFile)).toBe(false);
   });
 
@@ -72,13 +82,19 @@ describe("an answer racing the run", () => {
     const { project, supervisor, answerFile } = await pending();
     aroundAnswer(answerFile, {
       before: async () => {
-        const record = { runId, pid: process.pid, argv: [], startedAt: "", exit: { code: null, signal: "SIGKILL" } };
+        const record = {
+          runId,
+          pid: process.pid,
+          argv: [],
+          startedAt: "",
+          exit: { code: null, signal: "SIGKILL" },
+        };
         await project.write(`runs/${runId}/supervisor.json`, JSON.stringify(record));
       },
     });
-    await expect(supervisor.answer(runId, promptId, { kind: "value", value: "834512" })).rejects.toThrow(
-      `prompt ${promptId} is not pending in run ${runId}`,
-    );
+    await expect(
+      supervisor.answer(runId, promptId, { kind: "value", value: "834512" }),
+    ).rejects.toThrow(`prompt ${promptId} is not pending in run ${runId}`);
     expect(existsSync(answerFile)).toBe(false);
   });
 
@@ -91,6 +107,8 @@ describe("an answer racing the run", () => {
         await fs.rm(join(project.root, "runs", runId, "prompts", `${promptId}.json`));
       },
     });
-    await expect(supervisor.answer(runId, promptId, { kind: "value", value: "834512" })).resolves.toBeUndefined();
+    await expect(
+      supervisor.answer(runId, promptId, { kind: "value", value: "834512" }),
+    ).resolves.toBeUndefined();
   });
 });

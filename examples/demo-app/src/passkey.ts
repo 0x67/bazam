@@ -34,7 +34,9 @@ export function passkeyRoutes(deps: DemoDeps): Hono<SignedIn> {
       rpID,
       userName: user.email,
       userID: user.webauthnUserId,
-      excludeCredentials: passkeysOf(store, user.email).map(({ credential }) => ({ id: credential.id })),
+      excludeCredentials: passkeysOf(store, user.email).map(({ credential }) => ({
+        id: credential.id,
+      })),
     })
     store.registrationChallenges.set(user.email, options.challenge)
     return c.json(options)
@@ -45,7 +47,8 @@ export function passkeyRoutes(deps: DemoDeps): Hono<SignedIn> {
     if (!user) return c.json({ error: "no session" }, 401)
     const expectedChallenge = store.registrationChallenges.get(user.email)
     const response = await readJson<RegistrationResponseJSON>(c)
-    if (!expectedChallenge || !response) return c.json({ error: "request registration options first" }, 400)
+    if (!expectedChallenge || !response)
+      return c.json({ error: "request registration options first" }, 400)
     store.registrationChallenges.delete(user.email)
     try {
       const result = await verifyRegistrationResponse({

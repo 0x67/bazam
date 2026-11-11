@@ -100,7 +100,11 @@ export async function fixtureProject(api: Api): Promise<Fixture> {
   };
   const config = {
     envs: {
-      demo: { production: false, hosts: ["127.0.0.1"], vars: { API_URL: api.url, DOWN_URL: api.downUrl } },
+      demo: {
+        production: false,
+        hosts: ["127.0.0.1"],
+        vars: { API_URL: api.url, DOWN_URL: api.downUrl },
+      },
     },
     targets: { t: { driver: "fake" }, u: { driver: "fake" } },
     plugins: ["./fake-driver.mjs"],

@@ -1,6 +1,15 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import {
   trackerHttp,
@@ -25,8 +34,15 @@ interface Seen {
 
 type Route = (req: IncomingMessage, res: ServerResponse, seen: Seen) => void;
 
-function json(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
-  res.writeHead(status, { "content-type": "application/json", ...headers }).end(JSON.stringify(body));
+function json(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): void {
+  res
+    .writeHead(status, { "content-type": "application/json", ...headers })
+    .end(JSON.stringify(body));
 }
 
 const servers: Server[] = [];
@@ -103,7 +119,11 @@ describe("trackerHttp", () => {
   }
 
   it("refuses a base that is not https, except http on 127.0.0.1 or localhost with a port", () => {
-    for (const base of ["http://tracker.example.test", "http://localhost/", "ftp://127.0.0.1:2121"]) {
+    for (const base of [
+      "http://tracker.example.test",
+      "http://localhost/",
+      "ftp://127.0.0.1:2121",
+    ]) {
       expect(() => client(base)).toThrow(
         `tracker base ${new URL(base).origin} is not https; http is only for 127.0.0.1 or localhost with a port`,
       );
@@ -114,7 +134,8 @@ describe("trackerHttp", () => {
   });
 
   it("joins the path onto the base path and sends the credential, logging method and path only", async () => {
-    tracker.route.current = (_req, res) => json(res, 200, { key: "DEMO-12", fields: { status: { name: "Done" } } });
+    tracker.route.current = (_req, res) =>
+      json(res, 200, { key: "DEMO-12", fields: { status: { name: "Done" } } });
     const http = client(`${tracker.origin}/ex/jira/c0ffee/`);
 
     const response = await http.send({
@@ -124,7 +145,10 @@ describe("trackerHttp", () => {
       json: { body: "a comment" },
     });
 
-    expect(response).toMatchObject({ status: 200, body: { key: "DEMO-12", fields: { status: { name: "Done" } } } });
+    expect(response).toMatchObject({
+      status: 200,
+      body: { key: "DEMO-12", fields: { status: { name: "Done" } } },
+    });
     expect(tracker.seen).toEqual([
       {
         method: "POST",
@@ -143,18 +167,35 @@ describe("trackerHttp", () => {
         ? res.writeHead(307, { location: "/rest/api/3/issue" }).end()
         : json(res, 201, { key: "DEMO-901" });
 
-    const response = await client(tracker.origin).send({ method: "POST", path: "/moved", json: { summary: "x" } });
+    const response = await client(tracker.origin).send({
+      method: "POST",
+      path: "/moved",
+      json: { summary: "x" },
+    });
 
     expect(response.body).toEqual({ key: "DEMO-901" });
-    expect(tracker.seen.map(({ method, url, authorization, body }) => ({ method, url, authorization, body }))).toEqual([
+    expect(
+      tracker.seen.map(({ method, url, authorization, body }) => ({
+        method,
+        url,
+        authorization,
+        body,
+      })),
+    ).toEqual([
       { method: "POST", url: "/moved", authorization: AUTHORIZATION, body: '{"summary":"x"}' },
-      { method: "POST", url: "/rest/api/3/issue", authorization: AUTHORIZATION, body: '{"summary":"x"}' },
+      {
+        method: "POST",
+        url: "/rest/api/3/issue",
+        authorization: AUTHORIZATION,
+        body: '{"summary":"x"}',
+      },
     ]);
     expect(logs).toEqual(["POST /moved", "POST /rest/api/3/issue"]);
   });
 
   it("refuses a redirect to another origin and never sends to it", async () => {
-    tracker.route.current = (_req, res) => res.writeHead(302, { location: `${elsewhere.origin}/collect` }).end();
+    tracker.route.current = (_req, res) =>
+      res.writeHead(302, { location: `${elsewhere.origin}/collect` }).end();
 
     await expect(client(tracker.origin).send({ method: "GET", path: "/away" })).rejects.toThrow(
       `GET /away redirected to ${elsewhere.origin}, which is not the tracker`,
@@ -173,9 +214,14 @@ describe("trackerHttp", () => {
 
   it("retries a 429 for any method, waiting for Retry-After", async () => {
     tracker.route.current = (_req, res) =>
-      tracker.seen.length < 3 ? json(res, 429, {}, { "retry-after": "0" }) : json(res, 201, { id: "10001" });
+      tracker.seen.length < 3
+        ? json(res, 429, {}, { "retry-after": "0" })
+        : json(res, 201, { id: "10001" });
 
-    const response = await client(tracker.origin).send({ method: "POST", path: "/rest/api/3/issue/DEMO-12/comment" });
+    const response = await client(tracker.origin).send({
+      method: "POST",
+      path: "/rest/api/3/issue/DEMO-12/comment",
+    });
 
     expect(response.status).toBe(201);
     expect(paths()).toEqual(Array(3).fill("POST /rest/api/3/issue/DEMO-12/comment"));
@@ -188,15 +234,22 @@ describe("trackerHttp", () => {
     tracker.route.current = (_req, res) => json(res, 503, {}, { "retry-after": "0" });
     const http = client(tracker.origin);
 
-    await expect(http.send({ method: "GET", path: "/rest/api/3/issue/DEMO-12" })).rejects.toMatchObject({
+    await expect(
+      http.send({ method: "GET", path: "/rest/api/3/issue/DEMO-12" }),
+    ).rejects.toMatchObject({
       name: "TrackerRequestFailed",
       status: 503,
       message: "GET /rest/api/3/issue/DEMO-12 answered 503",
     });
-    await expect(http.send({ method: "PUT", path: "/rest/api/3/issue/DEMO-12" })).rejects.toMatchObject({
+    await expect(
+      http.send({ method: "PUT", path: "/rest/api/3/issue/DEMO-12" }),
+    ).rejects.toMatchObject({
       status: 503,
     });
-    expect(paths()).toEqual([...Array(4).fill("GET /rest/api/3/issue/DEMO-12"), "PUT /rest/api/3/issue/DEMO-12"]);
+    expect(paths()).toEqual([
+      ...Array(4).fill("GET /rest/api/3/issue/DEMO-12"),
+      "PUT /rest/api/3/issue/DEMO-12",
+    ]);
   });
 
   it("waits a backoff from 1 s with jitter when Retry-After is missing, and at most 60 s", async () => {
@@ -211,7 +264,10 @@ describe("trackerHttp", () => {
       return answers[fetched - 1] ?? new Response(null, { status: 204 });
     };
 
-    const sent = client("https://tracker.example.test", { fetch }).send({ method: "GET", path: "/busy" });
+    const sent = client("https://tracker.example.test", { fetch }).send({
+      method: "GET",
+      path: "/busy",
+    });
 
     const fetchedAfter = async (ms: number): Promise<number> => {
       await vi.advanceTimersByTimeAsync(ms);
@@ -228,7 +284,10 @@ describe("trackerHttp", () => {
     const controller = new AbortController();
     const cancelled = new Error("run cancelled");
 
-    const sent = client(tracker.origin, { signal: controller.signal }).send({ method: "GET", path: "/busy" });
+    const sent = client(tracker.origin, { signal: controller.signal }).send({
+      method: "GET",
+      path: "/busy",
+    });
     setTimeout(() => controller.abort(cancelled), 50);
 
     await expect(sent).rejects.toBe(cancelled);
@@ -238,8 +297,13 @@ describe("trackerHttp", () => {
   it("throws TrackerRequestFailed with the first error message from the body", async () => {
     tracker.route.current = (req, res) =>
       req.method === "GET"
-        ? json(res, 404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] })
-        : json(res, 400, { errorMessages: [], errors: { issuetype: "The issue type selected is invalid." } });
+        ? json(res, 404, {
+            errorMessages: ["Issue does not exist or you do not have permission to see it."],
+          })
+        : json(res, 400, {
+            errorMessages: [],
+            errors: { issuetype: "The issue type selected is invalid." },
+          });
     const http = client(tracker.origin);
 
     const missing = http.send({ method: "GET", path: "/rest/api/3/issue/DEMO-404" });
@@ -259,7 +323,9 @@ describe("trackerHttp", () => {
     tracker.route.current = (_req, res) =>
       json(res, 401, { errorMessages: ["Client must be authenticated to access this resource."] });
 
-    await expect(client(tracker.origin).send({ method: "GET", path: "/rest/api/3/myself" })).rejects.toMatchObject({
+    await expect(
+      client(tracker.origin).send({ method: "GET", path: "/rest/api/3/myself" }),
+    ).rejects.toMatchObject({
       status: 401,
       message:
         "GET /rest/api/3/myself answered 401: Client must be authenticated to access this resource; " +
@@ -269,8 +335,11 @@ describe("trackerHttp", () => {
 
   it("masks the header, the bare base64 and the token in errors and logs", async () => {
     tracker.route.current = (req, res, seen) => {
-      if (seen.url.startsWith("/retry") && tracker.seen.length === 1) return json(res, 429, {}, { "retry-after": "0" });
-      json(res, 400, { errorMessages: [`refused ${req.headers.authorization} for ${EMAIL}:${TOKEN} (${BASIC})`] });
+      if (seen.url.startsWith("/retry") && tracker.seen.length === 1)
+        return json(res, 429, {}, { "retry-after": "0" });
+      json(res, 400, {
+        errorMessages: [`refused ${req.headers.authorization} for ${EMAIL}:${TOKEN} (${BASIC})`],
+      });
     };
 
     const error = await client(tracker.origin)
@@ -305,7 +374,10 @@ describe("trackerHttp", () => {
   it("encodes each path parameter, so one parameter stays one segment", async () => {
     tracker.route.current = (_req, res) => json(res, 200, {});
 
-    await client(tracker.origin).send({ method: "GET", path: trackerPath`/rest/api/3/issue/${"DEMO-12/../admin?x"}` });
+    await client(tracker.origin).send({
+      method: "GET",
+      path: trackerPath`/rest/api/3/issue/${"DEMO-12/../admin?x"}`,
+    });
 
     expect(paths()).toEqual(["GET /rest/api/3/issue/DEMO-12%2F..%2Fadmin%3Fx"]);
   });

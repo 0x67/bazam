@@ -10,7 +10,12 @@ import { apiKeyStrategy } from "../src/auth/strategies/index.ts";
 import { BRAND } from "../src/brand.ts";
 import type { CheckRule } from "../src/check/index.ts";
 import { RunValues } from "../src/env/index.ts";
-import { definePlugin, PLUGIN_API_VERSION, PluginRegistry, serveProcessPlugin } from "../src/plugin/index.ts";
+import {
+  definePlugin,
+  PLUGIN_API_VERSION,
+  PluginRegistry,
+  serveProcessPlugin,
+} from "../src/plugin/index.ts";
 import { ProjectConfig, TrackerConfig } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import { markdownTracker } from "../src/report/index.ts";
@@ -42,7 +47,9 @@ function route(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
   const authorized = req.url !== "/otp" || req.headers.authorization === `Bearer ${TOKEN}`;
-  res.writeHead(authorized ? 200 : 401, { "content-type": "application/json" }).end(JSON.stringify({ code: OTP }));
+  res
+    .writeHead(authorized ? 200 : 401, { "content-type": "application/json" })
+    .end(JSON.stringify({ code: OTP }));
 }
 
 let server: Server;
@@ -68,16 +75,34 @@ afterEach(async () => {
 });
 
 function testCase(id: string, steps: object[], fields: object = {}): object {
-  return { id, title: `case ${id}`, stage: "acceptance", risk: "low", targets: ["proc"], steps, ...fields };
+  return {
+    id,
+    title: `case ${id}`,
+    stage: "acceptance",
+    risk: "low",
+    targets: ["proc"],
+    steps,
+    ...fields,
+  };
 }
 
 /** Runs the cases on target proc, whose driver is the served plugin's, in env demo or the production env live. */
-async function runServed(cases: readonly object[], env: "demo" | "live" = "demo"): Promise<CaseResult[]> {
-  const envFields = { vars: { API_URL: origin }, hosts: ["127.0.0.1"], challenges: { "served-code": ["served-otp"] } };
+async function runServed(
+  cases: readonly object[],
+  env: "demo" | "live" = "demo",
+): Promise<CaseResult[]> {
+  const envFields = {
+    vars: { API_URL: origin },
+    hosts: ["127.0.0.1"],
+    challenges: { "served-code": ["served-otp"] },
+  };
   const { root, project, registry } = await loadTestProject(
     {
       [BRAND.configFile]: {
-        envs: { demo: { production: false, ...envFields }, live: { production: true, ...envFields } },
+        envs: {
+          demo: { production: false, ...envFields },
+          live: { production: true, ...envFields },
+        },
         secrets: { providers: ["served-secrets"] },
         identities: { shopper: { auth: {} } },
         targets: { proc: { driver: "served" } },
@@ -103,7 +128,9 @@ async function runServed(cases: readonly object[], env: "demo" | "live" = "demo"
   });
 }
 
-function outcomes(results: readonly CaseResult[]): { caseId: string; status: string; reason: string | undefined }[] {
+function outcomes(
+  results: readonly CaseResult[],
+): { caseId: string; status: string; reason: string | undefined }[] {
   return results.map(({ caseId, status, reason }) => ({ caseId, status, reason }));
 }
 
@@ -120,7 +147,11 @@ describe("a served plugin in a run", () => {
     const [result] = await runServed([
       testCase("SHOP-SERVED-001", [
         {
-          challenge: { kind: "served-code", params: { url: "${env.API_URL}/otp" }, fill: { id: "code" } },
+          challenge: {
+            kind: "served-code",
+            params: { url: "${env.API_URL}/otp" },
+            fill: { id: "code" },
+          },
           as: "shopper",
         },
         { check: { name: "banner", value: "shown" } },
@@ -146,7 +177,9 @@ describe("a served plugin in a run", () => {
 
   it("blocks, never fails, on a host refusal, a payload its schema refuses and a zip attach; fails on a throw", async () => {
     const results = await runServed([
-      testCase("SHOP-AWAY-001", [{ fetch: { url: "http://outside.example.test/x", method: "GET" } }]),
+      testCase("SHOP-AWAY-001", [
+        { fetch: { url: "http://outside.example.test/x", method: "GET" } },
+      ]),
       testCase("SHOP-STRICT-001", [{ strict: { count: 0 } }]),
       testCase("SHOP-ZIP-001", [{ attach: { ext: "zip" } }]),
       testCase("SHOP-THROW-001", [{ fail: {} }]),
@@ -169,7 +202,11 @@ describe("a served plugin in a run", () => {
         reason:
           "internal: plugin served answered driver.step with error -32602: a process plugin cannot attach zip files, which core cannot scrub",
       },
-      { caseId: "SHOP-THROW-001", status: "fail", reason: "step 1 (fail): the served step failed on purpose" },
+      {
+        caseId: "SHOP-THROW-001",
+        status: "fail",
+        reason: "step 1 (fail): the served step failed on purpose",
+      },
     ]);
     expect(requests).toEqual([]);
   });
@@ -184,7 +221,11 @@ describe("a served plugin in a run", () => {
       ]),
     ]);
 
-    expect(result?.notes).toEqual(["account [redacted] opened", "filled [redacted]", "session closed pass"]);
+    expect(result?.notes).toEqual([
+      "account [redacted] opened",
+      "filled [redacted]",
+      "session closed pass",
+    ]);
   });
 
   it("sends a production write only from a step that sets write: true", async () => {
@@ -198,7 +239,11 @@ describe("a served plugin in a run", () => {
     );
 
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-POST-001", status: "blocked", reason: "POST needs write: true in production env live" },
+      {
+        caseId: "SHOP-POST-001",
+        status: "blocked",
+        reason: "POST needs write: true in production env live",
+      },
       { caseId: "SHOP-POST-002", status: "pass", reason: undefined },
     ]);
     expect(requests).toEqual(["POST /orders -"]);
@@ -206,7 +251,9 @@ describe("a served plugin in a run", () => {
 
   it("blocks with internal:, never fails, a step whose host.http request or response passes the line limit", async () => {
     const results = await runServed([
-      testCase("SHOP-UPLOAD-001", [{ upload: { url: "${env.API_URL}/orders", bytes: 50 * 1024 * 1024 } }]),
+      testCase("SHOP-UPLOAD-001", [
+        { upload: { url: "${env.API_URL}/orders", bytes: 50 * 1024 * 1024 } },
+      ]),
       testCase("SHOP-BIG-001", [{ fetch: { url: "${env.API_URL}/big", method: "GET" } }]),
     ]);
 
@@ -229,14 +276,18 @@ describe("a served plugin in a run", () => {
   });
 
   it("returns a 3xx as it came for a request sent with redirect: manual, and never requests the target", async () => {
-    const [result] = await runServed([testCase("SHOP-MOVED-001", [{ redirect: { url: "${env.API_URL}/moved" } }])]);
+    const [result] = await runServed([
+      testCase("SHOP-MOVED-001", [{ redirect: { url: "${env.API_URL}/moved" } }]),
+    ]);
 
     expect(result?.checks.map(({ observed }) => observed)).toEqual(["302 /target"]);
     expect(requests).toEqual(["GET /moved -"]);
   });
 
   it("gives a step each Set-Cookie value of a response, as an in-process step gets them", async () => {
-    const [result] = await runServed([testCase("SHOP-COOKIE-001", [{ cookies: { url: "${env.API_URL}/cookies" } }])]);
+    const [result] = await runServed([
+      testCase("SHOP-COOKIE-001", [{ cookies: { url: "${env.API_URL}/cookies" } }]),
+    ]);
     const { headers } = await fetch(`${origin}/cookies`);
 
     expect(headers.getSetCookie()).toEqual(["session=abc", "csrf=xyz"]);
@@ -297,7 +348,11 @@ describe("a served plugin through the registry", () => {
       },
     });
 
-    expect(await connection.ticket("DEMO-1")).toEqual({ key: "DEMO-1", status: "Open", done: false });
+    expect(await connection.ticket("DEMO-1")).toEqual({
+      key: "DEMO-1",
+      status: "Open",
+      done: false,
+    });
     expect(await connection.postComment("DEMO-1", { markdown: "passed" }, [])).toEqual({
       url: "https://tracker.example.test/DEMO-1?chars=6",
     });
@@ -346,7 +401,9 @@ describe("serveProcessPlugin", () => {
           surface: "web",
           probe: async () => new Set(),
           launch: async () => ({ capabilities: new Set(), close: async () => {} }),
-          steps: [{ kind: "remind", schema: z.strictObject({ at: z.date() }), run: async () => {} }],
+          steps: [
+            { kind: "remind", schema: z.strictObject({ at: z.date() }), run: async () => {} },
+          ],
         },
       ],
     });
@@ -358,7 +415,10 @@ describe("serveProcessPlugin", () => {
 
   it("rejects and destroys its input when the host sends a line over 64 MiB", async () => {
     const streams = io();
-    const serving = serveProcessPlugin(definePlugin({ name: "small", apiVersion: PLUGIN_API_VERSION }), streams);
+    const serving = serveProcessPlugin(
+      definePlugin({ name: "small", apiVersion: PLUGIN_API_VERSION }),
+      streams,
+    );
 
     streams.input.write(Buffer.alloc(64 * 1024 * 1024 + 1, "x"));
 

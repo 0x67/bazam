@@ -51,12 +51,16 @@ export function isTestEmailDomain(domain: string): boolean {
 }
 
 /** An email address, as the default rules read one. */
-export const EMAIL_ADDRESS = /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu;
+export const EMAIL_ADDRESS =
+  /[\p{L}\p{N}!#$%&'*+/=?^_`{|}~.-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/giu;
 
 export class Redactor {
   readonly #rules: RedactionRules;
   // what configure added, kept apart from the rules so the trace scrubber can apply the patterns alone
-  #configured: { patterns: PatternRule[]; screenshotSelectors: string[] } = { patterns: [], screenshotSelectors: [] };
+  #configured: { patterns: PatternRule[]; screenshotSelectors: string[] } = {
+    patterns: [],
+    screenshotSelectors: [],
+  };
   // longest first, so a value that contains another registered value is masked whole
   #registered: string[] = [];
 
@@ -81,8 +85,15 @@ export class Redactor {
   /** Masks the value and its URL-encoded, form-encoded and base64 forms from now on, if it has 4 characters or more. */
   register(value: string): void {
     if (value.length < MIN_REGISTERED_LENGTH) return;
-    const forms = [value, encodeURIComponent(value), formEncoded(value), Buffer.from(value, "utf8").toString("base64")];
-    this.#registered = [...new Set([...this.#registered, ...forms])].sort((a, b) => b.length - a.length);
+    const forms = [
+      value,
+      encodeURIComponent(value),
+      formEncoded(value),
+      Buffer.from(value, "utf8").toString("base64"),
+    ];
+    this.#registered = [...new Set([...this.#registered, ...forms])].sort(
+      (a, b) => b.length - a.length,
+    );
   }
 
   text(s: string): string {
@@ -94,12 +105,18 @@ export class Redactor {
       ...matchesOf(out, this.#configured.patterns, true),
       ...matchesOf(out, this.#rules.patterns, false),
     ]);
-    return maskStretches(out, stretches, (part, configured) => (configured ? MASK : this.#maskDefaults(part)));
+    return maskStretches(out, stretches, (part, configured) =>
+      configured ? MASK : this.#maskDefaults(part),
+    );
   }
 
   /** Masks the configured patterns only, for text such as a trace where the default patterns would break ids. */
   maskConfigured(s: string): string {
-    return maskStretches(s, joinOverlaps(matchesOf(s, this.#configured.patterns, true)), () => MASK);
+    return maskStretches(
+      s,
+      joinOverlaps(matchesOf(s, this.#configured.patterns, true)),
+      () => MASK,
+    );
   }
 
   /** Masks registered values only, for text such as a trace where the patterns would mask ids and timestamps. */
@@ -118,7 +135,9 @@ export class Redactor {
     if (this.#registered.includes(text)) return true;
     // the stripped form needs four digits too, so an OTP such as "000042" leaves every 42 alone
     if (text.length < MIN_REGISTERED_LENGTH) return false;
-    return this.#registered.some((value) => /^0+\d+$/.test(value) && value.replace(/^0+/, "") === text);
+    return this.#registered.some(
+      (value) => /^0+\d+$/.test(value) && value.replace(/^0+/, "") === text,
+    );
   }
 
   value<T>(v: T): T {
@@ -132,7 +151,8 @@ export class Redactor {
   // the default patterns in turn, as one stretch can hold an email and a digit run in it
   #maskDefaults(s: string): string {
     let out = s;
-    for (const rule of this.#rules.patterns) out = out.replaceAll(rule.pattern, (match) => rule.mask(match));
+    for (const rule of this.#rules.patterns)
+      out = out.replaceAll(rule.pattern, (match) => rule.mask(match));
     return out;
   }
 
@@ -175,7 +195,10 @@ export function defaultRedactionRules(): RedactionRules {
     patterns: [
       { pattern: EMAIL_ADDRESS, mask: maskEmailLocalPart },
       // the date that starts a run id (YYYYMMDD-HHmmss-<4 hex>) stays readable
-      { pattern: /(?!\d{8}-\d{6}-[\da-f]{4}\b)\d{8,}/gi, mask: (match) => `••••${match.slice(-4)}` },
+      {
+        pattern: /(?!\d{8}-\d{6}-[\da-f]{4}\b)\d{8,}/gi,
+        mask: (match) => `••••${match.slice(-4)}`,
+      },
     ],
     screenshotSelectors: [],
   };
@@ -212,7 +235,10 @@ function repeatsARepeat(source: string): boolean {
   let closed: Repeats | undefined;
   for (let at = 0; at < source.length; at++) {
     const char = source[at];
-    const repeat = char === "\\" || char === "[" || char === "(" || char === ")" ? undefined : repeatAt(source, at);
+    const repeat =
+      char === "\\" || char === "[" || char === "(" || char === ")"
+        ? undefined
+        : repeatAt(source, at);
     if (repeat !== undefined) {
       if (closed?.unbounded === true && repeat.max > 1) return true;
       if (closed?.varies === true && repeat.max === UNBOUNDED) return true;
@@ -222,7 +248,10 @@ function repeatsARepeat(source: string): boolean {
       at = repeat.end - 1;
     } else if (char === "\\") {
       // \p{L} and \u{1F600} carry braces that are not a repeat
-      at = "pPu".includes(source[at + 1] ?? "") && source[at + 2] === "{" ? source.indexOf("}", at) : at + 1;
+      at =
+        "pPu".includes(source[at + 1] ?? "") && source[at + 2] === "{"
+          ? source.indexOf("}", at)
+          : at + 1;
     } else if (char === "[") {
       // with the u flag a class ends at its first unescaped bracket
       for (at++; source[at] !== "]"; at++) if (source[at] === "\\") at++;
@@ -252,7 +281,10 @@ function groupBodyStart(source: string, open: number): number {
 
 const UNBOUNDED = Number.POSITIVE_INFINITY;
 
-function repeatAt(source: string, at: number): { min: number; max: number; end: number } | undefined {
+function repeatAt(
+  source: string,
+  at: number,
+): { min: number; max: number; end: number } | undefined {
   const char = source[at];
   let repeat: { min: number; max: number; end: number } | undefined;
   if (char === "*") repeat = { min: 0, max: UNBOUNDED, end: at + 1 };

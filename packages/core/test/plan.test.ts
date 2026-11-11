@@ -12,18 +12,33 @@ import { RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import type { Project } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
-import { loginKey, planCases, planLogins, planRun, type PlanInputs, type RunPlan } from "../src/run/index.ts";
+import {
+  loginKey,
+  planCases,
+  planLogins,
+  planRun,
+  type PlanInputs,
+  type RunPlan,
+} from "../src/run/index.ts";
 import { finallySteps, identitiesNamed } from "../src/run/plan.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
-function resolver(name: string, kinds: readonly string[], requires: readonly Capability[] = []): ChallengeResolver {
+function resolver(
+  name: string,
+  kinds: readonly string[],
+  requires: readonly Capability[] = [],
+): ChallengeResolver {
   return { name, kinds, requires, automated: true, resolve: async () => undefined };
 }
 
 const webSteps = ["open", "tap", "fill", "expect"].map(fakeStep);
 // a driver with no open and no fill step
-const phone = fakeDriver({ name: "fake-phone", surface: "mobile", steps: ["swipe", "tap"].map(fakeStep) });
+const phone = fakeDriver({
+  name: "fake-phone",
+  surface: "mobile",
+  steps: ["swipe", "tap"].map(fakeStep),
+});
 const plugin = (driver = fakeDriver({ steps: webSteps })) =>
   definePlugin({
     name: "test-web",
@@ -71,12 +86,21 @@ const config = {
         api: { strategy: "session-cookie", from: "web" },
       },
     },
-    partner: { auth: { api: { strategy: "api-key", with: { key: "fake-partner-key-0001", header: "x-api-key" } } } },
+    partner: {
+      auth: {
+        api: { strategy: "api-key", with: { key: "fake-partner-key-0001", header: "x-api-key" } },
+      },
+    },
     visitor: {},
   },
   runners: {
     "shop-suite": { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" },
-    "safe-suite": { command: ["node", "safe.js"], results: "safe/*.xml", format: "junit", prodSafe: true },
+    "safe-suite": {
+      command: ["node", "safe.js"],
+      results: "safe/*.xml",
+      format: "junit",
+      prodSafe: true,
+    },
     "ctrf-suite": { command: ["node", "ctrf.js"], results: "ctrf/*.json", format: "ctrf" },
     "mapped-suite": {
       command: ["node", "mapped.js"],
@@ -156,7 +180,10 @@ async function planFor(cases: readonly CaseFields[], options: PlanOptions = {}):
   if (options.targets !== undefined) inputs.targets = options.targets;
   if (options.blockedIdentities !== undefined) inputs.blockedIdentities = options.blockedIdentities;
   const credentials = new Map(
-    planLogins(inputs).map((login) => [loginKey(login), options.modes?.[loginKey(login)] ?? ("cached" as LoginMode)]),
+    planLogins(inputs).map((login) => [
+      loginKey(login),
+      options.modes?.[loginKey(login)] ?? ("cached" as LoginMode),
+    ]),
   );
   return planRun({ ...inputs, credentials });
 }
@@ -168,19 +195,29 @@ const otp = {
 
 describe("planRun", () => {
   it("blocks a retired case because its stage does not run", async () => {
-    const plan = await planFor([testCase("AUTH-OLD-001", { stage: "retired", steps: [{ open: "${env.APP_URL}" }] })]);
+    const plan = await planFor([
+      testCase("AUTH-OLD-001", { stage: "retired", steps: [{ open: "${env.APP_URL}" }] }),
+    ]);
     expect(plan.cases[0]?.blocked).toBe("stage retired does not run");
   });
 
   it("blocks a case that is not prod_safe in a production env", async () => {
-    const plan = await planFor([testCase("AUTH-PROD-001", { steps: [{ open: "${env.APP_URL}" }] })], { env: "live" });
-    expect(plan.cases[0]?.blocked).toBe("case AUTH-PROD-001 is not prod_safe and env live is production");
+    const plan = await planFor(
+      [testCase("AUTH-PROD-001", { steps: [{ open: "${env.APP_URL}" }] })],
+      { env: "live" },
+    );
+    expect(plan.cases[0]?.blocked).toBe(
+      "case AUTH-PROD-001 is not prod_safe and env live is production",
+    );
   });
 
   it("runs a case on the first of its targets the selection keeps, and blocks one with none selected", async () => {
     const plan = await planFor(
       [
-        testCase("AUTH-BOTH-001", { targets: ["web", "web-alt"], steps: [{ open: "${env.APP_URL}" }] }),
+        testCase("AUTH-BOTH-001", {
+          targets: ["web", "web-alt"],
+          steps: [{ open: "${env.APP_URL}" }],
+        }),
         testCase("AUTH-WEB-001", { targets: ["web"], steps: [{ open: "${env.APP_URL}" }] }),
       ],
       { targets: ["web-alt"] },
@@ -199,13 +236,18 @@ describe("planRun", () => {
 
   it("blocks a challenge whose chain has no resolver that can run on the target", async () => {
     const plan = await planFor([
-      testCase("AUTH-TOTP-001", { steps: [{ challenge: { kind: "totp", fill: { id: "code" } }, as: "customer" }] }),
-      testCase("AUTH-SMS-001", { steps: [{ challenge: { kind: "otp-sms", fill: { id: "code" } }, as: "customer" }] }),
+      testCase("AUTH-TOTP-001", {
+        steps: [{ challenge: { kind: "totp", fill: { id: "code" } }, as: "customer" }],
+      }),
+      testCase("AUTH-SMS-001", {
+        steps: [{ challenge: { kind: "otp-sms", fill: { id: "code" } }, as: "customer" }],
+      }),
     ]);
     expect(plan.cases.map(({ challenges, blocked }) => ({ challenges, blocked }))).toEqual([
       {
         challenges: [{ step: 1, kind: "totp", resolver: null }],
-        blocked: "no resolver for challenge totp can run on target web: fake-totp-device needs totp.device",
+        blocked:
+          "no resolver for challenge totp can run on target web: fake-totp-device needs totp.device",
       },
       {
         challenges: [{ step: 1, kind: "otp-sms", resolver: null }],
@@ -220,12 +262,16 @@ describe("planRun", () => {
         steps: [{ open: "${env.APP_URL}" }, { challenge: { kind: "otp-email" }, as: "customer" }],
       }),
     ]);
-    expect(plan.cases[0]?.blocked).toBe("challenge step 2 (otp-email) names no fill field for its code");
+    expect(plan.cases[0]?.blocked).toBe(
+      "challenge step 2 (otp-email) names no fill field for its code",
+    );
   });
 
   it("blocks a value challenge on a target whose driver has no fill step", async () => {
     const plan = await planFor([testCase("AUTH-OTP-001", { targets: ["phone"], steps: [otp] })]);
-    expect(plan.cases[0]?.blocked).toBe("driver fake-phone has no fill step for the code of challenge step 1");
+    expect(plan.cases[0]?.blocked).toBe(
+      "driver fake-phone has no fill step for the code of challenge step 1",
+    );
   });
 
   it("blocks a step that only another target's driver offers", async () => {
@@ -246,13 +292,19 @@ describe("planRun", () => {
   });
 
   it("blocks a step as an identity that config does not define", async () => {
-    const plan = await planFor([testCase("AUTH-WHO-001", { steps: [{ open: "${env.APP_URL}", as: "stranger" }] })]);
-    expect(plan.cases[0]?.blocked).toBe(`identity stranger is not defined under identities in ${BRAND.configFile}`);
+    const plan = await planFor([
+      testCase("AUTH-WHO-001", { steps: [{ open: "${env.APP_URL}", as: "stranger" }] }),
+    ]);
+    expect(plan.cases[0]?.blocked).toBe(
+      `identity stranger is not defined under identities in ${BRAND.configFile}`,
+    );
   });
 
   it("blocks a request as an identity with no api auth, but lets it act in a fresh browser context", async () => {
     const plan = await planFor([
-      testCase("AUTH-API-001", { steps: [{ request: { method: "GET", url: "${env.APP_URL}/me", as: "visitor" } }] }),
+      testCase("AUTH-API-001", {
+        steps: [{ request: { method: "GET", url: "${env.APP_URL}/me", as: "visitor" } }],
+      }),
       testCase("AUTH-WEB-001", { steps: [{ open: "${env.APP_URL}", as: "visitor" }] }),
     ]);
     expect(plan.cases.map(({ blocked, logins }) => ({ blocked, logins }))).toEqual([
@@ -290,7 +342,8 @@ describe("planRun", () => {
   });
 
   it("blocks an identity the caller marks blocked, also when only a placeholder names it", async () => {
-    const reason = "identity customer needs fixture customer, but fixtures/identities.local.yaml is missing";
+    const reason =
+      "identity customer needs fixture customer, but fixtures/identities.local.yaml is missing";
     const plan = await planFor(
       [testCase("AUTH-MAIL-001", { steps: [{ note: "mail goes to ${identity.customer.email}" }] })],
       {
@@ -302,11 +355,15 @@ describe("planRun", () => {
 
   it("picks the first resolver whose capabilities are present", async () => {
     const passkey = testCase("AUTH-PASSKEY-001", {
-      steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }],
+      steps: [
+        { challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" },
+      ],
     });
     const withAuthenticator = await planFor([passkey], { capabilities: ["webauthn.virtual"] });
     const without = await planFor([passkey]);
-    expect(withAuthenticator.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
+    expect(withAuthenticator.cases[0]?.challenges).toEqual([
+      { step: 1, kind: "passkey", resolver: "fake-passkey" },
+    ]);
     expect(without.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "human" }]);
   });
 
@@ -331,7 +388,11 @@ describe("planRun", () => {
 
   it("counts guided steps, challenges a person answers and person logins as person steps", async () => {
     const guided = {
-      guided: { title: "Check the statement", steps: ["Open the statement"], expected: "Statement shown" },
+      guided: {
+        title: "Check the statement",
+        steps: ["Open the statement"],
+        expected: "Statement shown",
+      },
     };
     const plan = await planFor(
       [
@@ -374,9 +435,9 @@ describe("planRun", () => {
         { name: "loop-b", steps: [{ use: "loop-a" }] },
       ],
     };
-    await expect(planFor([testCase("AUTH-LOOP-001", { steps: [{ use: "loop-a" }] })], { flows })).rejects.toThrow(
-      FlowCycle,
-    );
+    await expect(
+      planFor([testCase("AUTH-LOOP-001", { steps: [{ use: "loop-a" }] })], { flows }),
+    ).rejects.toThrow(FlowCycle);
   });
 
   it("throws HumanOnlyViolation when the env lists an automated resolver for a kind config lists as human-only", async () => {
@@ -389,7 +450,8 @@ describe("planRun", () => {
 });
 
 describe("planRun with external cases", () => {
-  const external = (id: string, fields: CaseFields = {}) => testCase(id, { targets: ["shop-chrome"], ...fields });
+  const external = (id: string, fields: CaseFields = {}) =>
+    testCase(id, { targets: ["shop-chrome"], ...fields });
 
   it("plans an external case on its runner, with no identity, login or challenge", async () => {
     const plan = await planFor([external("AUTH-EXT-001")]);
@@ -432,7 +494,9 @@ describe("planRun with external cases", () => {
       ],
       { env: "live" },
     );
-    expect(plan.cases.map(({ caseId, blocked, confirm }) => ({ caseId, blocked, confirm }))).toEqual([
+    expect(
+      plan.cases.map(({ caseId, blocked, confirm }) => ({ caseId, blocked, confirm })),
+    ).toEqual([
       { caseId: "AUTH-EXT-001", blocked: undefined, confirm: "shop-suite" },
       { caseId: "AUTH-EXT-002", blocked: undefined, confirm: "shop-suite" },
       { caseId: "AUTH-EXT-003", blocked: undefined, confirm: undefined },
@@ -462,7 +526,10 @@ describe("planRun with external cases", () => {
     ],
     [
       "runner and driver targets in one case",
-      testCase("AUTH-MIX-001", { targets: ["web", "shop-chrome"], steps: [{ note: "opens the cart" }] }),
+      testCase("AUTH-MIX-001", {
+        targets: ["web", "shop-chrome"],
+        steps: [{ note: "opens the cart" }],
+      }),
       {},
       "AUTH-MIX-001 lists runner targets (shop-chrome) and driver targets (web)",
     ],
@@ -476,7 +543,9 @@ describe("planCases", () => {
   it("plan uses the fake driver's probed capabilities", async () => {
     const driver = fakeDriver({ steps: webSteps, capabilities: ["webauthn.virtual"] });
     const passkey = testCase("AUTH-PASSKEY-001", {
-      steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "visitor" }],
+      steps: [
+        { challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "visitor" },
+      ],
     });
     const { root, project, registry } = await loadTestProject(
       {
@@ -499,7 +568,9 @@ describe("planCases", () => {
       redactor: new Redactor(defaultRedactionRules()),
       signal: new AbortController().signal,
     });
-    expect(plan.cases[0]?.challenges).toEqual([{ step: 1, kind: "passkey", resolver: "fake-passkey" }]);
+    expect(plan.cases[0]?.challenges).toEqual([
+      { step: 1, kind: "passkey", resolver: "fake-passkey" },
+    ]);
   });
 
   it("lists the bindings in force as roles, a request over a default", async () => {
@@ -510,7 +581,11 @@ describe("planCases", () => {
           roles: { tester: { identities: ["customer", "partner"], default: "partner" } },
         },
         "cases/auth/plan.yaml": {
-          cases: [testCase("AUTH-ROLE-001", { steps: [{ open: "https://app.example.test", as: "tester" }] })],
+          cases: [
+            testCase("AUTH-ROLE-001", {
+              steps: [{ open: "https://app.example.test", as: "tester" }],
+            }),
+          ],
         },
         "interop/mapped.yaml": { tests: {} },
       },
@@ -558,7 +633,9 @@ describe("planCases", () => {
       const { root, project, registry } = await loadTestProject(
         {
           [BRAND.configFile]: probed,
-          "cases/auth/plan.yaml": { cases: [testCase("AUTH-OPEN-001", { steps: [{ open: "${env.APP_URL}" }] })] },
+          "cases/auth/plan.yaml": {
+            cases: [testCase("AUTH-OPEN-001", { steps: [{ open: "${env.APP_URL}" }] })],
+          },
           "interop/mapped.yaml": { tests: {} },
         },
         [plugin()],
@@ -642,9 +719,11 @@ describe("identitiesNamed", () => {
   });
 
   it("reads a request payload's as", () => {
-    expect(named({ steps: [{ request: { method: "GET", url: "https://app.example.test/me", as: "bob" } }] })).toEqual([
-      "bob",
-    ]);
+    expect(
+      named({
+        steps: [{ request: { method: "GET", url: "https://app.example.test/me", as: "bob" } }],
+      }),
+    ).toEqual(["bob"]);
   });
 
   it("reads a challenge trigger's as", () => {
@@ -654,13 +733,18 @@ describe("identitiesNamed", () => {
   });
 
   it("reads a guided observe's as", () => {
-    const steps = [{ guided: { title: "look", steps: ["look"], observe: { note: "seen", as: "bob" } } }];
+    const steps = [
+      { guided: { title: "look", steps: ["look"], observe: { note: "seen", as: "bob" } } },
+    ];
 
     expect(named({ steps })).toEqual(["bob"]);
   });
 
   it("reads identity placeholders, once with an as of the same name", () => {
-    const steps = [{ note: "${identity.alice.email}", as: "alice" }, { note: "${identity.bob.pin}" }];
+    const steps = [
+      { note: "${identity.alice.email}", as: "alice" },
+      { note: "${identity.bob.pin}" },
+    ];
 
     expect(named({ steps })).toEqual(["alice", "bob"]);
   });

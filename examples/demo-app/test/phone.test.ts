@@ -26,7 +26,9 @@ describe("phone pickers", () => {
     const response = await visitor.postForm(`/profile/phone/${picker}`, fields)
 
     expect(response.status).toBe(200)
-    expect(await response.text()).toContain(`<output data-testid="${picker}-saved">${e164}</output>`)
+    expect(await response.text()).toContain(
+      `<output data-testid="${picker}-saved">${e164}</output>`,
+    )
   })
 
   it("keeps the number each form saved when the page loads again", async () => {

@@ -11,7 +11,16 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createRequire } from "node:module";
 import { constants, tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
@@ -28,7 +37,9 @@ const TICKETS = resolve(process.env.EVAL_TICKETS || join(import.meta.dirname, "t
 const RESULTS = join(import.meta.dirname, "results");
 
 // the eval has no dependencies of its own, so it borrows the core package's YAML parser
-const { parse: parseYaml } = createRequire(join(REPO, "packages", "core", "package.json"))("yaml") as {
+const { parse: parseYaml } = createRequire(join(REPO, "packages", "core", "package.json"))(
+  "yaml",
+) as {
   parse: (source: string) => unknown;
 };
 
@@ -180,7 +191,8 @@ function parseTicket(file: string, source: string): Ticket {
   const meta = new Map<string, string>();
   for (const line of match[1]!.split("\n")) {
     const pair = /^([a-z]+):\s*(\S+)\s*$/.exec(line);
-    if (pair === null) throw new Error(`ticket ${file}: front matter line "${line}" is not "key: value"`);
+    if (pair === null)
+      throw new Error(`ticket ${file}: front matter line "${line}" is not "key: value"`);
     meta.set(pair[1]!, pair[2]!);
   }
   const key = meta.get("key");
@@ -190,7 +202,9 @@ function parseTicket(file: string, source: string): Ticket {
     throw new Error(`ticket ${file} needs a key such as DEMO-501`);
   if (kind === undefined) throw new Error(`ticket ${file} needs a kind: ${KINDS.join(", ")}`);
   if ((kind === "extend") !== (extended !== undefined)) {
-    throw new Error(`ticket ${file}: an extend ticket names its case, and only an extend ticket does`);
+    throw new Error(
+      `ticket ${file}: an extend ticket names its case, and only an extend ticket does`,
+    );
   }
   const body = text.slice(match[0].length).trim();
   return { file, key, kind, ...(extended === undefined ? {} : { case: extended }), body };
@@ -234,7 +248,8 @@ function signalGroup(pid: number, signal: NodeJS.Signals | 0): boolean {
 
 async function stopGroup(pid: number): Promise<void> {
   if (!signalGroup(pid, "SIGTERM")) return;
-  for (const end = Date.now() + STOP_GRACE_MS; Date.now() < end && signalGroup(pid, 0);) await sleep(100);
+  for (const end = Date.now() + STOP_GRACE_MS; Date.now() < end && signalGroup(pid, 0);)
+    await sleep(100);
   signalGroup(pid, "SIGKILL");
 }
 
@@ -251,7 +266,11 @@ interface GroupOptions {
  * stopped, and whatever is left of it once the leader exits is killed, such as an MCP server an agent started. Once
  * the eval is stopped, it starts nothing and rejects with the reason.
  */
-function runGroup(command: string, args: readonly string[], options: GroupOptions): Promise<Exited> {
+function runGroup(
+  command: string,
+  args: readonly string[],
+  options: GroupOptions,
+): Promise<Exited> {
   stopping.signal.throwIfAborted();
   const started = Date.now();
   const child = spawn(command, args, {
@@ -293,12 +312,23 @@ function runGroup(command: string, args: readonly string[], options: GroupOption
     });
     child.once("close", (code, signal) => {
       if (stopping.signal.aborted) reject(stopping.signal.reason as Error);
-      else resolve({ code, signal, stdout, timedOut, seconds: Math.round((Date.now() - started) / 1000) });
+      else
+        resolve({
+          code,
+          signal,
+          stdout,
+          timedOut,
+          seconds: Math.round((Date.now() - started) / 1000),
+        });
     });
   });
 }
 
-function cli(project: string, args: readonly string[], timeoutMs = CLI_TIMEOUT_MS): Promise<Exited> {
+function cli(
+  project: string,
+  args: readonly string[],
+  timeoutMs = CLI_TIMEOUT_MS,
+): Promise<Exited> {
   return runGroup(process.execPath, ["--conditions=development", CLI, ...args, "--root", project], {
     cwd: project,
     timeoutMs,
@@ -327,18 +357,25 @@ function outputOf<T>(exited: Exited, key: string): T | string {
  * ones when there are none.
  */
 async function copyExamples(to: string): Promise<void> {
-  const listed = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: EXAMPLES,
-    encoding: "utf8",
-  });
+  const listed = execFileSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
+      cwd: EXAMPLES,
+      encoding: "utf8",
+    },
+  );
   for (const file of listed.split("\0")) {
     if (file === "" || file.startsWith("demo-app/")) continue;
     await copyInto(join(EXAMPLES, file), join(to, file));
   }
   const secrets = join(BRAND.stateDir, "secrets.env");
-  if (existsSync(join(EXAMPLES, secrets))) await copyInto(join(EXAMPLES, secrets), join(to, secrets));
+  if (existsSync(join(EXAMPLES, secrets)))
+    await copyInto(join(EXAMPLES, secrets), join(to, secrets));
   const local = join(EXAMPLES, "fixtures", "identities.local.yaml");
-  const fixtures = existsSync(local) ? local : join(EXAMPLES, "fixtures", "identities.example.yaml");
+  const fixtures = existsSync(local)
+    ? local
+    : join(EXAMPLES, "fixtures", "identities.example.yaml");
   await copyInto(fixtures, join(to, "fixtures", "identities.local.yaml"));
 }
 
@@ -353,7 +390,8 @@ async function freshCopy(project: string): Promise<string[]> {
   const baseline = await gradeCheck(project);
   if (!baseline.pass) {
     const why =
-      baseline.error ?? baseline.issues.map((issue) => `${issue.file}:${issue.line} ${issue.ruleId}`).join(", ");
+      baseline.error ??
+      baseline.issues.map((issue) => `${issue.file}:${issue.line} ${issue.ruleId}`).join(", ");
     throw new Error(
       `the copy of examples/ fails check before the agent ran (${why}); make check pass in examples/, then run the eval again`,
     );
@@ -370,7 +408,9 @@ async function preflight(tickets: readonly Ticket[]): Promise<void> {
     const ids = await freshCopy(join(dir, "project"));
     for (const ticket of tickets) {
       if (ticket.case !== undefined && !ids.includes(ticket.case)) {
-        throw new Error(`ticket ${ticket.file} extends ${ticket.case}, which examples/ does not have`);
+        throw new Error(
+          `ticket ${ticket.file} extends ${ticket.case}, which examples/ does not have`,
+        );
       }
     }
   } finally {
@@ -405,7 +445,9 @@ async function stopLeftoverRuns(project: string): Promise<void> {
   for (const id of await readdir(runs)) {
     let record: { pid?: unknown; exit?: unknown };
     try {
-      record = JSON.parse(await readFile(join(runs, id, "supervisor.json"), "utf8")) as typeof record;
+      record = JSON.parse(
+        await readFile(join(runs, id, "supervisor.json"), "utf8"),
+      ) as typeof record;
     } catch {
       continue;
     }
@@ -418,7 +460,8 @@ async function stopLeftoverRuns(project: string): Promise<void> {
 async function codeFiles(project: string): Promise<Map<string, string>> {
   const files = new Map<string, string>();
   for (const entry of await readdir(project, { recursive: true, withFileTypes: true })) {
-    if (entry.isDirectory() || (entry.isFile() && DATA_EXTENSIONS.has(extname(entry.name)))) continue;
+    if (entry.isDirectory() || (entry.isFile() && DATA_EXTENSIONS.has(extname(entry.name))))
+      continue;
     const path = join(entry.parentPath, entry.name);
     // a symlink can give code a data name, so only a regular file counts by its content
     const content = entry.isFile()
@@ -448,12 +491,16 @@ async function changedConfigKeys(project: string, baseline: unknown): Promise<st
   } catch {
     return ["does not parse"];
   }
-  return CODE_KEYS.filter((key) => !isDeepStrictEqual(configKey(baseline, key), configKey(drafted, key)));
+  return CODE_KEYS.filter(
+    (key) => !isDeepStrictEqual(configKey(baseline, key), configKey(drafted, key)),
+  );
 }
 
 /** A document that parses to null or a scalar has none of the keys. */
 function configKey(document: unknown, key: string): unknown {
-  return typeof document === "object" && document !== null ? (document as Record<string, unknown>)[key] : undefined;
+  return typeof document === "object" && document !== null
+    ? (document as Record<string, unknown>)[key]
+    : undefined;
 }
 
 /** The steps and checks of each case by id, to tell a drafted case from one that only gained a link. */
@@ -472,8 +519,13 @@ async function caseBodies(project: string): Promise<Map<string, string>> {
     const cases = (document as { cases?: unknown } | null)?.cases;
     if (!Array.isArray(cases)) continue;
     for (const item of cases as unknown[]) {
-      const { id, steps = [], checks = [] } = (item ?? {}) as { id?: unknown; steps?: unknown; checks?: unknown };
-      if (typeof id === "string" && !bodies.has(id)) bodies.set(id, JSON.stringify([steps, checks]));
+      const {
+        id,
+        steps = [],
+        checks = [],
+      } = (item ?? {}) as { id?: unknown; steps?: unknown; checks?: unknown };
+      if (typeof id === "string" && !bodies.has(id))
+        bodies.set(id, JSON.stringify([steps, checks]));
     }
   }
   return bodies;
@@ -487,11 +539,17 @@ async function gradeCheck(project: string): Promise<CheckGrade> {
   }
   const exited = await cli(project, ["check", "--json"]);
   const output = outputOf<CheckOutput>(exited, "issues");
-  if (typeof output === "string") return { pass: false, errors: 0, warnings: 0, issues: [], error: output };
+  if (typeof output === "string")
+    return { pass: false, errors: 0, warnings: 0, issues: [], error: output };
   const issues = output.issues
     .filter((issue) => issue.severity === "error")
     .map(({ ruleId, file, line }) => ({ ruleId, file, line }));
-  return { pass: exited.code === 0 && output.errors === 0, errors: output.errors, warnings: output.warnings, issues };
+  return {
+    pass: exited.code === 0 && output.errors === 0,
+    errors: output.errors,
+    warnings: output.warnings,
+    issues,
+  };
 }
 
 /** Every case id the project plans, of any stage that runs. */
@@ -500,7 +558,9 @@ async function caseIds(project: string): Promise<string[] | string> {
     await cli(project, ["plan", "--env", ENV, "--json"]),
     "cases",
   );
-  return typeof output === "string" ? output : [...new Set(output.cases.map((planned) => planned.caseId))].sort();
+  return typeof output === "string"
+    ? output
+    : [...new Set(output.cases.map((planned) => planned.caseId))].sort();
 }
 
 function gradeIds(ticket: Ticket, before: readonly string[], after: string[] | string): IdsGrade {
@@ -511,7 +571,11 @@ function gradeIds(ticket: Ticket, before: readonly string[], after: string[] | s
   return { pass: graded ? added.length === 0 : null, added };
 }
 
-async function answerPrompts(runDir: string, answered: Set<string>, counts: Record<Ask, number>): Promise<void> {
+async function answerPrompts(
+  runDir: string,
+  answered: Set<string>,
+  counts: Record<Ask, number>,
+): Promise<void> {
   let names: string[];
   try {
     names = await readdir(join(runDir, "prompts"));
@@ -523,7 +587,9 @@ async function answerPrompts(runDir: string, answered: Set<string>, counts: Reco
     if (id === undefined || answered.has(id)) continue;
     let ask: unknown;
     try {
-      ({ ask } = JSON.parse(await readFile(join(runDir, "prompts", name), "utf8")) as { ask?: unknown });
+      ({ ask } = JSON.parse(await readFile(join(runDir, "prompts", name), "utf8")) as {
+        ask?: unknown;
+      });
     } catch {
       // the run moved the prompt to done/ in the meantime
       continue;
@@ -544,12 +610,24 @@ async function answerPrompts(runDir: string, answered: Set<string>, counts: Reco
  * Runs the cases that link the ticket, answering each person prompt from ANSWERS. `drafted` holds the ids of
  * the cases that are new or have new steps or checks: a run of cases the agent only linked tests none of the ticket.
  */
-async function gradeRun(project: string, ticket: Ticket, drafted: ReadonlySet<string>): Promise<RunGrade> {
+async function gradeRun(
+  project: string,
+  ticket: Ticket,
+  drafted: ReadonlySet<string>,
+): Promise<RunGrade> {
   interface RunOutput {
     counts: Record<string, number>;
     cases: CaseLine[];
   }
-  const args = ["run", "--env", ENV, "--link", `${TRACKER}:${ticket.key}`, "--channel", "answers-file"];
+  const args = [
+    "run",
+    "--env",
+    ENV,
+    "--link",
+    `${TRACKER}:${ticket.key}`,
+    "--channel",
+    "answers-file",
+  ];
   const running = cli(project, [...args, "--run", GRADED_RUN_ID, "--json"], RUN_TIMEOUT_MS);
   // the race below takes the rejection of a stopped eval; this keeps it from counting as unhandled before then
   void running.catch(() => undefined);
@@ -572,7 +650,8 @@ async function gradeRun(project: string, ticket: Ticket, drafted: ReadonlySet<st
   }));
   const ran = [...new Set(cases.map((line) => line.caseId))].filter((id) => drafted.has(id));
   const pass = exited.code === 0 && ran.length > 0;
-  const error = exited.code === 0 && !pass ? { error: "no case it ran is new or has new steps or checks" } : {};
+  const error =
+    exited.code === 0 && !pass ? { error: "no case it ran is new or has new steps or checks" } : {};
   return { ...grade, pass, counts: output.counts, cases, drafted: ran, ...error };
 }
 
@@ -597,18 +676,34 @@ function modelsOf(stdout: string): string[] {
   return ["unknown"];
 }
 
-async function runAgent(command: string, dir: string, project: string, ticket: Ticket): Promise<AgentRecord> {
+async function runAgent(
+  command: string,
+  dir: string,
+  project: string,
+  ticket: Ticket,
+): Promise<AgentRecord> {
   const ticketFile = join(dir, "ticket.md");
   const mcpConfig = join(dir, "mcp.json");
   await writeFile(ticketFile, `${ticket.body}\n`);
-  const server = { command: process.execPath, args: ["--conditions=development", CLI, "mcp", "--root", project] };
-  await writeFile(mcpConfig, `${JSON.stringify({ mcpServers: { [BRAND.mcpServerName]: server } }, null, 2)}\n`);
+  const server = {
+    command: process.execPath,
+    args: ["--conditions=development", CLI, "mcp", "--root", project],
+  };
+  await writeFile(
+    mcpConfig,
+    `${JSON.stringify({ mcpServers: { [BRAND.mcpServerName]: server } }, null, 2)}\n`,
+  );
   const exited = await runGroup("sh", ["-c", command], {
     cwd: project,
     timeoutMs: AGENT_TIMEOUT_MS,
     input: agentPrompt(ticket),
     stderr: "inherit",
-    env: { ...process.env, EVAL_TICKET_FILE: ticketFile, EVAL_SKILL_FILE: SKILL, EVAL_MCP_CONFIG: mcpConfig },
+    env: {
+      ...process.env,
+      EVAL_TICKET_FILE: ticketFile,
+      EVAL_SKILL_FILE: SKILL,
+      EVAL_MCP_CONFIG: mcpConfig,
+    },
   });
   const { code: exit, signal, timedOut, seconds } = exited;
   return { exit, signal, timedOut, seconds, models: modelsOf(exited.stdout) };
@@ -625,7 +720,14 @@ function refused(agent: AgentRecord, ticket: Ticket, changes: readonly string[])
   return {
     agent,
     check: { pass: false, errors: 0, warnings: 0, issues: [], error },
-    run: { pass: false, exit: null, timedOut: false, drafted: [], error, prompts: { verdict: 0, action: 0, value: 0 } },
+    run: {
+      pass: false,
+      exit: null,
+      timedOut: false,
+      drafted: [],
+      error,
+      prompts: { verdict: 0, action: 0, value: 0 },
+    },
     ids: { pass: ticket.kind === "extend" ? false : null, added: [], error },
   };
 }
@@ -655,7 +757,9 @@ async function attempt(command: string, ticket: Ticket): Promise<Attempt> {
     const check = await gradeCheck(project);
     const ids = gradeIds(ticket, before, await caseIds(project));
     const after = await caseBodies(project);
-    const drafted = new Set([...after].filter(([id, body]) => bodies.get(id) !== body).map(([id]) => id));
+    const drafted = new Set(
+      [...after].filter(([id, body]) => bodies.get(id) !== body).map(([id]) => id),
+    );
     const run = await gradeRun(project, ticket, drafted);
     return { agent, check, run, ids };
   } finally {
@@ -682,20 +786,35 @@ function ratesOf(attempts: readonly Attempt[]): Record<"check" | "run" | "ids", 
   };
 }
 
-function progressLine(ticket: Ticket, n: number, repeats: number, { agent, check, run, ids }: Attempt): string {
-  const word = (pass: boolean | null): string => (pass === null ? "not graded" : pass ? "pass" : "fail");
+function progressLine(
+  ticket: Ticket,
+  n: number,
+  repeats: number,
+  { agent, check, run, ids }: Attempt,
+): string {
+  const word = (pass: boolean | null): string =>
+    pass === null ? "not graded" : pass ? "pass" : "fail";
   const ran = run.error === undefined ? word(run.pass) : `${word(run.pass)} (${run.error})`;
   const agentEnd = agent.timedOut ? "timed out" : `exit ${agent.exit ?? agent.signal}`;
   return `${ticket.key} (${ticket.kind}) ${n}/${repeats}: agent ${agentEnd} after ${agent.seconds}s, check ${word(check.pass)}, run ${ran}, ids ${word(ids.pass)}`;
 }
 
 /** The skill's git blob hash, which changes with any edit, committed or not, and the last commit to touch it. */
-function skillVersion(): { path: string; blob: string; commit: string | null; uncommitted: boolean } {
+function skillVersion(): {
+  path: string;
+  blob: string;
+  commit: string | null;
+  uncommitted: boolean;
+} {
   const path = relative(REPO, SKILL);
   const git = (...args: string[]): string | null => {
     try {
       return (
-        execFileSync("git", args, { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null
+        execFileSync("git", args, {
+          cwd: REPO,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim() || null
       );
     } catch {
       return null;
@@ -704,7 +823,12 @@ function skillVersion(): { path: string; blob: string; commit: string | null; un
   const blob = git("hash-object", path);
   if (blob === null) throw new Error(`git cannot hash ${path}`);
   const committed = git("rev-parse", "--verify", "--quiet", `HEAD:${path}`);
-  return { path, blob, commit: git("log", "-1", "--format=%H", "--", path), uncommitted: blob !== committed };
+  return {
+    path,
+    blob,
+    commit: git("log", "-1", "--format=%H", "--", path),
+    uncommitted: blob !== committed,
+  };
 }
 
 async function demoIsUp(): Promise<void> {
@@ -746,7 +870,9 @@ async function main(): Promise<void> {
   const command = process.env.EVAL_AGENT_CMD?.trim() || DEFAULT_AGENT_CMD;
   const tickets = await loadTickets();
   const skill = skillVersion();
-  const { version } = JSON.parse(await readFile(join(REPO, "packages", "cli", "package.json"), "utf8")) as {
+  const { version } = JSON.parse(
+    await readFile(join(REPO, "packages", "cli", "package.json"), "utf8"),
+  ) as {
     version: string;
   };
   await demoIsUp();

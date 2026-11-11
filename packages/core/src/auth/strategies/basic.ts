@@ -24,8 +24,15 @@ export const basicStrategy = defineAuthStrategy<BasicConfig, BasicCredential>({
   apply: async (credential, target) => {
     // a header set on the browser would miss the hops of a redirect, while an answered challenge covers them
     if (target.kind === "browser")
-      return target.session.setHttpCredentials({ username: credential.user, password: credential.password });
-    return applyHeader(target, "authorization", basicAuthorization(credential.user, credential.password));
+      return target.session.setHttpCredentials({
+        username: credential.user,
+        password: credential.password,
+      });
+    return applyHeader(
+      target,
+      "authorization",
+      basicAuthorization(credential.user, credential.password),
+    );
   },
   // the joined pair, so the redactor also masks its base64 form, which is what the header carries
   secrets: (credential) => [credential.password, `${credential.user}:${credential.password}`],

@@ -34,7 +34,10 @@ export class SoftwareAuthenticator {
     const length = Buffer.alloc(2)
     length.writeUInt16BE(this.credentialId.length)
     const authData = Buffer.concat([
-      this.authDataHeader(options.rp.id, FLAG_USER_PRESENT | FLAG_USER_VERIFIED | FLAG_ATTESTED_CREDENTIAL),
+      this.authDataHeader(
+        options.rp.id,
+        FLAG_USER_PRESENT | FLAG_USER_VERIFIED | FLAG_ATTESTED_CREDENTIAL,
+      ),
       Buffer.alloc(16), // aaguid
       length,
       this.credentialId,
@@ -63,8 +66,14 @@ export class SoftwareAuthenticator {
   assert(options: { challenge: string; rpId: string }) {
     const clientDataJSON = this.clientData("webauthn.get", options.challenge)
     this.signCount += 1
-    const authenticatorData = this.authDataHeader(options.rpId, FLAG_USER_PRESENT | FLAG_USER_VERIFIED)
-    const signed = Buffer.concat([authenticatorData, createHash("sha256").update(clientDataJSON).digest()])
+    const authenticatorData = this.authDataHeader(
+      options.rpId,
+      FLAG_USER_PRESENT | FLAG_USER_VERIFIED,
+    )
+    const signed = Buffer.concat([
+      authenticatorData,
+      createHash("sha256").update(clientDataJSON).digest(),
+    ])
     return {
       id: this.credentialId.toString("base64url"),
       rawId: this.credentialId.toString("base64url"),
@@ -94,9 +103,13 @@ export class SoftwareAuthenticator {
 // the CBOR subset WebAuthn attestation needs: integers, text, bytes and maps
 function cbor(value: Cbor): Buffer {
   if (typeof value === "number") return value >= 0 ? cborHead(0, value) : cborHead(1, -1 - value)
-  if (typeof value === "string") return Buffer.concat([cborHead(3, Buffer.byteLength(value)), Buffer.from(value)])
+  if (typeof value === "string")
+    return Buffer.concat([cborHead(3, Buffer.byteLength(value)), Buffer.from(value)])
   if (value instanceof Uint8Array) return Buffer.concat([cborHead(2, value.length), value])
-  return Buffer.concat([cborHead(5, value.size), ...[...value].flatMap(([key, item]) => [cbor(key), cbor(item)])])
+  return Buffer.concat([
+    cborHead(5, value.size),
+    ...[...value].flatMap(([key, item]) => [cbor(key), cbor(item)]),
+  ])
 }
 
 function cborHead(majorType: number, argument: number): Buffer {

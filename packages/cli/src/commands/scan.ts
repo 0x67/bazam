@@ -22,7 +22,9 @@ export async function scanCommand(ctx: CommandContext): Promise<ExitCode> {
   if (first === undefined) throw new CommandError(`run ${flags.run} has no case results`);
   const env = project.config.envs[first.env];
   if (env === undefined)
-    throw new CommandError(`run ${flags.run} ran in env "${first.env}", which the config no longer has`);
+    throw new CommandError(
+      `run ${flags.run} ran in env "${first.env}", which the config no longer has`,
+    );
   const files = await filesUnder(runDir);
   const values = await loadScanValues({
     project,

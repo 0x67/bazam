@@ -3,7 +3,9 @@ import { CASE_ID, type CaseSpec } from "../case/index.ts";
 import type { ExternalTest } from "./format.ts";
 
 /** A runner's mapping file: test title, without the project prefix, to case id. */
-export const MappingFile = z.strictObject({ tests: z.record(z.string().min(1), z.string().min(1)) });
+export const MappingFile = z.strictObject({
+  tests: z.record(z.string().min(1), z.string().min(1)),
+});
 
 const BRACKETED_ID = new RegExp(`\\[(${CASE_ID.source.slice(1, -1)})\\]`);
 
@@ -43,12 +45,14 @@ export function mapTests(inputs: MappingInputs): MappedTests {
   const unmapped: UnmappedTest[] = [];
   let outsideSelection = 0;
   for (const test of inputs.tests) {
-    const unplaced = (reason: string) => unmapped.push({ target: inputs.target, title: testTitle(test), reason });
+    const unplaced = (reason: string) =>
+      unmapped.push({ target: inputs.target, title: testTitle(test), reason });
     const id = caseIdOf(test, inputs.mapping);
     const spec = id === undefined ? undefined : inputs.cases.get(id);
     if (id === undefined) unplaced("no case id in the test name, its tags or the mapping file");
     else if (spec === undefined) unplaced(`no case ${id}`);
-    else if (!spec.targets.includes(inputs.target)) unplaced(`case ${id} does not run on target ${inputs.target}`);
+    else if (!spec.targets.includes(inputs.target))
+      unplaced(`case ${id} does not run on target ${inputs.target}`);
     else if (!inputs.selected.has(id)) outsideSelection++;
     else {
       const tests = byCase.get(id) ?? [];
@@ -68,5 +72,7 @@ function caseIdOf(test: ExternalTest, mapping: MappingInputs["mapping"]): string
   if (tagged !== undefined) return tagged;
   const key = test.title.join(" › ");
   // an own key only, so a title such as "constructor" never reads the object's prototype
-  return mapping !== undefined && Object.hasOwn(mapping.tests, key) ? mapping.tests[key] : undefined;
+  return mapping !== undefined && Object.hasOwn(mapping.tests, key)
+    ? mapping.tests[key]
+    : undefined;
 }

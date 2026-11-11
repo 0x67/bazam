@@ -45,7 +45,11 @@ function setup(plan: { everyMs: number; cases: number; identity?: string; surfac
           );
         }),
     },
-    plan.map(({ identity = "customer", surface = "web", ...rest }) => ({ identity, surface, ...rest })),
+    plan.map(({ identity = "customer", surface = "web", ...rest }) => ({
+      identity,
+      surface,
+      ...rest,
+    })),
   );
   const pending = () => waits.filter((wait) => !wait.aborted);
   return { refresh, waits, pending, refreshed, notes, logged, recover };
@@ -119,7 +123,9 @@ describe("IntervalRefresh", () => {
   });
 
   it("notes a refresh that throws or refreshes nothing and goes on", async () => {
-    const { refresh, pending, notes, logged, refreshed, recover } = setup([{ everyMs: 30_000, cases: 1 }]);
+    const { refresh, pending, notes, logged, refreshed, recover } = setup([
+      { everyMs: 30_000, cases: 1 },
+    ]);
     const answers = [
       () => Promise.reject(new RefreshLockTimeout(4242)),
       () => Promise.resolve(false),

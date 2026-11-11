@@ -5,12 +5,23 @@ import { describe, expect, it } from "vite-plus/test";
 import { CaseSpec, loadSuites, selectCases, type LoadedCase } from "../src/case/index.ts";
 
 function loaded(domain: string, fields: Partial<CaseSpec> & { id: string }): LoadedCase {
-  const spec = CaseSpec.parse({ title: "A journey", stage: "acceptance", risk: "low", targets: ["web"], ...fields });
+  const spec = CaseSpec.parse({
+    title: "A journey",
+    stage: "acceptance",
+    risk: "low",
+    targets: ["web"],
+    ...fields,
+  });
   return { spec, domain, source: { file: `cases/${domain}/journeys.yaml`, line: 2 } };
 }
 
 const cases = [
-  loaded("auth", { id: "AUTH-LOGIN-001", stage: "acceptance", links: ["jira:DEMO-246"], tags: ["smoke"] }),
+  loaded("auth", {
+    id: "AUTH-LOGIN-001",
+    stage: "acceptance",
+    links: ["jira:DEMO-246"],
+    tags: ["smoke"],
+  }),
   loaded("auth", {
     id: "AUTH-LOGIN-002",
     stage: "regression",
@@ -18,7 +29,12 @@ const cases = [
     tags: ["smoke", "slow"],
   }),
   loaded("auth", { id: "AUTH-RESET-001", stage: "draft", links: ["jira:DEMO-300"] }),
-  loaded("billing", { id: "BILLING-REFUND-001", stage: "regression", targets: ["web-chrome"], tags: ["smoke"] }),
+  loaded("billing", {
+    id: "BILLING-REFUND-001",
+    stage: "regression",
+    targets: ["web-chrome"],
+    tags: ["smoke"],
+  }),
   loaded("billing", { id: "BILLING-REFUND-002", stage: "retired", tags: ["smoke"] }),
 ];
 const ids = (selected: readonly LoadedCase[]) => selected.map((c) => c.spec.id);
@@ -43,9 +59,11 @@ describe("selectCases", () => {
       "AUTH-LOGIN-002",
       "BILLING-REFUND-001",
     ]);
-    expect(ids(selectCases(cases, { ids: ["AUTH-LOGIN-001", "BILLING-REFUND-001"], domains: ["billing"] }))).toEqual([
-      "BILLING-REFUND-001",
-    ]);
+    expect(
+      ids(
+        selectCases(cases, { ids: ["AUTH-LOGIN-001", "BILLING-REFUND-001"], domains: ["billing"] }),
+      ),
+    ).toEqual(["BILLING-REFUND-001"]);
   });
 
   it("default keeps draft, acceptance, regression", () => {
@@ -89,7 +107,11 @@ chrome-billing:
   });
 
   it("rejects a suite with an unknown field or stage and names the suite", async () => {
-    await expect(loadSuites(await projectWithSuites("smoke:\n  tag: [smoke]\n"))).rejects.toThrow(/smoke/);
-    await expect(loadSuites(await projectWithSuites("nightly:\n  stages: [released]\n"))).rejects.toThrow(/nightly/);
+    await expect(loadSuites(await projectWithSuites("smoke:\n  tag: [smoke]\n"))).rejects.toThrow(
+      /smoke/,
+    );
+    await expect(
+      loadSuites(await projectWithSuites("nightly:\n  stages: [released]\n")),
+    ).rejects.toThrow(/nightly/);
   });
 });

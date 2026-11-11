@@ -28,7 +28,10 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-function step(kind: string, act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {}): StepHandler {
+function step(
+  kind: string,
+  act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {},
+): StepHandler {
   return {
     kind,
     schema: z.unknown(),
@@ -52,13 +55,23 @@ const steps = [
   step("block", async () => {
     throw new CaseBlocked("test data is gone");
   }),
-  step("note-followup", async (_payload, ctx) => ctx.evidence.followup("check the ledger", "ask finance")),
+  step("note-followup", async (_payload, ctx) =>
+    ctx.evidence.followup("check the ledger", "ask finance"),
+  ),
   step("expect", async (payload, ctx) => {
     const ok = payload !== "missing";
-    ctx.evidence.record({ name: `${String(payload)} is visible`, kind: "ui", expected: "yes", observed: "no", ok });
+    ctx.evidence.record({
+      name: `${String(payload)} is visible`,
+      kind: "ui",
+      expected: "yes",
+      observed: "no",
+      ok,
+    });
   }),
   step("hang", async (_payload, ctx) => {
-    await new Promise((_, reject) => ctx.signal.addEventListener("abort", () => reject(ctx.signal.reason)));
+    await new Promise((_, reject) =>
+      ctx.signal.addEventListener("abort", () => reject(ctx.signal.reason)),
+    );
   }),
   step("signal-state", async (_payload, ctx) => {
     events.push(`finally signal aborted: ${ctx.signal.aborted}`);
@@ -135,7 +148,11 @@ describe("finally steps", () => {
 
   it("run under a signal of their own after the run is cancelled", async () => {
     const [result] = await run([
-      { id: "SHOP-ONE-001", steps: [{ cancel: {} }, { log: "never" }], finally: [{ "signal-state": {} }] },
+      {
+        id: "SHOP-ONE-001",
+        steps: [{ cancel: {} }, { log: "never" }],
+        finally: [{ "signal-state": {} }],
+      },
     ]);
     expect(events).toEqual(["cancel {}", "signal-state {}", "finally signal aborted: false"]);
     expect(result).toMatchObject({ status: "blocked", reason: "run cancelled" });
@@ -161,7 +178,11 @@ describe("finally steps", () => {
 
   it("run after a blocked step and leave the case blocked with its reason", async () => {
     const [result] = await run([
-      { id: "SHOP-ONE-001", steps: [{ block: {} }, { log: "never" }], finally: [{ log: "cleanup" }] },
+      {
+        id: "SHOP-ONE-001",
+        steps: [{ block: {} }, { log: "never" }],
+        finally: [{ log: "cleanup" }],
+      },
     ]);
     expect(events).toEqual(["block {}", 'log "cleanup"']);
     expect(result).toMatchObject({ status: "blocked", reason: "test data is gone" });
@@ -209,14 +230,20 @@ describe("finally steps", () => {
       },
     ]);
     expect(events.at(-1)).toBe('log "after"');
-    expect(result?.notes).toEqual(["finally step 2 (guided) skipped: finally steps run unattended"]);
+    expect(result?.notes).toEqual([
+      "finally step 2 (guided) skipped: finally steps run unattended",
+    ]);
   });
 
   it("note the steps the 2 minute budget left undone", async () => {
     const timeout = AbortSignal.timeout.bind(AbortSignal);
     vi.spyOn(AbortSignal, "timeout").mockImplementation(() => timeout(20));
     const [result] = await run([
-      { id: "SHOP-ONE-001", checks: [{ expect: "cart" }], finally: [{ hang: {} }, { log: "late" }, { log: "later" }] },
+      {
+        id: "SHOP-ONE-001",
+        checks: [{ expect: "cart" }],
+        finally: [{ hang: {} }, { log: "late" }, { log: "later" }],
+      },
     ]);
     expect(events).not.toContain('log "late"');
     expect(result?.notes).toEqual([

@@ -48,6 +48,8 @@ describe("installRecipes", () => {
   it("names the missing package", () => {
     const missing = tarballs.filter(({ name }) => name !== "@bazam/mcp");
 
-    expect(() => installRecipes(missing)).toThrow(new InstallCheckFailed("no tarball for @bazam/mcp"));
+    expect(() => installRecipes(missing)).toThrow(
+      new InstallCheckFailed("no tarball for @bazam/mcp"),
+    );
   });
 });

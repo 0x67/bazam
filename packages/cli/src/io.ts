@@ -36,7 +36,9 @@ export class Output {
       this.#io.stdout.write(this.#redactor.maskRegistered(this.#json ? jsonText(doc) : text));
       return;
     }
-    this.#io.stdout.write(this.#json ? jsonText(this.#redactor.value(doc)) : this.#redactor.text(text));
+    this.#io.stdout.write(
+      this.#json ? jsonText(this.#redactor.value(doc)) : this.#redactor.text(text),
+    );
   }
 
   log(line: string): void {

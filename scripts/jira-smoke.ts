@@ -49,12 +49,19 @@ const PROBE: unknown = {
   content: [
     {
       type: "paragraph",
-      content: [{ type: "text", text: "Smoke probe: the section below should show folded until opened." }],
+      content: [
+        { type: "text", text: "Smoke probe: the section below should show folded until opened." },
+      ],
     },
     {
       type: "expand",
       attrs: { title: PROBE_TITLE },
-      content: [{ type: "paragraph", content: [{ type: "text", text: "This paragraph sits inside an expand node." }] }],
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "This paragraph sits inside an expand node." }],
+        },
+      ],
     },
   ],
 };
@@ -182,7 +189,10 @@ async function inputsFile(given: string | undefined): Promise<string> {
 }
 
 /** `KEY=VALUE` lines of the wanted names; blank lines and `#` comments are skipped, a missing file is empty. */
-async function readInputsFile(file: string, wanted: readonly string[]): Promise<Map<string, string>> {
+async function readInputsFile(
+  file: string,
+  wanted: readonly string[],
+): Promise<Map<string, string>> {
   let text: string;
   try {
     text = await readFile(file, "utf8");
@@ -199,7 +209,8 @@ async function readInputsFile(file: string, wanted: readonly string[]): Promise<
     if (equals <= 0) throw new CouldNotStart(`${file}:${index + 1} is not a KEY=VALUE line`);
     const name = line.slice(0, equals).trim();
     const value = line.slice(equals + 1).trim();
-    if (wanted.includes(name)) values.set(name, /^(["']).*\1$/.test(value) ? value.slice(1, -1) : value);
+    if (wanted.includes(name))
+      values.set(name, /^(["']).*\1$/.test(value) ? value.slice(1, -1) : value);
   });
   return values;
 }
@@ -223,11 +234,18 @@ async function loadInputs(
   const site = required("JIRA_SMOKE_SITE", "example.atlassian.net");
   const project = required("JIRA_SMOKE_PROJECT", "DEMO");
   const ticket = required("JIRA_SMOKE_TICKET", "DEMO-1");
-  const credentials = dryRun ? undefined : { email: required("JIRA_EMAIL"), token: required("JIRA_API_TOKEN") };
-  if (missing.length > 0) throw new CouldNotStart(`set ${missing.join(", ")} in the environment or in ${file}`);
+  const credentials = dryRun
+    ? undefined
+    : { email: required("JIRA_EMAIL"), token: required("JIRA_API_TOKEN") };
+  if (missing.length > 0)
+    throw new CouldNotStart(`set ${missing.join(", ")} in the environment or in ${file}`);
 
   // mirrors isSiteHost in packages/core/src/project.ts, so the CLI accepts any site that passes here
-  if (!SITE_HOST.test(site) || !URL.canParse(`https://${site}`) || new URL(`https://${site}`).host !== site)
+  if (
+    !SITE_HOST.test(site) ||
+    !URL.canParse(`https://${site}`) ||
+    new URL(`https://${site}`).host !== site
+  )
     throw new CouldNotStart(`JIRA_SMOKE_SITE ${site} is not a host such as example.atlassian.net`);
   if (!PROJECT_KEY.test(project))
     throw new CouldNotStart(
@@ -237,7 +255,9 @@ async function loadInputs(
   if (ticketProject === undefined)
     throw new CouldNotStart(`JIRA_SMOKE_TICKET ${ticket} is not a Jira issue key such as DEMO-1`);
   if (ticketProject !== project)
-    throw new CouldNotStart(`ticket ${ticket} is not in project ${project}, the only project the smoke test posts to`);
+    throw new CouldNotStart(
+      `ticket ${ticket} is not in project ${project}, the only project the smoke test posts to`,
+    );
   const api = get("JIRA_SMOKE_API");
   if (api !== undefined && !isRestBase(api))
     throw new CouldNotStart(
@@ -308,11 +328,16 @@ function jiraSender(inputs: Inputs, credentials: Credentials, signal: AbortSigna
     } catch (error) {
       const cause = (error as Error).cause;
       const detail = cause instanceof Error ? ` (${cause.message})` : "";
-      throw new Error(`${method} ${apiPath} failed: ${(error as Error).message}${detail}`, { cause: error });
+      throw new Error(`${method} ${apiPath} failed: ${(error as Error).message}${detail}`, {
+        cause: error,
+      });
     }
     const body = parseJson(await response.text());
     if (!response.ok)
-      throw new JiraAnswer(`${method} ${apiPath} answered ${response.status}${jiraErrors(body)}`, response.status);
+      throw new JiraAnswer(
+        `${method} ${apiPath} answered ${response.status}${jiraErrors(body)}`,
+        response.status,
+      );
     return body;
   };
 }
@@ -358,11 +383,15 @@ function cli(smoke: Smoke, ...args: string[]): Promise<CliRun> {
   // after Ctrl-C no later step starts
   smoke.signal.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--conditions=development", cliMain, ...args, "--root", smoke.root], {
-      cwd: smoke.root,
-      env: smoke.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawn(
+      process.execPath,
+      ["--conditions=development", cliMain, ...args, "--root", smoke.root],
+      {
+        cwd: smoke.root,
+        env: smoke.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
@@ -381,7 +410,9 @@ async function writeProject(smoke: Smoke): Promise<void> {
   const config = {
     envs: { [ENV]: { production: false, hosts: ["localhost"] } },
     // ingest never starts the command
-    runners: { [TARGET]: { command: ["node", "--version"], results: "results/*.xml", format: "junit" } },
+    runners: {
+      [TARGET]: { command: ["node", "--version"], results: "results/*.xml", format: "junit" },
+    },
     targets: { [TARGET]: { runner: TARGET } },
     trackers: {
       jira: {
@@ -389,7 +420,9 @@ async function writeProject(smoke: Smoke): Promise<void> {
         ...(inputs.api === undefined ? {} : { api: inputs.api }),
         secrets: { email: "JIRA_EMAIL", token: "JIRA_API_TOKEN" },
         projects: {
-          [inputs.project]: { bugs: { issueType: inputs.issueType, labels: [SMOKE_LABEL], linkType: inputs.linkType } },
+          [inputs.project]: {
+            bugs: { issueType: inputs.issueType, labels: [SMOKE_LABEL], linkType: inputs.linkType },
+          },
         },
       },
     },
@@ -406,7 +439,10 @@ async function writeProject(smoke: Smoke): Promise<void> {
   await writeFile(path.join(root, BRAND.configFile), `${JSON.stringify(config, null, 2)}\n`);
   await writeFile(path.join(root, ".gitignore"), `runs/\n${BRAND.stateDir}/\n`);
   await mkdir(path.join(root, "cases", "smoke"), { recursive: true });
-  await writeFile(path.join(root, "cases", "smoke", "cases.yaml"), `${JSON.stringify({ cases: [spec] }, null, 2)}\n`);
+  await writeFile(
+    path.join(root, "cases", "smoke", "cases.yaml"),
+    `${JSON.stringify({ cases: [spec] }, null, 2)}\n`,
+  );
   await mkdir(path.join(root, "results"));
 }
 
@@ -420,7 +456,9 @@ async function ingest(smoke: Smoke, runId: string, failing: boolean): Promise<vo
   // ingest exits 1 when a case failed
   const expected = failing ? 1 : 0;
   if (run.code !== expected)
-    throw new Error(`ingest of the ${failing ? "failing" : "passing"} result exited ${run.code}, not ${expected}`);
+    throw new Error(
+      `ingest of the ${failing ? "failing" : "passing"} result exited ${run.code}, not ${expected}`,
+    );
 }
 
 async function reportPost(smoke: Smoke, runId: string): Promise<PostOutput> {
@@ -435,8 +473,12 @@ async function reportPost(smoke: Smoke, runId: string): Promise<PostOutput> {
 
 function failures(output: PostOutput): string {
   const lines = [
-    ...output.items.filter((item) => !item.ok).map((item) => `failed ${item.ticket.key}: ${item.error ?? ""}`),
-    ...output.bugs.filter((bug) => !bug.ok).map((bug) => `failed ${bug.caseId}: ${bug.action}: ${bug.error ?? ""}`),
+    ...output.items
+      .filter((item) => !item.ok)
+      .map((item) => `failed ${item.ticket.key}: ${item.error ?? ""}`),
+    ...output.bugs
+      .filter((bug) => !bug.ok)
+      .map((bug) => `failed ${bug.caseId}: ${bug.action}: ${bug.error ?? ""}`),
   ];
   return lines.length === 0 ? "" : `\n${lines.join("\n")}`;
 }
@@ -507,7 +549,9 @@ async function searchBug(smoke: Smoke, send: Send, until?: string): Promise<Sear
   for (;;) {
     let body: unknown;
     try {
-      body = await send("POST", "/rest/api/3/search/jql", { json: { jql, fields: ["created"], maxResults: 1 } });
+      body = await send("POST", "/rest/api/3/search/jql", {
+        json: { jql, fields: ["created"], maxResults: 1 },
+      });
       failed = undefined;
     } catch (error) {
       if (!mayPass(error)) throw error;
@@ -550,7 +594,9 @@ async function passingRun(smoke: Smoke, key: string): Promise<void> {
   if (output.code !== 0 || bug?.ok !== true || bug.key !== key || bug.url === undefined) {
     // a failed outcome names its step in failures()
     const why = bug?.ok === false ? "" : `: ${bug?.action ?? "no bug outcome"}`;
-    throw new Error(`report post of the passing result did not comment on ${key}${why}${failures(output)}`);
+    throw new Error(
+      `report post of the passing result did not comment on ${key}${why}${failures(output)}`,
+    );
   }
   smoke.out.line(`recovery comment ${bug.url}`);
 }
@@ -558,7 +604,8 @@ async function passingRun(smoke: Smoke, key: string): Promise<void> {
 async function probe(smoke: Smoke, send: Send, key: string): Promise<void> {
   const apiPath = `/rest/api/3/issue/${key}/comment`;
   const id = at(await send("POST", apiPath, { json: { body: PROBE } }), "id");
-  if (typeof id !== "string" || !COMMENT_ID.test(id)) throw new Error(`POST ${apiPath} answered without a comment id`);
+  if (typeof id !== "string" || !COMMENT_ID.test(id))
+    throw new Error(`POST ${apiPath} answered without a comment id`);
   smoke.out.line(`probe comment ${browseUrl(smoke.inputs, key, id)}`);
 }
 
@@ -612,17 +659,23 @@ async function dryRun(smoke: Smoke): Promise<void> {
   out.line(
     `3. search ${inputs.project} for the label ${bugLabel(caseId)} until the new bug comes back, for at most ${SEARCH_LIMIT_MS / 1000} s`,
   );
-  out.line("4. ingest a passing result, then report post, which comments on the bug and moves nothing");
+  out.line(
+    "4. ingest a passing result, then report post, which comments on the bug and moves nothing",
+  );
   out.line("5. post a probe comment with an expand node on the bug");
 }
 
 /** Everything the run created, for the person to delete. */
 function cleanupLine(smoke: Smoke): string | undefined {
   const created = [
-    ...(smoke.bug === undefined ? [] : [`the bug ${smoke.bug.key}, which takes its comments with it`]),
+    ...(smoke.bug === undefined
+      ? []
+      : [`the bug ${smoke.bug.key}, which takes its comments with it`]),
     ...(smoke.possibleBugLabel === undefined
       ? []
-      : [`any bug in ${smoke.inputs.project} labelled ${smoke.possibleBugLabel}, which the run may have filed`]),
+      : [
+          `any bug in ${smoke.inputs.project} labelled ${smoke.possibleBugLabel}, which the run may have filed`,
+        ]),
     ...(smoke.ticketComment === undefined ? [] : [`the comment on ${smoke.inputs.ticket}`]),
   ];
   return created.length === 0 ? undefined : `Delete afterwards: ${created.join(", and ")}.`;
@@ -639,7 +692,11 @@ async function main(argv: readonly string[]): Promise<number> {
   try {
     flags = parseArgs({
       args: [...argv],
-      options: { "dry-run": { type: "boolean" }, keep: { type: "boolean" }, inputs: { type: "string" } },
+      options: {
+        "dry-run": { type: "boolean" },
+        keep: { type: "boolean" },
+        inputs: { type: "string" },
+      },
       strict: true,
       allowPositionals: false,
     }).values;
@@ -658,7 +715,9 @@ async function main(argv: readonly string[]): Promise<number> {
     const dry = flags["dry-run"] === true;
     const { inputs, credentials } = await loadInputs(await inputsFile(flags.inputs), dry);
     if (credentials !== undefined) {
-      const basic = Buffer.from(`${credentials.email}:${credentials.token}`, "utf8").toString("base64");
+      const basic = Buffer.from(`${credentials.email}:${credentials.token}`, "utf8").toString(
+        "base64",
+      );
       out.hide(credentials.token, credentials.email, basic);
     }
     const stamp = new Date().toISOString().replace(/\D/g, "");

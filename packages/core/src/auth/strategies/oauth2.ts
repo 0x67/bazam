@@ -59,7 +59,8 @@ export const oauth2Strategy = defineAuthStrategy<OAuth2Config, Token>({
   config: OAuth2Config,
   cacheable: true,
   needsPerson: (settings) => settings["grant"] === "authorization-code",
-  canRefresh: (token, settings) => token.refreshToken !== undefined || settings["grant"] === "client-credentials",
+  canRefresh: (token, settings) =>
+    token.refreshToken !== undefined || settings["grant"] === "client-credentials",
   acquire: async (config, ctx) => {
     switch (config.grant) {
       case "client-credentials":
@@ -96,7 +97,9 @@ export const oauth2Strategy = defineAuthStrategy<OAuth2Config, Token>({
   expiresAt: (token) => (token.expiresAt === undefined ? undefined : new Date(token.expiresAt)),
   apply: (token, target) => applyHeader(target, "authorization", `Bearer ${token.accessToken}`),
   secrets: (token) =>
-    token.refreshToken === undefined ? [token.accessToken] : [token.accessToken, token.refreshToken],
+    token.refreshToken === undefined
+      ? [token.accessToken]
+      : [token.accessToken, token.refreshToken],
 });
 
 function clientCredentials(config: ClientCredentials, ctx: AuthContext): Promise<Token> {
@@ -133,7 +136,12 @@ async function authorizationCode(config: AuthorizationCode, ctx: AuthContext): P
   const code = codeFromRedirect(finalUrl, new URL(config.redirectUri), state);
   return requestToken(
     config,
-    { grant_type: "authorization_code", code, redirect_uri: config.redirectUri, code_verifier: verifier },
+    {
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: config.redirectUri,
+      code_verifier: verifier,
+    },
     ctx,
   );
 }
@@ -144,12 +152,16 @@ function formEncoded(value: string): string {
 
 function codeFromRedirect(finalUrl: URL, redirectUri: URL, state: string): string {
   if (finalUrl.origin !== redirectUri.origin || finalUrl.pathname !== redirectUri.pathname) {
-    throw new Error(`the login ended at ${finalUrl.origin}${finalUrl.pathname}, not at the redirect URI`);
+    throw new Error(
+      `the login ended at ${finalUrl.origin}${finalUrl.pathname}, not at the redirect URI`,
+    );
   }
   const error = finalUrl.searchParams.get("error");
   if (error !== null) throw new Error(`the authorization server answered ${error}`);
   if (finalUrl.searchParams.get("state") !== state)
-    throw new Error("the state in the redirect differs from the one the login sent, so its code is refused");
+    throw new Error(
+      "the state in the redirect differs from the one the login sent, so its code is refused",
+    );
   const code = finalUrl.searchParams.get("code");
   if (code === null) throw new Error("the redirect carries no code");
   return code;
@@ -163,7 +175,10 @@ async function requestToken(
   refreshToken?: string,
 ): Promise<Token> {
   const form = new URLSearchParams(grant);
-  const headers = new Headers({ "content-type": "application/x-www-form-urlencoded", accept: "application/json" });
+  const headers = new Headers({
+    "content-type": "application/x-www-form-urlencoded",
+    accept: "application/json",
+  });
   if (config.clientSecret === undefined) {
     form.set("client_id", config.clientId);
   } else if (config.clientAuth === "post") {
@@ -171,10 +186,18 @@ async function requestToken(
     form.set("client_secret", config.clientSecret);
   } else {
     // RFC 6749 2.3.1 form-encodes both before Basic joins them
-    headers.set("authorization", basicAuthorization(formEncoded(config.clientId), formEncoded(config.clientSecret)));
+    headers.set(
+      "authorization",
+      basicAuthorization(formEncoded(config.clientId), formEncoded(config.clientSecret)),
+    );
   }
   const body = new TextEncoder().encode(form.toString());
-  const response = await ctx.http.send({ method: "POST", url: new URL(config.tokenUrl), headers, body });
+  const response = await ctx.http.send({
+    method: "POST",
+    url: new URL(config.tokenUrl),
+    headers,
+    body,
+  });
   const parsed = TokenResponse.safeParse(response.body);
   if (response.status < 200 || response.status >= 300 || !parsed.success) {
     // only the OAuth error code: the rest of the body may echo what was sent

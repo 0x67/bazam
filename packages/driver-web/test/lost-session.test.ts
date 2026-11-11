@@ -2,7 +2,16 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { SessionLost } from "@bazam/core/run";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import {
   demoEnv,
@@ -80,7 +89,9 @@ describe.each(ENGINES)("lost sessions on %s", (engine) => {
   it("fires once with the login URL when a redirect leads there, and the open step throws SessionLost", async () => {
     const { lost, ctx } = await watching();
 
-    await expect(runSteps(ctx, [{ open: `${site.origin}/orders` }])).rejects.toBeInstanceOf(SessionLost);
+    await expect(runSteps(ctx, [{ open: `${site.origin}/orders` }])).rejects.toBeInstanceOf(
+      SessionLost,
+    );
 
     expect(lost).toEqual([`${site.origin}/login?next=%2Forders`]);
   });
@@ -88,7 +99,9 @@ describe.each(ENGINES)("lost sessions on %s", (engine) => {
   it("sees the hop when extra headers make the route send the request itself", async () => {
     const { lost, ctx } = await watching({ Authorization: "Bearer fake-bearer-7f3a9c" });
 
-    await expect(runSteps(ctx, [{ open: `${site.origin}/orders` }])).rejects.toBeInstanceOf(SessionLost);
+    await expect(runSteps(ctx, [{ open: `${site.origin}/orders` }])).rejects.toBeInstanceOf(
+      SessionLost,
+    );
 
     expect(lost).toEqual([`${site.origin}/login?next=%2Forders`]);
   });
@@ -110,7 +123,9 @@ describe.each(ENGINES)("lost sessions on %s", (engine) => {
   ])("fires once for a chain with several login hops%s", async (_name, headers) => {
     const { lost, ctx } = await watching(headers);
 
-    await expect(runSteps(ctx, [{ open: `${site.origin}/double` }])).rejects.toBeInstanceOf(SessionLost);
+    await expect(runSteps(ctx, [{ open: `${site.origin}/double` }])).rejects.toBeInstanceOf(
+      SessionLost,
+    );
 
     expect(lost).toHaveLength(1);
   });
@@ -119,7 +134,9 @@ describe.each(ENGINES)("lost sessions on %s", (engine) => {
     for (const headers of [{}, { Authorization: "Bearer fake-bearer-7f3a9c" }]) {
       const { lost, ctx } = await watching(headers);
 
-      await expect(runSteps(ctx, [{ open: `${site.origin}/sso` }])).rejects.toBeInstanceOf(SessionLost);
+      await expect(runSteps(ctx, [{ open: `${site.origin}/sso` }])).rejects.toBeInstanceOf(
+        SessionLost,
+      );
 
       expect(lost).toHaveLength(1);
       await session?.close({ status: "pass", evidence: newEvidence(root, CASE_ID) });

@@ -1,4 +1,9 @@
-import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 
 /** Jira's status category keys. */
@@ -111,23 +116,49 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     const method = req.method ?? "GET";
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const body = await readBody(Buffer.concat(chunks), req.headers["content-type"]);
-    requests.push({ method, path: url.pathname, query: Object.fromEntries(url.searchParams), body });
+    requests.push({
+      method,
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams),
+      body,
+    });
     const answer =
       req.headers.authorization === authorization
         ? route(method, url.pathname.replace(/^\/ex\/jira\/[^/]+/, ""), body, req.headers)
-        : { status: 401, body: { errorMessages: ["Client must be authenticated to access this resource."] } };
+        : {
+            status: 401,
+            body: { errorMessages: ["Client must be authenticated to access this resource."] },
+          };
     if (answer.body === undefined) res.writeHead(answer.status).end();
-    else res.writeHead(answer.status, { "content-type": "application/json" }).end(JSON.stringify(answer.body));
+    else
+      res
+        .writeHead(answer.status, { "content-type": "application/json" })
+        .end(JSON.stringify(answer.body));
   }
 
-  function route(method: string, path: string, body: unknown, headers: IncomingHttpHeaders): Answer {
+  function route(
+    method: string,
+    path: string,
+    body: unknown,
+    headers: IncomingHttpHeaders,
+  ): Answer {
     if (method === "POST" && path === "/rest/api/3/search/jql") return search(body);
     if (method === "POST" && path === "/rest/api/3/issue") return create(body);
     if (method === "GET" && path === "/rest/api/3/issueLinkType")
-      return { status: 200, body: { issueLinkTypes: linkTypes.map((name, index) => ({ id: `${index + 1}`, name })) } };
+      return {
+        status: 200,
+        body: { issueLinkTypes: linkTypes.map((name, index) => ({ id: `${index + 1}`, name })) },
+      };
     if (method === "POST" && path === "/rest/api/3/issueLink") return link(body);
-    const match = /^\/rest\/api\/3\/issue\/([^/]+)(?:\/(attachments|comment|transitions)(?:\/([^/]+))?)?$/.exec(path);
-    if (match === null) return { status: 404, body: { errorMessages: [`the stub does not serve ${method} ${path}`] } };
+    const match =
+      /^\/rest\/api\/3\/issue\/([^/]+)(?:\/(attachments|comment|transitions)(?:\/([^/]+))?)?$/.exec(
+        path,
+      );
+    if (match === null)
+      return {
+        status: 404,
+        body: { errorMessages: [`the stub does not serve ${method} ${path}`] },
+      };
     const [, key = "", resource = "", id] = match;
     const issue = issues.get(decodeURIComponent(key));
     if (issue === undefined) return NO_ISSUE;
@@ -141,18 +172,30 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
       case "PUT comment/{id}":
         return editComment(issue, decodeURIComponent(id ?? ""), body);
       case "GET transitions":
-        return { status: 200, body: { transitions: (issue.transitions ?? []).map(transitionBody) } };
+        return {
+          status: 200,
+          body: { transitions: (issue.transitions ?? []).map(transitionBody) },
+        };
       case "POST transitions":
         return transition(issue, body);
       default:
-        return { status: 405, body: { errorMessages: [`the stub does not serve ${method} ${path}`] } };
+        return {
+          status: 405,
+          body: { errorMessages: [`the stub does not serve ${method} ${path}`] },
+        };
     }
   }
 
   function search(body: unknown): Answer {
     const match = OPEN_BUG_JQL.exec(String(field(body, "jql")));
-    if (match === null) return { status: 400, body: { errorMessages: ["the stub evaluates only the open bug query"] } };
-    const [project, label] = [match[1] ?? "", match[2] ?? ""].map((value) => value.replace(/\\(.)/g, "$1"));
+    if (match === null)
+      return {
+        status: 400,
+        body: { errorMessages: ["the stub evaluates only the open bug query"] },
+      };
+    const [project, label] = [match[1] ?? "", match[2] ?? ""].map((value) =>
+      value.replace(/\\(.)/g, "$1"),
+    );
     const max = field(body, "maxResults");
     const found = [...issues.values()]
       .reverse()
@@ -171,7 +214,9 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     const summary = field(body, "fields", "summary");
     if (typeof project !== "string" || typeof summary !== "string")
       return { status: 400, body: { errors: { project: "project and summary are required" } } };
-    const numbers = [...issues.keys()].filter((key) => projectOf(key) === project).map((key) => issueNumber(key));
+    const numbers = [...issues.keys()]
+      .filter((key) => projectOf(key) === project)
+      .map((key) => issueNumber(key));
     const key = `${project}-${Math.max(0, ...numbers) + 1}`;
     const labels = field(body, "fields", "labels");
     const issueType = field(body, "fields", "issuetype", "name");
@@ -192,8 +237,16 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     const inward = field(body, "inwardIssue", "key");
     const outward = field(body, "outwardIssue", "key");
     if (typeof type !== "string" || !linkTypes.includes(type))
-      return { status: 404, body: { errorMessages: [`No issue link type with name '${String(type)}' found.`] } };
-    if (typeof inward !== "string" || typeof outward !== "string" || !issues.has(inward) || !issues.has(outward))
+      return {
+        status: 404,
+        body: { errorMessages: [`No issue link type with name '${String(type)}' found.`] },
+      };
+    if (
+      typeof inward !== "string" ||
+      typeof outward !== "string" ||
+      !issues.has(inward) ||
+      !issues.has(outward)
+    )
       return NO_ISSUE;
     links.push({ type, inward, outward });
     return { status: 201 };
@@ -221,9 +274,15 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
   function editComment(issue: StubIssue, id: string, body: unknown): Answer {
     const found = issue.comments?.find((existing) => existing.id === id);
     if (found === undefined)
-      return { status: 404, body: { errorMessages: [`Can not find a comment for the id: ${id}.`] } };
+      return {
+        status: 404,
+        body: { errorMessages: [`Can not find a comment for the id: ${id}.`] },
+      };
     if (found.readOnly === true)
-      return { status: 400, body: { errorMessages: ["You do not have the permission to edit this comment."] } };
+      return {
+        status: 400,
+        body: { errorMessages: ["You do not have the permission to edit this comment."] },
+      };
     found.body = field(body, "body");
     return { status: 200, body: found };
   }
@@ -232,7 +291,10 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     const id = field(body, "transition", "id");
     const chosen = issue.transitions?.find((offered) => offered.id === id);
     if (chosen === undefined)
-      return { status: 400, body: { errorMessages: [`Transition id '${String(id)}' is not valid for this issue.`] } };
+      return {
+        status: 400,
+        body: { errorMessages: [`Transition id '${String(id)}' is not valid for this issue.`] },
+      };
     issue.status = chosen.to;
     issue.category = chosen.category ?? "indeterminate";
     return { status: 204 };
@@ -259,7 +321,8 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
 }
 
 function issueBody(issue: StubIssue): unknown {
-  const person = (accountId: string | undefined): unknown => (accountId === undefined ? null : { accountId });
+  const person = (accountId: string | undefined): unknown =>
+    accountId === undefined ? null : { accountId };
   return {
     key: issue.key,
     fields: {
@@ -282,7 +345,9 @@ function transitionBody(transition: StubTransition): unknown {
 async function readBody(raw: Buffer, contentType: string | undefined): Promise<unknown> {
   if (raw.length === 0) return undefined;
   if (contentType?.startsWith("multipart/form-data") === true) {
-    const form = await new Response(Uint8Array.from(raw), { headers: { "content-type": contentType } }).formData();
+    const form = await new Response(Uint8Array.from(raw), {
+      headers: { "content-type": contentType },
+    }).formData();
     return form
       .getAll("file")
       .filter((part) => typeof part !== "string")

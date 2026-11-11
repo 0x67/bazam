@@ -5,7 +5,9 @@ import { z } from "zod";
 const ID_PART = String.raw`[A-Z](?:\d{0,7}[A-Z])*\d{0,7}`;
 export const CASE_ID = new RegExp(String.raw`^${ID_PART}-${ID_PART}-\d{3,7}$`);
 export const Stage = z.enum(["draft", "acceptance", "regression", "retired"]);
-export const TicketRef = z.string().regex(/^[a-z][a-z0-9-]*:[^\s]+$/, { error: 'a link looks like "jira:DEMO-246"' });
+export const TicketRef = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]*:[^\s]+$/, { error: 'a link looks like "jira:DEMO-246"' });
 
 /** A step kind with its zod schema; a driver or plugin step handler satisfies it. */
 export interface StepSchemaSource {
@@ -38,7 +40,10 @@ export type Selector = z.infer<typeof Selector>;
 const FlowParamValue = z.union([z.string(), z.number(), z.boolean()]);
 export const UseStep = z.union([
   z.string().min(1),
-  z.strictObject({ flow: z.string().min(1), with: z.record(z.string(), FlowParamValue).optional() }),
+  z.strictObject({
+    flow: z.string().min(1),
+    with: z.record(z.string(), FlowParamValue).optional(),
+  }),
 ]);
 export type UseStep = z.infer<typeof UseStep>;
 
@@ -70,7 +75,9 @@ export interface GuidedStep {
 const ReportAction = z.strictObject({
   transition: z.string().min(1).optional(),
   mention: z
-    .array(z.string().regex(/^role:[a-z][a-z0-9-]*$/, { error: 'a mention looks like "role:qa-lead"' }))
+    .array(
+      z.string().regex(/^role:[a-z][a-z0-9-]*$/, { error: 'a mention looks like "role:qa-lead"' }),
+    )
     .default([]),
 });
 export const ReportPolicy = z.strictObject({
@@ -143,7 +150,10 @@ export function buildStepSchema(sources: readonly StepSchemaSource[]): z.ZodType
   for (const source of sources) payloads.set(source.kind, source.schema);
 
   const shapes = new Map(
-    [...payloads].map(([kind, payload]) => [kind, z.strictObject({ [kind]: payload, as: IdentityName.optional() })]),
+    [...payloads].map(([kind, payload]) => [
+      kind,
+      z.strictObject({ [kind]: payload, as: IdentityName.optional() }),
+    ]),
   );
   // The transform checks the step against its own kind alone, so issues point inside the payload.
   // The union then parses the same input and gives JSON Schema its anyOf.
@@ -168,7 +178,12 @@ export function buildStepSchema(sources: readonly StepSchemaSource[]): z.ZodType
 // The pipe goes on past unrecognized_keys issues, so they come back as custom issues on the key.
 function stepIssue(issue: z.core.$ZodIssue, input: unknown): z.core.$ZodRawIssue {
   if (issue.code !== "unrecognized_keys") return { ...issue, input } as z.core.$ZodRawIssue;
-  return { code: "custom", input, message: issue.message, path: [...issue.path, ...issue.keys.slice(0, 1)] };
+  return {
+    code: "custom",
+    input,
+    message: issue.message,
+    path: [...issue.path, ...issue.keys.slice(0, 1)],
+  };
 }
 
 function stepShapeIssue(
@@ -180,11 +195,16 @@ function stepShapeIssue(
   }
   const kinds = Object.keys(input).filter((key) => key !== "as");
   if (kinds.length !== 1) {
-    return { message: `a step has exactly one kind key, found ${kinds.length === 0 ? "none" : kinds.join(", ")}` };
+    return {
+      message: `a step has exactly one kind key, found ${kinds.length === 0 ? "none" : kinds.join(", ")}`,
+    };
   }
   const kind = kinds[0]!;
   if (shapes.has(kind)) return undefined;
-  return { message: `unknown step kind "${kind}"; known kinds: ${[...shapes.keys()].sort().join(", ")}`, path: [kind] };
+  return {
+    message: `unknown step kind "${kind}"; known kinds: ${[...shapes.keys()].sort().join(", ")}`,
+    path: [kind],
+  };
 }
 
 export function buildCaseSchema(steps: readonly StepSchemaSource[]): z.ZodType<CaseSpec> {

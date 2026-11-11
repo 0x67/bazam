@@ -21,12 +21,16 @@ const CASES_FILE = "cases/shop/cases.yaml";
 describe("promote", () => {
   it("moves a case that passed in the env to regression, changing only its stage line", async () => {
     const project = await fixtureProject(api);
-    expect((await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001")).code).toBe(ExitCode.Pass);
+    expect((await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001")).code).toBe(
+      ExitCode.Pass,
+    );
     const before = await project.read(CASES_FILE);
     const { code, stdout } = await project.cli("promote", "SHOP-OK-001", "--env", "demo", "--json");
     expect(code).toBe(ExitCode.Pass);
     expect(JSON.parse(stdout)).toEqual({ caseId: "SHOP-OK-001", ok: true });
-    expect(await project.read(CASES_FILE)).toBe(before.replace("stage: acceptance", "stage: regression"));
+    expect(await project.read(CASES_FILE)).toBe(
+      before.replace("stage: acceptance", "stage: regression"),
+    );
   });
 
   it("exits 1 for a case with no pass in the env, and leaves the file as it was", async () => {
@@ -34,7 +38,9 @@ describe("promote", () => {
     const before = await project.read(CASES_FILE);
     const { code, stdout } = await project.cli("promote", "SHOP-OK-001", "--env", "demo");
     expect(code).toBe(ExitCode.Fail);
-    expect(stdout).toBe("not promoted: SHOP-OK-001 has no result in this environment; run it there first\n");
+    expect(stdout).toBe(
+      "not promoted: SHOP-OK-001 has no result in this environment; run it there first\n",
+    );
     expect(await project.read(CASES_FILE)).toBe(before);
   });
 
@@ -70,6 +76,8 @@ describe("retire", () => {
       expect((await project.cli("retire", id)).code).toBe(ExitCode.Pass);
     }
     expect(existsSync(join(project.root, CASES_FILE))).toBe(false);
-    expect(await project.read("cases/.retired")).toBe("SHOP-OK-001\nSHOP-FAIL-001\nSHOP-DOWN-001\n");
+    expect(await project.read("cases/.retired")).toBe(
+      "SHOP-OK-001\nSHOP-FAIL-001\nSHOP-DOWN-001\n",
+    );
   });
 });

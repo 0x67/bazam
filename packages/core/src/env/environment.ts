@@ -32,7 +32,10 @@ const ProbeConfig = z.strictObject({
       const url = PROBE_REQUEST.exec(line)?.[2];
       return url !== undefined && URL.canParse(url);
     },
-    { error: 'a probe request looks like "GET https://core.example.test/health"; only GET and HEAD are sent' },
+    {
+      error:
+        'a probe request looks like "GET https://core.example.test/health"; only GET and HEAD are sent',
+    },
   ),
   status: z.number().int().optional(),
   hint: z.string().min(1),
@@ -45,7 +48,8 @@ const EnvironmentConfig = z
     vars: z
       .record(
         z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, {
-          error: "a var name is letters, digits and underscores, starting with a letter or underscore",
+          error:
+            "a var name is letters, digits and underscores, starting with a letter or underscore",
         }),
         z.string(),
       )
@@ -53,12 +57,16 @@ const EnvironmentConfig = z
     hosts: z
       .array(
         z.string().regex(/^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/i, {
-          error: 'a host is a bare name such as "uat.app.example.test", without scheme, port or path',
+          error:
+            'a host is a bare name such as "uat.app.example.test", without scheme, port or path',
         }),
       )
       .min(1),
     challenges: z.record(z.string().min(1), z.array(z.string().min(1)).min(1)).default({}),
-    locale: z.string().refine(isLocale, { error: 'a locale is a BCP 47 tag such as "en" or "id-ID"' }).default("en"),
+    locale: z
+      .string()
+      .refine(isLocale, { error: 'a locale is a BCP 47 tag such as "en" or "id-ID"' })
+      .default("en"),
     probes: z.array(ProbeConfig).default([]),
   })
   .superRefine((env, ctx) => {
@@ -150,7 +158,12 @@ export function assertProdSafe(env: Environment, spec: CaseSpec): void {
   if (env.production && !spec.prod_safe) throw new ProdCaseRefused(spec.id, env.name);
 }
 
-export function assertProdWrite(env: Environment, method: string, step: { write?: boolean | undefined }): void {
+export function assertProdWrite(
+  env: Environment,
+  method: string,
+  step: { write?: boolean | undefined },
+): void {
   const upper = method.toUpperCase();
-  if (env.production && upper !== "GET" && step.write !== true) throw new ProdWriteRefused(upper, env.name);
+  if (env.production && upper !== "GET" && step.write !== true)
+    throw new ProdWriteRefused(upper, env.name);
 }

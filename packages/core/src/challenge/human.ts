@@ -105,7 +105,12 @@ export function parseVerdict(line: string): VerdictAnswer | null {
   const match = /^\s*(p|pass|y|yes|f|fail|n|no|b|blocked)(?:\s+(.*))?$/i.exec(line);
   if (match === null) return null;
   const letter = match[1]!.charAt(0).toLowerCase();
-  const verdict = letter === "p" || letter === "y" ? "pass" : letter === "f" || letter === "n" ? "fail" : "blocked";
+  const verdict =
+    letter === "p" || letter === "y"
+      ? "pass"
+      : letter === "f" || letter === "n"
+        ? "fail"
+        : "blocked";
   return { kind: "verdict", verdict, note: (match[2] ?? "").trim() };
 }
 
@@ -119,7 +124,10 @@ const QUESTIONS: Record<PersonPrompt["ask"], string> = {
  * Prints the prompt and reads lines until one answers it. One reader serves every ask, so lines that
  * arrive together, as piped or pasted answers do, each reach the ask that comes next.
  */
-export function terminalChannel(io: { input: NodeJS.ReadableStream; output: NodeJS.WritableStream }): HumanChannel {
+export function terminalChannel(io: {
+  input: NodeJS.ReadableStream;
+  output: NodeJS.WritableStream;
+}): HumanChannel {
   let lines: LineQueue | undefined;
   return {
     async ask(prompt, signal) {
@@ -215,7 +223,10 @@ const AnswerFile = z.discriminatedUnion("kind", [
  * The answer is claimed by renaming it to `answers/<id>.claimed`, read once and deleted;
  * the prompt then moves to `prompts/done/`.
  */
-export function answersFileChannel(runDir: string, options: { pollMs?: number } = {}): HumanChannel {
+export function answersFileChannel(
+  runDir: string,
+  options: { pollMs?: number } = {},
+): HumanChannel {
   const pollMs = options.pollMs ?? 500;
   const promptsDir = join(runDir, "prompts");
   const answersDir = join(runDir, "answers");
@@ -241,7 +252,9 @@ export function answersFileChannel(runDir: string, options: { pollMs?: number } 
           await sleep(Math.min(pollMs, left), undefined, { signal });
         }
       } finally {
-        await rename(promptFile, join(promptsDir, "done", `${prompt.id}.json`)).catch(ignoreMissing);
+        await rename(promptFile, join(promptsDir, "done", `${prompt.id}.json`)).catch(
+          ignoreMissing,
+        );
       }
     },
   };
@@ -271,7 +284,8 @@ function parseAnswerFile(text: string, id: string): PersonAnswer {
     throw new Error(`answer to prompt ${id} is not JSON`);
   }
   const parsed = AnswerFile.safeParse(json);
-  if (!parsed.success) throw new Error(`answer to prompt ${id} is not an answer: ${z.prettifyError(parsed.error)}`);
+  if (!parsed.success)
+    throw new Error(`answer to prompt ${id} is not an answer: ${z.prettifyError(parsed.error)}`);
   return parsed.data;
 }
 

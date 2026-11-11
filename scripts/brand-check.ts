@@ -10,7 +10,10 @@ function main(): number {
   const word = new RegExp(`(?<![a-z0-9])${name}(?![a-z0-9])`, "i");
   // an import or export specifier has to spell out the workspace package, and the rename script rewrites it;
   // the same string anywhere else, such as a plugin name, should read from BRAND, so the check reports it
-  const importSpecifier = new RegExp(`(\\bfrom\\s*|\\bimport\\s*\\(?\\s*)(["'])@${name}/[^"']*\\2`, "gi");
+  const importSpecifier = new RegExp(
+    `(\\bfrom\\s*|\\bimport\\s*\\(?\\s*)(["'])@${name}/[^"']*\\2`,
+    "gi",
+  );
   let hits = 0;
   for (const file of packageSourceFiles()) {
     const lines = readFileSync(file, "utf8").split("\n");

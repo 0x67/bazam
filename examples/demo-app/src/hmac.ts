@@ -55,7 +55,8 @@ export function hmacRoutes({ store }: DemoDeps): Hono {
 
 function signatureProblem(request: SignedRequest, nowMs: number): string | undefined {
   const { keyId, timestamp, nonce, signature } = request
-  if (!keyId || !timestamp || !nonce || !signature) return "X-Key-Id, X-Timestamp, X-Nonce and X-Signature are required"
+  if (!keyId || !timestamp || !nonce || !signature)
+    return "X-Key-Id, X-Timestamp, X-Nonce and X-Signature are required"
   if (keyId !== DEMO_HMAC_KEY.id) return "unknown key id"
   if (!/^\d+$/.test(timestamp) || Math.abs(nowMs / 1000 - Number(timestamp)) > MAX_SKEW_SECONDS) {
     return `timestamp is more than ${MAX_SKEW_SECONDS} seconds from the server clock`

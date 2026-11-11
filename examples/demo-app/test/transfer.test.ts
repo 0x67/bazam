@@ -11,7 +11,9 @@ describe("transfer PIN step", () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toContain('data-testid="transfer-confirmed"')
-    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({ transfersConfirmed: 1 })
+    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({
+      transfersConfirmed: 1,
+    })
   })
 
   it("refuses a wrong PIN with 401 and counts nothing", async () => {
@@ -21,7 +23,9 @@ describe("transfer PIN step", () => {
     const response = await visitor.postForm("/transfer/confirm", { pin: "0000" })
 
     expect(response.status).toBe(401)
-    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({ transfersConfirmed: 0 })
+    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({
+      transfersConfirmed: 0,
+    })
   })
 
   it("sends a visitor without a session to /login", async () => {

@@ -6,7 +6,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import * as standalone from "../../../examples/clients/ts/challenge-client.ts";
 import { BRAND } from "../src/brand.ts";
 import {
@@ -47,7 +56,9 @@ const fakeTotp: ChallengeResolver = {
 
 const absent: HumanChannel = {
   ask: (_prompt, signal) =>
-    new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })),
+    new Promise((_, reject) =>
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+    ),
 };
 
 /** A proxy that answers every request itself, so a request that reaches it never reaches the service. */
@@ -64,9 +75,19 @@ let python = false;
 
 beforeAll(async () => {
   const config = ProjectConfig.parse({
-    envs: { demo: { production: false, hosts: ["127.0.0.1"], challenges: { totp: ["fake-totp"], face: ["human"] } } },
+    envs: {
+      demo: {
+        production: false,
+        hosts: ["127.0.0.1"],
+        challenges: { totp: ["fake-totp"], face: ["human"] },
+      },
+    },
   });
-  const plugin = definePlugin({ name: "fake", apiVersion: PLUGIN_API_VERSION, resolvers: [fakeTotp] });
+  const plugin = definePlugin({
+    name: "fake",
+    apiVersion: PLUGIN_API_VERSION,
+    resolvers: [fakeTotp],
+  });
   const registry = await PluginRegistry.load(config, tmpdir(), [plugin]);
   const env = config.envs["demo"]!;
   const redactor = new Redactor(defaultRedactionRules());
@@ -91,7 +112,11 @@ beforeAll(async () => {
   server.on("connection", () => (recorder.connections += 1));
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
-  recorder = { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requests: [], connections: 0 };
+  recorder = {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    requests: [],
+    connections: 0,
+  };
   closeRecorder = () => new Promise((done) => server.close(() => done()));
 
   python = await run("python3", ["--version"]).then(
@@ -121,7 +146,12 @@ function suiteEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
       ([name]) => !/^(https?_proxy|all_proxy|no_proxy|node_use_env_proxy)$/i.test(name),
     ),
   );
-  return { ...env, [CHALLENGE_URL_VAR]: service.url.href, [CHALLENGE_TOKEN_VAR]: service.token, ...overrides };
+  return {
+    ...env,
+    [CHALLENGE_URL_VAR]: service.url.href,
+    [CHALLENGE_TOKEN_VAR]: service.token,
+    ...overrides,
+  };
 }
 
 /** Where a global-agent request goes: the recorder when the proxy is live, the service's 401 otherwise. */
@@ -157,14 +187,19 @@ process.stdout.write(JSON.stringify({ control, answer }));
 `;
 
 describe.each(tsClients)("$name", (client) => {
-  const options = (): { url: string; token: string } => ({ url: service.url.href, token: service.token });
+  const options = (): { url: string; token: string } => ({
+    url: service.url.href,
+    token: service.token,
+  });
 
   it("gets a TOTP code", async () => {
     expect(await client.requestChallenge(TOTP, options())).toEqual({ value: CODE });
   });
 
   it("raises with status 401 for a wrong token", async () => {
-    const error: unknown = await client.requestChallenge(TOTP, { ...options(), token: "wrong" }).catch((e) => e);
+    const error: unknown = await client
+      .requestChallenge(TOTP, { ...options(), token: "wrong" })
+      .catch((e) => e);
     expect(error).toBeInstanceOf(client.Failed);
     expect(error).toMatchObject({ status: 401, message: WRONG_TOKEN });
   });
@@ -177,7 +212,9 @@ describe.each(tsClients)("$name", (client) => {
 
   it("refuses a URL that is not loopback http before sending", async () => {
     const https = new URL("/challenge", recorder.url.replace("http:", "https:")).href;
-    await expect(client.requestChallenge(TOTP, { url: https, token: service.token })).rejects.toThrow(LOOPBACK_ONLY);
+    await expect(
+      client.requestChallenge(TOTP, { url: https, token: service.token }),
+    ).rejects.toThrow(LOOPBACK_ONLY);
     await expect(
       client.requestChallenge(TOTP, { url: "http://example.test/challenge", token: service.token }),
     ).rejects.toThrow(LOOPBACK_ONLY);
@@ -192,7 +229,9 @@ describe.each(tsClients)("$name", (client) => {
   });
 
   it("stops waiting at the caller's timeoutMs", async () => {
-    const error: unknown = await client.requestChallenge(FACE, { ...options(), timeoutMs: 50 }).catch((e) => e);
+    const error: unknown = await client
+      .requestChallenge(FACE, { ...options(), timeoutMs: 50 })
+      .catch((e) => e);
     expect(error).toBeInstanceOf(DOMException);
     expect((error as DOMException).name).toBe("TimeoutError");
   });
@@ -258,14 +297,18 @@ describe("the Python client", () => {
 
   it("raises with status 504 when the service times the request out", async (ctx) => {
     if (!python) ctx.skip("python3 is not installed");
-    expect(await askPython(FACE, suiteEnv())).toEqual({ failed: { status: 504, message: TIMED_OUT } });
+    expect(await askPython(FACE, suiteEnv())).toEqual({
+      failed: { status: 504, message: TIMED_OUT },
+    });
   });
 
   it("refuses a URL that is not loopback http before sending", async (ctx) => {
     if (!python) ctx.skip("python3 is not installed");
     const https = new URL("/challenge", recorder.url.replace("http:", "https:")).href;
     for (const url of [https, "http://example.test/challenge"]) {
-      expect(await askPython(TOTP, suiteEnv({ [CHALLENGE_URL_VAR]: url }))).toEqual({ error: LOOPBACK_ONLY });
+      expect(await askPython(TOTP, suiteEnv({ [CHALLENGE_URL_VAR]: url }))).toEqual({
+        error: LOOPBACK_ONLY,
+      });
     }
     expect(recorder.connections).toBe(0);
   });
@@ -289,7 +332,10 @@ describe("the Python client", () => {
   it("reaches the service directly with HTTP_PROXY set", async (ctx) => {
     if (!python) ctx.skip("python3 is not installed");
     const env = suiteEnv({ HTTP_PROXY: recorder.url, http_proxy: recorder.url });
-    expect(await askPython(TOTP, env, controlUrl())).toEqual({ control: 200, answer: { value: CODE } });
+    expect(await askPython(TOTP, env, controlUrl())).toEqual({
+      control: 200,
+      answer: { value: CODE },
+    });
     expect(recorder.requests).toEqual([`GET ${controlUrl()}`]);
   });
 });

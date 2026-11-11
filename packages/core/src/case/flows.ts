@@ -54,13 +54,21 @@ export function expandFlows(steps: readonly Step[], flows: ReadonlyMap<string, F
   return expandSteps(steps, flows, []);
 }
 
-function expandSteps(steps: readonly Step[], flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step[] {
+function expandSteps(
+  steps: readonly Step[],
+  flows: ReadonlyMap<string, FlowSpec>,
+  path: readonly string[],
+): Step[] {
   return steps.flatMap((step) =>
     stepKind(step) === "use" ? expandUse(step, flows, path) : [expandNested(step, flows, path)],
   );
 }
 
-function expandNested(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step {
+function expandNested(
+  step: Step,
+  flows: ReadonlyMap<string, FlowSpec>,
+  path: readonly string[],
+): Step {
   const kind = stepKind(step);
   const field = NESTED_STEP_FIELDS.get(kind);
   const payload = step[kind];
@@ -83,7 +91,11 @@ function flowName(use: UseStep): string {
   return typeof use === "string" ? use : use.flow;
 }
 
-function expandUse(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: readonly string[]): Step[] {
+function expandUse(
+  step: Step,
+  flows: ReadonlyMap<string, FlowSpec>,
+  path: readonly string[],
+): Step[] {
   const use = step["use"] as UseStep;
   const name = flowName(use);
   const flowPath = [...path, name];
@@ -96,12 +108,17 @@ function expandUse(step: Step, flows: ReadonlyMap<string, FlowSpec>, path: reado
   const expanded = expandSteps(filled, flows, flowPath);
   const identity = step.as;
   if (identity === undefined) return expanded;
-  return expanded.map((flowStep) => (namesIdentity(flowStep) ? flowStep : { ...flowStep, as: identity }));
+  return expanded.map((flowStep) =>
+    namesIdentity(flowStep) ? flowStep : { ...flowStep, as: identity },
+  );
 }
 
 function namesIdentity(step: Step): boolean {
   const payload = step[stepKind(step)];
-  return step.as !== undefined || (typeof payload === "object" && payload !== null && Object.hasOwn(payload, "as"));
+  return (
+    step.as !== undefined ||
+    (typeof payload === "object" && payload !== null && Object.hasOwn(payload, "as"))
+  );
 }
 
 function flowParams(
@@ -109,9 +126,11 @@ function flowParams(
   given: Readonly<Record<string, string | number | boolean>>,
 ): ReadonlyMap<string, string> {
   const missing = flow.params.filter((param) => !Object.hasOwn(given, param));
-  if (missing.length > 0) throw new InvalidFlowUse(flow.name, `missing parameter ${missing.join(", ")}`);
+  if (missing.length > 0)
+    throw new InvalidFlowUse(flow.name, `missing parameter ${missing.join(", ")}`);
   const undeclared = Object.keys(given).filter((key) => !flow.params.includes(key));
-  if (undeclared.length > 0) throw new InvalidFlowUse(flow.name, `undeclared parameter ${undeclared.join(", ")}`);
+  if (undeclared.length > 0)
+    throw new InvalidFlowUse(flow.name, `undeclared parameter ${undeclared.join(", ")}`);
   return new Map(Object.entries(given).map(([key, value]) => [key, String(value)]));
 }
 
@@ -121,13 +140,16 @@ function fillParams(value: unknown, params: ReadonlyMap<string, string>, flow: s
       // `$${` escapes a placeholder; it stays for run-time resolution to unescape
       if (value[offset - 1] === "$") return match;
       const param = params.get(name);
-      if (param === undefined) throw new InvalidFlowUse(flow, `\${param.${name}} names an undeclared parameter`);
+      if (param === undefined)
+        throw new InvalidFlowUse(flow, `\${param.${name}} names an undeclared parameter`);
       return param;
     });
   }
   if (Array.isArray(value)) return value.map((item) => fillParams(item, params, flow));
   if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillParams(item, params, flow)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, fillParams(item, params, flow)]),
+    );
   }
   return value;
 }

@@ -57,7 +57,8 @@ export function fakeDriver(options: FakeDriverOptions = {}): FakeDriver {
     probe: async () => capabilities,
     launch: async (launchOptions) => {
       launches += 1;
-      if (options.failingLaunches?.includes(launches) === true) throw new Error(`fake launch ${launches} failed`);
+      if (options.failingLaunches?.includes(launches) === true)
+        throw new Error(`fake launch ${launches} failed`);
       const login = new FakeBrowserLogin(options.loginCookies ?? [], {
         ...(options.loginDelayMs === undefined ? {} : { delayMs: options.loginDelayMs }),
         ...(options.loginWaitsFor === undefined ? {} : { waitsFor: options.loginWaitsFor }),

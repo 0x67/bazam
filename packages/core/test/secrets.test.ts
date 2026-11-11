@@ -16,7 +16,10 @@ import {
 const stubBin = fileURLToPath(new URL("./fixtures/bin", import.meta.url));
 
 // records the keys it was asked for
-function recordingProvider(name: string, values: Record<string, string>): SecretProvider & { asked: string[] } {
+function recordingProvider(
+  name: string,
+  values: Record<string, string>,
+): SecretProvider & { asked: string[] } {
   const asked: string[] = [];
   return {
     name,
@@ -56,20 +59,32 @@ describe("resolveSecret", () => {
     const redactor = new Redactor(defaultRedactionRules());
 
     expect(await resolveSecret("DEMO_TOTP_SEED", providers, redactor)).toBe("fake-seed-from-env");
-    expect(await resolveSecret("PARTNER_KEY_ID", providers, redactor)).toBe("fake-key-id-from-dotenv");
-    expect(await resolveSecret("DEMO_API_KEY", providers, redactor)).toBe("fake-api-key-from-fallback");
+    expect(await resolveSecret("PARTNER_KEY_ID", providers, redactor)).toBe(
+      "fake-key-id-from-dotenv",
+    );
+    expect(await resolveSecret("DEMO_API_KEY", providers, redactor)).toBe(
+      "fake-api-key-from-fallback",
+    );
     expect(fallback.asked).toEqual(["DEMO_API_KEY"]);
   });
 
   it("throws SecretMissing naming the key and the providers when none has a value", async () => {
-    const providers = [recordingProvider("first", {}), recordingProvider("second", { OTHER: "fake-other" })];
+    const providers = [
+      recordingProvider("first", {}),
+      recordingProvider("second", { OTHER: "fake-other" }),
+    ];
 
-    const error = await resolveSecret("DEMO_TOTP_SEED", providers, new Redactor(defaultRedactionRules())).catch(
-      (e: unknown) => e,
-    );
+    const error = await resolveSecret(
+      "DEMO_TOTP_SEED",
+      providers,
+      new Redactor(defaultRedactionRules()),
+    ).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(SecretMissing);
-    expect(error).toMatchObject({ key: "DEMO_TOTP_SEED", message: expect.stringContaining("[first, second]") });
+    expect(error).toMatchObject({
+      key: "DEMO_TOTP_SEED",
+      message: expect.stringContaining("[first, second]"),
+    });
   });
 
   it("masks returned values", async () => {
@@ -123,6 +138,9 @@ describe.skipIf(process.platform === "win32")("onePasswordProvider", () => {
     const error = await provider.load("PARTNER_KEY_ID").catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(SecretMissing);
-    expect(error).toMatchObject({ key: "PARTNER_KEY_ID", message: expect.stringContaining("item not found") });
+    expect(error).toMatchObject({
+      key: "PARTNER_KEY_ID",
+      message: expect.stringContaining("item not found"),
+    });
   });
 });

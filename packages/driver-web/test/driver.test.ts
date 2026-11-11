@@ -11,7 +11,16 @@ import { CaseBlocked } from "@bazam/core/run";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import type { CheckRecord, EvidenceStore } from "@bazam/core/result";
 import { unzipSync } from "fflate";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import { playwrightDriver, type WebSession } from "../src/driver.ts";
 import {
   demoEnv,
@@ -41,8 +50,12 @@ const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 /** Answers 401 with a Basic challenge unless the request carries the fake basic credentials. */
 function gated(handler: Handler): Handler {
   return (request, response, current) => {
-    if (request.headers.authorization === BASIC_AUTHORIZATION) return handler(request, response, current);
-    response.writeHead(401, { "www-authenticate": 'Basic realm="staging"', "content-type": "text/html" });
+    if (request.headers.authorization === BASIC_AUTHORIZATION)
+      return handler(request, response, current);
+    response.writeHead(401, {
+      "www-authenticate": 'Basic realm="staging"',
+      "content-type": "text/html",
+    });
     response.end("<h1>Unauthorized</h1>");
   };
 }
@@ -162,7 +175,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         response.writeHead(302, { location: `${current.elsewhere}/third` });
         response.end();
       },
-      "/card": html('<p data-testid="card" style="font-size: 32px">4242 4242 4242 4242</p><p>Total 12.00</p>'),
+      "/card": html(
+        '<p data-testid="card" style="font-size: 32px">4242 4242 4242 4242</p><p>Total 12.00</p>',
+      ),
       "/order-form": html(
         '<form method="post" action="/orders"><input name="sku" value="A-100"><button>Place order</button></form>',
       ),
@@ -262,7 +277,13 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         observed: "Saved A-100 in sg",
         ok: true,
       },
-      { name: "css=#out is visible", kind: "ui", expected: "visible", observed: "visible", ok: true },
+      {
+        name: "css=#out is visible",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
       {
         name: `URL matches ${site.origin}/*`,
         kind: "ui",
@@ -277,7 +298,10 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const { session, evidence } = await open({ settings: { testIdAttribute: "data-qa" } });
     const ctx = stepContext(session, { env, evidence, root });
 
-    await runSteps(ctx, [{ open: `${site.origin}/` }, { fill: { field: { id: "order-code" }, value: "B-200" } }]);
+    await runSteps(ctx, [
+      { open: `${site.origin}/` },
+      { fill: { field: { id: "order-code" }, value: "B-200" } },
+    ]);
 
     const page = await (await session.contextFor(undefined)).page();
     expect(await page.locator("[data-testid=code]").inputValue()).toBe("B-200");
@@ -335,7 +359,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     await runSteps(stepContext(session, { env, evidence, root, identity: "agent" }), [
       { open: `${site.origin}/whoami?as=agent` },
     ]);
-    await runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.origin}/whoami?as=nobody` }]);
+    await runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `${site.origin}/whoami?as=nobody` },
+    ]);
 
     const cookies = Object.fromEntries(
       site.requests.map((request) => [request.path, request.headers.cookie ?? "none"]),
@@ -368,7 +394,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   it("refuses to open a host outside the env's allowlist", async () => {
     const { session, evidence } = await open();
 
-    const refused = runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.elsewhere}/` }]);
+    const refused = runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `${site.elsewhere}/` },
+    ]);
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
   });
@@ -382,9 +410,13 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     ]);
 
     await expect(refused).rejects.toThrow(
-      new ConnectionFailed(`GET http://127.0.0.1:${port}/home`, `connect ECONNREFUSED 127.0.0.1:${port}`, {
-        host: "127.0.0.1",
-      }),
+      new ConnectionFailed(
+        `GET http://127.0.0.1:${port}/home`,
+        `connect ECONNREFUSED 127.0.0.1:${port}`,
+        {
+          host: "127.0.0.1",
+        },
+      ),
     );
     await expect(refused).rejects.toMatchObject({ host: "127.0.0.1" });
   });
@@ -392,7 +424,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   it("throws the browser's own error when the server drops a connection it accepted", async () => {
     const { session, evidence } = await open();
 
-    const dropped = runSteps(stepContext(session, { env, evidence, root }), [{ open: `${site.origin}/dropped` }]);
+    const dropped = runSteps(stepContext(session, { env, evidence, root }), [
+      { open: `${site.origin}/dropped` },
+    ]);
 
     await expect(dropped).rejects.toThrow();
     await expect(dropped).rejects.not.toBeInstanceOf(ConnectionFailed);
@@ -402,7 +436,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     const { evidence } = await open();
     const foreign = { close: async () => {} } as unknown as DriverSession;
 
-    const refused = runSteps(stepContext(foreign, { env, evidence, root }), [{ open: `${site.origin}/` }]);
+    const refused = runSteps(stepContext(foreign, { env, evidence, root }), [
+      { open: `${site.origin}/` },
+    ]);
 
     await expect(refused).rejects.toBeInstanceOf(CaseBlocked);
   });
@@ -451,7 +487,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("sends no extra header along a redirect, so a host outside the allowlist never gets one", async () => {
     const { session, evidence } = await open();
-    await (await session.browserFor("customer")).setExtraHeaders({ Authorization: BEARER, "X-Api-Key": API_KEY });
+    await (
+      await session.browserFor("customer")
+    ).setExtraHeaders({ Authorization: BEARER, "X-Api-Key": API_KEY });
     const ctx = stepContext(session, { env, evidence, root, identity: "customer" });
 
     await runSteps(ctx, [{ open: `${site.origin}/credentialed` }, { wait: { ms: 300 } }]);
@@ -459,10 +497,13 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
     const elsewhere = site.requests.filter((request) => request.host.startsWith("localhost:"));
-    expect(elsewhere.map((request) => request.path)).toEqual(expect.arrayContaining(["/third", "/landing"]));
+    expect(elsewhere.map((request) => request.path)).toEqual(
+      expect.arrayContaining(["/third", "/landing"]),
+    );
     expect(
       elsewhere.filter(
-        (request) => request.headers.authorization !== undefined || request.headers["x-api-key"] !== undefined,
+        (request) =>
+          request.headers.authorization !== undefined || request.headers["x-api-key"] !== undefined,
       ),
     ).toEqual([]);
   });
@@ -479,7 +520,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     ]);
 
     expect(checks().map((check) => [check.observed, check.ok])).toEqual([["Receipt by GET", true]]);
-    expect(site.requests.find((request) => request.path === "/orders")?.headers.authorization).toBe(BEARER);
+    expect(site.requests.find((request) => request.path === "/orders")?.headers.authorization).toBe(
+      BEARER,
+    );
   });
 
   it("answers a basic auth challenge with the identity's credentials through a redirect", async () => {
@@ -534,7 +577,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
         { expect: { text: { field: { id: "calls" }, equals: "orders 200 200" } } },
       ]);
 
-      expect(checks().map((check) => [check.observed, check.ok])).toEqual([["orders 200 200", true]]);
+      expect(checks().map((check) => [check.observed, check.ok])).toEqual([
+        ["orders 200 200", true],
+      ]);
       const api = site.requests.filter((request) => request.path.startsWith("/api/"));
       expect(api.map((request) => [request.path, request.headers.authorization])).toEqual([
         ["/api/orders?direct", PAGE_BEARER],
@@ -618,7 +663,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     ]);
 
     expect(checks().map((check) => [check.observed, check.ok])).toEqual([["Unauthorized", true]]);
-    expect(site.requests.filter((request) => request.headers.authorization !== undefined)).toEqual([]);
+    expect(site.requests.filter((request) => request.headers.authorization !== undefined)).toEqual(
+      [],
+    );
   });
 
   it("recovers after the page's 401 when the session cookie expires mid-case, and the next request passes", async () => {
@@ -730,14 +777,17 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
   it("blocks the next step in another identity's context when a navigation was refused after its step", async () => {
     const { session, evidence } = await open();
-    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [{ open: `${site.origin}/` }]);
+    await runSteps(stepContext(session, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/` },
+    ]);
     const customer = await session.contextFor("customer");
     // clicked outside a step, so no step of the customer can throw the refusal first
     await (await customer.page()).getByRole("button", { name: "Pay" }).click();
 
-    const refused = runUntilThrown(stepContext(session, { env, evidence, root, identity: "agent" }), [
-      { wait: { ms: 500 } },
-    ]);
+    const refused = runUntilThrown(
+      stepContext(session, { env, evidence, root, identity: "agent" }),
+      [{ wait: { ms: 500 } }],
+    );
 
     await expect(refused).rejects.toThrow(new HostNotAllowed("localhost", env.name));
   });
@@ -747,13 +797,17 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
     await runSteps(stepContext(opened, { env, evidence, root }), [{ open: `${site.origin}/` }]);
     const guarded = await opened.contextFor(undefined);
     // the route that refuses the navigation runs after this event, so close starts before the refusal lands
-    const navigation = guarded.context.waitForEvent("request", (request) => request.url().endsWith("/away"));
+    const navigation = guarded.context.waitForEvent("request", (request) =>
+      request.url().endsWith("/away"),
+    );
     // clicked outside a step, so no step can throw the refusal first
     await (await guarded.page()).getByRole("button", { name: "Pay" }).click();
     await navigation;
     session = undefined;
 
-    await expect(opened.close({ status: "pass", evidence })).rejects.toThrow(new HostNotAllowed("localhost", env.name));
+    await expect(opened.close({ status: "pass", evidence })).rejects.toThrow(
+      new HostNotAllowed("localhost", env.name),
+    );
 
     expect(await readdir(join(root, "runs", CASE_ID))).toEqual(["01-trace.zip"]);
     expect(site.requests.map((request) => request.path)).not.toContain("/away");
@@ -762,7 +816,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
   it("attaches one scrubbed trace per context when the case does not pass", async () => {
     const { session: opened, evidence } = await open();
     await (await opened.browserFor("customer")).setExtraHeaders({ Authorization: BEARER });
-    await runSteps(stepContext(opened, { env, evidence, root, identity: "customer" }), [{ open: `${site.origin}/` }]);
+    await runSteps(stepContext(opened, { env, evidence, root, identity: "customer" }), [
+      { open: `${site.origin}/` },
+    ]);
     await runSteps(stepContext(opened, { env, evidence, root }), [{ open: `${site.origin}/next` }]);
 
     session = undefined;
@@ -811,7 +867,9 @@ describe.each(ENGINES)("playwrightDriver on %s", (engine) => {
 
     const passed = await open();
     const passing = newEvidence(join(root, "runs"), "WEB-ORDER-002");
-    await runSteps(stepContext(passed.session, { env, evidence: passing, root }), [{ open: `${site.origin}/` }]);
+    await runSteps(stepContext(passed.session, { env, evidence: passing, root }), [
+      { open: `${site.origin}/` },
+    ]);
     session = undefined;
     await passed.session.close({ status: "pass", evidence: passing });
     await expect(readdir(join(root, "runs", "WEB-ORDER-002"))).rejects.toThrow(/ENOENT/);
@@ -933,7 +991,12 @@ describe("playwrightDriver", () => {
   });
 
   it("probe reports browser.login and webauthn.virtual and refuses a channel on another engine", async () => {
-    const options = { env: demoEnv(), target: "web", runDir: "runs", redactor: new Redactor(defaultRedactionRules()) };
+    const options = {
+      env: demoEnv(),
+      target: "web",
+      runDir: "runs",
+      redactor: new Redactor(defaultRedactionRules()),
+    };
 
     await expect(playwrightDriver.probe({ ...options, settings: {} })).resolves.toEqual(
       new Set(["browser.login", "webauthn.virtual"]),
@@ -947,7 +1010,12 @@ describe("playwrightDriver", () => {
     ["a viewport of width 0", { viewport: { width: 0, height: 10 } }, /at viewport\.width/],
     ["a non-string args entry", { args: ["--lang=en", 3] }, /at args\[1\]/],
   ])("refuses %s when the settings parse", async (_name, settings, field) => {
-    const options = { env: demoEnv(), target: "web", runDir: "runs", redactor: new Redactor(defaultRedactionRules()) };
+    const options = {
+      env: demoEnv(),
+      target: "web",
+      runDir: "runs",
+      redactor: new Redactor(defaultRedactionRules()),
+    };
 
     await expect(playwrightDriver.probe({ ...options, settings })).rejects.toThrow(
       new RegExp(`^target web: [\\s\\S]*${field.source}`),
@@ -964,9 +1032,9 @@ describe("playwrightDriver", () => {
         redactor: new Redactor(defaultRedactionRules()),
       };
 
-      await expect(playwrightDriver.probe({ ...options, settings: { testIdAttribute: attribute } })).rejects.toThrow(
-        /target web: .*testIdAttribute takes a letter or "_"/s,
-      );
+      await expect(
+        playwrightDriver.probe({ ...options, settings: { testIdAttribute: attribute } }),
+      ).rejects.toThrow(/target web: .*testIdAttribute takes a letter or "_"/s);
     },
   );
 });

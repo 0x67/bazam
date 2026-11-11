@@ -18,7 +18,15 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     target: "web",
     links: ["jira:DEMO-246"],
     status: "pass",
-    checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true }],
+    checks: [
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: ["01-dashboard.png", "02-trace.zip"],
@@ -39,7 +47,13 @@ const RESULTS: Record<Status, CaseResult> = {
   fail: result({
     status: "fail",
     checks: [
-      { name: "code entry accepts the code", kind: "ui", expected: "accepted", observed: "accepted", ok: true },
+      {
+        name: "code entry accepts the code",
+        kind: "ui",
+        expected: "accepted",
+        observed: "accepted",
+        ok: true,
+      },
       {
         name: "session endpoint returns the customer",
         kind: "api",
@@ -61,7 +75,13 @@ const RESULTS: Record<Status, CaseResult> = {
   followup: result({
     status: "followup",
     checks: [
-      { name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true },
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
       {
         name: "welcome email layout",
         kind: "followup",
@@ -71,7 +91,12 @@ const RESULTS: Record<Status, CaseResult> = {
         hint: "open the welcome email and compare it with the design",
       },
     ],
-    followups: [{ item: "welcome email layout", hint: "open the welcome email and compare it with the design" }],
+    followups: [
+      {
+        item: "welcome email layout",
+        hint: "open the welcome email and compare it with the design",
+      },
+    ],
     attachments: ["01-dashboard.png"],
   }),
 };
@@ -96,8 +121,14 @@ describe("renderJiraComment", () => {
 
   it.each(statuses)("opens both formats with the result line for a %s result", (status) => {
     const { markdown, html } = renderJiraComment(RESULTS[status]);
-    const label = { pass: "Passed", fail: "Failed", blocked: "Blocked", followup: "Needs follow-up" }[status];
-    const line = "uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)";
+    const label = {
+      pass: "Passed",
+      fail: "Failed",
+      blocked: "Blocked",
+      followup: "Needs follow-up",
+    }[status];
+    const line =
+      "uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)";
 
     expect(markdown.startsWith(`**${label}** on ${line}\n`)).toBe(true);
     expect(html.startsWith(`<p><strong>${label}</strong> on ${line}</p>`)).toBe(true);
@@ -109,7 +140,15 @@ describe("renderJiraComment", () => {
         status: "blocked",
         title: "Sign in <img src=x onerror=alert(1)>",
         reason: "<script>alert(2)</script>",
-        checks: [{ name: "a & b", kind: "api", expected: { note: '"quoted"' }, observed: "<b>bold</b>", ok: false }],
+        checks: [
+          {
+            name: "a & b",
+            kind: "api",
+            expected: { note: '"quoted"' },
+            observed: "<b>bold</b>",
+            ok: false,
+          },
+        ],
         notes: ["<i>note</i>"],
         followups: [{ item: "<u>item</u>", hint: "it's <s>hint</s>" }],
         attachments: ["01-<x>.txt"],
@@ -118,7 +157,9 @@ describe("renderJiraComment", () => {
 
     expect(html).not.toMatch(/<(img|script|b|i|u|s|x)[ >]/);
     expect(html).toContain("Sign in &lt;img src=x onerror=alert(1)&gt;");
-    expect(html).toContain("<td>a &amp; b</td><td>{&quot;note&quot;:&quot;\\&quot;quoted\\&quot;&quot;}</td>");
+    expect(html).toContain(
+      "<td>a &amp; b</td><td>{&quot;note&quot;:&quot;\\&quot;quoted\\&quot;&quot;}</td>",
+    );
     expect(html).toContain("<li>&lt;u&gt;item&lt;/u&gt;: it&#39;s &lt;s&gt;hint&lt;/s&gt;</li>");
   });
 
@@ -151,7 +192,12 @@ describe("renderJiraComment", () => {
 
   it("omits the evidence section when the result has no checks, notes or attachments", () => {
     const { markdown, html } = renderJiraComment(
-      result({ status: "blocked", reason: "the browser could not start", checks: [], attachments: [] }),
+      result({
+        status: "blocked",
+        reason: "the browser could not start",
+        checks: [],
+        attachments: [],
+      }),
     );
 
     expect(html).not.toContain("<details>");
@@ -160,7 +206,17 @@ describe("renderJiraComment", () => {
 
   it("keeps a pipe and a line break inside one Markdown table cell", () => {
     const { markdown } = renderJiraComment(
-      result({ checks: [{ name: "totals", kind: "ui", expected: "a | b", observed: "line one\nline two", ok: true }] }),
+      result({
+        checks: [
+          {
+            name: "totals",
+            kind: "ui",
+            expected: "a | b",
+            observed: "line one\nline two",
+            ok: true,
+          },
+        ],
+      }),
     );
 
     expect(markdown).toContain("| totals | a \\| b | line one line two | ok |");
@@ -177,7 +233,8 @@ describe("renderJiraComment", () => {
             kind: "api",
             expected: "*welcome*",
             observed: {
-              "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
+              "body.message":
+                "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
             },
             ok: false,
           },
@@ -208,7 +265,17 @@ describe("renderJiraComment", () => {
 
   it("escapes a block marker at the start of a Markdown list item", () => {
     const { markdown } = renderJiraComment(
-      result({ notes: ["# heading", "- nested", "+ nested", "> quote", "1. step", "2) step", "3.5 seconds"] }),
+      result({
+        notes: [
+          "# heading",
+          "- nested",
+          "+ nested",
+          "> quote",
+          "1. step",
+          "2) step",
+          "3.5 seconds",
+        ],
+      }),
     );
 
     expect(markdown).toContain(
@@ -227,7 +294,11 @@ describe("renderJiraComment", () => {
 
 describe("tracker-jira plugin", () => {
   it("serves the Jira renderer for jira ticket links once the registry loads it", async () => {
-    const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), import.meta.dirname, [manifest]);
+    const registry = await PluginRegistry.load(
+      ProjectConfig.parse({ envs: {} }),
+      import.meta.dirname,
+      [manifest],
+    );
 
     expect(registry.tracker("jira")).toBe(jiraTracker);
   });

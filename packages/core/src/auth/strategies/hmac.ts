@@ -12,9 +12,14 @@ const HEADER_PARTS = [...SIGNED_PARTS, "signature"];
 const PLACEHOLDER = /\{([A-Za-z0-9]+)\}/g;
 
 function template(parts: readonly string[]) {
-  return z.string().refine((text) => [...text.matchAll(PLACEHOLDER)].every((match) => parts.includes(match[1] ?? "")), {
-    error: `a template takes only ${parts.map((part) => `{${part}}`).join(", ")}`,
-  });
+  return z
+    .string()
+    .refine(
+      (text) => [...text.matchAll(PLACEHOLDER)].every((match) => parts.includes(match[1] ?? "")),
+      {
+        error: `a template takes only ${parts.map((part) => `{${part}}`).join(", ")}`,
+      },
+    );
 }
 
 const HmacConfig = z
@@ -23,7 +28,9 @@ const HmacConfig = z
     secret: z.string().min(1),
     algorithm: z.enum(["sha1", "sha256", "sha512"]).default("sha256"),
     encoding: z.enum(["hex", "base64"]).default("hex"),
-    stringToSign: template(SIGNED_PARTS).default("{method}\n{path}\n{query}\n{timestamp}\n{nonce}\n{bodySha256}"),
+    stringToSign: template(SIGNED_PARTS).default(
+      "{method}\n{path}\n{query}\n{timestamp}\n{nonce}\n{bodySha256}",
+    ),
     headers: z.record(z.string().min(1), template(HEADER_PARTS)).default({
       "X-Key-Id": "{keyId}",
       "X-Timestamp": "{timestamp}",
@@ -42,7 +49,8 @@ const HmacConfig = z
   })
   .refine((config) => config.maxSkewSeconds === undefined || config.probe !== undefined, {
     path: ["probe"],
-    error: "maxSkewSeconds needs a probe request, since the local clock is compared with the Date header of its answer",
+    error:
+      "maxSkewSeconds needs a probe request, since the local clock is compared with the Date header of its answer",
   });
 type HmacConfig = z.infer<typeof HmacConfig>;
 
@@ -66,7 +74,8 @@ export const hmacStrategy = defineAuthStrategy<HmacConfig, HmacCredential>({
     return credential;
   },
   apply: async (credential, target, config) => {
-    if (target.kind === "browser") throw new Error("hmac signs each HTTP request, so it cannot apply to a browser");
+    if (target.kind === "browser")
+      throw new Error("hmac signs each HTTP request, so it cannot apply to a browser");
     await sign(credential, target.request, config, new Date());
   },
   probe: async (credential, config, ctx) => {
@@ -75,7 +84,8 @@ export const hmacStrategy = defineAuthStrategy<HmacConfig, HmacCredential>({
     await sign(credential, draft, config, ctx.now());
     const response = await ctx.http.send(draft);
     // before the status, since a server whose clock is far off refuses the signature too
-    if (config.maxSkewSeconds !== undefined) assertClockSkew(response, config.maxSkewSeconds, ctx.now(), draft.url);
+    if (config.maxSkewSeconds !== undefined)
+      assertClockSkew(response, config.maxSkewSeconds, ctx.now(), draft.url);
     return checkProbe(config.probe, response);
   },
   secrets: (credential) => [credential.secret],
@@ -125,7 +135,10 @@ function templateHeaders(
     .update(fill(config.stringToSign, parts))
     .digest(config.encoding);
   return Object.fromEntries(
-    Object.entries(config.headers).map(([name, value]) => [name, fill(value, { ...parts, signature })]),
+    Object.entries(config.headers).map(([name, value]) => [
+      name,
+      fill(value, { ...parts, signature }),
+    ]),
   );
 }
 
@@ -144,7 +157,12 @@ function formatTimestamp(now: Date, mode: HmacConfig["timestamp"]): string {
   }
 }
 
-function assertClockSkew(response: HttpResponse, maxSkewSeconds: number, now: Date, url: URL): void {
+function assertClockSkew(
+  response: HttpResponse,
+  maxSkewSeconds: number,
+  now: Date,
+  url: URL,
+): void {
   const date = Date.parse(response.headers.get("date") ?? "");
   if (Number.isNaN(date))
     throw new Error(

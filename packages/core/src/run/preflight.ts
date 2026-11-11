@@ -15,10 +15,13 @@ type PlannedLogin = PlannedCase["logins"][number];
 export async function preflight(plan: RunPlan, identities: Identities): Promise<PreflightResult> {
   const logins = new Map<string, PlannedLogin>();
   for (const planned of plan.cases) {
-    if (planned.blocked === undefined) for (const login of planned.logins) logins.set(loginKey(login), login);
+    if (planned.blocked === undefined)
+      for (const login of planned.logins) logins.set(loginKey(login), login);
   }
   // sort is stable, so each group keeps the plan's order
-  const ordered = [...logins.values()].sort((a, b) => Number(a.mode === "person") - Number(b.mode === "person"));
+  const ordered = [...logins.values()].sort(
+    (a, b) => Number(a.mode === "person") - Number(b.mode === "person"),
+  );
   const blocked = new Map<string, string>();
   for (const login of ordered) {
     try {

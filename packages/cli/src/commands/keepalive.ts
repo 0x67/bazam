@@ -3,7 +3,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { CredentialCache, Identities, type CredentialKey, type JsonValue } from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import type { HumanChannel } from "@bazam/core/challenge";
-import { resolvePlaceholders, RunValues, type Environment, type PlaceholderSources } from "@bazam/core/env";
+import {
+  resolvePlaceholders,
+  RunValues,
+  type Environment,
+  type PlaceholderSources,
+} from "@bazam/core/env";
 import type { PluginRegistry } from "@bazam/core/plugin";
 import { IdentityFixtures, readLocalFixtures, type ProjectConfig } from "@bazam/core/project";
 import { newRunId } from "@bazam/core/result";
@@ -62,11 +67,13 @@ export async function keepalive(
       // a revoked credential would fail its refresh; KeptAliveCache covers a logout during the refresh
       if (!(await deps.isCached())) throw new LoggedOut();
       // after a 401 the client calls this too: it refreshes under the lock, or takes what another process saved
-      const refreshed = await identities.recoverFromUnauthorized(identity, surface).catch(async (error: unknown) => {
-        // a logout between the check above and this refresh revokes the credential, so the refresh fails
-        if (!(await deps.isCached())) throw new LoggedOut();
-        throw error;
-      });
+      const refreshed = await identities
+        .recoverFromUnauthorized(identity, surface)
+        .catch(async (error: unknown) => {
+          // a logout between the check above and this refresh revokes the credential, so the refresh fails
+          if (!(await deps.isCached())) throw new LoggedOut();
+          throw error;
+        });
       if (!refreshed) {
         if (!(await deps.isCached())) throw new LoggedOut();
         throw new CommandError(
@@ -94,16 +101,23 @@ export async function keepaliveCommand(ctx: CommandContext): Promise<number> {
   const { config, registry } = await ctx.loadPlugins();
   const env = envOf(config, ctx.flags.env);
   const identity = oneIdentity(ctx.flags.as);
-  if (identity === undefined) throw new CommandError(`--as is required; identities: ${known(config.identities)}`);
+  if (identity === undefined)
+    throw new CommandError(`--as is required; identities: ${known(config.identities)}`);
   const auth = config.identities[identity]?.auth;
   if (auth === undefined)
-    throw new CommandError(`unknown identity "${identity}"; identities: ${known(config.identities)}`);
+    throw new CommandError(
+      `unknown identity "${identity}"; identities: ${known(config.identities)}`,
+    );
   const surfaces = Object.entries(auth)
     // a from: surface shares the credential of the surface it names
-    .filter(([, settings]) => !("from" in settings) && registry.strategy(settings.strategy).cacheable)
+    .filter(
+      ([, settings]) => !("from" in settings) && registry.strategy(settings.strategy).cacheable,
+    )
     .map(([surface, settings]) => ({ surface, strategy: registry.strategy(settings.strategy) }));
   if (surfaces.length === 0) {
-    throw new CommandError(`identity ${identity} has no surface whose strategy caches a credential to keep alive`);
+    throw new CommandError(
+      `identity ${identity} has no surface whose strategy caches a credential to keep alive`,
+    );
   }
   const scope = await credentialScope(ctx, config, registry, env);
   const { cacheDir, lockDir } = credentialDirs(ctx.root);
@@ -144,12 +158,18 @@ export async function keepaliveCommand(ctx: CommandContext): Promise<number> {
       }
     }),
   );
-  const failures = ended.flatMap((outcome) => (outcome.status === "rejected" ? [outcome.reason as unknown] : []));
+  const failures = ended.flatMap((outcome) =>
+    outcome.status === "rejected" ? [outcome.reason as unknown] : [],
+  );
   if (failures.length === surfaces.length) {
     // with several surfaces, each reason was logged when its surface stopped
-    throw surfaces.length === 1 ? failures[0] : new CommandError(`no surface of ${identity} could be kept alive`);
+    throw surfaces.length === 1
+      ? failures[0]
+      : new CommandError(`no surface of ${identity} could be kept alive`);
   }
-  const names = surfaces.filter((_, index) => ended[index]?.status === "fulfilled").map(({ surface }) => surface);
+  const names = surfaces
+    .filter((_, index) => ended[index]?.status === "fulfilled")
+    .map(({ surface }) => surface);
   ctx.out.result(
     { env: env.name, identity, surfaces: names },
     `stopped keeping ${identity} alive on ${names.join(", ")} in env ${env.name}\n`,
@@ -210,13 +230,15 @@ export async function credentialScope(
 export function envOf(config: ProjectConfig, name: string | undefined): Environment {
   if (name === undefined) throw new CommandError(`--env is required; envs: ${known(config.envs)}`);
   const env = config.envs[name];
-  if (env === undefined) throw new CommandError(`unknown env "${name}"; envs: ${known(config.envs)}`);
+  if (env === undefined)
+    throw new CommandError(`unknown env "${name}"; envs: ${known(config.envs)}`);
   return env;
 }
 
 /** The one identity `--as` names, if any; keepalive and logout act on a single identity. */
 export function oneIdentity(values: readonly string[] | undefined): string | undefined {
-  if (values !== undefined && values.length > 1) throw new CommandError("--as takes one identity here");
+  if (values !== undefined && values.length > 1)
+    throw new CommandError("--as takes one identity here");
   return values?.[0];
 }
 

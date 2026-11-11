@@ -70,7 +70,9 @@ export async function fixtureProject(): Promise<Fixture> {
     await writeFile(join(root, path), text);
   };
   const config = {
-    envs: { demo: { production: false, hosts: ["127.0.0.1"], vars: { API_URL: "http://127.0.0.1:9" } } },
+    envs: {
+      demo: { production: false, hosts: ["127.0.0.1"], vars: { API_URL: "http://127.0.0.1:9" } },
+    },
     targets: { t: { driver: "fake" } },
     plugins: ["./fake-driver.mjs"],
   };
@@ -101,9 +103,12 @@ const EXIT_RECORD_TIMEOUT_MS = 5000;
 async function exitRecorded(runDir: string): Promise<void> {
   const deadline = Date.now() + EXIT_RECORD_TIMEOUT_MS;
   for (;;) {
-    const record = JSON.parse(await readFile(join(runDir, "supervisor.json"), "utf8")) as { exit?: unknown };
+    const record = JSON.parse(await readFile(join(runDir, "supervisor.json"), "utf8")) as {
+      exit?: unknown;
+    };
     if (record.exit !== undefined) return;
-    if (Date.now() > deadline) throw new Error(`no exit was recorded for ${runDir}; is the run still going?`);
+    if (Date.now() > deadline)
+      throw new Error(`no exit was recorded for ${runDir}; is the run still going?`);
     await sleep(20);
   }
 }

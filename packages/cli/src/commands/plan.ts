@@ -1,5 +1,12 @@
 import { join } from "node:path";
-import { RoleRefused, roleBindings, selectCases, Stage, type CaseFilter, type LoadedCase } from "@bazam/core/case";
+import {
+  RoleRefused,
+  roleBindings,
+  selectCases,
+  Stage,
+  type CaseFilter,
+  type LoadedCase,
+} from "@bazam/core/case";
 import { RunValues, type Environment } from "@bazam/core/env";
 import type { ProjectConfig } from "@bazam/core/project";
 import { newRunId } from "@bazam/core/result";
@@ -71,7 +78,9 @@ function roleRequests(values: readonly string[]): Record<string, string> {
   for (const value of values) {
     const split = value.indexOf("=");
     if (split === -1) {
-      throw new CommandError(`--as on run and plan takes <role>=<identity>, such as tester=alice, not "${value}"`);
+      throw new CommandError(
+        `--as on run and plan takes <role>=<identity>, such as tester=alice, not "${value}"`,
+      );
     }
     const role = value.slice(0, split);
     if (requests.has(role)) throw new CommandError(`--as names role ${role} twice`);
@@ -80,7 +89,12 @@ function roleRequests(values: readonly string[]): Record<string, string> {
   return Object.fromEntries(requests);
 }
 
-export function runOptions(ctx: CommandContext, start: RunStart, runId: string, startedAt: Date): RunOptions {
+export function runOptions(
+  ctx: CommandContext,
+  start: RunStart,
+  runId: string,
+  startedAt: Date,
+): RunOptions {
   const { project, registry, env, cases, targets, channel, seed, roles } = start;
   const runDir = runDirOf(project.root, runId);
   return {
@@ -115,11 +129,16 @@ export function runDirOf(root: string, runId: string): string {
  * stages that run and would drop one the other names, such as retired. --target also selects: a case none of whose
  * targets the filter keeps is left out instead of planned as blocked.
  */
-export function selection(workspace: Workspace, flags: Flags): { cases: LoadedCase[]; targets: string[] | undefined } {
+export function selection(
+  workspace: Workspace,
+  flags: Flags,
+): { cases: LoadedCase[]; targets: string[] | undefined } {
   const { project } = workspace;
   const suite = flags.suite === undefined ? undefined : project.suites.get(flags.suite);
   if (flags.suite !== undefined && suite === undefined) {
-    throw new CommandError(`unknown suite "${flags.suite}"; suites: ${known([...project.suites.keys()])}`);
+    throw new CommandError(
+      `unknown suite "${flags.suite}"; suites: ${known([...project.suites.keys()])}`,
+    );
   }
   const own = flagFilter(flags);
   const targets = both(suite?.targets, own.targets);
@@ -139,7 +158,8 @@ export function selection(workspace: Workspace, flags: Flags): { cases: LoadedCa
 function flagFilter(flags: Flags): CaseFilter {
   const stages = flags.stage?.map((stage) => {
     const parsed = Stage.safeParse(stage);
-    if (!parsed.success) throw new CommandError(`unknown stage "${stage}"; stages: ${Stage.options.join(", ")}`);
+    if (!parsed.success)
+      throw new CommandError(`unknown stage "${stage}"; stages: ${Stage.options.join(", ")}`);
     return parsed.data;
   });
   return {
@@ -176,7 +196,8 @@ function planText(plan: RunPlan, config: ProjectConfig): string {
     `Plan for env ${plan.env}: ${plural(plan.cases.length, "case")}, ${plural(plan.personSteps, "person step")}.`,
   ];
   const roles = Object.entries(plan.roles);
-  if (roles.length > 0) lines.push(`  roles: ${roles.map(([role, identity]) => `${role}=${identity}`).join(", ")}`);
+  if (roles.length > 0)
+    lines.push(`  roles: ${roles.map(([role, identity]) => `${role}=${identity}`).join(", ")}`);
   for (const planned of plan.cases) {
     if (planned.blocked !== undefined) {
       lines.push(`  ${planned.caseId} on ${planned.target}: blocked: ${planned.blocked}`);
@@ -184,10 +205,14 @@ function planText(plan: RunPlan, config: ProjectConfig): string {
     }
     lines.push(`  ${planned.caseId} on ${planned.target}`);
     const runner = planned.runner === undefined ? undefined : config.runners[planned.runner];
-    if (runner !== undefined) lines.push(`    runner ${planned.runner}: ${runner.command.join(" ")}`);
-    for (const login of planned.logins) lines.push(`    login ${login.identity}/${login.surface}: ${login.mode}`);
+    if (runner !== undefined)
+      lines.push(`    runner ${planned.runner}: ${runner.command.join(" ")}`);
+    for (const login of planned.logins)
+      lines.push(`    login ${login.identity}/${login.surface}: ${login.mode}`);
     for (const challenge of planned.challenges) {
-      lines.push(`    step ${challenge.step} ${challenge.kind}: ${challenge.resolver ?? "no resolver"}`);
+      lines.push(
+        `    step ${challenge.step} ${challenge.kind}: ${challenge.resolver ?? "no resolver"}`,
+      );
     }
   }
   for (const { runner } of plan.confirmations) {

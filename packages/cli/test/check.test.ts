@@ -72,7 +72,14 @@ describe("check", () => {
     const { code, stdout } = await project.cli("check", "--json");
     expect(code).toBe(ExitCode.Fail);
     expect(JSON.parse(stdout)).toMatchObject({
-      issues: [{ ruleId: "schema", file: BRAND.configFile, line: 1, message: `${BRAND.configFile} is missing` }],
+      issues: [
+        {
+          ruleId: "schema",
+          file: BRAND.configFile,
+          line: 1,
+          message: `${BRAND.configFile} is missing`,
+        },
+      ],
       errors: 1,
     });
   });
@@ -86,7 +93,11 @@ describe("check", () => {
     const { code, stdout } = await project.cli("check", "--json");
     expect(code).toBe(ExitCode.Fail);
     const { issues } = JSON.parse(stdout) as { issues: { ruleId: string }[] };
-    expect(issues.map((issue) => issue.ruleId)).toEqual(["house-title", "house-title", "house-title"]);
+    expect(issues.map((issue) => issue.ruleId)).toEqual([
+      "house-title",
+      "house-title",
+      "house-title",
+    ]);
   });
 
   it("exits 2 when a plugin does not load", async () => {

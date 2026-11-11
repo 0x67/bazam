@@ -16,7 +16,15 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     target: "web",
     links: ["jira:DEMO-246"],
     status: "pass",
-    checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true }],
+    checks: [
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: ["01-dashboard.png", "02-trace.zip"],
@@ -37,7 +45,13 @@ const RESULTS: Record<Status, CaseResult> = {
   fail: result({
     status: "fail",
     checks: [
-      { name: "code entry accepts the code", kind: "ui", expected: "accepted", observed: "accepted", ok: true },
+      {
+        name: "code entry accepts the code",
+        kind: "ui",
+        expected: "accepted",
+        observed: "accepted",
+        ok: true,
+      },
       {
         name: "session endpoint returns the customer",
         kind: "api",
@@ -59,7 +73,13 @@ const RESULTS: Record<Status, CaseResult> = {
   followup: result({
     status: "followup",
     checks: [
-      { name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true },
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
       {
         name: "welcome email layout",
         kind: "followup",
@@ -69,7 +89,12 @@ const RESULTS: Record<Status, CaseResult> = {
         hint: "open the welcome email and compare it with the design",
       },
     ],
-    followups: [{ item: "welcome email layout", hint: "open the welcome email and compare it with the design" }],
+    followups: [
+      {
+        item: "welcome email layout",
+        hint: "open the welcome email and compare it with the design",
+      },
+    ],
     attachments: ["01-dashboard.png"],
   }),
 };
@@ -83,7 +108,9 @@ function nodes(value: JsonValue): Record<string, JsonValue>[] {
 
 function textOf(value: JsonValue): string {
   return nodes(value)
-    .map((node) => (node["type"] === "text" && typeof node["text"] === "string" ? node["text"] : ""))
+    .map((node) =>
+      node["type"] === "text" && typeof node["text"] === "string" ? node["text"] : "",
+    )
     .join("");
 }
 
@@ -124,7 +151,9 @@ describe("renderJiraAdf", () => {
     const all = nodes(doc.content);
 
     expect(all.filter((node) => node["type"] === "text" && node["text"] === "")).toEqual([]);
-    expect(all.filter((node) => node["type"] === "tableCell").map((cell) => cell["content"])).toEqual([
+    expect(
+      all.filter((node) => node["type"] === "tableCell").map((cell) => cell["content"]),
+    ).toEqual([
       [{ type: "paragraph", content: [{ type: "text", text: "totals" }] }],
       [{ type: "paragraph", content: [] }],
       [{ type: "paragraph", content: [] }],
@@ -135,7 +164,14 @@ describe("renderJiraAdf", () => {
   it("puts the evidence under a level 3 heading before the checks table", () => {
     const types = renderJiraAdf(RESULTS.fail).content.map((block) => nodes(block)[0]?.["type"]);
 
-    expect(types).toEqual(["paragraph", "heading", "table", "paragraph", "bulletList", "paragraph"]);
+    expect(types).toEqual([
+      "paragraph",
+      "heading",
+      "table",
+      "paragraph",
+      "bulletList",
+      "paragraph",
+    ]);
     expect(renderJiraAdf(RESULTS.fail).content[1]).toEqual({
       type: "heading",
       attrs: { level: 3 },
@@ -145,7 +181,12 @@ describe("renderJiraAdf", () => {
 
   it("leaves out the evidence heading when the result has no checks, notes or attachments", () => {
     const doc = renderJiraAdf(
-      result({ status: "blocked", reason: "the browser could not start", checks: [], attachments: [] }),
+      result({
+        status: "blocked",
+        reason: "the browser could not start",
+        checks: [],
+        attachments: [],
+      }),
     );
 
     expect(textOf(doc.content)).not.toContain("Evidence");
@@ -167,7 +208,12 @@ describe("renderJiraAdf", () => {
       ...renderJiraAdf(result({ ...head, checks: [], attachments: [] })).content,
       {
         type: "paragraph",
-        content: [{ type: "text", text: `The evidence is too long for a Jira comment; it is in run ${RUN_ID}` }],
+        content: [
+          {
+            type: "text",
+            text: `The evidence is too long for a Jira comment; it is in run ${RUN_ID}`,
+          },
+        ],
       },
     ]);
   });

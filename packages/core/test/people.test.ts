@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { CaseSpec } from "../src/case/index.ts";
-import { buildPostPlans, markdownTracker, PeopleRegistry, type PostPlanItem } from "../src/report/index.ts";
+import {
+  buildPostPlans,
+  markdownTracker,
+  PeopleRegistry,
+  type PostPlanItem,
+} from "../src/report/index.ts";
 import type { CaseResult } from "../src/result/index.ts";
 
 let root: string;
@@ -41,7 +46,15 @@ function failedItem(people: PeopleRegistry, roles: readonly string[]): PostPlanI
     target: "web",
     links: ["jira:DEMO-246"],
     status: "fail",
-    checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "hidden", ok: false }],
+    checks: [
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "hidden",
+        ok: false,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: [],
@@ -87,9 +100,14 @@ describe("PeopleRegistry", () => {
   });
 
   it("refuses a people.yaml that maps assignee, since the ticket defines it", async () => {
-    await writeFile(join(root, "people.yaml"), "roles:\n  assignee:\n    jira: jira-account-assignee\n");
+    await writeFile(
+      join(root, "people.yaml"),
+      "roles:\n  assignee:\n    jira: jira-account-assignee\n",
+    );
 
-    await expect(PeopleRegistry.load(root)).rejects.toThrow(/assignee and reporter come from the ticket/);
+    await expect(PeopleRegistry.load(root)).rejects.toThrow(
+      /assignee and reporter come from the ticket/,
+    );
   });
 
   it("lists assignee, reporter and unmapped roles as unresolved", async () => {

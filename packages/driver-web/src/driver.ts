@@ -3,7 +3,12 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { BrowserLogin, BrowserLoginRequest, BrowserSession, StorageState } from "@bazam/core/auth";
+import type {
+  BrowserLogin,
+  BrowserLoginRequest,
+  BrowserSession,
+  StorageState,
+} from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import { Selector, stepKind, type Step } from "@bazam/core/case";
 import {
@@ -56,13 +61,16 @@ const WebSettings = z
     testIdAttribute: z
       .string()
       .regex(/^[A-Za-z_][A-Za-z0-9_-]*$/, {
-        error: 'testIdAttribute takes a letter or "_", then letters, digits, "_" or "-", as in "data-testid"',
+        error:
+          'testIdAttribute takes a letter or "_", then letters, digits, "_" or "-", as in "data-testid"',
       })
       .default("data-testid"),
     // granted to every context; Playwright grants none by default
     permissions: z.array(z.string().min(1)).optional(),
     args: z.array(z.string().min(1)).default([]),
-    viewport: z.strictObject({ width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
+    viewport: z
+      .strictObject({ width: z.number().int().positive(), height: z.number().int().positive() })
+      .optional(),
   })
   .refine((settings) => settings.channel === undefined || settings.browser === "chromium", {
     path: ["channel"],
@@ -72,7 +80,8 @@ type WebSettings = z.infer<typeof WebSettings>;
 
 function parseSettings(options: LaunchOptions): WebSettings {
   const parsed = WebSettings.safeParse(options.settings);
-  if (!parsed.success) throw new Error(`target ${options.target}: ${z.prettifyError(parsed.error)}`);
+  if (!parsed.success)
+    throw new Error(`target ${options.target}: ${z.prettifyError(parsed.error)}`);
   return parsed.data;
 }
 
@@ -132,7 +141,10 @@ const parsedMaskSelectors = new Set<string>();
  * Throws when Playwright cannot parse a selector that screenshots mask, so a typo in the redaction config stops the
  * run at launch instead of failing every screenshot step as if the product had.
  */
-async function assertMaskSelectorsParse(browser: Browser, selectors: readonly string[]): Promise<void> {
+async function assertMaskSelectorsParse(
+  browser: Browser,
+  selectors: readonly string[],
+): Promise<void> {
   const key = JSON.stringify(selectors);
   if (selectors.length === 0 || parsedMaskSelectors.has(key)) return;
   const context = await browser.newContext();
@@ -145,7 +157,9 @@ async function assertMaskSelectorsParse(browser: Browser, selectors: readonly st
         .count()
         .catch((error: unknown) => {
           const [reason] = (error instanceof Error ? error.message : String(error)).split("\n");
-          throw new Error(`redaction.screenshotSelectors has "${selector}", which Playwright cannot parse: ${reason}`);
+          throw new Error(
+            `redaction.screenshotSelectors has "${selector}", which Playwright cannot parse: ${reason}`,
+          );
         });
     }
   } finally {
@@ -195,7 +209,10 @@ async function unreachable(url: URL): Promise<ConnectionFailed | undefined> {
   });
   return failure === undefined
     ? undefined
-    : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, { cause: failure, host: url.hostname });
+    : new ConnectionFailed(`GET ${url.origin}${url.pathname}`, failure.message, {
+        cause: failure,
+        host: url.hostname,
+      });
 }
 
 type PlaywrightStorageState = Exclude<Parameters<BrowserContext["setStorageState"]>[0], string>;
@@ -255,7 +272,8 @@ function field(scope: StepScope, selector: Selector): Locator {
 }
 
 function caseEvidence(scope: StepScope, kind: string): StepEvidence {
-  if (scope.evidence === undefined) throw new Error(`a ${kind} step runs only inside a case, not in a browser login`);
+  if (scope.evidence === undefined)
+    throw new Error(`a ${kind} step runs only inside a case, not in a browser login`);
   return scope.evidence;
 }
 
@@ -271,7 +289,10 @@ const Expectation = z.union([
 ]);
 type Expectation = z.infer<typeof Expectation>;
 
-const WaitStep = z.union([z.strictObject({ ms: z.number().int().positive() }), z.strictObject({ for: Selector })]);
+const WaitStep = z.union([
+  z.strictObject({ ms: z.number().int().positive() }),
+  z.strictObject({ for: Selector }),
+]);
 
 const steps: readonly WebStep<unknown>[] = [
   webStep("open", z.string().min(1), async (url, { page, env, lostSessions }) => {
@@ -290,17 +311,29 @@ const steps: readonly WebStep<unknown>[] = [
   webStep("fill", z.strictObject({ field: Selector, value: z.string() }), async (fill, scope) => {
     await field(scope, fill.field).fill(fill.value);
   }),
-  webStep("press", z.strictObject({ key: z.string().min(1), field: Selector.optional() }), async (press, scope) => {
-    await (press.field === undefined
-      ? scope.page.keyboard.press(press.key)
-      : field(scope, press.field).press(press.key));
-  }),
-  webStep("select", z.strictObject({ field: Selector, option: z.string().min(1) }), async (select, scope) => {
-    await field(scope, select.field).selectOption(select.option);
-  }),
+  webStep(
+    "press",
+    z.strictObject({ key: z.string().min(1), field: Selector.optional() }),
+    async (press, scope) => {
+      await (press.field === undefined
+        ? scope.page.keyboard.press(press.key)
+        : field(scope, press.field).press(press.key));
+    },
+  ),
+  webStep(
+    "select",
+    z.strictObject({ field: Selector, option: z.string().min(1) }),
+    async (select, scope) => {
+      await field(scope, select.field).selectOption(select.option);
+    },
+  ),
   webStep("expect", Expectation, async (expectation, scope, written) => {
     const evidence = caseEvidence(scope, "expect");
-    evidence.record({ name: expectationName(written), kind: "ui", ...(await observe(expectation, scope)) });
+    evidence.record({
+      name: expectationName(written),
+      kind: "ui",
+      ...(await observe(expectation, scope)),
+    });
   }),
   webStep("screenshot", z.strictObject({ name: z.string().min(1) }), async ({ name }, scope) => {
     const evidence = caseEvidence(scope, "screenshot");
@@ -314,17 +347,21 @@ const steps: readonly WebStep<unknown>[] = [
   }),
   webStep("wait", WaitStep, async (wait, scope) => {
     if ("for" in wait) await field(scope, wait.for).waitFor({ state: "visible" });
-    else await sleep(wait.ms, undefined, scope.signal === undefined ? {} : { signal: scope.signal });
+    else
+      await sleep(wait.ms, undefined, scope.signal === undefined ? {} : { signal: scope.signal });
   }),
 ];
 
-const stepsByKind: ReadonlyMap<string, WebStep<unknown>> = new Map(steps.map((step) => [step.kind, step]));
+const stepsByKind: ReadonlyMap<string, WebStep<unknown>> = new Map(
+  steps.map((step) => [step.kind, step]),
+);
 
 /** Runs a step of a login flow, which arrives with its placeholders filled. */
 async function runFlowStep(step: Step, scope: StepScope): Promise<void> {
   const kind = stepKind(step);
   const handler = stepsByKind.get(kind);
-  if (handler === undefined) throw new Error(`a browser login runs web steps only, and "${kind}" is not one`);
+  if (handler === undefined)
+    throw new Error(`a browser login runs web steps only, and "${kind}" is not one`);
   const payload = handler.schema.parse(step[kind]);
   await handler.act(payload, scope, payload);
 }
@@ -334,7 +371,9 @@ function expectationName(expectation: Expectation): string {
   if ("url" in expectation) return `URL matches ${expectation.url}`;
   const text = expectation.text;
   const target = `text of ${describeSelector(text.field)}`;
-  return "equals" in text ? `${target} equals "${text.equals}"` : `${target} contains "${text.contains}"`;
+  return "equals" in text
+    ? `${target} equals "${text.equals}"`
+    : `${target} contains "${text.contains}"`;
 }
 
 /** Waits up to the expect timeout for the page to meet the expectation, and reports what it last saw. */
@@ -360,8 +399,13 @@ async function observe(
   const text = expectation.text;
   const locator = field(scope, text.field);
   const matches = (observed: string): boolean =>
-    "equals" in text ? observed === normalizeSpace(text.equals) : observed.includes(normalizeSpace(text.contains));
-  const seen = await poll(async () => normalizeSpace((await locator.allTextContents()).join(" ")), matches);
+    "equals" in text
+      ? observed === normalizeSpace(text.equals)
+      : observed.includes(normalizeSpace(text.contains));
+  const seen = await poll(
+    async () => normalizeSpace((await locator.allTextContents()).join(" ")),
+    matches,
+  );
   return {
     expected: "equals" in text ? { equals: text.equals } : { contains: text.contains },
     observed: seen.value,
@@ -369,7 +413,10 @@ async function observe(
   };
 }
 
-function poll<T>(read: () => Promise<T>, ok: (value: T) => boolean): Promise<{ value: T; ok: boolean }> {
+function poll<T>(
+  read: () => Promise<T>,
+  ok: (value: T) => boolean,
+): Promise<{ value: T; ok: boolean }> {
   return pollFor(read, ok, EXPECT_TIMEOUT_MS, EXPECT_POLL_MS);
 }
 
@@ -392,7 +439,12 @@ export class WebSession implements DriverSession {
   // one for all the case's contexts, so a refusal in one is thrown by the next web step in any of them
   readonly #refusals = new Refusals();
 
-  constructor(options: LaunchOptions, settings: WebSettings, browser: Browser, lease: BrowserLease) {
+  constructor(
+    options: LaunchOptions,
+    settings: WebSettings,
+    browser: Browser,
+    lease: BrowserLease,
+  ) {
     this.redactor = options.redactor;
     this.#env = options.env;
     this.#settings = settings;
@@ -434,7 +486,12 @@ export class WebSession implements DriverSession {
   }
 
   scope(page: Page): Omit<StepScope, "evidence" | "signal" | "lostSessions"> {
-    return { page, env: this.#env, testIdAttribute: this.#settings.testIdAttribute, redactor: this.redactor };
+    return {
+      page,
+      env: this.#env,
+      testIdAttribute: this.#settings.testIdAttribute,
+      redactor: this.redactor,
+    };
   }
 
   /** Throws a navigation refused after the last web step that could have thrown it, once the traces are kept. */
@@ -503,7 +560,9 @@ export class WebSession implements DriverSession {
 
   async #openLoginTab(request: BrowserLoginRequest): Promise<LoginTab> {
     // a person cannot act in a browser they cannot see
-    const lease = leaseBrowser(request.prompt === undefined ? this.#settings : { ...this.#settings, headless: false });
+    const lease = leaseBrowser(
+      request.prompt === undefined ? this.#settings : { ...this.#settings, headless: false },
+    );
     try {
       const guarded = await GuardedContext.open(
         await (await lease.browser).newContext(contextOptions(this.#settings)),

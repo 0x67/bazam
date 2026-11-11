@@ -11,7 +11,16 @@ import { guardedHttp } from "@bazam/core/driver";
 import type { Environment } from "@bazam/core/env";
 import { Redactor, defaultRedactionRules } from "@bazam/core/redact";
 import type { EvidenceStore } from "@bazam/core/result";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import type { WebSession } from "../src/driver.ts";
 import { virtualPasskeyResolver } from "../src/passkey.ts";
 import {
@@ -88,7 +97,9 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
     const session = await launch(engine, { env, runDir: join(root, "runs"), redactor });
     sessions.push(session);
     const evidence = newEvidence(join(root, "runs"), CASE_ID);
-    await runSteps(stepContext(session, { env, evidence, root, identity: IDENTITY }), [{ open: `${site.origin}/` }]);
+    await runSteps(stepContext(session, { env, evidence, root, identity: IDENTITY }), [
+      { open: `${site.origin}/` },
+    ]);
     return { session, evidence };
   }
 
@@ -115,7 +126,13 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
     button: string,
     step: number,
   ): Promise<{ resolver: string; status: string }> {
-    const request: ChallengeRequest = { kind: "passkey", caseId: CASE_ID, identity: IDENTITY, step, params: {} };
+    const request: ChallengeRequest = {
+      kind: "passkey",
+      caseId: CASE_ID,
+      identity: IDENTITY,
+      step,
+      params: {},
+    };
     const ctx = stepContext(session, { env, evidence, root, identity: IDENTITY });
     const resolved = await resolveChallenge(
       request,
@@ -126,10 +143,15 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
     );
     const page = await (await session.contextFor(IDENTITY)).page();
     await page.getByTestId("status").filter({ hasText: /\S/ }).waitFor();
-    return { resolver: resolved.resolver, status: (await page.getByTestId("status").textContent()) ?? "" };
+    return {
+      resolver: resolved.resolver,
+      status: (await page.getByTestId("status").textContent()) ?? "",
+    };
   }
 
-  async function storedPasskeys(): Promise<{ id: string; privateKey: string; signCount: number }[]> {
+  async function storedPasskeys(): Promise<
+    { id: string; privateKey: string; signCount: number }[]
+  > {
     const dir = join(root, "state", "credentials");
     const [file] = await readdir(dir);
     return JSON.parse(await readFile(join(dir, file!), "utf8")).credential;
@@ -164,6 +186,8 @@ describe.each(ENGINES)("virtualPasskeyResolver on %s", (engine) => {
     ]);
 
     const page = await (await session.contextFor(IDENTITY)).page();
-    expect(await page.getByTestId("status").textContent()).toBe(registered.status.replace("registered", "signed in"));
+    expect(await page.getByTestId("status").textContent()).toBe(
+      registered.status.replace("registered", "signed in"),
+    );
   });
 });

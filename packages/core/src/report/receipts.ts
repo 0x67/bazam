@@ -20,7 +20,11 @@ export interface Receipts {
 // keyed by `<tracker>:<ticket>:<case-id>`
 const ReceiptsFile = z.record(
   z.string(),
-  z.strictObject({ marker: z.string().min(1), url: z.string().min(1), postedAt: z.string().min(1) }),
+  z.strictObject({
+    marker: z.string().min(1),
+    url: z.string().min(1),
+    postedAt: z.string().min(1),
+  }),
 );
 type ReceiptsFile = z.infer<typeof ReceiptsFile>;
 
@@ -61,7 +65,9 @@ async function readReceipts(stateDir: string): Promise<ReceiptsFile> {
   }
   const parsed = ReceiptsFile.safeParse(parseJson(text));
   if (!parsed.success)
-    throw new Error(`${RECEIPTS_FILE} does not match the receipts schema:\n${z.prettifyError(parsed.error)}`);
+    throw new Error(
+      `${RECEIPTS_FILE} does not match the receipts schema:\n${z.prettifyError(parsed.error)}`,
+    );
   return parsed.data;
 }
 

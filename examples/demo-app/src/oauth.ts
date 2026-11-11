@@ -16,7 +16,10 @@ export function oauthRoutes({ store }: DemoDeps): Hono {
     c.header("Cache-Control", "no-store")
     const form = await c.req.parseBody()
     const client = clientCredentials(c.req.header("Authorization"), form)
-    if (!safeEqual(client.id, DEMO_OAUTH_CLIENT.id) || !safeEqual(client.secret, DEMO_OAUTH_CLIENT.secret)) {
+    if (
+      !safeEqual(client.id, DEMO_OAUTH_CLIENT.id) ||
+      !safeEqual(client.secret, DEMO_OAUTH_CLIENT.secret)
+    ) {
       c.header("WWW-Authenticate", 'Basic realm="oauth"')
       return c.json({ error: "invalid_client" }, 401)
     }
@@ -24,7 +27,8 @@ export function oauthRoutes({ store }: DemoDeps): Hono {
     if (grantType === "client_credentials") return c.json(issueTokens(store, client.id))
     if (grantType === "refresh_token") {
       const refreshToken = formText(form, "refresh_token")
-      if (store.refreshTokens.get(refreshToken) !== client.id) return c.json({ error: "invalid_grant" }, 400)
+      if (store.refreshTokens.get(refreshToken) !== client.id)
+        return c.json({ error: "invalid_grant" }, 400)
       store.refreshTokens.delete(refreshToken)
       return c.json(issueTokens(store, client.id))
     }
@@ -51,7 +55,9 @@ function clientCredentials(
   form: Record<string, unknown>,
 ): { id: string; secret: string } {
   if (authorization?.startsWith("Basic ")) {
-    const [id = "", ...secret] = Buffer.from(authorization.slice("Basic ".length), "base64").toString().split(":")
+    const [id = "", ...secret] = Buffer.from(authorization.slice("Basic ".length), "base64")
+      .toString()
+      .split(":")
     return { id, secret: secret.join(":") }
   }
   return { id: formText(form, "client_id"), secret: formText(form, "client_secret") }
@@ -60,7 +66,10 @@ function clientCredentials(
 function issueTokens(store: Store, clientId: string) {
   const accessToken = randomBytes(32).toString("base64url")
   const refreshToken = randomBytes(32).toString("base64url")
-  store.accessTokens.set(accessToken, { clientId, expiresAt: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000 })
+  store.accessTokens.set(accessToken, {
+    clientId,
+    expiresAt: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+  })
   store.refreshTokens.set(refreshToken, clientId)
   return {
     access_token: accessToken,

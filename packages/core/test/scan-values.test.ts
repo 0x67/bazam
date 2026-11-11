@@ -64,7 +64,9 @@ async function load(redaction: Record<string, unknown> = {}) {
   return { cache, loaded };
 }
 
-const kinds = (values: readonly { kind: string }[]) => [...new Set(values.map((entry) => entry.kind))];
+const kinds = (values: readonly { kind: string }[]) => [
+  ...new Set(values.map((entry) => entry.kind)),
+];
 
 describe("loadScanValues", () => {
   it("leaves out a field that redaction.shown lists", async () => {
@@ -77,7 +79,11 @@ describe("loadScanValues", () => {
     const { loaded } = await load();
 
     const phone = (await loaded()).values.filter((entry) => entry.kind === "fixture alice.phone");
-    expect(phone.map((entry) => entry.value)).toEqual(["+447700900123", "7700900123", "07700900123"]);
+    expect(phone.map((entry) => entry.value)).toEqual([
+      "+447700900123",
+      "7700900123",
+      "07700900123",
+    ]);
   });
 
   it("lists a secret no provider holds as skipped and keeps the ones it read", async () => {
@@ -92,13 +98,22 @@ describe("loadScanValues", () => {
 
   it("reads credentials of the env only, through the strategy or as a passkey list", async () => {
     const { cache, loaded } = await load();
-    await cache.save({ env: "demo", identity: "ops", surface: "web", strategy: "bearer" }, { token: "fake-bearer-1" });
-    await cache.save({ env: "demo", identity: "alice", surface: "web", strategy: "passkey-virtual" }, [
-      { privateKey: "fake-key-a" },
-      { privateKey: "fake-key-b" },
-    ]);
-    await cache.save({ env: "demo", identity: "bob", surface: "api", strategy: "mystery" }, { token: "fake-other" });
-    await cache.save({ env: "other", identity: "ops", surface: "web", strategy: "bearer" }, { token: "fake-bearer-2" });
+    await cache.save(
+      { env: "demo", identity: "ops", surface: "web", strategy: "bearer" },
+      { token: "fake-bearer-1" },
+    );
+    await cache.save(
+      { env: "demo", identity: "alice", surface: "web", strategy: "passkey-virtual" },
+      [{ privateKey: "fake-key-a" }, { privateKey: "fake-key-b" }],
+    );
+    await cache.save(
+      { env: "demo", identity: "bob", surface: "api", strategy: "mystery" },
+      { token: "fake-other" },
+    );
+    await cache.save(
+      { env: "other", identity: "ops", surface: "web", strategy: "bearer" },
+      { token: "fake-bearer-2" },
+    );
 
     const scan = await loaded();
 

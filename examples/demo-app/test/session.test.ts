@@ -19,7 +19,9 @@ describe("session cookie API", () => {
     expect(refreshed.status).toBe(200)
     expect(visitor.cookie("session")).not.toBe(oldSession)
     expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({ email })
-    const stale = await fetch(new URL("/api/session/me", APP_URL), { headers: { Cookie: `session=${oldSession}` } })
+    const stale = await fetch(new URL("/api/session/me", APP_URL), {
+      headers: { Cookie: `session=${oldSession}` },
+    })
     expect(stale.status).toBe(401)
   })
 
@@ -37,7 +39,9 @@ describe("session cookie API", () => {
     const response = await visitor.request("/logout", { method: "POST" })
 
     expect(response.headers.get("location")).toBe("/login")
-    const after = await fetch(new URL("/api/session/me", APP_URL), { headers: { Cookie: `session=${session}` } })
+    const after = await fetch(new URL("/api/session/me", APP_URL), {
+      headers: { Cookie: `session=${session}` },
+    })
     expect(after.status).toBe(401)
   })
 })

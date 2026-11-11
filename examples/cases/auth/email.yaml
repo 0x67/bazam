@@ -37,7 +37,8 @@ cases:
       - challenge:
           kind: otp-sms
           fill: { id: otp-input }
-          params: { url: "${env.APP_URL}/test/otp?recipient=hook-${run.id}@example.test", field: code }
+          params:
+            { url: "${env.APP_URL}/test/otp?recipient=hook-${run.id}@example.test", field: code }
         as: newcomer
       - tap: { id: verify-code }
         as: newcomer

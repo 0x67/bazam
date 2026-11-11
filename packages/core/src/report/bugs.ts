@@ -73,9 +73,12 @@ export function planBugs(inputs: BugInputs): BugIntent[] {
   return inputs.results.flatMap((full): BugIntent[] => {
     const result = {
       ...full,
-      attachments: full.attachments.filter((name) => !inputs.withheld?.has(`${full.caseId}/${name}`)),
+      attachments: full.attachments.filter(
+        (name) => !inputs.withheld?.has(`${full.caseId}/${name}`),
+      ),
     };
-    if (result.stage !== "regression" || (result.status !== "fail" && result.status !== "pass")) return [];
+    if (result.stage !== "regression" || (result.status !== "fail" && result.status !== "pass"))
+      return [];
     const home = bugHome(config, result.links);
     if (home === undefined) return [];
     const { ref, bugs } = home;
@@ -88,7 +91,12 @@ export function planBugs(inputs: BugInputs): BugIntent[] {
     const comment = redactor.value(inputs.renderer(ref.tracker).render(result, inputs.media));
     if (result.status === "pass")
       return [
-        { kind: "recover", ...target, comment, ...(bugs.onPass === undefined ? {} : { transition: bugs.onPass }) },
+        {
+          kind: "recover",
+          ...target,
+          comment,
+          ...(bugs.onPass === undefined ? {} : { transition: bugs.onPass }),
+        },
       ];
     const draft: BugDraft = {
       project: target.project,
@@ -96,7 +104,9 @@ export function planBugs(inputs: BugInputs): BugIntent[] {
       summary: redactor.text(`[${result.caseId}] ${result.title} fails in ${result.env}`),
       labels: [...bugs.labels, target.label],
       description: comment,
-      attachments: result.attachments.flatMap((name) => runFile(inputs.runDir, `${result.caseId}/${name}`) ?? []),
+      attachments: result.attachments.flatMap(
+        (name) => runFile(inputs.runDir, `${result.caseId}/${name}`) ?? [],
+      ),
       relatesTo: result.links
         .map(ticketRef)
         .filter((link) => link.tracker === ref.tracker && projectOf(config, link) !== undefined)
@@ -120,9 +130,13 @@ function bugHome(
 
 // the project's entry when its tracker config lists it
 function projectOf(config: ProjectConfig, ref: TicketRef): TrackerProject | undefined {
-  const tracker = Object.hasOwn(config.trackers, ref.tracker) ? config.trackers[ref.tracker] : undefined;
+  const tracker = Object.hasOwn(config.trackers, ref.tracker)
+    ? config.trackers[ref.tracker]
+    : undefined;
   const project = trackerProject(ref.key);
-  return tracker !== undefined && Object.hasOwn(tracker.projects, project) ? tracker.projects[project] : undefined;
+  return tracker !== undefined && Object.hasOwn(tracker.projects, project)
+    ? tracker.projects[project]
+    : undefined;
 }
 
 /**
@@ -148,7 +162,10 @@ export async function applyBugs(
   return outcomes;
 }
 
-async function applyBug(intent: BugIntent, connecting: Promise<TrackerConnection>): Promise<BugOutcome> {
+async function applyBug(
+  intent: BugIntent,
+  connecting: Promise<TrackerConnection>,
+): Promise<BugOutcome> {
   const outcome: BugOutcome = {
     caseId: intent.caseId,
     ok: false,
@@ -158,12 +175,14 @@ async function applyBug(intent: BugIntent, connecting: Promise<TrackerConnection
     const connection = await connecting;
     const key = await connection.findOpenBug(intent.project, intent.label);
     if (key === undefined) {
-      if (intent.kind === "recover") return { ...outcome, ok: true, action: `no open bug in ${intent.project}` };
+      if (intent.kind === "recover")
+        return { ...outcome, ok: true, action: `no open bug in ${intent.project}` };
       outcome.action = `file a bug in ${intent.project}`;
       const bug = await connection.createBug(intent.draft);
       const filed = { ...outcome, action: `filed ${bug.key}`, key: bug.key, url: bug.url };
       // the bug exists, so the outcome names it even when a later step failed
-      if (bug.problems !== undefined && bug.problems.length > 0) return { ...filed, error: bug.problems.join("; ") };
+      if (bug.problems !== undefined && bug.problems.length > 0)
+        return { ...filed, error: bug.problems.join("; ") };
       return { ...filed, ok: true };
     }
     outcome.key = key;

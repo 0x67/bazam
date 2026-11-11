@@ -102,7 +102,8 @@ class WatchedContext extends FakeBrowserSession {
 
 async function watched(ctx: StepContext): Promise<WatchedContext> {
   const browser = await ctx.session.browserFor?.(ctx.identity ?? "");
-  if (!(browser instanceof WatchedContext)) throw new Error("the step runs without the identity's browser context");
+  if (!(browser instanceof WatchedContext))
+    throw new Error("the step runs without the identity's browser context");
   return browser;
 }
 
@@ -195,14 +196,19 @@ const driver: Driver = {
 const config = {
   envs: { demo: { production: false, hosts: ["shop.example.test"] } },
   identities: {
-    customer: { auth: { web: { strategy: "fake-token", with: {}, lostOn: { url: `${ORIGIN}/login*` } } } },
+    customer: {
+      auth: { web: { strategy: "fake-token", with: {}, lostOn: { url: `${ORIGIN}/login*` } } },
+    },
     courier: { auth: { web: { strategy: "fake-token" } } },
     guest: { auth: { web: { strategy: "fake-static", lostOn: { url: `${ORIGIN}/login*` } } } },
   },
   targets: { web: { driver: "fake" } },
 };
 
-function testCase(steps: readonly Record<string, unknown>[], tail: readonly Record<string, unknown>[] = []) {
+function testCase(
+  steps: readonly Record<string, unknown>[],
+  tail: readonly Record<string, unknown>[] = [],
+) {
   return {
     id: "SHOP-LOST-001",
     title: "case SHOP-LOST-001",
@@ -221,7 +227,10 @@ interface CaseRan {
 }
 
 /** Runs the case; a block or error it ends with is returned in `error`, with the notes it made. */
-async function runCase(spec: Record<string, unknown>, identity = "customer"): Promise<CaseRan & { error: unknown }> {
+async function runCase(
+  spec: Record<string, unknown>,
+  identity = "customer",
+): Promise<CaseRan & { error: unknown }> {
   const plugin = definePlugin({
     name: "test-lost-session",
     apiVersion: PLUGIN_API_VERSION,
@@ -289,7 +298,9 @@ async function runCase(spec: Record<string, unknown>, identity = "customer"): Pr
     driver,
     session,
     evidence,
-    runValues: new RunValues("20261108-091500-3c4d", new Date("2026-11-08T09:15:00Z"), 7).forCase("SHOP-LOST-001"),
+    runValues: new RunValues("20261108-091500-3c4d", new Date("2026-11-08T09:15:00Z"), 7).forCase(
+      "SHOP-LOST-001",
+    ),
     values: new CaseValues("SHOP-LOST-001", loaded.spec.title),
   });
   current = run;
@@ -305,7 +316,12 @@ const as = { as: "customer" };
 describe("CaseRun after a redirect to the login page", () => {
   it("recovers before the next step and names the redirect without its query", async () => {
     const { notes, error } = await runCase(
-      testCase([{ look: true, ...as }, { expire: true }, { redirect: true, ...as }, { look: true, ...as }]),
+      testCase([
+        { look: true, ...as },
+        { expire: true },
+        { redirect: true, ...as },
+        { look: true, ...as },
+      ]),
     );
 
     expect(error).toBeUndefined();
@@ -346,7 +362,9 @@ describe("CaseRun after a redirect to the login page", () => {
 describe("CaseRun when a step throws SessionLost", () => {
   it("runs the step again after refreshing and notes it", async () => {
     lands = 1;
-    const { notes, error } = await runCase(testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]));
+    const { notes, error } = await runCase(
+      testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]),
+    );
 
     expect(error).toBeUndefined();
     expect(events).toEqual(["look with Bearer fake-token-1", "land", "land"]);
@@ -359,14 +377,18 @@ describe("CaseRun when a step throws SessionLost", () => {
   it("says it logged in again when the credential cannot be refreshed", async () => {
     refreshable = false;
     lands = 1;
-    const { notes } = await runCase(testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]));
+    const { notes } = await runCase(
+      testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]),
+    );
 
     expect(notes).toContain("step 3 (land) ran again after logging in again as customer on web");
   });
 
   it("waits for the recovery a redirect started and starts no second one", async () => {
     lands = 1;
-    const { notes } = await runCase(testCase([{ look: true, ...as }, { expire: true }, { bounce: true, ...as }]));
+    const { notes } = await runCase(
+      testCase([{ look: true, ...as }, { expire: true }, { bounce: true, ...as }]),
+    );
 
     expect(events).toEqual(["look with Bearer fake-token-1", "bounce", "bounce"]);
     expect(notes).toEqual([
@@ -377,7 +399,9 @@ describe("CaseRun when a step throws SessionLost", () => {
 
   it("blocks the case when the step lands on the login page again after the retry", async () => {
     lands = 2;
-    const { error } = await runCase(testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]));
+    const { error } = await runCase(
+      testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]),
+    );
 
     expect(error).toMatchObject({
       name: "CaseBlocked",
@@ -405,7 +429,8 @@ describe("CaseRun when a step throws SessionLost", () => {
     );
 
     expect(error).toMatchObject({
-      message: "step 2 (land) landed on the login page, but the web credential of customer still passes its probe",
+      message:
+        "step 2 (land) landed on the login page, but the web credential of customer still passes its probe",
     });
   });
 
@@ -419,14 +444,21 @@ describe("CaseRun when a step throws SessionLost", () => {
       message:
         "step 3 (land) landed on the login page, and the web credential of guest cannot be refreshed or logged in again",
     });
-    expect(notes).toEqual(["step 3 (land) landed on the login page; the web credential of guest cannot be refreshed"]);
+    expect(notes).toEqual([
+      "step 3 (land) landed on the login page; the web credential of guest cannot be refreshed",
+    ]);
   });
 
   it("ends blocked with the login's reason when logging in again fails", async () => {
     refreshable = false;
     lands = 1;
     const { error, notes } = await runCase(
-      testCase([{ look: true, ...as }, { expire: true }, { "break-login": true }, { land: true, ...as }]),
+      testCase([
+        { look: true, ...as },
+        { expire: true },
+        { "break-login": true },
+        { land: true, ...as },
+      ]),
     );
 
     expect(error).toMatchObject({
@@ -450,7 +482,8 @@ describe("CaseRun when a step throws SessionLost", () => {
     );
 
     expect(error).toMatchObject({
-      message: "step 5 (land) lost the web session of customer again after this case's one recovery",
+      message:
+        "step 5 (land) lost the web session of customer again after this case's one recovery",
     });
     expect(notes).toEqual([`refreshed customer's web credential after a redirect to ${NO_QUERY}`]);
   });
@@ -472,7 +505,12 @@ describe("CaseRun when a step throws SessionLost", () => {
   it("counts the recovery as the case's one, so a later 401 adds the usual note", async () => {
     lands = 1;
     const { notes } = await runCase(
-      testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }, { call: true, ...as }]),
+      testCase([
+        { look: true, ...as },
+        { expire: true },
+        { land: true, ...as },
+        { call: true, ...as },
+      ]),
     );
 
     expect(notes.at(-1)).toBe(`another 401 from ${ORIGIN} after this case's one recovery`);
@@ -480,7 +518,9 @@ describe("CaseRun when a step throws SessionLost", () => {
 
   it("recovers in a finally step, and a block there becomes a note", async () => {
     lands = 1;
-    const recovered = await runCase(testCase([{ look: true, ...as }], [{ expire: true }, { land: true, ...as }]));
+    const recovered = await runCase(
+      testCase([{ look: true, ...as }], [{ expire: true }, { land: true, ...as }]),
+    );
 
     expect(recovered.error).toBeUndefined();
     expect(recovered.notes).toEqual([

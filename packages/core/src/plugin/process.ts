@@ -10,7 +10,12 @@ import type { ProcessPluginEntry } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { CaseBlocked } from "../run/outcome.ts";
 import { METHODS, PROTOCOL_VERSION } from "./protocol.ts";
-import { proxyContributions, type HostCalls, type HostContext, type PluginCall } from "./proxies.ts";
+import {
+  proxyContributions,
+  type HostCalls,
+  type HostContext,
+  type PluginCall,
+} from "./proxies.ts";
 import type { PluginManifest } from "./registry.ts";
 import { JsonRpcPeer, LINE_TOO_LONG, MalformedAnswer, RpcError } from "./rpc.ts";
 import { BLOCKED, firstIssue, handleMethod, INVALID_PARAMS } from "./serve.ts";
@@ -24,7 +29,9 @@ const OUTPUT_DRAIN_MS = 5_000;
 const STDERR_TAIL_LINES = 20;
 
 // read at run time, since the package file sits outside rootDir; the path holds from src/ and dist/ alike
-const { version } = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+const { version } = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+) as {
   version: string;
 };
 
@@ -140,13 +147,20 @@ export async function startProcessPlugin(
     timeoutMs: number,
   ): Promise<unknown> => {
     try {
-      return await peer.request(method, params, signal === undefined ? { timeoutMs } : { signal, timeoutMs });
+      return await peer.request(
+        method,
+        params,
+        signal === undefined ? { timeoutMs } : { signal, timeoutMs },
+      );
     } catch (error) {
       if (signal?.aborted === true && error === signal.reason) throw error;
       throw callError(label, method, timeoutMs, error);
     }
   };
-  const parse = <M extends keyof Methods>(method: M, result: unknown): z.output<Methods[M]["result"]> => {
+  const parse = <M extends keyof Methods>(
+    method: M,
+    result: unknown,
+  ): z.output<Methods[M]["result"]> => {
     const schema: z.ZodType = METHODS[method].result;
     const parsed = schema.safeParse(result);
     if (!parsed.success) {
@@ -163,8 +177,10 @@ export async function startProcessPlugin(
     params: z.input<Methods[M]["params"]>,
     signal: AbortSignal | undefined,
     timeoutMs: number,
-  ): Promise<z.output<Methods[M]["result"]>> => parse(method, await send(method, params, signal, timeoutMs));
-  const call: PluginCall = (method, params, signal) => request(method, params, signal, entry.timeoutSeconds * 1000);
+  ): Promise<z.output<Methods[M]["result"]>> =>
+    parse(method, await send(method, params, signal, timeoutMs));
+  const call: PluginCall = (method, params, signal) =>
+    request(method, params, signal, entry.timeoutSeconds * 1000);
 
   const stop = async (): Promise<void> => {
     if (exited !== undefined) return;
@@ -194,7 +210,11 @@ export async function startProcessPlugin(
   try {
     const raw = await send(
       "initialize",
-      { protocolVersion: PROTOCOL_VERSION, apiVersion: options.apiVersion, host: { name: BRAND.name, version } },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        apiVersion: options.apiVersion,
+        host: { name: BRAND.name, version },
+      },
       undefined,
       INITIALIZE_TIMEOUT_MS,
     );
@@ -208,10 +228,16 @@ export async function startProcessPlugin(
     const answer = parse("initialize", raw);
     label = answer.name;
     const contributions = proxyContributions(call, answer.name, answer.contributions, calls);
-    return new ProcessPlugin({ name: answer.name, apiVersion: answer.apiVersion, ...contributions }, stop);
+    return new ProcessPlugin(
+      { name: answer.name, apiVersion: answer.apiVersion, ...contributions },
+      stop,
+    );
   } catch (error) {
     await stop();
-    if (!(error instanceof PluginProcessExited || error instanceof PluginCallTimedOut) || tail.length === 0) {
+    if (
+      !(error instanceof PluginProcessExited || error instanceof PluginCallTimedOut) ||
+      tail.length === 0
+    ) {
       throw error;
     }
     const Failure = error instanceof PluginProcessExited ? PluginProcessExited : PluginCallTimedOut;
@@ -221,7 +247,9 @@ export async function startProcessPlugin(
 
 function callError(plugin: string, method: string, timeoutMs: number, error: unknown): Error {
   if (error instanceof DOMException && error.name === "TimeoutError") {
-    return new PluginCallTimedOut(`plugin ${plugin} did not answer ${method} within ${timeoutMs / 1000} s`);
+    return new PluginCallTimedOut(
+      `plugin ${plugin} did not answer ${method} within ${timeoutMs / 1000} s`,
+    );
   }
   if (error instanceof MalformedAnswer) {
     return new PluginCallFailed(
@@ -236,7 +264,9 @@ function callError(plugin: string, method: string, timeoutMs: number, error: unk
     // the plugin's handler threw, so a step fails as an in-process step that throws does
     if (error.code === INTERNAL_ERROR) return new Error(error.message);
     if (error.code === BLOCKED) return new CaseBlocked(error.message);
-    return new PluginCallFailed(`plugin ${plugin} answered ${method} with error ${error.code}: ${error.message}`);
+    return new PluginCallFailed(
+      `plugin ${plugin} answered ${method} with error ${error.code}: ${error.message}`,
+    );
   }
   if (error instanceof PluginCallFailed) return error;
   // the peer closed itself, as after a line over its limit
@@ -251,7 +281,11 @@ function callError(plugin: string, method: string, timeoutMs: number, error: unk
  * offers resolve, http, evidence, values and mask; a case ending offers evidence; a tracker client's context offers
  * secrets; a launch context offers nothing.
  */
-function answerHostCalls(peer: JsonRpcPeer, contexts: ReadonlyMap<string, HostContext>, log: (line: string) => void) {
+function answerHostCalls(
+  peer: JsonRpcPeer,
+  contexts: ReadonlyMap<string, HostContext>,
+  log: (line: string) => void,
+) {
   const find = <T extends HostContext>(
     method: string,
     contextId: string,
@@ -287,9 +321,15 @@ function answerHostCalls(peer: JsonRpcPeer, contexts: ReadonlyMap<string, HostCo
     const body = (response.body ?? null) as z.core.util.JSONType;
     // each name once with the value get() gives, so set-cookie holds the joined value; setCookie keeps each one
     const headers: Record<string, string> = {};
-    for (const name of new Set(response.headers.keys())) headers[name] = response.headers.get(name) ?? "";
+    for (const name of new Set(response.headers.keys()))
+      headers[name] = response.headers.get(name) ?? "";
     const setCookie = response.headers.getSetCookie();
-    return { status: response.status, headers, ...(setCookie.length > 0 ? { setCookie } : {}), body };
+    return {
+      status: response.status,
+      headers,
+      ...(setCookie.length > 0 ? { setCookie } : {}),
+      body,
+    };
   });
   handleMethod(peer, "host.evidence.record", async ({ contextId, check }) => {
     find("host.evidence.record", contextId, hasEvidence).evidence.record(check);
@@ -327,7 +367,9 @@ function canResolve(context: HostContext): context is ContextWith<"resolve"> {
   return "resolve" in context;
 }
 
-function hasSecrets(context: HostContext): context is ContextWith<"secrets"> | ContextWith<"secret"> {
+function hasSecrets(
+  context: HostContext,
+): context is ContextWith<"secrets"> | ContextWith<"secret"> {
   return "secrets" in context || "secret" in context;
 }
 

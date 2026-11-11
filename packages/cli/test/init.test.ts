@@ -39,7 +39,16 @@ describe("init", () => {
     ];
     expect(JSON.parse(init.stdout)).toEqual({ created, updated: [], kept: [] });
     expect((await readdir(root)).sort()).toEqual(
-      [".gitignore", "AGENTS.md", BRAND.configFile, "cases", "fixtures", "flows", "people.yaml", "suites.yaml"].sort(),
+      [
+        ".gitignore",
+        "AGENTS.md",
+        BRAND.configFile,
+        "cases",
+        "fixtures",
+        "flows",
+        "people.yaml",
+        "suites.yaml",
+      ].sort(),
     );
     expect(await read(".gitignore")).toBe(`${IGNORED.join("\n")}\n`);
     const agents = await read("AGENTS.md");
@@ -71,7 +80,10 @@ describe("init", () => {
     await writeFile(join(root, "suites.yaml"), "smoke:\n  stages: [acceptance]\n");
     await writeFile(join(root, ".gitignore"), "node_modules/\n/runs\n");
     const section = (await read("AGENTS.md")).trimEnd();
-    await writeFile(join(root, "AGENTS.md"), `# Team notes\n\n${START}\nstale text\n${END}\n\nKeep this line.\n`);
+    await writeFile(
+      join(root, "AGENTS.md"),
+      `# Team notes\n\n${START}\nstale text\n${END}\n\nKeep this line.\n`,
+    );
 
     const rerun = await cli(["init", "--json"], root);
     expect(rerun.code).toBe(ExitCode.Pass);

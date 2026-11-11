@@ -20,19 +20,30 @@ export interface ProbeFailure {
  * Sends each probe once, with no credentials, no redirects followed and a 5 s limit. A probe the run's cancel stopped
  * does not fail, so its cases end "run cancelled" like every other case.
  */
-export async function probeEnv(env: Environment, http: GuardedHttp, signal: AbortSignal): Promise<ProbeFailure[]> {
+export async function probeEnv(
+  env: Environment,
+  http: GuardedHttp,
+  signal: AbortSignal,
+): Promise<ProbeFailure[]> {
   const happened = await Promise.all(env.probes.map((probe) => sendProbe(probe, http, signal)));
   const failures: ProbeFailure[] = [];
   env.probes.forEach((probe, index) => {
     const what = happened[index];
     if (what !== undefined)
-      failures.push({ host: probe.url.hostname, reason: `${probe.request} failed: ${what}; ${probe.hint}` });
+      failures.push({
+        host: probe.url.hostname,
+        reason: `${probe.request} failed: ${what}; ${probe.hint}`,
+      });
   });
   return failures;
 }
 
 /** What went wrong with the probe, or undefined when the host answered as expected. */
-async function sendProbe(probe: EnvProbe, http: GuardedHttp, signal: AbortSignal): Promise<string | undefined> {
+async function sendProbe(
+  probe: EnvProbe,
+  http: GuardedHttp,
+  signal: AbortSignal,
+): Promise<string | undefined> {
   const limit = AbortSignal.timeout(PROBE_TIMEOUT_MS);
   try {
     const { status } = await http.send({
@@ -63,7 +74,10 @@ export function caseHosts(
   const hosts = new Set<string>();
   const visit = (value: unknown): void => {
     if (typeof value === "string") {
-      const text = value.replace(ENV_PLACEHOLDER, (placeholder, name: string) => env.vars[name] ?? placeholder);
+      const text = value.replace(
+        ENV_PLACEHOLDER,
+        (placeholder, name: string) => env.vars[name] ?? placeholder,
+      );
       for (const [match] of text.matchAll(URL_TEXT)) {
         const url = match.replace(URL_TRAILING_PUNCTUATION, "");
         if (URL.canParse(url)) hosts.add(new URL(url).hostname);
@@ -74,7 +88,8 @@ export function caseHosts(
   visit(caseSteps(spec, project.flows));
   visit(finallySteps(spec, project.flows));
   for (const name of identities) {
-    for (const auth of Object.values(project.config.identities[name]?.auth ?? {})) if ("with" in auth) visit(auth.with);
+    for (const auth of Object.values(project.config.identities[name]?.auth ?? {}))
+      if ("with" in auth) visit(auth.with);
   }
   return hosts;
 }

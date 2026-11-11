@@ -24,7 +24,10 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-function step(kind: string, act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {}): StepHandler {
+function step(
+  kind: string,
+  act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {},
+): StepHandler {
   return {
     kind,
     schema: z.unknown(),
@@ -42,7 +45,13 @@ const steps = [
   }),
   step("expect", async (payload, ctx) => {
     const ok = payload !== "missing";
-    ctx.evidence.record({ name: `${String(payload)} is visible`, kind: "ui", expected: "yes", observed: "no", ok });
+    ctx.evidence.record({
+      name: `${String(payload)} is visible`,
+      kind: "ui",
+      expected: "yes",
+      observed: "no",
+      ok,
+    });
   }),
 ];
 
@@ -103,7 +112,9 @@ describe("followup steps", () => {
       {
         id: "SHOP-ONE-001",
         steps: [{ save: "order" }],
-        checks: [{ followup: { name: "badge for ${case.order}", hint: "open order ${case.order}" } }],
+        checks: [
+          { followup: { name: "badge for ${case.order}", hint: "open order ${case.order}" } },
+        ],
       },
     ]);
     expect(events).toEqual(['save "order"']);
@@ -120,6 +131,9 @@ describe("followup steps", () => {
         checks: [{ expect: "missing" }, { followup: { name: "badge", hint: "look at it" } }],
       },
     ]);
-    expect(result).toMatchObject({ status: "fail", followups: [{ item: "badge", hint: "look at it" }] });
+    expect(result).toMatchObject({
+      status: "fail",
+      followups: [{ item: "badge", hint: "look at it" }],
+    });
   });
 });

@@ -11,7 +11,9 @@ import type { RunSupervisor } from "./runs.ts";
 import { caseTools, ToolError, type ToolDefinition, type ToolDeps } from "./tools.ts";
 
 // read at run time, since the package file sits outside rootDir; the path holds from src/ and dist/ alike
-const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as {
   version: string;
 };
 
@@ -24,8 +26,10 @@ export function createMcpServer(deps: {
   const server = new McpServer({ name: BRAND.mcpServerName, version });
   const toolDeps = { ...deps, projectRoot: resolve(deps.projectRoot) };
   for (const tool of caseTools) {
-    server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input }, (input) =>
-      callTool(tool, input, toolDeps),
+    server.registerTool(
+      tool.name,
+      { description: tool.description, inputSchema: tool.input },
+      (input) => callTool(tool, input, toolDeps),
     );
   }
   return server;
@@ -74,7 +78,9 @@ async function callTool(
     if (config !== undefined) redactor.configure(config.redaction);
     const reply = await tool.handle(input as Parameters<ToolDefinition["handle"]>[0], deps);
     const text =
-      reply.masking === "registered" ? redactor.maskRegistered(json(reply.doc)) : json(redactor.value(reply.doc));
+      reply.masking === "registered"
+        ? redactor.maskRegistered(json(reply.doc))
+        : json(redactor.value(reply.doc));
     const images = (reply.images ?? []).flatMap(({ name, data, mimeType }) => [
       { type: "text" as const, text: redactor.text(name) },
       { type: "image" as const, data, mimeType },
@@ -93,7 +99,9 @@ function errorText(error: unknown): string {
   const issues = error instanceof ToolError ? error.issues : [];
   return [
     message,
-    ...issues.map((i) => `${i.file}:${i.line}: ${i.severity} ${i.ruleId}: ${i.message}\n  fix: ${i.fix}`),
+    ...issues.map(
+      (i) => `${i.file}:${i.line}: ${i.severity} ${i.ruleId}: ${i.message}\n  fix: ${i.fix}`,
+    ),
   ].join("\n");
 }
 

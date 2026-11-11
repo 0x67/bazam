@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { expandFlows, FlowCycle, InvalidFlowUse, type FlowSpec, type Step } from "../src/case/index.ts";
+import {
+  expandFlows,
+  FlowCycle,
+  InvalidFlowUse,
+  type FlowSpec,
+  type Step,
+} from "../src/case/index.ts";
 
 function thrownBy(run: () => unknown): unknown {
   try {
@@ -31,7 +37,10 @@ const login: FlowSpec = {
 
 describe("expandFlows", () => {
   it("inlines a flow and fills its parameters, leaving other placeholders and escapes for run time", () => {
-    const steps: Step[] = [{ note: "start" }, { use: { flow: "login", with: { email: "ops@example.test" } } }];
+    const steps: Step[] = [
+      { note: "start" },
+      { use: { flow: "login", with: { email: "ops@example.test" } } },
+    ];
 
     expect(expandFlows(steps, flowMap(login))).toEqual([
       { note: "start" },
@@ -121,14 +130,21 @@ describe("expandFlows", () => {
   });
 
   it("replaces a use step in a challenge trigger and a guided observe with the flow's one step", () => {
-    const sendCode: FlowSpec = { name: "send-code", params: [], steps: [{ tap: { id: "send-code" } }] };
+    const sendCode: FlowSpec = {
+      name: "send-code",
+      params: [],
+      steps: [{ tap: { id: "send-code" } }],
+    };
     const readMe: FlowSpec = {
       name: "read-me",
       params: [],
       steps: [{ api: { request: "GET ${env.API_URL}/me", status: 200 } }],
     };
     const steps: Step[] = [
-      { challenge: { kind: "otp-email", trigger: { use: "send-code" }, fill: { id: "code" } }, as: "customer" },
+      {
+        challenge: { kind: "otp-email", trigger: { use: "send-code" }, fill: { id: "code" } },
+        as: "customer",
+      },
       {
         guided: {
           title: "Check the account",
@@ -139,7 +155,14 @@ describe("expandFlows", () => {
     ];
 
     expect(expandFlows(steps, flowMap(sendCode, readMe))).toEqual([
-      { challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } }, as: "customer" },
+      {
+        challenge: {
+          kind: "otp-email",
+          trigger: { tap: { id: "send-code" } },
+          fill: { id: "code" },
+        },
+        as: "customer",
+      },
       {
         guided: {
           title: "Check the account",
@@ -153,7 +176,10 @@ describe("expandFlows", () => {
   it("throws InvalidFlowUse for a use step in a trigger whose flow expands to more than one step", () => {
     const steps: Step[] = [
       {
-        challenge: { kind: "otp-email", trigger: { use: { flow: "login", with: { email: "a@example.test" } } } },
+        challenge: {
+          kind: "otp-email",
+          trigger: { use: { flow: "login", with: { email: "a@example.test" } } },
+        },
         as: "customer",
       },
     ];
@@ -179,8 +205,8 @@ describe("expandFlows", () => {
   it("throws InvalidFlowUse when a flow step names a parameter the flow does not declare", () => {
     const typo: FlowSpec = { name: "typo", params: ["email"], steps: [{ note: "${param.emial}" }] };
 
-    expect(() => expandFlows([{ use: { flow: "typo", with: { email: "a@example.test" } } }], flowMap(typo))).toThrow(
-      "flow typo: ${param.emial} names an undeclared parameter",
-    );
+    expect(() =>
+      expandFlows([{ use: { flow: "typo", with: { email: "a@example.test" } } }], flowMap(typo)),
+    ).toThrow("flow typo: ${param.emial} names an undeclared parameter");
   });
 });

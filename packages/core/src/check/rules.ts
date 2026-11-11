@@ -1,4 +1,13 @@
-import { isMap, isNode, isScalar, isSeq, visit, type Document, type Node, type YAMLMap } from "yaml";
+import {
+  isMap,
+  isNode,
+  isScalar,
+  isSeq,
+  visit,
+  type Document,
+  type Node,
+  type YAMLMap,
+} from "yaml";
 import { BRAND } from "../brand.ts";
 import {
   expandFlows,
@@ -37,7 +46,10 @@ interface Finding {
 const ALLOW_SECRET = `# ${BRAND.markerPrefix}: allow-secret`;
 const SECRET_PATTERNS: readonly { what: string; pattern: RegExp }[] = [
   { what: "an AWS access key id", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
-  { what: "a GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
+  {
+    what: "a GitHub token",
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/,
+  },
   { what: "a Slack token", pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}/ },
   { what: "a JWT", pattern: /\beyJ[\w-]+\.eyJ[\w-]+\.[\w-]*/ },
   { what: "a private key block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
@@ -77,10 +89,17 @@ function loaderRule(id: string): CheckRule {
 
 /** The loader's issues under the rule's id, then the rule's own. */
 function withLoaderIssues(own: CheckRule): CheckRule {
-  return { id: own.id, check: (project) => [...loaderRule(own.id).check(project), ...own.check(project)] };
+  return {
+    id: own.id,
+    check: (project) => [...loaderRule(own.id).check(project), ...own.check(project)],
+  };
 }
 
-function rule(id: string, severity: CheckIssue["severity"], find: (project: Project) => Finding[]): CheckRule {
+function rule(
+  id: string,
+  severity: CheckIssue["severity"],
+  find: (project: Project) => Finding[],
+): CheckRule {
   return {
     id,
     check: (project) =>
@@ -98,7 +117,9 @@ function rule(id: string, severity: CheckIssue["severity"], find: (project: Proj
 /** An external case gets its checks from the runner's tests at run time. */
 function casesWithoutCheck(project: Project): Finding[] {
   return project.cases
-    .filter(({ spec }) => !spec.targets.some((target) => runnerOf(project.config, target) !== undefined))
+    .filter(
+      ({ spec }) => !spec.targets.some((target) => runnerOf(project.config, target) !== undefined),
+    )
     .filter(({ spec }) => spec.checks.length === 0 && !spec.steps.some(isCheckStep))
     .map(({ spec, source }) => ({
       at: source,
@@ -109,7 +130,9 @@ function casesWithoutCheck(project: Project): Finding[] {
 
 function isCheckStep(step: Step): boolean {
   const kind = stepKind(step);
-  return kind === "expect" || (kind === "guided" && (step[kind] as GuidedStep).expected !== undefined);
+  return (
+    kind === "expect" || (kind === "guided" && (step[kind] as GuidedStep).expected !== undefined)
+  );
 }
 
 function casesWithoutLink(project: Project): Finding[] {
@@ -130,7 +153,15 @@ function flowUsesThatFail(project: Project): Finding[] {
         const problem = expansionProblem(step, project);
         if (problem === undefined) return [];
         return [
-          { at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), list, index]), ...problem },
+          {
+            at: spanAt(project, loaded.source.file, [
+              "cases",
+              caseIndex(project, loaded),
+              list,
+              index,
+            ]),
+            ...problem,
+          },
         ];
       }),
     ),
@@ -147,7 +178,12 @@ function attendedFinallySteps(project: Project): Finding[] {
       if (kind === undefined) return [];
       return [
         {
-          at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), "finally", index]),
+          at: spanAt(project, loaded.source.file, [
+            "cases",
+            caseIndex(project, loaded),
+            "finally",
+            index,
+          ]),
           message: `${loaded.spec.id} has a ${kind} step in finally`,
           fix: "Move the step into steps, since finally steps run unattended.",
         },
@@ -162,7 +198,10 @@ function expansionProblem(step: Step, project: Project): Omit<Finding, "at"> | u
     return undefined;
   } catch (error) {
     if (error instanceof FlowCycle) {
-      return { message: error.message, fix: "Remove the use step that leads back to a flow already on this path." };
+      return {
+        message: error.message,
+        fix: "Remove the use step that leads back to a flow already on this path.",
+      };
     }
     if (error instanceof NestedFlowNotOneStep) {
       return {
@@ -209,7 +248,10 @@ function placeholderScopes(project: Project): { file: ProjectFile; node: Documen
 }
 
 /** Only `env`, `secret` and `identity` can be checked before a run. */
-function placeholderProblem(project: Project, placeholder: string): Omit<Finding, "at"> | undefined {
+function placeholderProblem(
+  project: Project,
+  placeholder: string,
+): Omit<Finding, "at"> | undefined {
   const { config } = project;
   const [namespace, path] = splitFirst(placeholder.slice("${".length, -"}".length));
   switch (namespace) {
@@ -235,7 +277,11 @@ function placeholderProblem(project: Project, placeholder: string): Omit<Finding
 }
 
 /** `path` is `<name>.<field>`, or `<name>.<field>.<form>` for a phone form of the field. */
-function identityProblem(project: Project, placeholder: string, path: string): Omit<Finding, "at"> | undefined {
+function identityProblem(
+  project: Project,
+  placeholder: string,
+  path: string,
+): Omit<Finding, "at"> | undefined {
   const [name, field] = splitFirst(path);
   const role = Object.hasOwn(project.config.roles, name) ? project.config.roles[name] : undefined;
   if (role === undefined) return fieldProblem(project, placeholder, name, field, "");
@@ -256,13 +302,18 @@ function fieldProblem(
 ): Omit<Finding, "at"> | undefined {
   const { identities } = project.config;
   const entry = Object.hasOwn(identities, name) ? identities[name]?.fixture : undefined;
-  const fields = entry !== undefined && Object.hasOwn(project.fixtures, entry) ? project.fixtures[entry] : undefined;
+  const fields =
+    entry !== undefined && Object.hasOwn(project.fixtures, entry)
+      ? project.fixtures[entry]
+      : undefined;
   if (fields !== undefined && Object.hasOwn(fields, field)) return undefined;
   const dot = field.lastIndexOf(".");
   const phoneField = field.slice(0, dot);
   const form = field.slice(dot + 1);
   const phone =
-    dot !== -1 && fields !== undefined && Object.hasOwn(fields, phoneField) ? fields[phoneField] : undefined;
+    dot !== -1 && fields !== undefined && Object.hasOwn(fields, phoneField)
+      ? fields[phoneField]
+      : undefined;
   if (phone !== undefined && isPhoneForm(form)) {
     // the locale sets only the language of a country name, never whether a form resolves
     if (phoneForm(phone, form, "en") !== undefined) return undefined;
@@ -279,7 +330,9 @@ function fieldProblem(
 
 function literalSecrets(project: Project): Finding[] {
   // skip runner mapping files: their keys are test titles and their values are case ids, not secrets
-  const mappings = new Set(Object.values(project.config.runners).flatMap(({ mapping }) => mapping ?? []));
+  const mappings = new Set(
+    Object.values(project.config.runners).flatMap(({ mapping }) => mapping ?? []),
+  );
   const files = [...project.files.values()].filter((file) => !mappings.has(file.path));
   return files.flatMap(fileLines).flatMap(({ at, text }) => {
     if (text.includes(ALLOW_SECRET)) return [];
@@ -299,7 +352,9 @@ function literalSecrets(project: Project): Finding[] {
 function secretIn(line: string): string | undefined {
   const known = SECRET_PATTERNS.find(({ pattern }) => pattern.test(line));
   if (known !== undefined) return known.what;
-  const random = line.match(SECRET_TOKEN)?.find((token) => entropy(token) >= MIN_SECRET_BITS_PER_CHAR);
+  const random = line
+    .match(SECRET_TOKEN)
+    ?.find((token) => entropy(token) >= MIN_SECRET_BITS_PER_CHAR);
   if (random === undefined) return undefined;
   return `a ${random.length}-character string with ${entropy(random).toFixed(1)} bits of entropy per character`;
 }
@@ -309,7 +364,8 @@ function entropy(text: string): number {
   const counts = new Map<string, number>();
   for (const char of text) counts.set(char, (counts.get(char) ?? 0) + 1);
   let bits = 0;
-  for (const count of counts.values()) bits -= (count / text.length) * Math.log2(count / text.length);
+  for (const count of counts.values())
+    bits -= (count / text.length) * Math.log2(count / text.length);
   return bits;
 }
 
@@ -349,7 +405,9 @@ function writesWithoutFlag(project: Project): Finding[] {
   return project.cases
     .filter(({ spec }) => spec.prod_safe)
     .flatMap((loaded) =>
-      STEP_LISTS.flatMap((list) => loaded.spec[list].flatMap((step, index) => requestsIn(step, [list, index])))
+      STEP_LISTS.flatMap((list) =>
+        loaded.spec[list].flatMap((step, index) => requestsIn(step, [list, index])),
+      )
         .filter(({ request }) => request.method !== "GET" && request.write !== true)
         .map(({ request, path }) => ({
           at: spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), ...path]),
@@ -360,7 +418,10 @@ function writesWithoutFlag(project: Project): Finding[] {
 }
 
 /** The request steps in `step`, also inside a challenge trigger or a guided observe, with their paths. */
-function requestsIn(step: Step, path: readonly PropertyKey[]): { request: RequestStep; path: PropertyKey[] }[] {
+function requestsIn(
+  step: Step,
+  path: readonly PropertyKey[],
+): { request: RequestStep; path: PropertyKey[] }[] {
   const kind = stepKind(step);
   const payload = step[kind];
   if (kind === "request") return [{ request: payload as RequestStep, path: [...path, kind] }];
@@ -377,7 +438,9 @@ function requestsIn(step: Step, path: readonly PropertyKey[]): { request: Reques
 
 function caseIndex(project: Project, loaded: LoadedCase): number {
   const cases = project.files.get(loaded.source.file)?.doc.get("cases");
-  return isSeq(cases) ? cases.items.findIndex((item) => isMap(item) && item.get("id") === loaded.spec.id) : -1;
+  return isSeq(cases)
+    ? cases.items.findIndex((item) => isMap(item) && item.get("id") === loaded.spec.id)
+    : -1;
 }
 
 function misshapenExternalCases(project: Project): Finding[] {
@@ -388,7 +451,11 @@ function misshapenExternalCases(project: Project): Finding[] {
       problem.field === "targets"
         ? "List only runner targets or only driver targets, and split the case in two if it needs both."
         : `Remove the ${problem.field}: an external case gets its checks from the runner's tests.`;
-    const at = spanAt(project, loaded.source.file, ["cases", caseIndex(project, loaded), problem.field]);
+    const at = spanAt(project, loaded.source.file, [
+      "cases",
+      caseIndex(project, loaded),
+      problem.field,
+    ]);
     return [{ at, message: problem.message, fix }];
   });
 }
@@ -409,7 +476,13 @@ function unrefreshableIntervals(project: Project): Finding[] {
   for (const [identity, { auth }] of Object.entries(project.config.identities)) {
     for (const [surface, settings] of Object.entries(auth)) {
       if ("from" in settings || settings.refreshEveryMs === undefined) continue;
-      const at = spanAt(project, BRAND.configFile, ["identities", identity, "auth", surface, "refreshEveryMs"]);
+      const at = spanAt(project, BRAND.configFile, [
+        "identities",
+        identity,
+        "auth",
+        surface,
+        "refreshEveryMs",
+      ]);
       const where = `identities.${identity}.auth.${surface}`;
       if (!project.refreshableStrategies.has(settings.strategy)) {
         findings.push({
@@ -475,7 +548,9 @@ function selectorsWithoutTestId(project: Project): Finding[] {
     visit(file.doc, {
       // HTTP steps and checks hold bodies, not selectors
       Pair: (_, pair) =>
-        isScalar(pair.key) && (pair.key.value === "request" || pair.key.value === "api") ? visit.SKIP : undefined,
+        isScalar(pair.key) && (pair.key.value === "request" || pair.key.value === "api")
+          ? visit.SKIP
+          : undefined,
       Map(_, map) {
         const selector = textOrCssSelector(map);
         if (selector === undefined) return;
@@ -493,7 +568,8 @@ function selectorsWithoutTestId(project: Project): Finding[] {
 /** `css: <value>` or `text: <value>` for a map that holds only that selector. */
 function textOrCssSelector(map: YAMLMap): string | undefined {
   const [pair] = map.items;
-  if (map.items.length !== 1 || pair === undefined || !isScalar(pair.key) || !isScalar(pair.value)) return undefined;
+  if (map.items.length !== 1 || pair === undefined || !isScalar(pair.key) || !isScalar(pair.value))
+    return undefined;
   const { value: key } = pair.key;
   const { value } = pair.value;
   return (key === "css" || key === "text") && typeof value === "string"
@@ -503,11 +579,15 @@ function textOrCssSelector(map: YAMLMap): string | undefined {
 
 /** Case and flow files, where steps are written. */
 function stepFiles(project: Project): ProjectFile[] {
-  return [...project.files.values()].filter((file) => file.path.startsWith("cases/") || file.path.startsWith("flows/"));
+  return [...project.files.values()].filter(
+    (file) => file.path.startsWith("cases/") || file.path.startsWith("flows/"),
+  );
 }
 
 function fileLines(file: ProjectFile): { at: SourceSpan; text: string }[] {
-  return file.text.split(/\r?\n/).map((text, index) => ({ at: { file: file.path, line: index + 1 }, text }));
+  return file.text
+    .split(/\r?\n/)
+    .map((text, index) => ({ at: { file: file.path, line: index + 1 }, text }));
 }
 
 /** Where `path` is in the file, or line 1 of it when the project did not read the file. */

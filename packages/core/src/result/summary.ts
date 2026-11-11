@@ -69,7 +69,9 @@ function summaryMarkdown(
   counts: Record<Status | "total", number>,
   unmapped: readonly UnmappedTest[],
 ): string {
-  const followups = results.flatMap((result) => result.followups.map((f) => row([result.caseId, f.item, f.hint])));
+  const followups = results.flatMap((result) =>
+    result.followups.map((f) => row([result.caseId, f.item, f.hint])),
+  );
   return [
     `# Run ${runId}`,
     "",
@@ -77,11 +79,15 @@ function summaryMarkdown(
     "",
     "| Case | Title | Target | Status | Reason or failed checks |",
     "| --- | --- | --- | --- | --- |",
-    ...results.map((result) => row([result.caseId, result.title, result.target, result.status, detail(result)])),
+    ...results.map((result) =>
+      row([result.caseId, result.title, result.target, result.status, detail(result)]),
+    ),
     "",
     "## Follow-up",
     "",
-    ...(followups.length === 0 ? ["None."] : ["| Case | Item | Hint |", "| --- | --- | --- |", ...followups]),
+    ...(followups.length === 0
+      ? ["None."]
+      : ["| Case | Item | Hint |", "| --- | --- | --- |", ...followups]),
     "",
     ...(unmapped.length === 0
       ? []

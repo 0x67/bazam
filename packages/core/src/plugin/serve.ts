@@ -2,7 +2,13 @@ import type { Readable, Writable } from "node:stream";
 import { z } from "zod";
 import type { Identities } from "../auth/index.ts";
 import type { HumanChannel, ResolverContext } from "../challenge/index.ts";
-import type { Driver, DriverSession, LaunchOptions, StepEvidence, StepHandler } from "../driver/index.ts";
+import type {
+  Driver,
+  DriverSession,
+  LaunchOptions,
+  StepEvidence,
+  StepHandler,
+} from "../driver/index.ts";
 import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import { defaultRedactionRules, Redactor } from "../redact/index.ts";
@@ -21,7 +27,14 @@ type Params<M extends keyof Methods> = z.output<Methods[M]["params"]>;
 type Answer<M extends keyof Methods> = z.input<Methods[M]["result"]>;
 
 // the manifest fields a process plugin cannot offer
-const REFUSED = ["steps", "authStrategies", "checkRules", "channels", "trackers", "planChecks"] as const;
+const REFUSED = [
+  "steps",
+  "authStrategies",
+  "checkRules",
+  "channels",
+  "trackers",
+  "planChecks",
+] as const;
 const NO_RUN_OBJECTS = "a process resolver cannot reach the run's channel or session";
 
 /**
@@ -78,7 +91,9 @@ export async function serveProcessPlugin(
 function describe(manifest: PluginManifest): Answer<"initialize">["contributions"] {
   for (const key of REFUSED) {
     if ((manifest[key]?.length ?? 0) > 0) {
-      throw new Error(`plugin ${manifest.name} offers ${key}, which a process plugin cannot offer; load it in-process`);
+      throw new Error(
+        `plugin ${manifest.name} offers ${key}, which a process plugin cannot offer; load it in-process`,
+      );
     }
   }
   return {
@@ -120,7 +135,10 @@ function serve(
   const redactor = new Redactor(defaultRedactionRules());
   const sessions = new Map<string, { driver: Driver; session: DriverSession }>();
   // a connection's TrackerClientContext reads secrets with the context id of the call that runs on it
-  const connections = new Map<string, { connection: TrackerConnection; call: { contextId: string } }>();
+  const connections = new Map<
+    string,
+    { connection: TrackerConnection; call: { contextId: string } }
+  >();
   let nextId = 0;
 
   const host = async <M extends keyof Methods>(
@@ -132,7 +150,9 @@ function serve(
     try {
       result = await peer.request(method, params, signal === undefined ? {} : { signal });
     } catch (error) {
-      throw error instanceof RpcError && error.code === BLOCKED ? new CaseBlocked(error.message) : error;
+      throw error instanceof RpcError && error.code === BLOCKED
+        ? new CaseBlocked(error.message)
+        : error;
     }
     const schema: z.ZodType = METHODS[method].result;
     return schema.parse(result) as z.output<Methods[M]["result"]>;
@@ -146,7 +166,10 @@ function serve(
 
   const http = (contextId: string, write: boolean, signal: AbortSignal): GuardedHttp => ({
     async send(request, as) {
-      const body = request.body === undefined ? {} : { bodyBase64: Buffer.from(request.body).toString("base64") };
+      const body =
+        request.body === undefined
+          ? {}
+          : { bodyBase64: Buffer.from(request.body).toString("base64") };
       const response = await host(
         "host.http",
         {
@@ -187,16 +210,26 @@ function serve(
       const dataBase64 = Buffer.from(bytes).toString("base64");
       // a zip goes out as asked, and the host refuses it with its reason
       const wireExt = ext as Exclude<typeof ext, "zip">;
-      return (await host("host.evidence.attach", { contextId, label, ext: wireExt, dataBase64 })).name;
+      return (await host("host.evidence.attach", { contextId, label, ext: wireExt, dataBase64 }))
+        .name;
     },
   });
 
   const launchOptions = (wire: Params<"driver.launch">["options"]): LaunchOptions => {
     redactor.configure({ patterns: [], screenshotSelectors: wire.redaction.screenshotSelectors });
-    return { env: environment(wire.env), target: wire.target, settings: wire.settings, runDir: wire.runDir, redactor };
+    return {
+      env: environment(wire.env),
+      target: wire.target,
+      settings: wire.settings,
+      runDir: wire.runDir,
+      redactor,
+    };
   };
 
-  const resolverContext = (wire: Params<"resolver.arm">["context"], signal: AbortSignal): ResolverContext => ({
+  const resolverContext = (
+    wire: Params<"resolver.arm">["context"],
+    signal: AbortSignal,
+  ): ResolverContext => ({
     env: environment(wire.env),
     http: http(wire.contextId, false, signal),
     session: unavailable<DriverSession>(NO_RUN_OBJECTS),
@@ -230,11 +263,15 @@ function serve(
   handleMethod(peer, "shutdown", async () => null);
 
   handleMethod(peer, "resolver.arm", async ({ resolver, request, context }, signal) => {
-    await named(manifest.resolvers, resolver, "resolver").arm?.(request, resolverContext(context, signal));
+    await named(manifest.resolvers, resolver, "resolver").arm?.(
+      request,
+      resolverContext(context, signal),
+    );
     return null;
   });
   handleMethod(peer, "resolver.resolve", async ({ resolver, request, kind, context }, signal) => {
-    if (kind === undefined) throw new RpcError(INVALID_PARAMS, "resolver.resolve needs the challenge kind");
+    if (kind === undefined)
+      throw new RpcError(INVALID_PARAMS, "resolver.resolve needs the challenge kind");
     const answer = await named(manifest.resolvers, resolver, "resolver").resolve(
       request,
       resolverContext(context, signal),
@@ -254,7 +291,8 @@ function serve(
 
   handleMethod(peer, "trackerClient.connect", async ({ tracker, contextId, config }, signal) => {
     const client = manifest.trackerClients?.find((candidate) => candidate.tracker === tracker);
-    if (client === undefined) throw new Error(`plugin ${manifest.name} has no tracker client ${tracker}`);
+    if (client === undefined)
+      throw new Error(`plugin ${manifest.name} has no tracker client ${tracker}`);
     const call = { contextId };
     const connection = await client.connect({
       config,
@@ -267,7 +305,9 @@ function serve(
     connections.set(id, { connection, call });
     return { connection: id };
   });
-  handleMethod(peer, "trackerClient.ticket", async (params) => connected(params).ticket(params.key));
+  handleMethod(peer, "trackerClient.ticket", async (params) =>
+    connected(params).ticket(params.key),
+  );
   handleMethod(peer, "trackerClient.attach", async (params) => {
     await connected(params).attach(params.key, params.files);
     return null;
@@ -276,7 +316,14 @@ function serve(
     connected(params).postComment(params.key, params.comment, params.mentions),
   );
   handleMethod(peer, "trackerClient.editComment", async (params) => {
-    return (await connected(params).editComment(params.key, params.url, params.comment, params.mentions)) ?? null;
+    return (
+      (await connected(params).editComment(
+        params.key,
+        params.url,
+        params.comment,
+        params.mentions,
+      )) ?? null
+    );
   });
   handleMethod(peer, "trackerClient.transition", async (params) => {
     await connected(params).transition(params.key, params.name);
@@ -285,7 +332,9 @@ function serve(
   handleMethod(peer, "trackerClient.findOpenBug", async (params) => {
     return (await connected(params).findOpenBug(params.project, params.label)) ?? null;
   });
-  handleMethod(peer, "trackerClient.createBug", async (params) => connected(params).createBug(params.draft));
+  handleMethod(peer, "trackerClient.createBug", async (params) =>
+    connected(params).createBug(params.draft),
+  );
 
   handleMethod(peer, "driver.probe", async ({ driver, options }) => {
     return [...(await named(manifest.drivers, driver, "driver").probe(launchOptions(options)))];
@@ -303,10 +352,14 @@ function serve(
     if (handler === undefined) throw new Error(`driver ${driver.name} has no ${kind} step`);
     // refinements and transforms do not cross as JSON Schema, so the handler's own schema has the last word
     const parsed = handler.schema.safeParse(step);
-    if (!parsed.success) throw new CaseBlocked(`step ${kind} does not match its schema: ${issuesOf(parsed.error)}`);
+    if (!parsed.success)
+      throw new CaseBlocked(`step ${kind} does not match its schema: ${issuesOf(parsed.error)}`);
     // a case author opts a step into a production write with write: true, as for the core request step
     const write =
-      typeof parsed.data === "object" && parsed.data !== null && "write" in parsed.data && parsed.data.write === true;
+      typeof parsed.data === "object" &&
+      parsed.data !== null &&
+      "write" in parsed.data &&
+      parsed.data.write === true;
     const { contextId } = context;
     const fired = new Fired();
     await fired.after(() =>
@@ -321,7 +374,11 @@ function serve(
         ),
         http: http(contextId, write, signal),
         resolve: async <T>(value: T) =>
-          (await host("host.resolve", { contextId, value: value as z.core.util.JSONType }, signal)) as T,
+          (await host(
+            "host.resolve",
+            { contextId, value: value as z.core.util.JSONType },
+            signal,
+          )) as T,
         mask: (value) => fired.add(host("host.mask", { contextId, value })),
         signal,
       }),
@@ -332,7 +389,9 @@ function serve(
     const { session: open } = launched(session);
     sessions.delete(session);
     const fired = new Fired();
-    await fired.after(() => open.close({ status: ending.status, evidence: evidence(context.contextId, fired) }));
+    await fired.after(() =>
+      open.close({ status: ending.status, evidence: evidence(context.contextId, fired) }),
+    );
     return null;
   });
 }
@@ -395,7 +454,11 @@ function unavailable<T extends object>(message: string): T {
   return new Proxy({}, { get: refuse, set: refuse, has: refuse }) as T;
 }
 
-function named<T extends { name: string }>(items: readonly T[] | undefined, name: string, noun: string): T {
+function named<T extends { name: string }>(
+  items: readonly T[] | undefined,
+  name: string,
+  noun: string,
+): T {
   const found = items?.find((item) => item.name === name);
   if (found === undefined) throw new Error(`no ${noun} ${name} is served here`);
   return found;
@@ -403,7 +466,9 @@ function named<T extends { name: string }>(items: readonly T[] | undefined, name
 
 function issuesOf(error: z.ZodError): string {
   return error.issues
-    .map((issue) => (issue.path.length === 0 ? issue.message : `${issue.path.join(".")}: ${issue.message}`))
+    .map((issue) =>
+      issue.path.length === 0 ? issue.message : `${issue.path.join(".")}: ${issue.message}`,
+    )
     .join("; ");
 }
 

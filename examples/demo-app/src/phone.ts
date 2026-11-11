@@ -13,7 +13,12 @@ interface Country {
   trunkPrefix: string // dialed before a national number inside the country, empty where there is none
 }
 
-const UNITED_KINGDOM: Country = { region: "GB", name: "United Kingdom", callingCode: "44", trunkPrefix: "0" }
+const UNITED_KINGDOM: Country = {
+  region: "GB",
+  name: "United Kingdom",
+  callingCode: "44",
+  trunkPrefix: "0",
+}
 const COUNTRIES: readonly Country[] = [
   UNITED_KINGDOM,
   { region: "ID", name: "Indonesia", callingCode: "62", trunkPrefix: "0" },
@@ -32,7 +37,9 @@ export function phoneRoutes({ store }: DemoDeps): Hono<SignedIn> {
   // keyed by the user object, so /test/reset forgets saved numbers along with the account
   const saved = new WeakMap<User, SavedNumbers>()
 
-  app.get("/profile/phone", requireSignIn(store), (c) => c.html(phonePage(saved.get(c.get("user")) ?? {})))
+  app.get("/profile/phone", requireSignIn(store), (c) =>
+    c.html(phonePage(saved.get(c.get("user")) ?? {})),
+  )
 
   app.post("/profile/phone/:picker", requireSignIn(store), async (c) => {
     const picker = PICKERS.find((name) => name === c.req.param("picker"))
@@ -76,7 +83,8 @@ function withCountry(country: Country | undefined, typed: string): string | unde
   const digits = typed.replace(SEPARATORS, "")
   if (!country || !/^\d+$/.test(digits)) return undefined
   const { callingCode, trunkPrefix } = country
-  const national = trunkPrefix && digits.startsWith(trunkPrefix) ? digits.slice(trunkPrefix.length) : digits
+  const national =
+    trunkPrefix && digits.startsWith(trunkPrefix) ? digits.slice(trunkPrefix.length) : digits
   return e164Of(callingCode + national)
 }
 
@@ -92,7 +100,9 @@ function e164Of(digits: string): string | undefined {
 
 // regional indicator symbols start at U+1F1E6 for A
 function flagOf(region: string): string {
-  return String.fromCodePoint(...region.split("").map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65))
+  return String.fromCodePoint(
+    ...region.split("").map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65),
+  )
 }
 
 function phonePage(numbers: SavedNumbers, error?: string) {

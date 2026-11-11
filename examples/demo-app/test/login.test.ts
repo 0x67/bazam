@@ -10,11 +10,16 @@ describe("email code sign-in", () => {
     expect(sent.status).toBe(303)
     expect(sent.headers.get("location")).toBe(`/login/verify?email=${encodeURIComponent(email)}`)
 
-    const search = await fetch(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)
+    const search = await fetch(
+      `${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`,
+    )
     const { messages } = (await search.json()) as { messages: { Subject: string }[] }
     expect(messages[0]?.Subject).toBe("Your sign-in code")
 
-    const verified = await visitor.postForm("/login/verify", { email, code: await mailedCode(email) })
+    const verified = await visitor.postForm("/login/verify", {
+      email,
+      code: await mailedCode(email),
+    })
     expect(verified.status).toBe(303)
     expect(verified.headers.get("location")).toBe("/dashboard")
     expect(visitor.cookie("session")).toBeTruthy()

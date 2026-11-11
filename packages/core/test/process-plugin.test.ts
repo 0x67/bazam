@@ -7,9 +7,17 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
-import { resolveChallenge, type ChallengeResolver, type ResolverContext } from "../src/challenge/index.ts";
+import {
+  resolveChallenge,
+  type ChallengeResolver,
+  type ResolverContext,
+} from "../src/challenge/index.ts";
 import { RunValues, type Environment } from "../src/env/index.ts";
-import { PluginCallFailed, PluginCallTimedOut, PluginProcessExited } from "../src/plugin/process.ts";
+import {
+  PluginCallFailed,
+  PluginCallTimedOut,
+  PluginProcessExited,
+} from "../src/plugin/process.ts";
 import {
   definePlugin,
   PLUGIN_API_VERSION,
@@ -37,13 +45,21 @@ afterEach(async () => {
   delete process.env["RAW_SECRET"];
   await Promise.all(leftovers.splice(0).map(killLeftover));
   await Promise.all(registries.splice(0).map((registry) => registry.close()));
-  await Promise.all(folders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })));
+  await Promise.all(
+    folders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })),
+  );
 });
 
 /** An object `plugins:` entry that runs a fixture with this Node, quiet so stderr holds only what the plugin writes. */
-function fixture(script: "raw" | "served", fields: { args?: string[]; [key: string]: unknown } = {}) {
+function fixture(
+  script: "raw" | "served",
+  fields: { args?: string[]; [key: string]: unknown } = {},
+) {
   const { args = [], ...rest } = fields;
-  return { command: [process.execPath, "--no-warnings", join(FIXTURES, `${script}.ts`), ...args], ...rest };
+  return {
+    command: [process.execPath, "--no-warnings", join(FIXTURES, `${script}.ts`), ...args],
+    ...rest,
+  };
 }
 
 function config(fields: object): ProjectConfig {
@@ -104,14 +120,21 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
   it("registers what the plugin offers, whose calls go to its process", async () => {
     const registry = await load({ plugins: [fixture("raw")] });
 
-    await expect(registry.secretProviders(["raw-secrets"])[0]!.load("ANY")).resolves.toBe("raw-value");
+    await expect(registry.secretProviders(["raw-secrets"])[0]!.load("ANY")).resolves.toBe(
+      "raw-value",
+    );
   });
 
-  it.each(["version", "version-shape"])("refuses a plugin that speaks another protocol version (%s)", async (mode) => {
-    const failure = await loadFailure({ plugins: [fixture("raw", { args: [mode] })] });
+  it.each(["version", "version-shape"])(
+    "refuses a plugin that speaks another protocol version (%s)",
+    async (mode) => {
+      const failure = await loadFailure({ plugins: [fixture("raw", { args: [mode] })] });
 
-    expect(failure.message).toBe("plugin raw speaks protocol version 2; this host speaks version 1");
-  });
+      expect(failure.message).toBe(
+        "plugin raw speaks protocol version 2; this host speaks version 1",
+      );
+    },
+  );
 
   it("names the field of an initialize answer that does not match the protocol", async () => {
     const failure = await loadFailure({ plugins: [fixture("raw", { args: ["shape"] })] });
@@ -136,7 +159,10 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
       secretProviders: [{ name: "raw-secrets", load: async () => undefined }],
     });
 
-    const failure = await loadFailure({ plugins: [fixture("raw", { env: { RAW_PID_FILE: pid } })] }, [inProcess]);
+    const failure = await loadFailure(
+      { plugins: [fixture("raw", { env: { RAW_PID_FILE: pid } })] },
+      [inProcess],
+    );
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect(failure.message).toBe(
@@ -180,7 +206,9 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
   });
 
   it("names the command that cannot start", async () => {
-    const failure = await loadFailure({ plugins: [{ command: ["no-such-plugin-command", "--serve"] }] });
+    const failure = await loadFailure({
+      plugins: [{ command: ["no-such-plugin-command", "--serve"] }],
+    });
 
     expect(failure.message).toBe(
       "plugin no-such-plugin-command --serve could not start: spawn no-such-plugin-command ENOENT",
@@ -198,22 +226,31 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
   it("refuses a step schema that cannot be read, naming the step kind", async () => {
     const failure = await loadFailure({ plugins: [fixture("raw", { args: ["bad-schema"] })] });
 
-    expect(failure.message).toBe("plugin raw gives step odd a schema that cannot be read: Unsupported type: weird");
+    expect(failure.message).toBe(
+      "plugin raw gives step odd a schema that cannot be read: Unsupported type: weird",
+    );
   });
 
   it("passes stderr and host.log lines to the caller's log, with inherited secret values registered first", async () => {
     process.env["RAW_SECRET"] = RAW_SECRET;
     const redactor = new Redactor(defaultRedactionRules());
     const lines: string[] = [];
-    const registry = await load({ secrets: { names: ["RAW_SECRET"] }, plugins: [fixture("raw")] }, [], {
-      log: (line) => lines.push(redactor.text(line)),
-      redactor,
-    });
+    const registry = await load(
+      { secrets: { names: ["RAW_SECRET"] }, plugins: [fixture("raw")] },
+      [],
+      {
+        log: (line) => lines.push(redactor.text(line)),
+        redactor,
+      },
+    );
 
     await registry.secretProviders(["raw-secrets"])[0]!.load("ANY");
     await waitFor(() => lines.length >= 2);
 
-    expect(lines.toSorted()).toEqual(["plugin raw: loading with [redacted]", "plugin raw: log [redacted]"]);
+    expect(lines.toSorted()).toEqual([
+      "plugin raw: loading with [redacted]",
+      "plugin raw: log [redacted]",
+    ]);
   });
 
   it("refuses a result that does not match the protocol", async () => {
@@ -229,9 +266,13 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
 
   it("gives up on a call after timeoutSeconds and cancels it in the plugin", async () => {
     const lines: string[] = [];
-    const registry = await load({ plugins: [fixture("raw", { args: ["stall"], timeoutSeconds: 1 })] }, [], {
-      log: (line) => lines.push(line),
-    });
+    const registry = await load(
+      { plugins: [fixture("raw", { args: ["stall"], timeoutSeconds: 1 })] },
+      [],
+      {
+        log: (line) => lines.push(line),
+      },
+    );
 
     const failure = registry.secretProviders(["raw-secrets"])[0]!.load("ANY");
 
@@ -248,14 +289,19 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
         fixture("raw", { args: ["stubborn"], env: { RAW_PID_FILE: stubbornPid } }),
       ],
     });
-    const pids = [Number(await readFile(plainPid, "utf8")), Number(await readFile(stubbornPid, "utf8"))];
+    const pids = [
+      Number(await readFile(plainPid, "utf8")),
+      Number(await readFile(stubbornPid, "utf8")),
+    ];
     const provider = registry.secretProviders(["raw-secrets"])[0]!;
 
     await registry.close();
     await registry.close();
 
     expect(pids.map(running)).toEqual([false, false]);
-    await expect(provider.load("ANY")).rejects.toThrow(new PluginProcessExited("plugin raw exited with code 0"));
+    await expect(provider.load("ANY")).rejects.toThrow(
+      new PluginProcessExited("plugin raw exited with code 0"),
+    );
   }, 15_000);
 
   it("close ends a wrapper whose child holds the pipes open, and later calls fail at once", async () => {
@@ -263,7 +309,9 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
     // close signals only the wrapper, so the plugin under it keeps running
     leftovers.push(pid);
     const script = `"${process.execPath}" --no-warnings "${join(FIXTURES, "raw.ts")}" stubborn; true`;
-    const registry = await load({ plugins: [{ command: ["sh", "-c", script], env: { RAW_PID_FILE: pid } }] });
+    const registry = await load({
+      plugins: [{ command: ["sh", "-c", script], env: { RAW_PID_FILE: pid } }],
+    });
     const provider = registry.secretProviders(["stubborn-secrets"])[0]!;
 
     const started = performance.now();
@@ -277,7 +325,13 @@ describe("startProcessPlugin through PluginRegistry.load", () => {
     const grandchild = await pidFile();
     leftovers.push(grandchild);
     const registry = await load({
-      plugins: [fixture("raw", { args: ["orphan"], timeoutSeconds: 10, env: { RAW_GRANDCHILD_PID_FILE: grandchild } })],
+      plugins: [
+        fixture("raw", {
+          args: ["orphan"],
+          timeoutSeconds: 10,
+          env: { RAW_GRANDCHILD_PID_FILE: grandchild },
+        }),
+      ],
     });
 
     await expect(registry.secretProviders(["raw-secrets"])[0]!.load("ANY")).rejects.toThrow(
@@ -326,11 +380,16 @@ describe("process plugins in a run", () => {
       { exit: {} },
     ]);
 
-    expect(result).toMatchObject({ status: "blocked", reason: "internal: plugin served exited with code 5" });
+    expect(result).toMatchObject({
+      status: "blocked",
+      reason: "internal: plugin served exited with code 5",
+    });
   });
 
   it("answers -32602 to a host call that a step context does not offer, which ends the case blocked", async () => {
-    const result = await runOnTarget(fixture("raw", { args: ["step-secret"] }), "raw", [{ peek: {} }]);
+    const result = await runOnTarget(fixture("raw", { args: ["step-secret"] }), "raw", [
+      { peek: {} },
+    ]);
 
     expect(result).toMatchObject({
       status: "blocked",
@@ -346,13 +405,16 @@ describe("process plugins in a run", () => {
 
       expect(result).toMatchObject({
         status: "blocked",
-        reason: "internal: plugin raw answered driver.step with an error that is not a JSON-RPC error object",
+        reason:
+          "internal: plugin raw answered driver.step with an error that is not a JSON-RPC error object",
       });
     },
   );
 
   it("gives a plugin set-cookie with its values joined in headers, and each value on its own in setCookie", async () => {
-    const server = createServer((_req, res) => res.writeHead(200, { "set-cookie": ["session=abc", "csrf=xyz"] }).end());
+    const server = createServer((_req, res) =>
+      res.writeHead(200, { "set-cookie": ["session=abc", "csrf=xyz"] }).end(),
+    );
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const folder = await mkdtemp(join(tmpdir(), "process-plugin-"));
     folders.push(folder);
@@ -363,7 +425,10 @@ describe("process plugins in a run", () => {
       const plugin = fixture("raw", { args: ["step-cookies"], env: { RAW_RESULT_FILE: file } });
       await runOnTarget(plugin, "raw", [{ peek: { url } }]);
 
-      const { headers, setCookie } = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+      const { headers, setCookie } = JSON.parse(await readFile(file, "utf8")) as Record<
+        string,
+        unknown
+      >;
       expect((headers as Record<string, string>)["set-cookie"]).toBe("session=abc, csrf=xyz");
       expect(setCookie).toEqual(["session=abc", "csrf=xyz"]);
     } finally {
@@ -383,14 +448,29 @@ describe("process plugins in a run", () => {
     const registry = await load({ plugins: [fixture("served")] });
     const crashing = registry.resolver("served-crash");
     const kind = registry.kind("served-code");
-    const request = { kind: "served-code", caseId: "SHOP-OTP-001", identity: "shopper", step: 1, params: {} };
+    const request = {
+      kind: "served-code",
+      caseId: "SHOP-OTP-001",
+      identity: "shopper",
+      step: 1,
+      params: {},
+    };
 
-    const answered = await resolveChallenge(request, kind, [crashing, fallback], resolverContext(), async () => {});
-
-    expect(answered).toEqual({ answer: { kind: "value", value: "fallback-code" }, resolver: "fallback" });
-    await expect(resolveChallenge(request, kind, [crashing], resolverContext(), async () => {})).rejects.toThrow(
-      'resolver "served-crash" could not arm: plugin served exited with code 4',
+    const answered = await resolveChallenge(
+      request,
+      kind,
+      [crashing, fallback],
+      resolverContext(),
+      async () => {},
     );
+
+    expect(answered).toEqual({
+      answer: { kind: "value", value: "fallback-code" },
+      resolver: "fallback",
+    });
+    await expect(
+      resolveChallenge(request, kind, [crashing], resolverContext(), async () => {}),
+    ).rejects.toThrow('resolver "served-crash" could not arm: plugin served exited with code 4');
   });
 });
 
@@ -405,7 +485,14 @@ async function runOnTarget(plugin: object, driver: string, steps: object[]): Pro
       },
       "cases/shop/proc.yaml": {
         cases: [
-          { id: "SHOP-PROC-001", title: "a process step", stage: "acceptance", risk: "low", targets: ["proc"], steps },
+          {
+            id: "SHOP-PROC-001",
+            title: "a process step",
+            stage: "acceptance",
+            risk: "low",
+            targets: ["proc"],
+            steps,
+          },
         ],
       },
     },
@@ -431,7 +518,15 @@ async function runOnTarget(plugin: object, driver: string, steps: object[]): Pro
 }
 
 function demoEnv(): Environment {
-  return { name: "demo", production: false, vars: {}, hosts: new Set(), challenges: {}, locale: "en", probes: [] };
+  return {
+    name: "demo",
+    production: false,
+    vars: {},
+    hosts: new Set(),
+    challenges: {},
+    locale: "en",
+    probes: [],
+  };
 }
 
 function resolverContext(): ResolverContext {

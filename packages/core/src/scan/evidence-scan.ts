@@ -1,11 +1,21 @@
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { unzipSync } from "fflate";
-import { defaultRedactionRules, EMAIL_ADDRESS, isTestEmailDomain, Redactor } from "../redact/index.ts";
+import {
+  defaultRedactionRules,
+  EMAIL_ADDRESS,
+  isTestEmailDomain,
+  Redactor,
+} from "../redact/index.ts";
 import type { CaseResult } from "../result/index.ts";
 import { RUN_ID, secretOf, unescaped, type Secret } from "./forms.ts";
 
-export type FindingKind = `fixture ${string}` | `secret ${string}` | `credential ${string}` | "email" | "digits";
+export type FindingKind =
+  | `fixture ${string}`
+  | `secret ${string}`
+  | `credential ${string}`
+  | "email"
+  | "digits";
 
 export interface ScanValues {
   /** Each value to look for, with the kind it reports as. */
@@ -54,7 +64,11 @@ interface Mark {
 }
 
 /** Scans the files, relative to runDir, and the text entries of the zips among them; png files are skipped. */
-export async function scanFiles(runDir: string, files: readonly string[], values: ScanValues): Promise<ScanReport> {
+export async function scanFiles(
+  runDir: string,
+  files: readonly string[],
+  values: ScanValues,
+): Promise<ScanReport> {
   // a value the marks miss, such as a short one behind an escape, is still masked in a context
   const redactor = new Redactor(defaultRedactionRules());
   for (const { value } of values.values) {
@@ -102,7 +116,8 @@ interface Scan {
 
 function secretsOf(values: ScanValues): Secret[] {
   const byKind = new Map<FindingKind, string[]>();
-  for (const { kind, value } of values.values) byKind.set(kind, [...(byKind.get(kind) ?? []), value]);
+  for (const { kind, value } of values.values)
+    byKind.set(kind, [...(byKind.get(kind) ?? []), value]);
   // the JSON-escaped form too, so a context never shows a value the way a log wrote it
   return [...byKind].map(([kind, forms]) =>
     secretOf(kind, [...forms, ...forms.map((form) => JSON.stringify(form).slice(1, -1))]),
@@ -123,7 +138,9 @@ function scanBytes(name: string, bytes: Uint8Array, scan: Scan, skipped: string[
       skipped.push(`${name} is not a readable zip`);
       return [];
     }
-    return Object.entries(entries).flatMap(([entry, data]) => scanBytes(`${name}:${entry}`, data, scan, skipped));
+    return Object.entries(entries).flatMap(([entry, data]) =>
+      scanBytes(`${name}:${entry}`, data, scan, skipped),
+    );
   }
   if (IMAGE_MAGIC.some((magic) => startsWith(bytes, magic))) return [];
   // bytes that are not UTF-8 read as U+FFFD, which joins no token
@@ -133,7 +150,10 @@ function scanBytes(name: string, bytes: Uint8Array, scan: Scan, skipped: string[
 
 // a run id is generated, and its hex part can hold a short value by chance
 function scannedText(name: string, text: string): string {
-  return (basename(name) === "result.json" ? withoutHarnessFields(text) : text).replaceAll(RUN_ID, " ");
+  return (basename(name) === "result.json" ? withoutHarnessFields(text) : text).replaceAll(
+    RUN_ID,
+    " ",
+  );
 }
 
 function withoutHarnessFields(text: string): string {
@@ -149,7 +169,11 @@ function withoutHarnessFields(text: string): string {
 }
 
 function textFindings(text: string, scan: Scan): Omit<ScanFinding, "file">[] {
-  const found = contexts(text, [...valueMarks(text, scan.secrets), ...likenessMarks(text, scan)], scan.redactor);
+  const found = contexts(
+    text,
+    [...valueMarks(text, scan.secrets), ...likenessMarks(text, scan)],
+    scan.redactor,
+  );
   // a value behind JSON or percent escapes shows only once they are undone; a kind found as written is not repeated
   const seen = new Set(found.map((finding) => finding.kind));
   const plain = unescaped(text);
@@ -178,7 +202,12 @@ function likenessMarks(text: string, scan: Scan): Mark[] {
   const covered: Mark[] = valueMarks(text, scan.secrets);
   const emails = [...text.matchAll(EMAIL_ADDRESS)]
     .filter((match) => !isTestEmailDomain(match[0].slice(match[0].indexOf("@") + 1)))
-    .map((match): Mark => ({ start: match.index, end: match.index + match[0].length, kind: "email", shown: match[0] }));
+    .map((match): Mark => ({
+      start: match.index,
+      end: match.index + match[0].length,
+      kind: "email",
+      shown: match[0],
+    }));
   const digits = [...text.matchAll(DIGIT_RUN)]
     .filter((match) => !isTime(match[0], scan.around))
     .map((match): Mark => ({
@@ -201,11 +230,17 @@ function isTime(run: string, around: number): boolean {
   const month = Number(run.slice(4, 6));
   const day = Number(run.slice(6));
   if (month < 1 || month > 12 || day < 1 || day > 31) return false;
-  return Math.abs(Date.UTC(Number(run.slice(0, 4)), month - 1, day) - around) <= TIME_WINDOW_MS + DAY_MS;
+  return (
+    Math.abs(Date.UTC(Number(run.slice(0, 4)), month - 1, day) - around) <= TIME_WINDOW_MS + DAY_MS
+  );
 }
 
 /** The text with each match shown as its mark says, and the stretch around each mark, through the redactor. */
-function contexts(text: string, marks: readonly Mark[], redactor: Redactor): Omit<ScanFinding, "file">[] {
+function contexts(
+  text: string,
+  marks: readonly Mark[],
+  redactor: Redactor,
+): Omit<ScanFinding, "file">[] {
   let shown = "";
   let cursor = 0;
   // where each mark sits in the shown text; a mark inside an earlier one shares its place

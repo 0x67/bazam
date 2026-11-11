@@ -55,8 +55,14 @@ const text = (content: string) => new TextEncoder().encode(content);
 describe("scanFiles", () => {
   it("reports each kind by file and zip entry, and no context holds a value", async () => {
     await put("case/trace.zip", zipSync({ "trace.trace": text(`{"typed":"${PHONE_NATIONAL}"}`) }));
-    await put("case/nested.zip", zipSync({ "inner.zip": zipSync({ "a.txt": text(`token ${CREDENTIAL} sent`) }) }));
-    await put("case/run.log", `quoted ${JSON.stringify(JSON_SECRET)} and ${encodeURIComponent(PERCENT_SECRET)} end\n`);
+    await put(
+      "case/nested.zip",
+      zipSync({ "inner.zip": zipSync({ "a.txt": text(`token ${CREDENTIAL} sent`) }) }),
+    );
+    await put(
+      "case/run.log",
+      `quoted ${JSON.stringify(JSON_SECRET)} and ${encodeURIComponent(PERCENT_SECRET)} end\n`,
+    );
     await put("case/mail.log", "reply to carol@corp.invalid or alice@example.test\n");
     await put("case/account.log", `account ${ACCOUNT_DIGITS} was charged\n`);
 
@@ -78,7 +84,8 @@ describe("scanFiles", () => {
     const contexts = report.findings.map((finding) => finding.context);
     expect(contexts).toContain('{"typed":"[fixture alice.phone]"}');
     expect(contexts).toContain("account <10 digits, ends 3456> was charged ");
-    for (const context of contexts) for (const raw of RAW_VALUES) expect(context).not.toContain(raw);
+    for (const context of contexts)
+      for (const raw of RAW_VALUES) expect(context).not.toContain(raw);
     expect(report.files).toBe(5);
     expect(report.skipped).toEqual(["secret DEMO_GONE was not read"]);
   });
@@ -86,8 +93,14 @@ describe("scanFiles", () => {
   it("leaves out run ids, times near the run's start and png files", async () => {
     const epochMs = String(AROUND + 60_000);
     const epochSeconds = String(Math.floor(AROUND / 1000) + 60);
-    await put("case/times.log", `${RUN_ID} ${epochMs} ${epochSeconds} 20261108 on ${PHONE_NATIONAL.slice(0, 3)}\n`);
-    await put("case/shot.png", Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from(CREDENTIAL)]));
+    await put(
+      "case/times.log",
+      `${RUN_ID} ${epochMs} ${epochSeconds} 20261108 on ${PHONE_NATIONAL.slice(0, 3)}\n`,
+    );
+    await put(
+      "case/shot.png",
+      Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from(CREDENTIAL)]),
+    );
 
     const report = await scanFiles(dir, ["case/times.log", "case/shot.png"], values);
 
@@ -96,17 +109,28 @@ describe("scanFiles", () => {
   });
 
   it("scans result.json without the harness fields", async () => {
-    const result = { notes: [], seed: 7, durationMs: 1234567890, values: { phone: PHONE_NATIONAL } };
+    const result = {
+      notes: [],
+      seed: 7,
+      durationMs: 1234567890,
+      values: { phone: PHONE_NATIONAL },
+    };
     await put("case/result.json", JSON.stringify(result));
     await put("case/other.json", JSON.stringify(result));
 
     const report = await scanFiles(dir, ["case/result.json", "case/other.json"], values);
 
-    expect(report.findings.map((finding) => finding.file)).toEqual(["case/other.json", "case/other.json"]);
+    expect(report.findings.map((finding) => finding.file)).toEqual([
+      "case/other.json",
+      "case/other.json",
+    ]);
   });
 
   it("masks a short value behind an escape in the context of a nearby finding", async () => {
-    const pin: ScanValues = { ...values, values: [...values.values, { kind: "fixture alice.pin", value: "4821" }] };
+    const pin: ScanValues = {
+      ...values,
+      values: [...values.values, { kind: "fixture alice.pin", value: "4821" }],
+    };
     await put("case/a.log", `{"acct":"${ACCOUNT_DIGITS}\\n4821"}\n`);
     await put("case/b.log", `phone ${PHONE_NATIONAL} pin%3D4821\n`);
 
@@ -170,16 +194,24 @@ describe("scanFiles", () => {
 
 describe("withheldAttachments", () => {
   it("lists only the attachments that hold a fixture, secret or credential value", async () => {
-    await put("case-a/trace.zip", zipSync({ "trace.trace": text(`typed ${PHONE_NATIONAL} and ${CREDENTIAL}`) }));
+    await put(
+      "case-a/trace.zip",
+      zipSync({ "trace.trace": text(`typed ${PHONE_NATIONAL} and ${CREDENTIAL}`) }),
+    );
     await put("case-a/mail.log", "reply to carol@corp.invalid\n");
     await put("case-a/account.log", `account ${ACCOUNT_DIGITS}\n`);
     await put("case-a/clean.log", "nothing here\n");
     const results = [
-      { caseId: "case-a", attachments: ["trace.zip", "mail.log", "account.log", "clean.log"] } as CaseResult,
+      {
+        caseId: "case-a",
+        attachments: ["trace.zip", "mail.log", "account.log", "clean.log"],
+      } as CaseResult,
     ];
 
     const withheld = await withheldAttachments(dir, results, values);
 
-    expect([...withheld]).toEqual([["case-a/trace.zip", ["credential ops/web", "fixture alice.phone"]]]);
+    expect([...withheld]).toEqual([
+      ["case-a/trace.zip", ["credential ops/web", "fixture alice.phone"]],
+    ]);
   });
 });

@@ -56,7 +56,11 @@ export class CaseEvidence extends EvidenceStore {
     this.#checks.push(check);
   }
 
-  override async attach(label: string, bytes: Uint8Array, ext: "png" | "zip" | "txt" | "json"): Promise<string> {
+  override async attach(
+    label: string,
+    bytes: Uint8Array,
+    ext: "png" | "zip" | "txt" | "json",
+  ): Promise<string> {
     const name = await super.attach(label, bytes, ext);
     if (ext === "png") this.#screenshot = join(this.#dir, name);
     return name;

@@ -14,7 +14,9 @@ export default definePlugin({
       name: "hold-tag",
       async check({ cases }) {
         const held = cases.filter(({ spec }) => spec.tags.includes(HOLD_TAG));
-        return Object.fromEntries(held.map(({ caseId }) => [caseId, `tagged ${HOLD_TAG}; remove the tag to run it`]));
+        return Object.fromEntries(
+          held.map(({ caseId }) => [caseId, `tagged ${HOLD_TAG}; remove the tag to run it`]),
+        );
       },
     },
   ],

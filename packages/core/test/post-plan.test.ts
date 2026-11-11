@@ -25,7 +25,15 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     target: "web",
     links: ["jira:DEMO-246"],
     status: "pass",
-    checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true }],
+    checks: [
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "visible",
+        ok: true,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: ["01-dashboard.png"],
@@ -78,17 +86,23 @@ describe("buildPostPlans", () => {
     };
     const statuses: Status[] = ["pass", "fail", "blocked", "followup"];
     const results = Object.keys(posts).flatMap((stage) =>
-      statuses.map((status) => result({ caseId: `${stage}-${status}`, stage: stage as Stage, status })),
+      statuses.map((status) =>
+        result({ caseId: `${stage}-${status}`, stage: stage as Stage, status }),
+      ),
     );
 
     const plan = buildPostPlans(inputs(results));
 
-    const expected = Object.entries(posts).flatMap(([stage, list]) => list.map((status) => `${stage}-${status}`));
+    const expected = Object.entries(posts).flatMap(([stage, list]) =>
+      list.map((status) => `${stage}-${status}`),
+    );
     expect(plan.items.map((item) => item.caseId)).toEqual(expected);
   });
 
   it("marker format is <markerPrefix>:<case-id>:<run-id>, with the rendered comment and attachments under the case folder", () => {
-    const plan = buildPostPlans(inputs([result({ attachments: ["01-dashboard.png", "02-trace.zip"] })]));
+    const plan = buildPostPlans(
+      inputs([result({ attachments: ["01-dashboard.png", "02-trace.zip"] })]),
+    );
 
     expect(plan).toEqual({
       runId: RUN,
@@ -100,7 +114,9 @@ describe("buildPostPlans", () => {
           ticket: { tracker: "jira", key: "DEMO-246" },
           caseId: "AUTH-LOGIN-001",
           status: "pass",
-          comment: markdownTracker("jira").render(result({ attachments: ["01-dashboard.png", "02-trace.zip"] })),
+          comment: markdownTracker("jira").render(
+            result({ attachments: ["01-dashboard.png", "02-trace.zip"] }),
+          ),
           attachments: ["AUTH-LOGIN-001/01-dashboard.png", "AUTH-LOGIN-001/02-trace.zip"],
           mentions: [],
           unresolved: ["transition:pass"],
@@ -111,7 +127,9 @@ describe("buildPostPlans", () => {
 
   it("leaves a withheld attachment out of the item and its comment, and lists it with its kinds", () => {
     const attachments = ["01-dashboard.png", "02-trace.zip"];
-    const withheld = new Map([["AUTH-LOGIN-001/02-trace.zip", ["secret DEMO_PIN", "fixture alice.phone"]]]);
+    const withheld = new Map([
+      ["AUTH-LOGIN-001/02-trace.zip", ["secret DEMO_PIN", "fixture alice.phone"]],
+    ]);
 
     const [item] = buildPostPlans(inputs([result({ attachments })], { withheld })).items;
 
@@ -119,7 +137,10 @@ describe("buildPostPlans", () => {
     expect(item?.comment.markdown).toContain("01-dashboard.png");
     expect(item?.comment.markdown).not.toContain("02-trace.zip");
     expect(item?.withheld).toEqual([
-      { attachment: "AUTH-LOGIN-001/02-trace.zip", kinds: ["secret DEMO_PIN", "fixture alice.phone"] },
+      {
+        attachment: "AUTH-LOGIN-001/02-trace.zip",
+        kinds: ["secret DEMO_PIN", "fixture alice.phone"],
+      },
     ]);
   });
 
@@ -130,7 +151,9 @@ describe("buildPostPlans", () => {
   });
 
   it("a case linked to two tickets gets one item per ticket", () => {
-    const plan = buildPostPlans(inputs([result({ links: ["jira:DEMO-246", "notion:release-notes-42"] })]));
+    const plan = buildPostPlans(
+      inputs([result({ links: ["jira:DEMO-246", "notion:release-notes-42"] })]),
+    );
 
     expect(plan.items.map((item) => item.ticket)).toEqual([
       { tracker: "jira", key: "DEMO-246" },
@@ -140,9 +163,14 @@ describe("buildPostPlans", () => {
 
   it("case transition wins over project default", () => {
     const transitions = ProjectConfig.shape.trackers.parse({
-      jira: { projects: { DEMO: { transitions: { pass: "Ready for Release", fail: "In Progress" } } } },
+      jira: {
+        projects: { DEMO: { transitions: { pass: "Ready for Release", fail: "In Progress" } } },
+      },
     });
-    const reopened = spec({ id: "AUTH-LOGIN-002", report: { on: { fail: { transition: "Reopened" } } } });
+    const reopened = spec({
+      id: "AUTH-LOGIN-002",
+      report: { on: { fail: { transition: "Reopened" } } },
+    });
 
     const plan = buildPostPlans(
       inputs([result({ status: "fail" }), result({ caseId: "AUTH-LOGIN-002", status: "fail" })], {
@@ -158,14 +186,22 @@ describe("buildPostPlans", () => {
   });
 
   it("lists the transition as unresolved only when the ticket's project is missing from the config", () => {
-    const transitions = { jira: { projects: { DEMO: { transitions: { pass: "Ready for Release" } } } } };
+    const transitions = {
+      jira: { projects: { DEMO: { transitions: { pass: "Ready for Release" } } } },
+    };
 
     const plan = buildPostPlans(
-      inputs([result({ status: "blocked", links: ["jira:DEMO-246", "jira:OPS-12"] })], { transitions }),
+      inputs([result({ status: "blocked", links: ["jira:DEMO-246", "jira:OPS-12"] })], {
+        transitions,
+      }),
     );
 
     expect(
-      plan.items.map(({ ticket, transition, unresolved }) => ({ key: ticket.key, transition, unresolved })),
+      plan.items.map(({ ticket, transition, unresolved }) => ({
+        key: ticket.key,
+        transition,
+        unresolved,
+      })),
     ).toEqual([
       { key: "DEMO-246", transition: undefined, unresolved: [] },
       { key: "OPS-12", transition: undefined, unresolved: ["transition:blocked"] },
@@ -186,13 +222,17 @@ describe("buildPostPlans", () => {
   it("stage and links come from the result, so a case promoted after its run still posts its pass", () => {
     const promoted = spec({ stage: "regression", links: ["jira:DEMO-999"] });
 
-    const plan = buildPostPlans(inputs([result()], { specs: new Map([["AUTH-LOGIN-001", promoted]]) }));
+    const plan = buildPostPlans(
+      inputs([result()], { specs: new Map([["AUTH-LOGIN-001", promoted]]) }),
+    );
 
     expect(plan.items.map((item) => item.ticket.key)).toEqual(["DEMO-246"]);
   });
 
   it("passes the media references to the ticket's tracker renderer", () => {
-    const media: MediaRefs = { "AUTH-LOGIN-001/01-dashboard.png": { id: "media-0001", collection: "contentId-1001" } };
+    const media: MediaRefs = {
+      "AUTH-LOGIN-001/01-dashboard.png": { id: "media-0001", collection: "contentId-1001" },
+    };
     const seen: (MediaRefs | undefined)[] = [];
     const recording: TrackerRenderer = {
       tracker: "jira",
@@ -214,8 +254,20 @@ describe("markdownTracker", () => {
     const followup = result({
       status: "followup",
       checks: [
-        { name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "visible", ok: true },
-        { name: "balance matches", kind: "api", expected: { amount: 10 }, observed: "10 | 10", ok: true },
+        {
+          name: "dashboard shows the account",
+          kind: "ui",
+          expected: "visible",
+          observed: "visible",
+          ok: true,
+        },
+        {
+          name: "balance matches",
+          kind: "api",
+          expected: { amount: 10 },
+          observed: "10 | 10",
+          ok: true,
+        },
         {
           name: "email reads well",
           kind: "followup",
@@ -253,7 +305,12 @@ describe("markdownTracker", () => {
   });
 
   it("puts the reason under the result line when the case did not finish", () => {
-    const blocked = result({ status: "blocked", reason: "no fallback resolver for otp", checks: [], attachments: [] });
+    const blocked = result({
+      status: "blocked",
+      reason: "no fallback resolver for otp",
+      checks: [],
+      attachments: [],
+    });
 
     expect(markdownTracker("notion").render(blocked).markdown.split("\n").slice(0, 3)).toEqual([
       `**Blocked** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run ${RUN})`,
@@ -273,7 +330,8 @@ describe("markdownTracker", () => {
           kind: "api",
           expected: "*welcome*",
           observed: {
-            "body.message": "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
+            "body.message":
+              "[Verify your account](https://login.example.test/) ![x](https://cdn.example.test/p.png)",
           },
           ok: false,
         },
@@ -311,8 +369,19 @@ describe("markdownTracker", () => {
   });
 
   it("escapes a block marker at the start of a follow-up list item", () => {
-    const items = ["# heading", "- nested", "+ nested", "> quote", "1. step", "2) step", "3.5 seconds"];
-    const followup = result({ status: "followup", followups: items.map((item) => ({ item, hint: "check it" })) });
+    const items = [
+      "# heading",
+      "- nested",
+      "+ nested",
+      "> quote",
+      "1. step",
+      "2) step",
+      "3.5 seconds",
+    ];
+    const followup = result({
+      status: "followup",
+      followups: items.map((item) => ({ item, hint: "check it" })),
+    });
 
     const { markdown } = markdownTracker("notion").render(followup);
 

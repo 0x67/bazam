@@ -8,7 +8,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/
 import { BRAND } from "@bazam/core/brand";
 import type { RunPlan } from "@bazam/core/run";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 let api: Api;
 
@@ -112,7 +118,8 @@ async function startGate(): Promise<{ url: string; close(): Promise<void> }> {
   const server = createServer((_req, res) => {
     waiting.push(res);
     if (waiting.length === 2) {
-      for (const open of waiting.splice(0)) open.writeHead(200, { "content-type": "application/json" }).end("{}");
+      for (const open of waiting.splice(0))
+        open.writeHead(200, { "content-type": "application/json" }).end("{}");
       return;
     }
     setTimeout(() => {
@@ -175,9 +182,14 @@ describe("plan", () => {
     await project.write("cases/desk/cases.yaml", DESK_CASES);
     await project.write("suites.yaml", "desk:\n  domains: [desk]\n");
     const plan = await planOf(project, "--suite", "desk", "--stage", "retired");
-    expect(plan.cases.map((planned) => [planned.caseId, planned.stage])).toEqual([["DESK-OLD-001", "retired"]]);
+    expect(plan.cases.map((planned) => [planned.caseId, planned.stage])).toEqual([
+      ["DESK-OLD-001", "retired"],
+    ]);
     const bySuite = await planOf(project, "--suite", "desk");
-    expect(bySuite.cases.map((planned) => planned.caseId)).toEqual(["DESK-GHOST-001", "DESK-PHONE-001"]);
+    expect(bySuite.cases.map((planned) => planned.caseId)).toEqual([
+      "DESK-GHOST-001",
+      "DESK-PHONE-001",
+    ]);
   });
 
   it("plans a challenge with a resolver from the default plugins", async () => {
@@ -192,7 +204,10 @@ describe("plan", () => {
     await project.write("cases/desk/code.yaml", CODE_CASE);
     const plan = await planOf(project, "--domain", "desk");
     expect(plan.cases.map(({ caseId, challenges }) => ({ caseId, challenges }))).toEqual([
-      { caseId: "DESK-CODE-001", challenges: [{ step: 1, kind: "otp-email", resolver: "otp-mailpit" }] },
+      {
+        caseId: "DESK-CODE-001",
+        challenges: [{ step: 1, kind: "otp-email", resolver: "otp-mailpit" }],
+      },
     ]);
   });
 
@@ -217,7 +232,11 @@ describe("plan", () => {
       JSON.stringify({
         ...config,
         runners: {
-          shop: { command: ["node", "suite.js", "--reporter", "junit"], results: "reports/*.xml", format: "junit" },
+          shop: {
+            command: ["node", "suite.js", "--reporter", "junit"],
+            results: "reports/*.xml",
+            format: "junit",
+          },
         },
         targets: { ...config.targets, "shop-chrome": { runner: "shop" } },
       }),
@@ -293,7 +312,15 @@ describe("plan --as", () => {
     const plan = await planOf(project, "--case", "DESK-ROLE-001", "--as", "tester=bob");
     expect(plan.roles).toEqual({ tester: "bob" });
     expect(plan.cases[0]?.identities).toEqual(["bob"]);
-    const text = await project.cli("plan", "--env", "demo", "--case", "DESK-ROLE-001", "--as", "tester=bob");
+    const text = await project.cli(
+      "plan",
+      "--env",
+      "demo",
+      "--case",
+      "DESK-ROLE-001",
+      "--as",
+      "tester=bob",
+    );
     expect(text.stdout.split("\n")[1]).toBe("  roles: tester=bob");
     const unbound = await planOf(project, "--case", "DESK-ROLE-001");
     expect(unbound.roles).toEqual({});
@@ -310,7 +337,9 @@ describe("plan --as", () => {
         ["--as", "tester=alice", "--as", "tester=bob"],
         ["--as", "guest=alice"],
         ["--as", "tester=ops"],
-      ].map(async (argv) => project.cli("plan", "--env", "demo", "--case", "DESK-ROLE-001", ...argv)),
+      ].map(async (argv) =>
+        project.cli("plan", "--env", "demo", "--case", "DESK-ROLE-001", ...argv),
+      ),
     );
     expect(errors.map((run) => run.code)).toEqual(Array(4).fill(ExitCode.CouldNotStart));
     expect(errors.map((run) => run.stderr.split("\n")[0])).toEqual([
@@ -325,7 +354,10 @@ describe("plan --as", () => {
     const project = await roleProject();
     const answers = join(project.root, "fixtures", "answers");
     await mkdir(answers, { recursive: true });
-    await writeFile(join(answers, "p1.json"), JSON.stringify({ kind: "verdict", verdict: "pass", note: "ok" }));
+    await writeFile(
+      join(answers, "p1.json"),
+      JSON.stringify({ kind: "verdict", verdict: "pass", note: "ok" }),
+    );
     const refused = await Promise.all(
       ["tester=ops", "guest=alice", "__proto__=alice"].map(async (as) =>
         project.cli(
@@ -382,10 +414,16 @@ describe("run", () => {
     );
     expect(code, stderr).toBe(ExitCode.Pass);
     // the run claimed and deleted the answer it used
-    expect(await readdir(join(project.root, "runs", "answers-run", "answers"))).toEqual(["EXTRA-1-guided.json"]);
-    for (const name of ["bad name.json", "link.json", "old.json"]) expect(stderr).toContain(`skipped ${name}`);
+    expect(await readdir(join(project.root, "runs", "answers-run", "answers"))).toEqual([
+      "EXTRA-1-guided.json",
+    ]);
+    for (const name of ["bad name.json", "link.json", "old.json"])
+      expect(stderr).toContain(`skipped ${name}`);
     const result = JSON.parse(
-      await readFile(join(project.root, "runs", "answers-run", "DESK-LOOK-001", "result.json"), "utf8"),
+      await readFile(
+        join(project.root, "runs", "answers-run", "DESK-LOOK-001", "result.json"),
+        "utf8",
+      ),
     ) as { status: string; checks: { ok: boolean }[] };
     expect(result).toMatchObject({ status: "pass", checks: [{ ok: true }] });
   });
@@ -403,7 +441,13 @@ describe("run", () => {
       BRAND.configFile,
       JSON.stringify({
         ...config,
-        runners: { shop: { command: [process.execPath, "-e", suite], results: "reports/*.xml", format: "junit" } },
+        runners: {
+          shop: {
+            command: [process.execPath, "-e", suite],
+            results: "reports/*.xml",
+            format: "junit",
+          },
+        },
         targets: { ...config.targets, "shop-chrome": { runner: "shop" } },
       }),
     );
@@ -414,7 +458,17 @@ describe("run", () => {
     await project.write("runs/confirm-run/answers/preflight-shop-confirm.json", yes);
     const runDir = join(project.root, "runs", "confirm-run");
     const answers = join(basename(project.root), "fixtures", "answers");
-    const argv = ["run", "--env", "live", "--domain", "cart", "--channel", "answers-file", "--answers", answers];
+    const argv = [
+      "run",
+      "--env",
+      "live",
+      "--domain",
+      "cart",
+      "--channel",
+      "answers-file",
+      "--answers",
+      answers,
+    ];
     const run = project.cli(...argv, "--run", "confirm-run");
     let finished = false;
     const settle = () => (finished = true);
@@ -422,17 +476,24 @@ describe("run", () => {
     let id: string | undefined;
     while (id === undefined && !finished) {
       const names = await readdir(join(runDir, "prompts")).catch(() => []);
-      id = names.map((name) => /^(preflight-shop-confirm-[0-9a-f]{7})\.json$/.exec(name)?.[1]).find(Boolean);
+      id = names
+        .map((name) => /^(preflight-shop-confirm-[0-9a-f]{7})\.json$/.exec(name)?.[1])
+        .find(Boolean);
       if (id === undefined) await sleep(20);
     }
     if (id !== undefined) {
-      await writeFile(join(runDir, "answer.tmp"), JSON.stringify({ kind: "verdict", verdict: "fail", note: "no" }));
+      await writeFile(
+        join(runDir, "answer.tmp"),
+        JSON.stringify({ kind: "verdict", verdict: "fail", note: "no" }),
+      );
       await rename(join(runDir, "answer.tmp"), join(runDir, "answers", `${id}.json`));
     }
     const { code, stdout, stderr } = await run;
     expect(code, stderr).toBe(ExitCode.Incomplete);
     expect(id).toBeDefined();
-    expect(stdout).toContain("CART-KEEP-001 on shop-chrome: production run of runner shop was not confirmed: no");
+    expect(stdout).toContain(
+      "CART-KEEP-001 on shop-chrome: production run of runner shop was not confirmed: no",
+    );
     expect(stderr).toContain("skipped preflight-shop-confirm.json");
     expect(existsSync(marker)).toBe(false);
     expect(await readdir(join(runDir, "answers"))).toEqual(["preflight-shop-confirm.json"]);
@@ -441,7 +502,14 @@ describe("run", () => {
   it("refuses --answers without the answers-file channel, and a missing answers folder, in a dry run too", async () => {
     const project = await fixtureProject(api);
     for (const dryRun of [[], ["--dry-run"]]) {
-      const terminal = await project.cli("run", "--env", "demo", "--answers", "fixtures/answers", ...dryRun);
+      const terminal = await project.cli(
+        "run",
+        "--env",
+        "demo",
+        "--answers",
+        "fixtures/answers",
+        ...dryRun,
+      );
       expect(terminal.code).toBe(ExitCode.CouldNotStart);
       expect(terminal.stderr).toContain("--answers works only with --channel answers-file");
       const missing = await project.cli(
@@ -482,7 +550,9 @@ describe("run", () => {
         "--json",
       );
       expect(code, stderr).toBe(ExitCode.Pass);
-      expect(JSON.parse(stdout)).toMatchObject({ cases: [{ caseId: "GATE-ONE-001" }, { caseId: "GATE-TWO-001" }] });
+      expect(JSON.parse(stdout)).toMatchObject({
+        cases: [{ caseId: "GATE-ONE-001" }, { caseId: "GATE-TWO-001" }],
+      });
     } finally {
       await gate.close();
     }
@@ -492,9 +562,18 @@ describe("run", () => {
     const project = await fixtureProject(api);
     for (const workers of ["0", "17", "two", "1.5"]) {
       for (const dryRun of [[], ["--dry-run"]]) {
-        const { code, stderr } = await project.cli("run", "--env", "demo", "--workers", workers, ...dryRun);
+        const { code, stderr } = await project.cli(
+          "run",
+          "--env",
+          "demo",
+          "--workers",
+          workers,
+          ...dryRun,
+        );
         expect(code).toBe(ExitCode.CouldNotStart);
-        expect(stderr.split("\n")[0]).toBe(`error: --workers takes a whole number from 1 to 16, not "${workers}"`);
+        expect(stderr.split("\n")[0]).toBe(
+          `error: --workers takes a whole number from 1 to 16, not "${workers}"`,
+        );
       }
     }
     expect(existsSync(join(project.root, "runs"))).toBe(false);
@@ -507,9 +586,25 @@ describe("run", () => {
     expect(escape.stderr).toContain('run id "../outside" is not a plain file name');
     // a caller that picks the id may put its own files in the folder first
     await project.write("runs/picked/supervisor.json", "{}");
-    const first = await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001", "--run", "picked");
+    const first = await project.cli(
+      "run",
+      "--env",
+      "demo",
+      "--case",
+      "SHOP-OK-001",
+      "--run",
+      "picked",
+    );
     expect(first.code).toBe(ExitCode.Pass);
-    const again = await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001", "--run", "picked");
+    const again = await project.cli(
+      "run",
+      "--env",
+      "demo",
+      "--case",
+      "SHOP-OK-001",
+      "--run",
+      "picked",
+    );
     expect(again.code).toBe(ExitCode.CouldNotStart);
     expect(again.stderr).toContain("run picked has already started");
   });
@@ -528,7 +623,9 @@ describe("run", () => {
       "s",
     );
     expect(stderr).toContain("seed 4242");
-    const result = JSON.parse(await project.read("runs/s/SHOP-OK-001/result.json")) as { seed: number };
+    const result = JSON.parse(await project.read("runs/s/SHOP-OK-001/result.json")) as {
+      seed: number;
+    };
     expect(result.seed).toBe(4242);
   });
 });

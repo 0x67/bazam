@@ -56,15 +56,20 @@ export class TrackerRequestFailed extends Error {
 
 /** Joins the literal parts with each parameter passed through `encodeURIComponent`. */
 export function trackerPath(parts: TemplateStringsArray, ...params: readonly string[]): string {
-  return parts.reduce((path, part, index) => path + encodeURIComponent(params[index - 1] ?? "") + part);
+  return parts.reduce(
+    (path, part, index) => path + encodeURIComponent(params[index - 1] ?? "") + part,
+  );
 }
 
 /** Registers the credential with the redactor and refuses a base that is not https, before any request. */
 export function trackerHttp(options: TrackerHttpOptions): TrackerHttp {
   const { base, redactor, signal } = options;
-  const loopback = base.protocol === "http:" && LOOPBACK_HOSTS.has(base.hostname) && base.port !== "";
+  const loopback =
+    base.protocol === "http:" && LOOPBACK_HOSTS.has(base.hostname) && base.port !== "";
   if (base.protocol !== "https:" && !loopback)
-    throw new Error(`tracker base ${base.origin} is not https; http is only for 127.0.0.1 or localhost with a port`);
+    throw new Error(
+      `tracker base ${base.origin} is not https; http is only for 127.0.0.1 or localhost with a port`,
+    );
   registerCredential(redactor, options.authorization);
   const basePath = base.pathname.replace(/\/$/, "");
   const fetchFn = options.fetch ?? fetch;
@@ -90,10 +95,14 @@ export function trackerHttp(options: TrackerHttpOptions): TrackerHttp {
       const next = new URL(location, hop.url);
       if (next.origin !== base.origin)
         throw new Error(
-          redactor.text(`${method} ${request.path} redirected to ${next.origin}, which is not the tracker`),
+          redactor.text(
+            `${method} ${request.path} redirected to ${next.origin}, which is not the tracker`,
+          ),
         );
       if (redirects === MAX_REDIRECTS)
-        throw new Error(redactor.text(`${method} ${request.path} redirected more than ${MAX_REDIRECTS} times`));
+        throw new Error(
+          redactor.text(`${method} ${request.path} redirected more than ${MAX_REDIRECTS} times`),
+        );
       // as fetch does: 303 turns into GET, and so does a POST answered 301 or 302
       const toGet =
         response.status === 303
@@ -110,10 +119,13 @@ export function trackerHttp(options: TrackerHttpOptions): TrackerHttp {
       for (let attempt = 1; ; attempt += 1) {
         const response = await follow(method, request, url);
         const retry = response.status === 429 || (response.status === 503 && method === "GET");
-        if (!retry || attempt === MAX_ATTEMPTS) return readResponse(response, method, request.path, redactor);
+        if (!retry || attempt === MAX_ATTEMPTS)
+          return readResponse(response, method, request.path, redactor);
         await response.body?.cancel();
         const ms = waitMs(response.headers.get("retry-after"), attempt);
-        log(`${method} ${request.path} answered ${response.status}; retrying in ${Number((ms / 1000).toFixed(1))} s`);
+        log(
+          `${method} ${request.path} answered ${response.status}; retrying in ${Number((ms / 1000).toFixed(1))} s`,
+        );
         await wait(ms, signal);
       }
     },
@@ -145,7 +157,9 @@ function requestUrl(base: URL, basePath: string, method: string, request: Tracke
   const url = new URL(base);
   url.pathname = basePath + request.path;
   if (!url.pathname.startsWith(`${basePath}/`))
-    throw new Error(`${method} ${request.path} resolves outside the tracker base path ${basePath || "/"}`);
+    throw new Error(
+      `${method} ${request.path} resolves outside the tracker base path ${basePath || "/"}`,
+    );
   url.search = request.query === undefined ? "" : new URLSearchParams(request.query).toString();
   url.hash = "";
   return url;
@@ -156,7 +170,11 @@ function requestBody(request: TrackerRequest): string | FormData | undefined {
   return request.json === undefined ? undefined : JSON.stringify(request.json);
 }
 
-function requestHeaders(request: TrackerRequest, authorization: string, body: string | FormData | undefined): Headers {
+function requestHeaders(
+  request: TrackerRequest,
+  authorization: string,
+  body: string | FormData | undefined,
+): Headers {
   const headers = new Headers(request.headers);
   headers.set("authorization", authorization);
   if (!headers.has("accept")) headers.set("accept", "application/json");
@@ -175,7 +193,8 @@ async function readResponse(
   if (response.status >= 200 && response.status < 300)
     return { status: response.status, headers: response.headers, body };
   const detail = firstError(body);
-  let message = `${method} ${path} answered ${response.status}` + (detail === undefined ? "" : `: ${detail}`);
+  let message =
+    `${method} ${path} answered ${response.status}` + (detail === undefined ? "" : `: ${detail}`);
   if (response.status === 401) message = message.replace(/\.$/, "") + UNAUTHORIZED_HINT;
   throw new TrackerRequestFailed(redactor.text(message), response.status);
 }
@@ -203,14 +222,17 @@ function firstError(body: unknown): string | undefined {
 
 // Retry-After when given, else 1 s doubling per attempt times a factor from 0.7 to 1.3
 function waitMs(retryAfter: string | null, attempt: number): number {
-  const ms = retryAfterMs(retryAfter) ?? FIRST_WAIT_MS * 2 ** (attempt - 1) * (0.7 + Math.random() * 0.6);
+  const ms =
+    retryAfterMs(retryAfter) ?? FIRST_WAIT_MS * 2 ** (attempt - 1) * (0.7 + Math.random() * 0.6);
   return Math.min(Math.max(0, ms), MAX_WAIT_MS);
 }
 
 // seconds or an HTTP date
 function retryAfterMs(value: string | null): number | undefined {
   if (value === null) return undefined;
-  const ms = /^\d+$/.test(value.trim()) ? Number(value.trim()) * 1000 : Date.parse(value) - Date.now();
+  const ms = /^\d+$/.test(value.trim())
+    ? Number(value.trim()) * 1000
+    : Date.parse(value) - Date.now();
   return Number.isNaN(ms) ? undefined : ms;
 }
 

@@ -29,7 +29,9 @@ let root: string;
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "cli-exec-"));
-  const config = { envs: { demo: { production: false, hosts: ["127.0.0.1"], challenges: { totp: ["totp"] } } } };
+  const config = {
+    envs: { demo: { production: false, hosts: ["127.0.0.1"], challenges: { totp: ["totp"] } } },
+  };
   await write(BRAND.configFile, JSON.stringify(config, null, 2));
   await write(join(BRAND.stateDir, "secrets.env"), `DEMO_TOTP_SEED=${TEST_SEED}\n`);
   await write("client.mjs", CLIENT);
@@ -56,7 +58,10 @@ function totpAt(at: number): string {
 describe("exec", () => {
   it("gives the command a code over the service, passes its exit code through and stops the service", async () => {
     const started = Date.now();
-    const { code } = await cli(["exec", "--env", "demo", "--", process.execPath, "client.mjs", "7"], root);
+    const { code } = await cli(
+      ["exec", "--env", "demo", "--", process.execPath, "client.mjs", "7"],
+      root,
+    );
     expect(code).toBe(7);
     const result = JSON.parse(await readFile(join(root, "client-result.json"), "utf8")) as {
       url: string;
@@ -72,16 +77,27 @@ describe("exec", () => {
 
   it("exits 128 plus the signal number when a signal ends the command", async () => {
     const script = "process.kill(process.pid, 'SIGTERM')";
-    const { code } = await cli(["exec", "--env", "demo", "--", process.execPath, "-e", script], root);
+    const { code } = await cli(
+      ["exec", "--env", "demo", "--", process.execPath, "-e", script],
+      root,
+    );
     expect(code).toBe(128 + 15);
   });
 
   it("sends the command SIGINT on Ctrl-C and waits for it to end", async () => {
     const interrupt = new AbortController();
     const script = "require('node:fs').writeFileSync('ready', ''); setInterval(() => {}, 1000)";
-    const io = { stdout: { write: () => true }, stderr: { write: () => true }, cwd: root, signal: interrupt.signal };
+    const io = {
+      stdout: { write: () => true },
+      stderr: { write: () => true },
+      cwd: root,
+      signal: interrupt.signal,
+    };
     const running = main(["exec", "--env", "demo", "--", process.execPath, "-e", script], io);
-    await vi.waitFor(() => expect(existsSync(join(root, "ready"))).toBe(true), { timeout: 10_000, interval: 20 });
+    await vi.waitFor(() => expect(existsSync(join(root, "ready"))).toBe(true), {
+      timeout: 10_000,
+      interval: 20,
+    });
     interrupt.abort();
     expect(await running).toBe(128 + 2);
   });
@@ -91,7 +107,9 @@ describe("exec", () => {
     expect(missing.code).toBe(127);
     expect(missing.stderr).toContain("error: cannot run ./no-such-command:");
     await write("not-executable.sh", "#!/bin/sh\nexit 0\n");
-    expect((await cli(["exec", "--env", "demo", "--", "./not-executable.sh"], root)).code).toBe(126);
+    expect((await cli(["exec", "--env", "demo", "--", "./not-executable.sh"], root)).code).toBe(
+      126,
+    );
   });
 
   it("exits 2 without a command or an env", async () => {

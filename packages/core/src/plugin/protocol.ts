@@ -18,12 +18,22 @@ export const PROTOCOL_VERSION = 1;
 
 /** What a process plugin offers, as its `initialize` answer lists it. */
 export interface ContributionsDescriptor {
-  resolvers?: { name: string; kinds: string[]; requires: string[]; automated: boolean; arm: boolean }[];
+  resolvers?: {
+    name: string;
+    kinds: string[];
+    requires: string[];
+    automated: boolean;
+    arm: boolean;
+  }[];
   challengeKinds?: ChallengeKindSpec[];
   secretProviders?: { name: string }[];
   resultFormats?: { name: string }[];
   trackerClients?: { tracker: string }[];
-  drivers?: { name: string; surface: string; steps: { kind: string; schema: z.core.JSONSchema.JSONSchema }[] }[];
+  drivers?: {
+    name: string;
+    surface: string;
+    steps: { kind: string; schema: z.core.JSONSchema.JSONSchema }[];
+  }[];
 }
 
 const Name = z.string().min(1);
@@ -133,7 +143,9 @@ const ExternalTestSchema = z.object({
   retries: z.int().nonnegative(),
   project: z.string().exactOptional(),
   durationMs: z.number().nonnegative().exactOptional(),
-  attachments: z.array(z.object({ name: z.string(), path: Name, contentType: z.string().exactOptional() })),
+  attachments: z.array(
+    z.object({ name: z.string(), path: Name, contentType: z.string().exactOptional() }),
+  ),
   source: Name,
 }) satisfies z.ZodType<ExternalTest>;
 
@@ -144,7 +156,10 @@ const RenderedCommentSchema = z.object({
 }) satisfies z.ZodType<RenderedComment>;
 
 const MentionSchema = z.object({ role: Name, accountId: Name }) satisfies z.ZodType<Mention>;
-const AttachmentFileSchema = z.object({ name: Name, path: Name }) satisfies z.ZodType<AttachmentFile>;
+const AttachmentFileSchema = z.object({
+  name: Name,
+  path: Name,
+}) satisfies z.ZodType<AttachmentFile>;
 const PostedCommentSchema = z.object({ url: Name }) satisfies z.ZodType<PostedComment>;
 
 const TicketStateSchema = z.object({
@@ -196,12 +211,20 @@ export const METHODS = {
       apiVersion: z.int(),
       host: z.object({ name: Name, version: z.string() }),
     }),
-    result: z.object({ protocolVersion: z.int(), name: Name, apiVersion: z.int(), contributions: Contributions }),
+    result: z.object({
+      protocolVersion: z.int(),
+      name: Name,
+      apiVersion: z.int(),
+      contributions: Contributions,
+    }),
   },
   shutdown: { params: z.object({}), result: z.null() },
   "resolver.arm": { params: ResolverCall, result: z.null() },
   "resolver.resolve": { params: ResolverCall, result: ChallengeAnswerSchema.nullable() },
-  "secrets.load": { params: z.object({ provider: Name, key: Name }), result: z.string().nullable() },
+  "secrets.load": {
+    params: z.object({ provider: Name, key: Name }),
+    result: z.string().nullable(),
+  },
   "results.parse": {
     params: z.object({ format: Name, file: ResultFileSchema }),
     result: z.array(ExternalTestSchema),
@@ -210,13 +233,21 @@ export const METHODS = {
     params: z.object({ tracker: Name, contextId: ContextId, config: TrackerConfig }),
     result: z.object({ connection: Name }),
   },
-  "trackerClient.ticket": { params: z.object({ ...Connection, key: Name }), result: TicketStateSchema },
+  "trackerClient.ticket": {
+    params: z.object({ ...Connection, key: Name }),
+    result: TicketStateSchema,
+  },
   "trackerClient.attach": {
     params: z.object({ ...Connection, key: Name, files: z.array(AttachmentFileSchema) }),
     result: z.null(),
   },
   "trackerClient.postComment": {
-    params: z.object({ ...Connection, key: Name, comment: RenderedCommentSchema, mentions: z.array(MentionSchema) }),
+    params: z.object({
+      ...Connection,
+      key: Name,
+      comment: RenderedCommentSchema,
+      mentions: z.array(MentionSchema),
+    }),
     result: PostedCommentSchema,
   },
   "trackerClient.editComment": {
@@ -229,7 +260,10 @@ export const METHODS = {
     }),
     result: PostedCommentSchema.nullable(),
   },
-  "trackerClient.transition": { params: z.object({ ...Connection, key: Name, name: Name }), result: z.null() },
+  "trackerClient.transition": {
+    params: z.object({ ...Connection, key: Name, name: Name }),
+    result: z.null(),
+  },
   "trackerClient.findOpenBug": {
     params: z.object({ ...Connection, project: Name, label: Name }),
     result: Name.nullable(),
@@ -238,7 +272,10 @@ export const METHODS = {
     params: z.object({ ...Connection, draft: BugDraftSchema }),
     result: z.object({ key: Name, url: Name, problems: z.array(z.string()).exactOptional() }),
   },
-  "driver.probe": { params: z.object({ driver: Name, options: LaunchCallOptions }), result: z.array(Name) },
+  "driver.probe": {
+    params: z.object({ driver: Name, options: LaunchCallOptions }),
+    result: z.array(Name),
+  },
   "driver.launch": {
     params: z.object({ driver: Name, options: LaunchCallOptions }),
     result: z.object({ session: Name, capabilities: z.array(Name) }),
@@ -278,8 +315,14 @@ export const METHODS = {
       body: z.json(),
     }),
   },
-  "host.evidence.record": { params: z.object({ contextId: ContextId, check: CheckRecordSchema }), result: z.null() },
-  "host.evidence.note": { params: z.object({ contextId: ContextId, text: z.string() }), result: z.null() },
+  "host.evidence.record": {
+    params: z.object({ contextId: ContextId, check: CheckRecordSchema }),
+    result: z.null(),
+  },
+  "host.evidence.note": {
+    params: z.object({ contextId: ContextId, text: z.string() }),
+    result: z.null(),
+  },
   "host.evidence.followup": {
     params: z.object({ contextId: ContextId, item: z.string(), hint: z.string() }),
     result: z.null(),
@@ -290,7 +333,9 @@ export const METHODS = {
       label: z.string(),
       ext: z.enum(["png", "txt", "json"], {
         error: (issue) =>
-          issue.input === "zip" ? "a process plugin cannot attach zip files, which core cannot scrub" : undefined,
+          issue.input === "zip"
+            ? "a process plugin cannot attach zip files, which core cannot scrub"
+            : undefined,
       }),
       dataBase64: Base64,
     }),
@@ -302,5 +347,8 @@ export const METHODS = {
   },
   "host.mask": { params: z.object({ contextId: ContextId, value: z.string() }), result: z.null() },
   "host.log": { params: z.object({ line: z.string() }), result: z.never() },
-  "$/cancelRequest": { params: z.object({ id: z.union([z.int(), z.string()]) }), result: z.never() },
+  "$/cancelRequest": {
+    params: z.object({ id: z.union([z.int(), z.string()]) }),
+    result: z.never(),
+  },
 } as const satisfies Record<string, { params: z.ZodType; result: z.ZodType }>;

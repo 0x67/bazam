@@ -36,7 +36,13 @@ export type FakeTrackerCall =
   | { method: "ticket"; key: string }
   | { method: "attach"; key: string; files: AttachmentFile[] }
   | { method: "postComment"; key: string; comment: RenderedComment; mentions: Mention[] }
-  | { method: "editComment"; key: string; url: string; comment: RenderedComment; mentions: Mention[] }
+  | {
+      method: "editComment";
+      key: string;
+      url: string;
+      comment: RenderedComment;
+      mentions: Mention[];
+    }
   | { method: "transition"; key: string; name: string }
   | { method: "findOpenBug"; project: string; label: string }
   | { method: "createBug"; draft: BugDraft };
@@ -87,12 +93,19 @@ export class FakeTrackerConnection implements TrackerConnection {
     this.attachments.set(key, [...(this.attachments.get(key) ?? []), ...files]);
   }
 
-  async postComment(key: string, comment: RenderedComment, mentions: readonly Mention[]): Promise<PostedComment> {
+  async postComment(
+    key: string,
+    comment: RenderedComment,
+    mentions: readonly Mention[],
+  ): Promise<PostedComment> {
     this.#record({ method: "postComment", key, comment, mentions: [...mentions] });
     this.#held(key);
     this.#lastComment += 1;
     const url = `https://tracker.example.test/browse/${key}?focusedCommentId=${this.#lastComment}`;
-    this.comments.set(key, [...(this.comments.get(key) ?? []), { url, comment, mentions: [...mentions] }]);
+    this.comments.set(key, [
+      ...(this.comments.get(key) ?? []),
+      { url, comment, mentions: [...mentions] },
+    ]);
     return { url };
   }
 
@@ -115,8 +128,13 @@ export class FakeTrackerConnection implements TrackerConnection {
     this.#record({ method: "transition", key, name });
     const ticket = this.#held(key);
     const offered = ticket.transitions;
-    if (offered !== undefined && !offered.some((offer) => offer.toLowerCase() === name.toLowerCase()))
-      throw new Error(`transition ${name} is not available on ${key}; it offers ${offered.join(", ")}`);
+    if (
+      offered !== undefined &&
+      !offered.some((offer) => offer.toLowerCase() === name.toLowerCase())
+    )
+      throw new Error(
+        `transition ${name} is not available on ${key}; it offers ${offered.join(", ")}`,
+      );
     ticket.status = name;
   }
 
@@ -125,8 +143,12 @@ export class FakeTrackerConnection implements TrackerConnection {
     // newest first, as the tracker's search orders them
     return [...this.tickets.values()]
       .reverse()
-      .find((ticket) => ticket.key.startsWith(`${project}-`) && ticket.done !== true && ticket.labels?.includes(label))
-      ?.key;
+      .find(
+        (ticket) =>
+          ticket.key.startsWith(`${project}-`) &&
+          ticket.done !== true &&
+          ticket.labels?.includes(label),
+      )?.key;
   }
 
   async createBug(draft: BugDraft): Promise<{ key: string; url: string; problems?: string[] }> {
@@ -136,7 +158,9 @@ export class FakeTrackerConnection implements TrackerConnection {
     this.tickets.set(key, { key, status: "Open", labels: [...draft.labels] });
     this.bugs.set(key, draft);
     const url = `https://tracker.example.test/browse/${key}`;
-    return this.bugProblems.length === 0 ? { key, url } : { key, url, problems: [...this.bugProblems] };
+    return this.bugProblems.length === 0
+      ? { key, url }
+      : { key, url, problems: [...this.bugProblems] };
   }
 
   #record(call: FakeTrackerCall): void {

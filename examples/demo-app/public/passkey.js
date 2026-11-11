@@ -69,7 +69,9 @@ async function signInWithPasskey() {
       clientDataJSON: toBase64url(credential.response.clientDataJSON),
       authenticatorData: toBase64url(credential.response.authenticatorData),
       signature: toBase64url(credential.response.signature),
-      ...(credential.response.userHandle && { userHandle: toBase64url(credential.response.userHandle) }),
+      ...(credential.response.userHandle && {
+        userHandle: toBase64url(credential.response.userHandle),
+      }),
     },
     clientExtensionResults: credential.getClientExtensionResults(),
   })

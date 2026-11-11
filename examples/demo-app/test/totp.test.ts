@@ -18,7 +18,9 @@ describe("TOTP enrollment and sign-in", () => {
     const email = newEmail()
     await signInByEmail(visitor, email)
     await visitor.request("/account/totp")
-    const enabled = await visitor.postForm("/account/totp", { code: totpCode(DEMO_TOTP_SEED, Date.now()) })
+    const enabled = await visitor.postForm("/account/totp", {
+      code: totpCode(DEMO_TOTP_SEED, Date.now()),
+    })
     if (enabled.status !== 303) throw new Error(`TOTP enrollment failed: ${enabled.status}`)
     return email
   }
@@ -30,10 +32,16 @@ describe("TOTP enrollment and sign-in", () => {
     const setup = await (await visitor.request("/account/totp")).text()
     expect(setup).toContain(`<code data-testid="totp-seed">${DEMO_TOTP_SEED}</code>`)
 
-    const enabled = await visitor.postForm("/account/totp", { code: totpCode(DEMO_TOTP_SEED, Date.now()) })
+    const enabled = await visitor.postForm("/account/totp", {
+      code: totpCode(DEMO_TOTP_SEED, Date.now()),
+    })
     expect(enabled.status).toBe(303)
-    expect(await (await visitor.request("/account/totp")).text()).toContain('data-testid="totp-enabled"')
-    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({ totpEnabled: true })
+    expect(await (await visitor.request("/account/totp")).text()).toContain(
+      'data-testid="totp-enabled"',
+    )
+    expect(await (await visitor.request("/api/session/me")).json()).toMatchObject({
+      totpEnabled: true,
+    })
   })
 
   it("refuses enrollment with a code from the wrong time window", async () => {
@@ -51,7 +59,10 @@ describe("TOTP enrollment and sign-in", () => {
     const email = await enrolledUser()
     const visitor = new Visitor()
 
-    const response = await visitor.postForm("/login/totp", { email, code: totpCode(DEMO_TOTP_SEED, Date.now()) })
+    const response = await visitor.postForm("/login/totp", {
+      email,
+      code: totpCode(DEMO_TOTP_SEED, Date.now()),
+    })
 
     expect(response.status).toBe(303)
     expect(response.headers.get("location")).toBe("/dashboard")
@@ -63,7 +74,10 @@ describe("TOTP enrollment and sign-in", () => {
     const email = newEmail()
     await signInByEmail(new Visitor(), email)
 
-    const response = await visitor.postForm("/login/totp", { email, code: totpCode(DEMO_TOTP_SEED, Date.now()) })
+    const response = await visitor.postForm("/login/totp", {
+      email,
+      code: totpCode(DEMO_TOTP_SEED, Date.now()),
+    })
 
     expect(response.status).toBe(401)
     expect(visitor.cookie("session")).toBeUndefined()

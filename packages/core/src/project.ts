@@ -2,7 +2,17 @@ import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, posix, resolve } from "node:path";
 import { promisify } from "node:util";
-import { isMap, isNode, isScalar, isSeq, LineCounter, parse, parseDocument, YAMLParseError, type Document } from "yaml";
+import {
+  isMap,
+  isNode,
+  isScalar,
+  isSeq,
+  LineCounter,
+  parse,
+  parseDocument,
+  YAMLParseError,
+  type Document,
+} from "yaml";
 import { z } from "zod";
 import { IdentitiesConfig } from "./auth/index.ts";
 import { BRAND } from "./brand.ts";
@@ -36,7 +46,8 @@ export const STATE_DIRS: readonly string[] = ["runs", BRAND.stateDir];
 
 // a runner target's name goes into its folder runs/<run-id>/runner-<target>/, and a runner's name goes into a prompt id
 const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const PLAIN_NAME_RULE = "letters, digits, dots, dashes and underscores, starting with a letter or digit";
+const PLAIN_NAME_RULE =
+  "letters, digits, dots, dashes and underscores, starting with a letter or digit";
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:[0-9]+)?$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost"]);
 
@@ -57,7 +68,10 @@ export const RunnerConfig = z.strictObject({
   timeoutMinutes: z
     .number()
     .positive()
-    .max(35791, "timeoutMinutes can be at most 35791 (about 24.8 days), the longest timer Node can set")
+    .max(
+      35791,
+      "timeoutMinutes can be at most 35791 (about 24.8 days), the longest timer Node can set",
+    )
     .default(60),
   /**
    * Runs the suite in a production env without asking. When false, the run asks first, because it cannot hold the
@@ -86,13 +100,18 @@ export const ProcessPluginEntry = z.strictObject({
   timeoutSeconds: z
     .int()
     .positive()
-    .max(2_147_483, "timeoutSeconds takes at most 2147483 (about 24 days), the longest delay a Node timer holds")
+    .max(
+      2_147_483,
+      "timeoutSeconds takes at most 2147483 (about 24 days), the longest delay a Node timer holds",
+    )
     .default(600),
 });
 export type ProcessPluginEntry = z.infer<typeof ProcessPluginEntry>;
 
 const TrackerProject = z.strictObject({
-  transitions: z.partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1)).default({}),
+  transitions: z
+    .partialRecord(z.enum(["pass", "fail", "blocked", "followup"]), z.string().min(1))
+    .default({}),
   bugs: z
     .strictObject({
       issueType: z.string().min(1),
@@ -116,7 +135,9 @@ export const TrackerConfig = z.strictObject({
   /** The REST base when it is not `https://<site>`, such as a scoped token's. */
   api: z
     .url({ abort: true })
-    .refine(isTrackerApi, { error: "api must be an https URL; http only for 127.0.0.1 or localhost with a port" })
+    .refine(isTrackerApi, {
+      error: "api must be an https URL; http only for 127.0.0.1 or localhost with a port",
+    })
     .optional(),
   /** Secret names, read through `secrets.providers`. */
   secrets: z.record(z.string().min(1), z.string().min(1)).default({}),
@@ -165,7 +186,9 @@ export const ProjectConfig = z
               "runner" in issue.input
                 ? issue.errors[0]?.[0]
                 : undefined;
-            return own === undefined ? "a target needs driver or runner" : `${own.path.join(".")}: ${own.message}`;
+            return own === undefined
+              ? "a target needs driver or runner"
+              : `${own.path.join(".")}: ${own.message}`;
           },
         }),
       )
@@ -210,7 +233,11 @@ export const ProjectConfig = z
     }
     for (const [name, runner] of Object.entries(config.runners)) {
       if (!PLAIN_NAME.test(name)) {
-        ctx.addIssue({ code: "custom", path: ["runners", name], message: `a runner name takes ${PLAIN_NAME_RULE}` });
+        ctx.addIssue({
+          code: "custom",
+          path: ["runners", name],
+          message: `a runner name takes ${PLAIN_NAME_RULE}`,
+        });
       }
       runner.identities?.forEach((identity, index) => {
         if (identity === "" || Object.hasOwn(config.identities, identity)) return;
@@ -257,7 +284,9 @@ export function runnerOf(
 ): { name: string; runner: RunnerConfig; env: Record<string, string> } | undefined {
   const entry = Object.hasOwn(config.targets, target) ? config.targets[target] : undefined;
   if (entry === undefined || "driver" in entry) return undefined;
-  const runner = Object.hasOwn(config.runners, entry.runner) ? config.runners[entry.runner] : undefined;
+  const runner = Object.hasOwn(config.runners, entry.runner)
+    ? config.runners[entry.runner]
+    : undefined;
   return runner === undefined ? undefined : { name: entry.runner, runner, env: entry.env };
 }
 
@@ -289,7 +318,10 @@ export function externalCaseProblem(
           ? "finally"
           : undefined;
   if (field === undefined) return undefined;
-  return { field, message: `${spec.id} runs on runner target ${runnerTargets[0]} but has ${field}` };
+  return {
+    field,
+    message: `${spec.id} runs on runner target ${runnerTargets[0]} but has ${field}`,
+  };
 }
 
 const SECRET_PLACEHOLDER = /^\$\{secret\.(.+)\}$/;
@@ -311,19 +343,29 @@ export function declaredSecretNames(config: ProjectConfig): string[] {
 
 function isSiteHost(site: string): boolean {
   // a port over 65535 matches the pattern but does not parse
-  return SITE_HOST.test(site) && URL.canParse(`https://${site}`) && new URL(`https://${site}`).host === site;
+  return (
+    SITE_HOST.test(site) &&
+    URL.canParse(`https://${site}`) &&
+    new URL(`https://${site}`).host === site
+  );
 }
 
 function isTrackerApi(api: string): boolean {
   if (!URL.canParse(api)) return false;
   const url = new URL(api);
-  return url.protocol === "https:" || (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname) && url.port !== "");
+  return (
+    url.protocol === "https:" ||
+    (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname) && url.port !== "")
+  );
 }
 
 export const FIXTURES_FILE = "fixtures/identities.example.yaml";
 
 /** Identity fields by fixture entry name, as `fixtures/identities.example.yaml` and its local copy hold them. */
-export const IdentityFixtures = z.record(z.string().min(1), z.record(z.string().min(1), z.string()));
+export const IdentityFixtures = z.record(
+  z.string().min(1),
+  z.record(z.string().min(1), z.string()),
+);
 export type IdentityFixtures = z.infer<typeof IdentityFixtures>;
 
 export const LOCAL_FIXTURES_FILE = "fixtures/identities.local.yaml";
@@ -340,7 +382,9 @@ export async function readLocalFixtures(root: string): Promise<IdentityFixtures 
   // a file with only comments parses to null
   const parsed = IdentityFixtures.safeParse(parseFixtures(text));
   if (!parsed.success)
-    throw new Error(`${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`);
+    throw new Error(
+      `${LOCAL_FIXTURES_FILE} does not match the fixtures schema:\n${z.prettifyError(parsed.error)}`,
+    );
   return parsed.data;
 }
 
@@ -442,9 +486,14 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
   const fixtures = await readFixtures(root);
   const kinds = challengeKinds(config, configFile, registry);
   const mappings = await readMappings(root, config, configFile);
-  const files = [configFile, ...caseFiles, ...flows.files, suites.file, fixtures.file, ...mappings.files].filter(
-    (file) => file !== undefined,
-  );
+  const files = [
+    configFile,
+    ...caseFiles,
+    ...flows.files,
+    suites.file,
+    fixtures.file,
+    ...mappings.files,
+  ].filter((file) => file !== undefined);
   return {
     root: resolve(root),
     config,
@@ -460,7 +509,8 @@ export async function loadProject(root: string, registry: PluginRegistry): Promi
     mappings: mappings.mappings,
     files: new Map(files.map((file) => [file.path, file])),
     ignoredStateDirs:
-      (await gitIgnoredStateDirs(root)) ?? rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
+      (await gitIgnoredStateDirs(root)) ??
+      rootIgnoredStateDirs((await readText(join(root, ".gitignore"))) ?? ""),
     issues: [
       ...caseLoad.issues,
       ...flows.issues,
@@ -478,11 +528,18 @@ export function lineAt(file: ProjectFile, path: readonly PropertyKey[]): number 
   let offset = startOf(node) ?? 0;
   for (const segment of path) {
     if (isMap(node)) {
-      const pair = node.items.find((item) => isScalar(item.key) && String(item.key.value) === String(segment));
+      const pair = node.items.find(
+        (item) => isScalar(item.key) && String(item.key.value) === String(segment),
+      );
       if (pair === undefined) break;
       offset = startOf(pair.key) ?? offset;
       node = pair.value;
-    } else if (isSeq(node) && typeof segment === "number" && segment >= 0 && segment < node.items.length) {
+    } else if (
+      isSeq(node) &&
+      typeof segment === "number" &&
+      segment >= 0 &&
+      segment < node.items.length
+    ) {
       node = node.items[segment];
       offset = startOf(node) ?? offset;
     } else {
@@ -509,7 +566,9 @@ async function readConfig(root: string): Promise<ConfigLoad & { file: ProjectFil
 async function caseFilePaths(root: string): Promise<string[]> {
   const domains = await readDir(join(root, "cases"));
   const paths: string[] = [];
-  for (const domain of domains.filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))) {
+  for (const domain of domains.filter(
+    (entry) => entry.isDirectory() && !entry.name.startsWith("."),
+  )) {
     const entries = await readDir(join(root, "cases", domain.name));
     for (const entry of entries.filter((e) => e.isFile() && e.name.endsWith(".yaml"))) {
       paths.push(posix.join("cases", domain.name, entry.name));
@@ -554,12 +613,18 @@ async function readFlows(
   return { flows, files, issues };
 }
 
-async function readSuites(
-  root: string,
-): Promise<{ suites: ReadonlyMap<string, CaseFilter>; file: ProjectFile | undefined; issues: LoadIssue[] }> {
+async function readSuites(root: string): Promise<{
+  suites: ReadonlyMap<string, CaseFilter>;
+  file: ProjectFile | undefined;
+  issues: LoadIssue[];
+}> {
   const file = await readProjectFile(root, SUITES_FILE);
   if (file === undefined) return { suites: new Map(), file, issues: [] };
-  const parsed = parseFile(file, SuitesFile, "Edit suites.yaml so each suite maps filter fields to non-empty lists.");
+  const parsed = parseFile(
+    file,
+    SuitesFile,
+    "Edit suites.yaml so each suite maps filter fields to non-empty lists.",
+  );
   return { suites: new Map(Object.entries(parsed.data ?? {})), file, issues: parsed.issues };
 }
 
@@ -568,7 +633,11 @@ async function readFixtures(
 ): Promise<{ fixtures: IdentityFixtures; file: ProjectFile | undefined; issues: LoadIssue[] }> {
   const file = await readProjectFile(root, FIXTURES_FILE);
   if (file === undefined) return { fixtures: {}, file, issues: [] };
-  const parsed = parseFile(file, IdentityFixtures, "Give each fixture entry a mapping of field names to strings.");
+  const parsed = parseFile(
+    file,
+    IdentityFixtures,
+    "Give each fixture entry a mapping of field names to strings.",
+  );
   return { fixtures: parsed.data ?? {}, file, issues: parsed.issues };
 }
 
@@ -581,7 +650,10 @@ function challengeKinds(
   const issues: LoadIssue[] = [];
   const named: [string, PropertyKey[]][] = [
     ...Object.entries(config.envs).flatMap(([env, { challenges }]) =>
-      Object.keys(challenges).map((name): [string, PropertyKey[]] => [name, ["envs", env, "challenges", name]]),
+      Object.keys(challenges).map((name): [string, PropertyKey[]] => [
+        name,
+        ["envs", env, "challenges", name],
+      ]),
     ),
     ...config.challenges.humanOnly.map((name, index): [string, PropertyKey[]] => [
       name,
@@ -594,16 +666,24 @@ function challengeKinds(
       kinds.set(name, registry.kind(name));
     } catch (error) {
       // kind() throws only for a name no plugin registered
-      const fix = "Use a challenge kind that core or a plugin defines, or add the plugin that defines this one.";
-      issues.push(schemaIssue(configFile.path, lineAt(configFile, path), (error as Error).message, fix));
+      const fix =
+        "Use a challenge kind that core or a plugin defines, or add the plugin that defines this one.";
+      issues.push(
+        schemaIssue(configFile.path, lineAt(configFile, path), (error as Error).message, fix),
+      );
     }
   }
   return { kinds, issues };
 }
 
-function chainResolvers(config: ProjectConfig, registry: PluginRegistry): Map<string, ChallengeResolver> {
+function chainResolvers(
+  config: ProjectConfig,
+  registry: PluginRegistry,
+): Map<string, ChallengeResolver> {
   const resolvers = new Map<string, ChallengeResolver>();
-  for (const name of Object.values(config.envs).flatMap(({ challenges }) => Object.values(challenges).flat())) {
+  for (const name of Object.values(config.envs).flatMap(({ challenges }) =>
+    Object.values(challenges).flat(),
+  )) {
     if (resolvers.has(name)) continue;
     try {
       resolvers.set(name, registry.resolver(name));
@@ -680,7 +760,11 @@ async function readMappings(
         });
         continue;
       }
-      const result = parseFile(file, MappingFile, "Give the mapping file a tests map of test titles to case ids.");
+      const result = parseFile(
+        file,
+        MappingFile,
+        "Give the mapping file a tests map of test titles to case ids.",
+      );
       issues.push(...result.issues.map((issue) => ({ ...issue, ruleId: MAPPING_RULE })));
       entry = { file, data: result.data };
       parsed.set(mapping, entry);
@@ -712,7 +796,8 @@ async function gitIgnoredStateDirs(root: string): Promise<Set<string> | undefine
     // <source>:<line>:<pattern><tab><path>
     const [, source = "", pattern = "", path = ""] = /^(.*?):\d+:(.*)\t(.*)$/.exec(line) ?? [];
     // .git/info/exclude and the user's global excludes file never reach teammates
-    if (posix.basename(source) === ".gitignore" && !pattern.startsWith("!")) ignored.add(path.replace(/\/$/, ""));
+    if (posix.basename(source) === ".gitignore" && !pattern.startsWith("!"))
+      ignored.add(path.replace(/\/$/, ""));
   }
   return ignored;
 }
@@ -748,7 +833,10 @@ function parseFile<S extends z.ZodType>(
   // a file with only comments parses to null
   const result = schema.safeParse(file.doc.toJS() ?? {});
   if (result.success) return { data: result.data, issues: [] };
-  return { data: undefined, issues: result.error.issues.map((issue) => zodIssue(file, issue, fix)) };
+  return {
+    data: undefined,
+    issues: result.error.issues.map((issue) => zodIssue(file, issue, fix)),
+  };
 }
 
 function syntaxIssues(file: ProjectFile): LoadIssue[] {
@@ -758,13 +846,19 @@ function syntaxIssues(file: ProjectFile): LoadIssue[] {
 }
 
 function zodIssue(file: ProjectFile, issue: z.core.$ZodIssue, fix: string): LoadIssue {
-  const path = issue.code === "unrecognized_keys" ? [...issue.path, ...issue.keys.slice(0, 1)] : issue.path;
+  const path =
+    issue.code === "unrecognized_keys" ? [...issue.path, ...issue.keys.slice(0, 1)] : issue.path;
   const where = issue.path
     .map((segment, index) =>
       typeof segment === "number" ? `[${segment}]` : `${index === 0 ? "" : "."}${String(segment)}`,
     )
     .join("");
-  return schemaIssue(file.path, lineAt(file, path), where === "" ? issue.message : `${where}: ${issue.message}`, fix);
+  return schemaIssue(
+    file.path,
+    lineAt(file, path),
+    where === "" ? issue.message : `${where}: ${issue.message}`,
+    fix,
+  );
 }
 
 function schemaIssue(file: string, line: number, message: string, fix: string): LoadIssue {
@@ -784,7 +878,12 @@ async function readProjectFile(root: string, path: string): Promise<ProjectFile 
   const text = await readText(join(root, path));
   if (text === undefined) return undefined;
   const lines = new LineCounter();
-  return { path, text, doc: parseDocument(text, { lineCounter: lines, prettyErrors: false }), lines };
+  return {
+    path,
+    text,
+    doc: parseDocument(text, { lineCounter: lines, prettyErrors: false }),
+    lines,
+  };
 }
 
 async function readText(path: string): Promise<string | undefined> {

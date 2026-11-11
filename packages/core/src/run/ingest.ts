@@ -67,8 +67,20 @@ export async function ingestResults(options: IngestOptions): Promise<CaseResult[
   const runId = basename(runDir);
   const log = new RunLog(redactor);
   const startedAt = new Date();
-  const record = { project, registry, redactor, log: log.line, target, runDir, runId, envName: env.name, seed };
-  const open = cases.filter((_, index) => plan.cases[index]?.blocked === undefined).map(({ spec }) => spec);
+  const record = {
+    project,
+    registry,
+    redactor,
+    log: log.line,
+    target,
+    runDir,
+    runId,
+    envName: env.name,
+    seed,
+  };
+  const open = cases
+    .filter((_, index) => plan.cases[index]?.blocked === undefined)
+    .map(({ spec }) => spec);
   const suite =
     open.length === 0
       ? { results: [], unmapped: [] }
@@ -137,7 +149,9 @@ export interface SuiteRecord {
  * Parses the files with the runner's format, maps their tests to cases and writes one result per case. A file
  * that does not parse is logged; when none parses, the cases without tests are blocked with the first error.
  */
-export async function recordSuite(record: SuiteRecord): Promise<{ results: CaseResult[]; unmapped: UnmappedTest[] }> {
+export async function recordSuite(
+  record: SuiteRecord,
+): Promise<{ results: CaseResult[]; unmapped: UnmappedTest[] }> {
   const { project, target } = record;
   // the run builds a suite only from cases the plan gave a runner, and ingestResults checks its target first
   const { name, runner } = runnerOf(project.config, target)!;
@@ -149,7 +163,9 @@ export async function recordSuite(record: SuiteRecord): Promise<{ results: CaseR
       tests.push(...(await format.parse({ path: file.path, text: await file.read() })));
     } catch (error) {
       // a process plugin's format can fail in ways of its own, such as by exiting
-      errors.push(error instanceof ResultParseError ? error.message : `${file.path}: ${messageOf(error)}`);
+      errors.push(
+        error instanceof ResultParseError ? error.message : `${file.path}: ${messageOf(error)}`,
+      );
       record.log(`[${target}] ${errors.at(-1)}`);
     }
   }

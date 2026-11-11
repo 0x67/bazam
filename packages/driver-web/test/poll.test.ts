@@ -28,7 +28,9 @@ describe("poll", () => {
   });
 
   it("throws any other error at once", async () => {
-    const broken = new Error("locator.allTextContents: Target page, context or browser has been closed");
+    const broken = new Error(
+      "locator.allTextContents: Target page, context or browser has been closed",
+    );
     let calls = 0;
     const read = async (): Promise<string> => {
       calls += 1;
@@ -40,7 +42,12 @@ describe("poll", () => {
   });
 
   it("returns the last value read when the time runs out on an interrupted read", async () => {
-    const seen = await poll(reads<string>("Order form", NAVIGATED), (text) => text === "Receipt by GET", 30, 1);
+    const seen = await poll(
+      reads<string>("Order form", NAVIGATED),
+      (text) => text === "Receipt by GET",
+      30,
+      1,
+    );
 
     expect(seen).toEqual({ value: "Order form", ok: false });
   });
@@ -52,9 +59,11 @@ describe("poll", () => {
   it("tells a navigation error from other errors", () => {
     expect(navigatedDuringRead(NAVIGATED)).toBe(true);
     expect(navigatedDuringRead(new Error("frame.evaluate: Frame was detached"))).toBe(true);
-    expect(navigatedDuringRead(new Error("locator.isVisible: Target page, context or browser has been closed"))).toBe(
-      false,
-    );
+    expect(
+      navigatedDuringRead(
+        new Error("locator.isVisible: Target page, context or browser has been closed"),
+      ),
+    ).toBe(false);
     expect(navigatedDuringRead("Execution context was destroyed")).toBe(false);
   });
 });

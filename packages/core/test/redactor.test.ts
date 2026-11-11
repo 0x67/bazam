@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { RedactionConfig, Redactor, defaultRedactionRules, isTestEmailDomain } from "../src/redact/index.ts";
+import {
+  RedactionConfig,
+  Redactor,
+  defaultRedactionRules,
+  isTestEmailDomain,
+} from "../src/redact/index.ts";
 
 function defaultRedactor(): Redactor {
   return new Redactor(defaultRedactionRules());
@@ -69,7 +74,11 @@ describe("Redactor", () => {
     expect(defaultRedactor().value(input)).toEqual({
       user: "ops@example.test",
       accessToken: "[redacted]",
-      headers: { Authorization: "[redacted]", "X-Api-Key": "[redacted]", accept: "application/json" },
+      headers: {
+        Authorization: "[redacted]",
+        "X-Api-Key": "[redacted]",
+        accept: "application/json",
+      },
       otp: "[redacted]",
       totpSeed: "[redacted]",
       cookies: "[redacted]",
@@ -79,7 +88,10 @@ describe("Redactor", () => {
   });
 
   it("masks a passkey's private key under either spelling", () => {
-    const input = { passkeys: [{ credentialId: "cred-1", privateKey: "fake-key-a" }], private_key: "fake-key-b" };
+    const input = {
+      passkeys: [{ credentialId: "cred-1", privateKey: "fake-key-a" }],
+      private_key: "fake-key-b",
+    };
 
     expect(defaultRedactor().value(input)).toEqual({
       passkeys: [{ credentialId: "cred-1", privateKey: "[redacted]" }],
@@ -102,7 +114,10 @@ describe("Redactor", () => {
     expect(redactor.text("account 123456789012, ref.123456789, short 1234567")).toBe(
       "account ••••9012, ref.••••6789, short 1234567",
     );
-    expect(redactor.value({ account: 123456789012, amount: 12.5 })).toEqual({ account: "••••9012", amount: 12.5 });
+    expect(redactor.value({ account: 123456789012, amount: 12.5 })).toEqual({
+      account: "••••9012",
+      amount: 12.5,
+    });
   });
 
   it("masks the whole local part of emails with non-ASCII domains or RFC 5322 characters", () => {
@@ -118,7 +133,8 @@ describe("Redactor", () => {
   });
 
   it("keeps run ids readable in markers and run paths", () => {
-    const text = "marker case:AUTH-X-001:20261106-164200-ab12 in runs/20261106-164200-ab12/result.json";
+    const text =
+      "marker case:AUTH-X-001:20261106-164200-ab12 in runs/20261106-164200-ab12/result.json";
 
     expect(defaultRedactor().text(text)).toBe(text);
   });
@@ -164,7 +180,9 @@ describe("Redactor", () => {
     const redactor = defaultRedactor();
     redactor.configure({ patterns: ["ACCT-\\d+", "x*"], screenshotSelectors: [] });
 
-    expect(redactor.text("acct ACCT-123456789 ref 123456789 box")).toBe("acct [redacted] ref ••••6789 bo[redacted]");
+    expect(redactor.text("acct ACCT-123456789 ref 123456789 box")).toBe(
+      "acct [redacted] ref ••••6789 bo[redacted]",
+    );
     expect(redactor.value({ note: ["ACCT-42"] })).toEqual({ note: ["[redacted]"] });
   });
 
@@ -185,9 +203,9 @@ describe("Redactor", () => {
     redactor.register("hunter22");
     redactor.configure({ patterns: ["ACCT-\\d+", "\\d{3}-"], screenshotSelectors: [] });
 
-    expect(redactor.maskConfigured("ACCT-4821 ACCT-482-1 at 1731234567890 to ops@mail.invalid hunter22")).toBe(
-      "[redacted] [redacted]1 at 1731234567890 to ops@mail.invalid hunter22",
-    );
+    expect(
+      redactor.maskConfigured("ACCT-4821 ACCT-482-1 at 1731234567890 to ops@mail.invalid hunter22"),
+    ).toBe("[redacted] [redacted]1 at 1731234567890 to ops@mail.invalid hunter22");
   });
 
   it("adds configured screenshot selectors to its own, and a later configure replaces the earlier one", () => {
@@ -205,12 +223,14 @@ describe("Redactor", () => {
 
 describe("isTestEmailDomain", () => {
   it("accepts the example domains and their subdomains and refuses lookalikes", () => {
-    expect(["example.test", "uat.example.com", "EXAMPLE.ORG"].map(isTestEmailDomain)).toEqual([true, true, true]);
-    expect(["corp.example.com.evil.test", "notexample.test", "mail.invalid"].map(isTestEmailDomain)).toEqual([
-      false,
-      false,
-      false,
+    expect(["example.test", "uat.example.com", "EXAMPLE.ORG"].map(isTestEmailDomain)).toEqual([
+      true,
+      true,
+      true,
     ]);
+    expect(
+      ["corp.example.com.evil.test", "notexample.test", "mail.invalid"].map(isTestEmailDomain),
+    ).toEqual([false, false, false]);
   });
 });
 
@@ -221,7 +241,12 @@ describe("RedactionConfig", () => {
     const result = RedactionConfig.safeParse({ patterns: ["ok-\\d+", "(unclosed"] });
 
     expect(result.error?.issues.map((issue) => [issue.path, issue.message])).toEqual([
-      [["patterns", 1], expect.stringMatching(/^not a regular expression: Invalid regular expression: \/\(unclosed\//)],
+      [
+        ["patterns", 1],
+        expect.stringMatching(
+          /^not a regular expression: Invalid regular expression: \/\(unclosed\//,
+        ),
+      ],
     ]);
   });
 
@@ -241,6 +266,8 @@ describe("RedactionConfig", () => {
       ["patterns", 0],
       ["patterns", 1],
     ]);
-    expect(result.error?.issues[0]?.message).toMatch(/^repeats a group that holds a repeat, as \(\\w\+\\s\?\)\+ does/);
+    expect(result.error?.issues[0]?.message).toMatch(
+      /^repeats a group that holds a repeat, as \(\\w\+\\s\?\)\+ does/,
+    );
   });
 });

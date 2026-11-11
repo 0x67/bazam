@@ -25,8 +25,12 @@ it("reports a scoped package name used as a string but not in import or export s
     ].join("\n"),
   );
 
-  const result = spawnSync(process.execPath, [path.join(copy, "scripts", "brand-check.ts")], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [path.join(copy, "scripts", "brand-check.ts")], {
+    encoding: "utf8",
+  });
 
   expect(result.status).toBe(1);
-  expect(result.stdout).toBe(`${source}:4: export const plugin = { name: "${BRAND.scope}/resolvers" };\n`);
+  expect(result.stdout).toBe(
+    `${source}:4: export const plugin = { name: "${BRAND.scope}/resolvers" };\n`,
+  );
 });

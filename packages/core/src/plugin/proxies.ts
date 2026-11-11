@@ -1,6 +1,13 @@
 import { z } from "zod";
 import type { ChallengeResolver, ResolverContext } from "../challenge/index.ts";
-import type { CaseEnding, Driver, DriverSession, LaunchOptions, StepContext, StepHandler } from "../driver/index.ts";
+import type {
+  CaseEnding,
+  Driver,
+  DriverSession,
+  LaunchOptions,
+  StepContext,
+  StepHandler,
+} from "../driver/index.ts";
 import type { Environment } from "../env/index.ts";
 import type { TrackerClient, TrackerClientContext, TrackerConnection } from "../report/index.ts";
 import type { ContributionsDescriptor, METHODS } from "./protocol.ts";
@@ -16,7 +23,12 @@ export type PluginCall = <M extends keyof Methods>(
 ) => Promise<z.output<Methods[M]["result"]>>;
 
 /** An in-process context that the plugin's `host.*` callbacks reach by `contextId` while its call runs. */
-export type HostContext = ResolverContext | StepContext | LaunchOptions | TrackerClientContext | CaseEnding;
+export type HostContext =
+  | ResolverContext
+  | StepContext
+  | LaunchOptions
+  | TrackerClientContext
+  | CaseEnding;
 
 export interface HostCalls {
   /** Returns a fresh `contextId` for `context`. */
@@ -47,7 +59,9 @@ export function proxyContributions(
 ): Omit<PluginManifest, "name" | "apiVersion"> {
   for (const key of Object.keys(descriptor)) {
     if (!OFFERED.has(key)) {
-      throw new Error(`plugin ${plugin} offers ${key}, which a process plugin cannot offer; load it in-process`);
+      throw new Error(
+        `plugin ${plugin} offers ${key}, which a process plugin cannot offer; load it in-process`,
+      );
     }
   }
   const within: Within = async (context, run) => {
@@ -69,7 +83,9 @@ export function proxyContributions(
       name,
       parse: (file) => call("results.parse", { format: name, file }),
     })),
-    trackerClients: (descriptor.trackerClients ?? []).map(({ tracker }) => trackerClientProxy(call, within, tracker)),
+    trackerClients: (descriptor.trackerClients ?? []).map(({ tracker }) =>
+      trackerClientProxy(call, within, tracker),
+    ),
     drivers: (descriptor.drivers ?? []).map((spec) => driverProxy(call, within, plugin, spec)),
   };
 }
@@ -87,7 +103,11 @@ function resolverProxy(
     automated: spec.automated,
     async resolve(request, ctx, kind) {
       const answer = await within(ctx, (contextId) =>
-        call("resolver.resolve", { resolver, request, kind, context: resolverCallContext(contextId, ctx) }, ctx.signal),
+        call(
+          "resolver.resolve",
+          { resolver, request, kind, context: resolverCallContext(contextId, ctx) },
+          ctx.signal,
+        ),
       );
       return answer ?? undefined;
     },
@@ -95,7 +115,11 @@ function resolverProxy(
   if (spec.arm) {
     proxy.arm = async (request, ctx) => {
       await within(ctx, (contextId) =>
-        call("resolver.arm", { resolver, request, context: resolverCallContext(contextId, ctx) }, ctx.signal),
+        call(
+          "resolver.arm",
+          { resolver, request, context: resolverCallContext(contextId, ctx) },
+          ctx.signal,
+        ),
       );
     };
   }
@@ -110,18 +134,31 @@ function trackerClientProxy(call: PluginCall, within: Within, tracker: string): 
         call("trackerClient.connect", { tracker, contextId, config: ctx.config }, ctx.signal),
       );
       // each call on the connection registers connect's context again, under a fresh contextId
-      const on = <T>(run: (ids: { tracker: string; connection: string; contextId: string }) => Promise<T>) =>
-        within(ctx, (contextId) => run({ tracker, connection, contextId }));
+      const on = <T>(
+        run: (ids: { tracker: string; connection: string; contextId: string }) => Promise<T>,
+      ) => within(ctx, (contextId) => run({ tracker, connection, contextId }));
       const proxy: TrackerConnection = {
         ticket: (key) => on((ids) => call("trackerClient.ticket", { ...ids, key }, ctx.signal)),
         async attach(key, files) {
-          await on((ids) => call("trackerClient.attach", { ...ids, key, files: [...files] }, ctx.signal));
+          await on((ids) =>
+            call("trackerClient.attach", { ...ids, key, files: [...files] }, ctx.signal),
+          );
         },
         postComment: (key, comment, mentions) =>
-          on((ids) => call("trackerClient.postComment", { ...ids, key, comment, mentions: [...mentions] }, ctx.signal)),
+          on((ids) =>
+            call(
+              "trackerClient.postComment",
+              { ...ids, key, comment, mentions: [...mentions] },
+              ctx.signal,
+            ),
+          ),
         async editComment(key, url, comment, mentions) {
           const edited = await on((ids) =>
-            call("trackerClient.editComment", { ...ids, key, url, comment, mentions: [...mentions] }, ctx.signal),
+            call(
+              "trackerClient.editComment",
+              { ...ids, key, url, comment, mentions: [...mentions] },
+              ctx.signal,
+            ),
           );
           return edited ?? undefined;
         },
@@ -130,10 +167,13 @@ function trackerClientProxy(call: PluginCall, within: Within, tracker: string): 
         },
         async findOpenBug(project, label) {
           return (
-            (await on((ids) => call("trackerClient.findOpenBug", { ...ids, project, label }, ctx.signal))) ?? undefined
+            (await on((ids) =>
+              call("trackerClient.findOpenBug", { ...ids, project, label }, ctx.signal),
+            )) ?? undefined
           );
         },
-        createBug: (draft) => on((ids) => call("trackerClient.createBug", { ...ids, draft }, ctx.signal)),
+        createBug: (draft) =>
+          on((ids) => call("trackerClient.createBug", { ...ids, draft }, ctx.signal)),
       };
       return proxy;
     },
@@ -154,12 +194,18 @@ function driverProxy(
     schema: stepSchema(plugin, kind, schema),
     async run(step, ctx) {
       const session = sessions.get(ctx.session);
-      if (session === undefined) throw new Error(`step ${kind} runs in a session that driver ${driver} did not launch`);
+      if (session === undefined)
+        throw new Error(`step ${kind} runs in a session that driver ${driver} did not launch`);
       await within(ctx, (contextId) =>
         call(
           "driver.step",
           // the case loader parsed the payload from YAML, so it is JSON
-          { session, kind, step: step as z.core.util.JSONType, context: stepCallContext(contextId, ctx) },
+          {
+            session,
+            kind,
+            step: step as z.core.util.JSONType,
+            context: stepCallContext(contextId, ctx),
+          },
           ctx.signal,
         ),
       );
@@ -214,7 +260,9 @@ function wireEnv(env: Environment) {
     production: env.production,
     vars: { ...env.vars },
     hosts: [...env.hosts],
-    challenges: Object.fromEntries(Object.entries(env.challenges).map(([kind, chain]) => [kind, [...chain]])),
+    challenges: Object.fromEntries(
+      Object.entries(env.challenges).map(([kind, chain]) => [kind, [...chain]]),
+    ),
     locale: env.locale,
   };
 }

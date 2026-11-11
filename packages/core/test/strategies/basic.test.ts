@@ -12,7 +12,9 @@ describe("basicStrategy", () => {
     server = await serve((request, response) => {
       const [scheme, encoded = ""] = (request.headers.authorization ?? "").split(" ");
       const pair = Buffer.from(encoded, "base64").toString("utf8");
-      response.writeHead(scheme === "Basic" && pair === "fake-user:fake-password" ? 200 : 401).end();
+      response
+        .writeHead(scheme === "Basic" && pair === "fake-user:fake-password" ? 200 : 401)
+        .end();
     });
   });
 
@@ -32,7 +34,11 @@ describe("basicStrategy", () => {
   it("gives a browser session the user and password as HTTP credentials and sets no extra header", async () => {
     const session = new FakeBrowserSession();
 
-    await basicStrategy.apply({ user: "fake-user", password: "fake-password" }, { kind: "browser", session }, SETTINGS);
+    await basicStrategy.apply(
+      { user: "fake-user", password: "fake-password" },
+      { kind: "browser", session },
+      SETTINGS,
+    );
 
     expect(session.httpCredentials).toEqual({ username: "fake-user", password: "fake-password" });
     expect(session.extraHeaders).toEqual({});
@@ -47,6 +53,8 @@ describe("basicStrategy", () => {
     expect(redacted(secrets, `Authorization: ${request.headers.get("authorization")}`)).toBe(
       "Authorization: Basic [redacted]",
     );
-    expect(redacted(secrets, JSON.stringify(credential))).toBe('{"user":"fake-user","password":"[redacted]"}');
+    expect(redacted(secrets, JSON.stringify(credential))).toBe(
+      '{"user":"fake-user","password":"[redacted]"}',
+    );
   });
 });

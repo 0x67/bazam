@@ -1,5 +1,10 @@
 import { BRAND } from "@bazam/core/brand";
-import { promoteCase, type CaseSpec, type LoadedCase, type PromoteDecision } from "@bazam/core/case";
+import {
+  promoteCase,
+  type CaseSpec,
+  type LoadedCase,
+  type PromoteDecision,
+} from "@bazam/core/case";
 import type { Project, ProjectConfig } from "@bazam/core/project";
 import {
   ticketRef,
@@ -25,7 +30,9 @@ export async function promoteCommand(ctx: CommandContext): Promise<ExitCode> {
   const target = namedCase(ctx, project);
   const env = envName(ctx, project);
   const decision = await promoteCase(project.root, target, env);
-  const text = decision.ok ? `promoted ${target.spec.id} to regression` : `not promoted: ${decision.reason}`;
+  const text = decision.ok
+    ? `promoted ${target.spec.id} to regression`
+    : `not promoted: ${decision.reason}`;
   ctx.out.result({ caseId: target.spec.id, ...decision }, `${text}\n`);
   return decision.ok ? ExitCode.Pass : ExitCode.Fail;
 }
@@ -37,7 +44,9 @@ export async function promoteCommand(ctx: CommandContext): Promise<ExitCode> {
  */
 async function promoteFromTracker(ctx: CommandContext): Promise<ExitCode> {
   if (ctx.args.length > 0) {
-    throw new CommandError("promote --from-tracker takes selection flags, such as --case <id>, not a case id");
+    throw new CommandError(
+      "promote --from-tracker takes selection flags, such as --case <id>, not a case id",
+    );
   }
   const workspace = await ctx.load();
   const { project } = workspace;
@@ -97,13 +106,20 @@ function ticketReader(ctx: CommandContext, { project, registry }: Workspace): Ti
  * Reads the case's linked tickets in link order, stopping before the first whose tracker is not in `trackers`
  * or whose project is not in `trackers.<tracker>.projects`.
  */
-async function trackerVerdict(spec: CaseSpec, config: ProjectConfig, read: TicketReader): Promise<TicketVerdict> {
+async function trackerVerdict(
+  spec: CaseSpec,
+  config: ProjectConfig,
+  read: TicketReader,
+): Promise<TicketVerdict> {
   const states = new Map<string, TicketState>();
   for (const link of spec.links) {
     const { tracker, key } = ticketRef(link);
-    const trackerConfig = Object.hasOwn(config.trackers, tracker) ? config.trackers[tracker] : undefined;
+    const trackerConfig = Object.hasOwn(config.trackers, tracker)
+      ? config.trackers[tracker]
+      : undefined;
     // ticketsReadyForPromotion names the project that is not listed
-    if (trackerConfig === undefined || !Object.hasOwn(trackerConfig.projects, trackerProject(key))) break;
+    if (trackerConfig === undefined || !Object.hasOwn(trackerConfig.projects, trackerProject(key)))
+      break;
     try {
       states.set(link, await read(tracker, key));
     } catch (error) {
@@ -132,6 +148,8 @@ export function namedCase(ctx: CommandContext, project: Project): LoadedCase {
   if (id === undefined) throw new CommandError("name the case id");
   const found = project.cases.find((loaded) => loaded.spec.id === id);
   if (found === undefined)
-    throw new CommandError(`no case ${id} loaded; run ${BRAND.name} check to see the cases that do not load`);
+    throw new CommandError(
+      `no case ${id} loaded; run ${BRAND.name} check to see the cases that do not load`,
+    );
   return found;
 }

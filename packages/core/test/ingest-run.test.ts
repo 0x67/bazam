@@ -31,7 +31,8 @@ function cartCase(id: string, fields: Record<string, unknown> = {}): Record<stri
   };
 }
 
-const junit = (...testcases: string[]) => `<testsuite name="shop">\n${testcases.join("\n")}\n</testsuite>\n`;
+const junit = (...testcases: string[]) =>
+  `<testsuite name="shop">\n${testcases.join("\n")}\n</testsuite>\n`;
 
 interface IngestSetup {
   cases: readonly Record<string, unknown>[];
@@ -51,7 +52,11 @@ async function ingest(setup: IngestSetup): Promise<{ results: CaseResult[]; runD
       live: { production: true, hosts: ["127.0.0.1"] },
     },
     runners: {
-      shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: setup.format ?? "junit" },
+      shop: {
+        command: ["node", "suite.js"],
+        results: "reports/*.xml",
+        format: setup.format ?? "junit",
+      },
     },
     targets: { "shop-chrome": { runner: "shop" } },
     ...(setup.secrets === undefined ? {} : { secrets: { names: setup.secrets } }),
@@ -76,7 +81,9 @@ async function ingest(setup: IngestSetup): Promise<{ results: CaseResult[]; runD
   return { results, runDir };
 }
 
-function outcomes(results: readonly CaseResult[]): { caseId: string; status: string; reason: string | undefined }[] {
+function outcomes(
+  results: readonly CaseResult[],
+): { caseId: string; status: string; reason: string | undefined }[] {
   return results.map(({ caseId, status, reason }) => ({ caseId, status, reason }));
 }
 
@@ -106,9 +113,13 @@ describe("ingestResults", () => {
         { caseId: "SHOP-CART-002", status: "fail" },
       ],
     });
-    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as { counts: unknown };
+    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as {
+      counts: unknown;
+    };
     expect(summary.counts).toEqual({ pass: 1, fail: 1, blocked: 0, followup: 0, total: 2 });
-    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: unknown[] };
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: unknown[];
+    };
     expect(postPlan.items).toHaveLength(2);
     expect(existsSync(join(runDir, "SHOP-CART-001", "result.json"))).toBe(true);
   });
@@ -126,7 +137,9 @@ describe("ingestResults", () => {
       },
       redactor,
     });
-    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as { unmapped: unknown };
+    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as {
+      unmapped: unknown;
+    };
     expect(summary.unmapped).toEqual([
       {
         target: "shop-chrome",
@@ -136,7 +149,9 @@ describe("ingestResults", () => {
     ]);
     for (const file of ["summary.json", "summary.md"])
       expect(await readFile(join(runDir, file), "utf8")).not.toContain(ORDER_REF);
-    expect(await readFile(join(runDir, "summary.md"), "utf8")).toContain("Cart › checks out order [redacted]");
+    expect(await readFile(join(runDir, "summary.md"), "utf8")).toContain(
+      "Cart › checks out order [redacted]",
+    );
   });
 
   it("masks the inherited value of a declared secret in every file it writes", async () => {
@@ -154,7 +169,12 @@ describe("ingestResults", () => {
         },
         secrets: [SECRET_NAME],
       });
-      for (const file of [join("SHOP-CART-001", "result.json"), "summary.json", "summary.md", "post-plan.json"]) {
+      for (const file of [
+        join("SHOP-CART-001", "result.json"),
+        "summary.json",
+        "summary.md",
+        "post-plan.json",
+      ]) {
         const text = await readFile(join(runDir, file), "utf8");
         expect(text, file).not.toContain(SECRET_VALUE);
         // the post plan's markdown escapes the brackets
@@ -205,11 +225,16 @@ describe("ingestResults", () => {
   it("writes nothing when a file cannot be read", async () => {
     const config = {
       envs: { demo: { production: false, hosts: ["127.0.0.1"] } },
-      runners: { shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" } },
+      runners: {
+        shop: { command: ["node", "suite.js"], results: "reports/*.xml", format: "junit" },
+      },
       targets: { "shop-chrome": { runner: "shop" } },
     };
     const { root, project, registry } = await loadTestProject(
-      { [BRAND.configFile]: config, "cases/shop/cart.yaml": { cases: [cartCase("SHOP-CART-001")] } },
+      {
+        [BRAND.configFile]: config,
+        "cases/shop/cart.yaml": { cases: [cartCase("SHOP-CART-001")] },
+      },
       [],
     );
     roots.push(root);

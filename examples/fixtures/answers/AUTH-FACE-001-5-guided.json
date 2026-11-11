@@ -1,1 +1,5 @@
-{ "kind": "verdict", "verdict": "pass", "note": "fixture answer: the dashboard shows the signed-in customer" }
+{
+  "kind": "verdict",
+  "verdict": "pass",
+  "note": "fixture answer: the dashboard shows the signed-in customer"
+}

@@ -10,7 +10,13 @@ import { inflateSync } from "node:zlib";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 const BIN = fileURLToPath(new URL("../src/main.ts", import.meta.url));
 const ORDER = "ORD-48213";
@@ -50,7 +56,9 @@ let webUrl: string;
 
 beforeAll(async () => {
   api = await startApi();
-  web = createServer((_req, res) => res.writeHead(200, { "content-type": "text/html" }).end(ACCOUNT_PAGE));
+  web = createServer((_req, res) =>
+    res.writeHead(200, { "content-type": "text/html" }).end(ACCOUNT_PAGE),
+  );
   await new Promise<void>((done) => web.listen(0, "127.0.0.1", done));
   webUrl = `http://127.0.0.1:${(web.address() as AddressInfo).port}`;
 });
@@ -86,7 +94,8 @@ function pixelAt(png: Buffer, x: number, y: number): [number, number, number] {
   const idat: Buffer[] = [];
   for (let at = 8; at < png.length;) {
     const length = png.readUInt32BE(at);
-    if (png.toString("latin1", at + 4, at + 8) === "IDAT") idat.push(png.subarray(at + 8, at + 8 + length));
+    if (png.toString("latin1", at + 4, at + 8) === "IDAT")
+      idat.push(png.subarray(at + 8, at + 8 + length));
     at += length + 12;
   }
   const data = inflateSync(Buffer.concat(idat));
@@ -119,8 +128,14 @@ function predict(filter: number | undefined, left: number, up: number, upLeft: n
 }
 
 /** Starts the mcp command on `root`, calls one tool and returns the text of its reply. */
-async function callMcpTool(root: string, name: string, args: Record<string, unknown>): Promise<string> {
-  const child = spawn(process.execPath, ["--conditions=development", BIN, "mcp", "--root", root], { stdio: "pipe" });
+async function callMcpTool(
+  root: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const child = spawn(process.execPath, ["--conditions=development", BIN, "mcp", "--root", root], {
+    stdio: "pipe",
+  });
   const exited = once(child, "exit");
   const replies = new Map<number, (result: unknown) => void>();
   createInterface({ input: child.stdout }).on("line", (line) => {
@@ -138,7 +153,9 @@ async function callMcpTool(root: string, name: string, args: Record<string, unkn
     const clientInfo = { name: "test-client", version: "0.0.0" };
     await request(1, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo });
     send({ method: "notifications/initialized" });
-    const result = (await request(2, "tools/call", { name, arguments: args })) as { content: { text: string }[] };
+    const result = (await request(2, "tools/call", { name, arguments: args })) as {
+      content: { text: string }[];
+    };
     return result.content.map((part) => part.text).join("\n");
   } finally {
     child.stdin.end();
@@ -174,10 +191,20 @@ describe("configured redaction", () => {
     const project = await redactingProject({ screenshotSelectors: ["#account"] });
     await project.write("cases/shop/account.yaml", ACCOUNT_CASE);
 
-    const { code, stderr } = await project.cli("run", "--env", "demo", "--case", "SHOP-ACCOUNT-001", "--run", "shot");
+    const { code, stderr } = await project.cli(
+      "run",
+      "--env",
+      "demo",
+      "--case",
+      "SHOP-ACCOUNT-001",
+      "--run",
+      "shot",
+    );
 
     expect(code, stderr).toBe(ExitCode.Pass);
-    const png = await readFile(join(project.root, "runs", "shot", "SHOP-ACCOUNT-001", "01-account.png"));
+    const png = await readFile(
+      join(project.root, "runs", "shot", "SHOP-ACCOUNT-001", "01-account.png"),
+    );
     // Playwright paints a masked element magenta; the page paints the block green
     expect(pixelAt(png, 150, 100)).toEqual([0xff, 0x00, 0xff]);
   }, 60_000);
@@ -186,7 +213,15 @@ describe("configured redaction", () => {
     const project = await redactingProject({ screenshotSelectors: ["#account["] });
     await project.write("cases/shop/account.yaml", ACCOUNT_CASE);
 
-    const { code, stderr } = await project.cli("run", "--env", "demo", "--case", "SHOP-ACCOUNT-001", "--run", "typo");
+    const { code, stderr } = await project.cli(
+      "run",
+      "--env",
+      "demo",
+      "--case",
+      "SHOP-ACCOUNT-001",
+      "--run",
+      "typo",
+    );
 
     expect(code, stderr).toBe(ExitCode.CouldNotStart);
     expect(stderr).toContain(
@@ -202,12 +237,15 @@ describe("configured redaction", () => {
 
     expect(text).not.toContain(ORDER);
     const { cases } = JSON.parse(text) as { cases: { id: string; title: string }[] };
-    expect(cases).toEqual([expect.objectContaining({ id: "SHOP-ORDER-001", title: "Order [redacted] ships" })]);
+    expect(cases).toEqual([
+      expect.objectContaining({ id: "SHOP-ORDER-001", title: "Order [redacted] ships" }),
+    ]);
   }, 30_000);
 
   it("reports a pattern that is not a regular expression on its line of the config", async () => {
     const project = await redactingProject({ patterns: ["ORD-\\d{5}", "(unclosed"] });
-    const line = (await project.read(BRAND.configFile)).split("\n").indexOf('      "(unclosed"') + 1;
+    const line =
+      (await project.read(BRAND.configFile)).split("\n").indexOf('      "(unclosed"') + 1;
 
     const { code, stdout } = await project.cli("check");
 

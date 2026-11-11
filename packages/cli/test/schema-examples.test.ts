@@ -28,7 +28,9 @@ afterEach(async () => {
 
 /** The schema errors of each YAML file under `dir`, keyed by its path relative to `dir`. */
 async function schemaErrors(dir: string): Promise<Map<string, string[]>> {
-  const files = (await readdir(dir, { recursive: true })).filter((file) => /\.ya?ml$/.test(file)).sort();
+  const files = (await readdir(dir, { recursive: true }))
+    .filter((file) => /\.ya?ml$/.test(file))
+    .sort();
   const errors = new Map<string, string[]>();
   for (const file of files) {
     const valid = validate(parse(await readFile(join(dir, file), "utf8")));
@@ -37,7 +39,8 @@ async function schemaErrors(dir: string): Promise<Map<string, string[]>> {
       valid
         ? []
         : (validate.errors ?? []).map(
-            ({ instancePath, keyword, params }) => `${instancePath} ${keyword} ${JSON.stringify(params)}`,
+            ({ instancePath, keyword, params }) =>
+              `${instancePath} ${keyword} ${JSON.stringify(params)}`,
           ),
     );
   }

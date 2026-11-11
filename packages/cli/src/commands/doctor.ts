@@ -4,7 +4,11 @@ import { CredentialCache, Identities } from "@bazam/core/auth";
 import { BRAND } from "@bazam/core/brand";
 import { stagePolicy } from "@bazam/core/case";
 import { phoneForm } from "@bazam/core/env";
-import { LOCAL_FIXTURES_FILE, declaredSecretNames, type IdentityFixtures } from "@bazam/core/project";
+import {
+  LOCAL_FIXTURES_FILE,
+  declaredSecretNames,
+  type IdentityFixtures,
+} from "@bazam/core/project";
 import { isTestEmailDomain } from "@bazam/core/redact";
 import { identitiesNamed } from "@bazam/core/run";
 import type { SecretProvider } from "@bazam/core/secrets";
@@ -33,7 +37,13 @@ export async function doctorCommand(ctx: CommandContext): Promise<number> {
   const providers = registry.secretProviders(config.secrets.providers);
   const stateDir = join(project.root, BRAND.stateDir);
   const sections = {
-    Secrets: await secretLines(ctx, config.secrets.providers, providers, declaredSecretNames(config), stateDir),
+    Secrets: await secretLines(
+      ctx,
+      config.secrets.providers,
+      providers,
+      declaredSecretNames(config),
+      stateDir,
+    ),
     "Local files": await fileLines(stateDir),
     Identities: [] as Line[],
   };
@@ -58,7 +68,9 @@ export async function doctorCommand(ctx: CommandContext): Promise<number> {
   for (const { spec } of project.cases) {
     if (!stagePolicy(spec.stage).runs || (env.production && !spec.prod_safe)) continue;
     for (const name of identitiesNamed(spec, project.flows)) {
-      for (const identity of Object.hasOwn(config.roles, name) ? config.roles[name]!.identities : [name])
+      for (const identity of Object.hasOwn(config.roles, name)
+        ? config.roles[name]!.identities
+        : [name])
         named.add(identity);
     }
   }
@@ -79,7 +91,11 @@ export async function doctorCommand(ctx: CommandContext): Promise<number> {
   ]);
   text.push(plural(problems.length, "problem"));
   // registered masking: the Secrets key would match the redactor's sensitive keys and mask its whole section
-  ctx.out.result({ env: env.name, ...sections, problems: problems.length }, `${text.join("\n")}\n`, "registered");
+  ctx.out.result(
+    { env: env.name, ...sections, problems: problems.length },
+    `${text.join("\n")}\n`,
+    "registered",
+  );
   return problems.length === 0 ? ExitCode.Pass : ExitCode.Fail;
 }
 
@@ -118,7 +134,9 @@ async function secretLines(
     const set = `set ${name} in ${file} or the environment`;
     lines.push({
       text: `${name}: no provider holds it`,
-      fix: providerNames.includes("1password") ? `add a 1Password reference under secrets.refs, or ${set}` : set,
+      fix: providerNames.includes("1password")
+        ? `add a 1Password reference under secrets.refs, or ${set}`
+        : set,
     });
   }
   return lines;
@@ -136,7 +154,9 @@ async function fileLines(stateDir: string): Promise<Line[]> {
   if (process.platform === "win32") return [{ text: `${file}: present` }];
   const octal = (mode & 0o777).toString(8).padStart(4, "0");
   if ((mode & 0o077) === 0) return [{ text: `${file}: present, mode ${octal}` }];
-  return [{ text: `${file}: present, mode ${octal}, readable by others`, fix: `chmod 600 ${file}` }];
+  return [
+    { text: `${file}: present, mode ${octal}, readable by others`, fix: `chmod 600 ${file}` },
+  ];
 }
 
 async function identityLines(
@@ -146,7 +166,12 @@ async function identityLines(
   identities: Identities,
 ): Promise<Line[]> {
   if (config === undefined) {
-    return [{ text: `${name}: not in identities`, fix: `add ${name} under identities in ${BRAND.configFile}` }];
+    return [
+      {
+        text: `${name}: not in identities`,
+        fix: `add ${name} under identities in ${BRAND.configFile}`,
+      },
+    ];
   }
   const lines: Line[] = [];
   if (config.fixture !== undefined) {
@@ -157,12 +182,15 @@ async function identityLines(
         fix: `add ${config.fixture} to ${LOCAL_FIXTURES_FILE}`,
       });
     } else {
-      for (const [field, value] of Object.entries(entry)) lines.push(...fieldLines(name, field, value));
+      for (const [field, value] of Object.entries(entry))
+        lines.push(...fieldLines(name, field, value));
     }
   }
   for (const surface of Object.keys(config.auth)) {
     try {
-      lines.push({ text: `${name}/${surface}: credential ${await identities.credentialState(name, surface)}` });
+      lines.push({
+        text: `${name}/${surface}: credential ${await identities.credentialState(name, surface)}`,
+      });
     } catch (error) {
       lines.push({
         text: `${name}/${surface}: credential state unknown: ${(error as Error).message}`,
@@ -184,10 +212,16 @@ function fieldLines(identity: string, field: string, value: string): Line[] {
   }
   if (/email$/i.test(field)) {
     const domain = EMAIL.exec(value)?.[1];
-    if (domain === undefined) return [{ text: `${at}: not an email address`, fix: `write ${at} as name@example.test` }];
+    if (domain === undefined)
+      return [{ text: `${at}: not an email address`, fix: `write ${at} as name@example.test` }];
     return isTestEmailDomain(domain)
       ? [{ text: `${at}: email, example domain` }]
-      : [{ text: `${at}: email, not on an example domain`, fix: `use an example.test address for ${at}` }];
+      : [
+          {
+            text: `${at}: email, not on an example domain`,
+            fix: `use an example.test address for ${at}`,
+          },
+        ];
   }
   if (SECRET_FIELD.test(field)) return [{ text: `${at}: ${plural(value.length, "character")}` }];
   return [];

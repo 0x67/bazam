@@ -3,7 +3,15 @@ import type { ServerResponse } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import type { BrowserLogin, BrowserLoginRequest, StorageState } from "../../src/auth/index.ts";
 import { oauth2Strategy } from "../../src/auth/strategies/index.ts";
-import { authContext, draft, redacted, sendWith, serve, type LocalServer, type ReceivedRequest } from "./support.ts";
+import {
+  authContext,
+  draft,
+  redacted,
+  sendWith,
+  serve,
+  type LocalServer,
+  type ReceivedRequest,
+} from "./support.ts";
 
 const CLIENT_SECRETS = new Map([
   ["fake-client", "fake-client-secret"],
@@ -33,11 +41,17 @@ class RedirectLogin implements BrowserLogin {
 function isConfidentialClient(request: ReceivedRequest, form: URLSearchParams): boolean {
   const authorization = request.headers.authorization;
   if (authorization === undefined)
-    return form.has("client_secret") && CLIENT_SECRETS.get(form.get("client_id") ?? "") === form.get("client_secret");
+    return (
+      form.has("client_secret") &&
+      CLIENT_SECRETS.get(form.get("client_id") ?? "") === form.get("client_secret")
+    );
   const pair = Buffer.from(authorization.replace(/^Basic /, ""), "base64").toString("utf8");
   const colon = pair.indexOf(":");
   const formDecoded = (part: string) => new URLSearchParams(`value=${part}`).get("value") ?? "";
-  return colon >= 0 && CLIENT_SECRETS.get(formDecoded(pair.slice(0, colon))) === formDecoded(pair.slice(colon + 1));
+  return (
+    colon >= 0 &&
+    CLIENT_SECRETS.get(formDecoded(pair.slice(0, colon))) === formDecoded(pair.slice(colon + 1))
+  );
 }
 
 function json(response: ServerResponse, status: number, body: object): void {
@@ -47,12 +61,20 @@ function json(response: ServerResponse, status: number, body: object): void {
 /** An authorization server that checks client authentication, single-use refresh tokens and PKCE. */
 function authorizationServer() {
   const accessTokens = new Set<string>();
-  const codes = new Map<string, { challenge: string | null; method: string | null; redirectUri: string | null }>();
+  const codes = new Map<
+    string,
+    { challenge: string | null; method: string | null; redirectUri: string | null }
+  >();
 
   const issue = (response: ServerResponse, extra: object = {}) => {
     const accessToken = `fake-access-${accessTokens.size + 1}`;
     accessTokens.add(accessToken);
-    json(response, 200, { access_token: accessToken, token_type: "Bearer", expires_in: 3600, ...extra });
+    json(response, 200, {
+      access_token: accessToken,
+      token_type: "Bearer",
+      expires_in: 3600,
+      ...extra,
+    });
   };
 
   const token = (request: ReceivedRequest, response: ServerResponse) => {
@@ -63,12 +85,18 @@ function authorizationServer() {
       form.get("client_id") === PUBLIC_CLIENT &&
       !form.has("client_secret");
     if (!confidential && !isPublic)
-      return json(response, 401, { error: "invalid_client", error_description: "fake-client-secret was wrong" });
+      return json(response, 401, {
+        error: "invalid_client",
+        error_description: "fake-client-secret was wrong",
+      });
     switch (form.get("grant_type")) {
       case "client_credentials":
-        return confidential ? issue(response) : json(response, 400, { error: "unauthorized_client" });
+        return confidential
+          ? issue(response)
+          : json(response, 400, { error: "unauthorized_client" });
       case "refresh_token":
-        if (form.get("refresh_token") === "fake-refresh-1") return issue(response, { refresh_token: "fake-refresh-2" });
+        if (form.get("refresh_token") === "fake-refresh-1")
+          return issue(response, { refresh_token: "fake-refresh-2" });
         // this one is not rotated
         if (form.get("refresh_token") === "fake-refresh-2") return issue(response);
         return json(response, 400, { error: "invalid_grant" });
@@ -78,7 +106,9 @@ function authorizationServer() {
           .update(form.get("code_verifier") ?? "")
           .digest("base64url");
         const valid =
-          grant?.method === "S256" && grant.challenge === challenge && grant.redirectUri === form.get("redirect_uri");
+          grant?.method === "S256" &&
+          grant.challenge === challenge &&
+          grant.redirectUri === form.get("redirect_uri");
         codes.delete(form.get("code") ?? "");
         return valid
           ? issue(response, { refresh_token: "fake-refresh-1" })
@@ -247,7 +277,9 @@ describe("oauth2Strategy", () => {
   it("refuses the code when the redirect carries another state than the login sent", async () => {
     const ctx = authContext({ browser: new RedirectLogin("fake-forged-state") });
 
-    await expect(oauth2Strategy.acquire(oauth2Strategy.config.parse(authorizationCode), ctx)).rejects.toThrow(
+    await expect(
+      oauth2Strategy.acquire(oauth2Strategy.config.parse(authorizationCode), ctx),
+    ).rejects.toThrow(
       "the state in the redirect differs from the one the login sent, so its code is refused",
     );
   });
@@ -259,7 +291,9 @@ describe("oauth2Strategy", () => {
       clientSecret: "fake-wrong-secret",
     });
 
-    const failure = await oauth2Strategy.acquire(config, authContext()).catch((error: unknown) => error);
+    const failure = await oauth2Strategy
+      .acquire(config, authContext())
+      .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toBe(
@@ -304,15 +338,33 @@ describe("oauth2Strategy", () => {
         { grant: "authorization-code" },
       ),
     ).toBe(true);
-    expect(oauth2Strategy.canRefresh?.({ accessToken: "fake-access-1" }, { grant: "client-credentials" })).toBe(true);
-    expect(oauth2Strategy.canRefresh?.({ accessToken: "fake-access-1" }, { grant: "authorization-code" })).toBe(false);
+    expect(
+      oauth2Strategy.canRefresh?.(
+        { accessToken: "fake-access-1" },
+        { grant: "client-credentials" },
+      ),
+    ).toBe(true);
+    expect(
+      oauth2Strategy.canRefresh?.(
+        { accessToken: "fake-access-1" },
+        { grant: "authorization-code" },
+      ),
+    ).toBe(false);
   });
 
   it("needs a person only for the authorization-code grant, reading unresolved settings", () => {
-    expect(oauth2Strategy.needsPerson?.({ grant: "authorization-code", clientId: "${secret.CLIENT_ID}" })).toBe(true);
-    expect(oauth2Strategy.needsPerson?.({ grant: "client-credentials", clientSecret: "${secret.CLIENT_SECRET}" })).toBe(
-      false,
-    );
+    expect(
+      oauth2Strategy.needsPerson?.({
+        grant: "authorization-code",
+        clientId: "${secret.CLIENT_ID}",
+      }),
+    ).toBe(true);
+    expect(
+      oauth2Strategy.needsPerson?.({
+        grant: "client-credentials",
+        clientSecret: "${secret.CLIENT_SECRET}",
+      }),
+    ).toBe(false);
   });
 
   it("the redactor masks the bearer header and the credential's tokens", async () => {

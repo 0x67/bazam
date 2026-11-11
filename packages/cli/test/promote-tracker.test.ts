@@ -2,7 +2,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { BRAND } from "@bazam/core/brand";
 import { startJiraStub, type JiraStub } from "../../tracker-jira/test/support/jira-stub.ts";
 import { ExitCode } from "../src/exit.ts";
-import { fixtureProject, removeFixtures, startApi, type Api, type Fixture } from "./support/project.ts";
+import {
+  fixtureProject,
+  removeFixtures,
+  startApi,
+  type Api,
+  type Fixture,
+} from "./support/project.ts";
 
 const EMAIL = "qa@example.test";
 const TOKEN = "not-a-real-jira-token";
@@ -70,7 +76,10 @@ async function trackedProject(options: { site?: boolean } = {}): Promise<Fixture
     projects: { DEMO: { promoteOn: ["Done", "Released"] } },
   };
   await project.write(BRAND.configFile, JSON.stringify({ ...config, trackers: { jira } }));
-  await project.write(`${BRAND.stateDir}/secrets.env`, `DEMO_JIRA_EMAIL=${EMAIL}\nDEMO_JIRA_TOKEN=${TOKEN}\n`);
+  await project.write(
+    `${BRAND.stateDir}/secrets.env`,
+    `DEMO_JIRA_EMAIL=${EMAIL}\nDEMO_JIRA_TOKEN=${TOKEN}\n`,
+  );
   await project.write(CASES_FILE, shopCases());
   return project;
 }
@@ -79,15 +88,30 @@ describe("promote --from-tracker", () => {
   it("promotes only ready cases with a passing result, editing only their stage lines", async () => {
     const project = await trackedProject();
     expect((await project.cli("run", "--env", "demo", "--run", "r1")).code).toBe(ExitCode.Fail);
-    const { code, stdout, stderr } = await project.cli("promote", "--from-tracker", "--env", "demo", "--json");
+    const { code, stdout, stderr } = await project.cli(
+      "promote",
+      "--from-tracker",
+      "--env",
+      "demo",
+      "--json",
+    );
     expect(code, stderr).toBe(ExitCode.Pass);
     expect(JSON.parse(stdout)).toEqual({
       promoted: ["SHOP-READY-001"],
       stayed: [
         { caseId: "SHOP-WAIT-001", reason: "DEMO-14 is In Review; promoteOn lists Done, Released" },
-        { caseId: "SHOP-RED-001", reason: "the latest result of SHOP-RED-001 in demo is fail, from run r1" },
-        { caseId: "SHOP-GONE-001", reason: expect.stringContaining("/rest/api/3/issue/DEMO-99 answered 404") },
-        { caseId: "SHOP-AWAY-001", reason: "project OTHER is not listed under trackers.jira.projects" },
+        {
+          caseId: "SHOP-RED-001",
+          reason: "the latest result of SHOP-RED-001 in demo is fail, from run r1",
+        },
+        {
+          caseId: "SHOP-GONE-001",
+          reason: expect.stringContaining("/rest/api/3/issue/DEMO-99 answered 404"),
+        },
+        {
+          caseId: "SHOP-AWAY-001",
+          reason: "project OTHER is not listed under trackers.jira.projects",
+        },
         { caseId: "SHOP-ALONE-001", reason: "no linked tickets" },
       ],
     });

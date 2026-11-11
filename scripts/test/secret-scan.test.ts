@@ -10,7 +10,9 @@ import { BRAND } from "../../packages/core/src/brand.ts";
 import { totpCode } from "../../packages/resolvers/src/totp.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
-const { zipSync } = createRequire(path.join(root, "packages", "driver-web", "package.json"))("fflate") as {
+const { zipSync } = createRequire(path.join(root, "packages", "driver-web", "package.json"))(
+  "fflate",
+) as {
   zipSync: (files: Record<string, Uint8Array>) => Uint8Array;
 };
 
@@ -69,13 +71,18 @@ function caseResult(): string {
 }
 
 // a Mailpit API that serves the given mail
-async function mailpit(mail: readonly { id: string; created: string; text: string }[]): Promise<string> {
+async function mailpit(
+  mail: readonly { id: string; created: string; text: string }[],
+): Promise<string> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://mailpit.example.test");
     const start = Number(url.searchParams.get("start") ?? "0");
     const body =
       url.pathname === "/api/v1/messages"
-        ? { total: mail.length, messages: mail.slice(start).map(({ id, created }) => ({ ID: id, Created: created })) }
+        ? {
+            total: mail.length,
+            messages: mail.slice(start).map(({ id, created }) => ({ ID: id, Created: created })),
+          }
         : { Text: mail.find(({ id }) => url.pathname === `/api/v1/message/${id}`)?.text };
     response.setHeader("content-type", "application/json").end(JSON.stringify(body));
   });
@@ -85,13 +92,18 @@ async function mailpit(mail: readonly { id: string; created: string; text: strin
 }
 
 // asynchronous, so a Mailpit stub in this process can answer the scan
-function scan(dir: string, args: readonly string[] = [], secrets: Record<string, string> = SECRETS): Promise<Scan> {
+function scan(
+  dir: string,
+  args: readonly string[] = [],
+  secrets: Record<string, string> = SECRETS,
+): Promise<Scan> {
   return new Promise((resolve) => {
     execFile(
       process.execPath,
       [path.join(root, "scripts", "secret-scan.ts"), dir, ...args],
       { encoding: "utf8", env: { ...process.env, ...secrets } },
-      (error, stdout, stderr) => resolve({ status: error === null ? 0 : (error.code as number), stdout, stderr }),
+      (error, stdout, stderr) =>
+        resolve({ status: error === null ? 0 : (error.code as number), stdout, stderr }),
     );
   });
 }
@@ -129,17 +141,27 @@ it("names the file and the secret of each hit, inside deflated zip entries too, 
 it("finds a short value after a JSON or percent escape and in bytes that are neither UTF-8 nor an image", async () => {
   const dir = project();
   // how JSON.stringify writes observed text that spans two lines
-  write(dir, path.join(CASE_DIR, "observed.json"), JSON.stringify({ observed: `Your PIN\n${PIN}` }));
+  write(
+    dir,
+    path.join(CASE_DIR, "observed.json"),
+    JSON.stringify({ observed: `Your PIN\n${PIN}` }),
+  );
   write(
     dir,
     path.join(CASE_DIR, "01-trace.zip"),
     zipSync({
       "post.network": Buffer.from(`{"postData":"payload=%7B%22pin%22%3A%22${PIN}%22%7D"}`),
-      "url.network": Buffer.from(`{"url":"http://app.example.test/next?to=%2Fconfirm%3Fpin%3D${PIN}"}`),
+      "url.network": Buffer.from(
+        `{"url":"http://app.example.test/next?to=%2Fconfirm%3Fpin%3D${PIN}"}`,
+      ),
       "resources/a1.dat": Uint8Array.from([...Buffer.from(`pin=${PIN}&note=`), 0xe9, 0xff]),
     }),
   );
-  write(dir, path.join(CASE_DIR, "case.log"), Uint8Array.from([...Buffer.from(`fill ${PIN} `), 0xff]));
+  write(
+    dir,
+    path.join(CASE_DIR, "case.log"),
+    Uint8Array.from([...Buffer.from(`fill ${PIN} `), 0xff]),
+  );
 
   const result = await scan(dir);
 
@@ -171,8 +193,15 @@ it("passes a short value inside numbers, run ids, result.json fields the harness
       durationMs: Number(PIN),
     }),
   );
-  const trace = [`{"time":12.${PIN},"wallTime":17${PIN}0000000}`, `{"time":${PIN}.5,"pageId":"page@a${PIN}b"}`];
-  write(dir, path.join(runDir, "CASE-1", "01-trace.zip"), zipSync({ "trace.trace": Buffer.from(trace.join("\n")) }));
+  const trace = [
+    `{"time":12.${PIN},"wallTime":17${PIN}0000000}`,
+    `{"time":${PIN}.5,"pageId":"page@a${PIN}b"}`,
+  ];
+  write(
+    dir,
+    path.join(runDir, "CASE-1", "01-trace.zip"),
+    zipSync({ "trace.trace": Buffer.from(trace.join("\n")) }),
+  );
   write(dir, path.join(runDir, "CASE-1", "01-shot.png"), binary(PIN));
 
   const result = await scan(dir);
@@ -185,7 +214,13 @@ it("passes a short value inside numbers, run ids, result.json fields the harness
 it("finds the values a cached credential holds for the run to mask, and none of its other fields", async () => {
   const dir = project();
   const cache = path.join(BRAND.stateDir, "credentials");
-  const cookie = { name: "session", domain: "app.example.test", path: "/", expires: -1, secure: false };
+  const cookie = {
+    name: "session",
+    domain: "app.example.test",
+    path: "/",
+    expires: -1,
+    secure: false,
+  };
   write(
     dir,
     path.join(cache, "test+customer+web+session-cookie.json"),
@@ -225,10 +260,22 @@ it("finds the values a cached credential holds for the run to mask, and none of 
       ],
     }),
   );
-  write(dir, path.join(CASE_DIR, "case.log"), "Cookie: session=fake-session-cookie-for-scan-tests\n");
-  write(dir, path.join(CASE_DIR, "result.json"), JSON.stringify({ observed: "fake-refresh-token-for-scan-tests" }));
+  write(
+    dir,
+    path.join(CASE_DIR, "case.log"),
+    "Cookie: session=fake-session-cookie-for-scan-tests\n",
+  );
+  write(
+    dir,
+    path.join(CASE_DIR, "result.json"),
+    JSON.stringify({ observed: "fake-refresh-token-for-scan-tests" }),
+  );
   const passkey = Buffer.from("fake/passkey+private/key==").toString("base64");
-  write(dir, path.join(CASE_DIR, "01-trace.zip"), zipSync({ "trace.network": Buffer.from(`{"key":"${passkey}"}`) }));
+  write(
+    dir,
+    path.join(CASE_DIR, "01-trace.zip"),
+    zipSync({ "trace.network": Buffer.from(`{"key":"${passkey}"}`) }),
+  );
   write(
     dir,
     path.join(RUN_DIR, "summary.md"),
@@ -297,17 +344,27 @@ it("fails when a secret has no value or the runs folder holds no files, since it
 it("fails when a run read codes the options give no source for, or a cached credential has no known owner", async () => {
   const dir = project();
   write(dir, path.join(CASE_DIR, "result.json"), caseResult());
-  const url = await mailpit([{ id: "in-run", created: "2026-01-01T00:00:15.000Z", text: "Your code is 482913." }]);
+  const url = await mailpit([
+    { id: "in-run", created: "2026-01-01T00:00:15.000Z", text: "Your code is 482913." },
+  ]);
 
   const noSeed = await scan(dir, ["--mailpit", url]);
   const noMailpit = await scan(dir, ["--totp-seed", "SCAN_TEST_SEED"]);
   const noMail = await scan(dir, ["--totp-seed", "SCAN_TEST_SEED", "--mailpit", await mailpit([])]);
-  write(dir, path.join(BRAND.stateDir, "credentials", "test+customer+web+unknown.json"), '{"credential":"x"}');
+  write(
+    dir,
+    path.join(BRAND.stateDir, "credentials", "test+customer+web+unknown.json"),
+    '{"credential":"x"}',
+  );
   const unknown = await scan(dir, ["--totp-seed", "SCAN_TEST_SEED", "--mailpit", url]);
 
   expect([noSeed.status, noMailpit.status, noMail.status, unknown.status]).toEqual([2, 2, 2, 2]);
   expect(noSeed.stderr).toContain("run 20260101-000000-abcd used TOTP codes; give --totp-seed");
-  expect(noMailpit.stderr).toContain("run 20260101-000000-abcd read codes from Mailpit; give --mailpit its URL");
+  expect(noMailpit.stderr).toContain(
+    "run 20260101-000000-abcd read codes from Mailpit; give --mailpit its URL",
+  );
   expect(noMail.stderr).toContain("holds no mail from that time");
-  expect(unknown.stderr).toContain("cannot tell which values of the cached test+customer+web+unknown.json are secret");
+  expect(unknown.stderr).toContain(
+    "cannot tell which values of the cached test+customer+web+unknown.json are secret",
+  );
 });

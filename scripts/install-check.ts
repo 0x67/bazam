@@ -24,11 +24,15 @@ export interface Recipes {
 export class InstallCheckFailed extends Error {}
 
 const CLI = BRAND.name;
-const OVERRIDDEN = ["core", "driver-web", "mcp", "resolvers", "tracker-jira"].map((p) => `${BRAND.scope}/${p}`);
+const OVERRIDDEN = ["core", "driver-web", "mcp", "resolvers", "tracker-jira"].map(
+  (p) => `${BRAND.scope}/${p}`,
+);
 const REQUIRED = [CLI, ...OVERRIDDEN];
 
 export function installRecipes(tarballs: readonly Tarball[]): Recipes {
-  const files = new Map(tarballs.map(({ name, file }) => [name, `file:vendor/${BRAND.name}/${file}`]));
+  const files = new Map(
+    tarballs.map(({ name, file }) => [name, `file:vendor/${BRAND.name}/${file}`]),
+  );
   for (const name of REQUIRED) {
     if (!files.has(name)) throw new InstallCheckFailed(`no tarball for ${name}`);
   }
@@ -65,25 +69,39 @@ async function resolveCoreRun(cwd: string): Promise<string> {
 }
 
 async function checkInstalled(recipe: string, dir: string): Promise<void> {
-  await step(recipe, `${CLI} --help`, () => run(path.join(dir, "node_modules/.bin", CLI), ["--help"], { cwd: dir }));
+  await step(recipe, `${CLI} --help`, () =>
+    run(path.join(dir, "node_modules/.bin", CLI), ["--help"], { cwd: dir }),
+  );
   await step(recipe, `one ${BRAND.scope}/core`, async () => {
     const fromProject = await resolveCoreRun(dir);
-    const fromDriver = await resolveCoreRun(await realpath(path.join(dir, "node_modules", BRAND.scope, "driver-web")));
-    if (fromProject !== fromDriver) throw new Error(`the project resolves ${fromProject}, driver-web ${fromDriver}`);
+    const fromDriver = await resolveCoreRun(
+      await realpath(path.join(dir, "node_modules", BRAND.scope, "driver-web")),
+    );
+    if (fromProject !== fromDriver)
+      throw new Error(`the project resolves ${fromProject}, driver-web ${fromDriver}`);
   });
 }
 
 async function checkNpm(dir: string, recipes: Recipes, tarballs: readonly string[]): Promise<void> {
-  await step("npm", "write package.json", () => writeFile(path.join(dir, "package.json"), recipes.npm.packageJson));
-  await step("npm", "npm install", () => run("npm", ["install", "--no-audit", "--no-fund", ...tarballs], { cwd: dir }));
+  await step("npm", "write package.json", () =>
+    writeFile(path.join(dir, "package.json"), recipes.npm.packageJson),
+  );
+  await step("npm", "npm install", () =>
+    run("npm", ["install", "--no-audit", "--no-fund", ...tarballs], { cwd: dir }),
+  );
   await checkInstalled("npm", dir);
 }
 
-async function checkPnpm(dir: string, recipes: Recipes, tarballs: readonly string[]): Promise<void> {
+async function checkPnpm(
+  dir: string,
+  recipes: Recipes,
+  tarballs: readonly string[],
+): Promise<void> {
   await step("pnpm", "write the recipe", async () => {
     const vendor = path.join(dir, "vendor", BRAND.name);
     await mkdir(vendor, { recursive: true });
-    for (const tarball of tarballs) await copyFile(tarball, path.join(vendor, path.basename(tarball)));
+    for (const tarball of tarballs)
+      await copyFile(tarball, path.join(vendor, path.basename(tarball)));
     await writeFile(path.join(dir, "package.json"), recipes.pnpm.packageJson);
     await writeFile(path.join(dir, "pnpm-workspace.yaml"), recipes.pnpm.workspaceYaml);
   });

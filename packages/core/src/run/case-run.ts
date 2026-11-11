@@ -1,6 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { BrowserSession, Identities } from "../auth/index.ts";
-import { stepKind, type CaseSpec, type ChallengeStep, type GuidedStep, type Step } from "../case/index.ts";
+import {
+  stepKind,
+  type CaseSpec,
+  type ChallengeStep,
+  type GuidedStep,
+  type Step,
+} from "../case/index.ts";
 import {
   checkGuidedOutcome,
   resolveChallenge,
@@ -28,7 +34,14 @@ import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence } from "./case-evidence.ts";
-import { CaseBlocked, HarnessError, isBlocking, messageOf, SessionLost, StepFailed } from "./outcome.ts";
+import {
+  CaseBlocked,
+  HarnessError,
+  isBlocking,
+  messageOf,
+  SessionLost,
+  StepFailed,
+} from "./outcome.ts";
 import { caseSteps, FILL_STEP, finallySteps } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
@@ -53,7 +66,11 @@ function describeCause(cause: RecoveryCause): { event: string; after: string; an
   if (cause.kind === "redirect") {
     const url = new URL(cause.url);
     const to = `${url.origin}${url.pathname}`;
-    return { event: `a redirect to ${to}`, after: `a redirect to ${to}`, another: `another redirect to ${to}` };
+    return {
+      event: `a redirect to ${to}`,
+      after: `a redirect to ${to}`,
+      another: `another redirect to ${to}`,
+    };
   }
   const event = `${cause.step} landed on the login page`;
   return { event, after: event, another: event };
@@ -208,7 +225,8 @@ export class CaseRun {
         const cause = failure instanceof StepFailed ? failure.cause : failure;
         evidence.note(`finally step ${number} (${kind}) failed: ${messageOf(cause)}`);
       }
-      for (const check of checks) evidence.note(`finally check ${check.name}: ${check.ok ? "ok" : "not ok"}`);
+      for (const check of checks)
+        evidence.note(`finally check ${check.name}: ${check.ok ? "ok" : "not ok"}`);
     }
   }
 
@@ -239,7 +257,9 @@ export class CaseRun {
       } catch (error) {
         if (error instanceof SessionLost) throw error;
         // a process plugin that exits, stalls or breaks the protocol is the harness's fault, never the product's
-        throw isBlocking(error) || error instanceof PluginCallFailed || error instanceof HarnessError
+        throw isBlocking(error) ||
+          error instanceof PluginCallFailed ||
+          error instanceof HarnessError
           ? error
           : new StepFailed(number, kind, error);
       }
@@ -254,7 +274,9 @@ export class CaseRun {
         await attempt();
       } catch (again) {
         if (again instanceof SessionLost)
-          throw new CaseBlocked(`${label} landed on the login page again after the session was recovered`);
+          throw new CaseBlocked(
+            `${label} landed on the login page again after the session was recovered`,
+          );
         throw again;
       }
     }
@@ -270,21 +292,28 @@ export class CaseRun {
       browser === undefined ||
       this.#scope.project.config.identities[identity]?.auth[surface] === undefined
     )
-      throw new CaseBlocked(`${label} landed on the login page, but it acts as no identity with ${surface} auth`);
+      throw new CaseBlocked(
+        `${label} landed on the login page, but it acts as no identity with ${surface} auth`,
+      );
     if (this.#stepRecovery?.identity !== identity) {
       while (this.#recovery !== undefined) await this.#recovery;
-      if (!this.#recovered) this.#unauthorized(identity, surface, browser, { kind: "landed", step: label });
+      if (!this.#recovered)
+        this.#unauthorized(identity, surface, browser, { kind: "landed", step: label });
     }
     const started = this.#stepRecovery;
     if (started?.identity !== identity)
-      throw new CaseBlocked(`${label} lost the ${surface} session of ${identity} again after this case's one recovery`);
+      throw new CaseBlocked(
+        `${label} lost the ${surface} session of ${identity} again after this case's one recovery`,
+      );
     const result = await started.result;
     const credential = `the ${surface} credential of ${identity}`;
     if (result === "failed") {
       // a failed recovery always sets the block
       this.#throwPendingBlock();
     } else if (result === "stillValid") {
-      throw new CaseBlocked(`${label} landed on the login page, but ${credential} still passes its probe`);
+      throw new CaseBlocked(
+        `${label} landed on the login page, but ${credential} still passes its probe`,
+      );
     } else if (result === "cannotRecover") {
       throw new CaseBlocked(
         `${label} landed on the login page, and ${credential} cannot be refreshed or logged in again`,
@@ -296,7 +325,11 @@ export class CaseRun {
     }
   }
 
-  async #challenge(challenge: ChallengeStep, number: number, identity: string | undefined): Promise<void> {
+  async #challenge(
+    challenge: ChallengeStep,
+    number: number,
+    identity: string | undefined,
+  ): Promise<void> {
     if (identity === undefined) throw new CaseBlocked("challenge step names no identity");
     const { registry, env, redactor } = this.#scope;
     await this.#openBrowser(identity);
@@ -333,7 +366,11 @@ export class CaseRun {
   }
 
   async #guided(guided: GuidedStep, number: number, identity: string | undefined): Promise<void> {
-    const text = await this.#resolve({ title: guided.title, steps: guided.steps, expected: guided.expected });
+    const text = await this.#resolve({
+      title: guided.title,
+      steps: guided.steps,
+      expected: guided.expected,
+    });
     const prompt: PersonPrompt = {
       id: `${this.#parts.spec.id}-${number}-guided`,
       runId: this.#scope.runId,
@@ -346,23 +383,43 @@ export class CaseRun {
     if (text.expected !== undefined) prompt.expected = text.expected;
     const screenshot = this.#parts.evidence.latestScreenshot;
     if (screenshot !== undefined) prompt.screenshot = screenshot;
-    const answer = await this.#scope.channel.ask(maskPrompt(prompt, this.#scope.redactor), this.#scope.signal);
+    const answer = await this.#scope.channel.ask(
+      maskPrompt(prompt, this.#scope.redactor),
+      this.#scope.signal,
+    );
     const { observe } = guided;
     // a blocked verdict blocks the case, so nothing is observed
-    const observes = answer.kind === "verdict" && answer.verdict !== "blocked" && observe !== undefined;
-    const observation = observes ? await this.#observe(observe, number, observe.as ?? identity) : undefined;
+    const observes =
+      answer.kind === "verdict" && answer.verdict !== "blocked" && observe !== undefined;
+    const observation = observes
+      ? await this.#observe(observe, number, observe.as ?? identity)
+      : undefined;
     // the name keeps the placeholders as written, so it never holds a resolved secret
     this.#parts.evidence.record(
-      checkGuidedOutcome(guided.title, text.expected ?? "the person confirms the steps", answer, observation),
+      checkGuidedOutcome(
+        guided.title,
+        text.expected ?? "the person confirms the steps",
+        answer,
+        observation,
+      ),
     );
   }
 
   /** What the observe step found, taken from the checks it recorded; a product error is a failed observation. */
-  async #observe(step: Step, number: number, identity: string | undefined): Promise<GuidedObservation> {
+  async #observe(
+    step: Step,
+    number: number,
+    identity: string | undefined,
+  ): Promise<GuidedObservation> {
     try {
       const checks = await this.#parts.evidence.capture(() => this.#step(step, number, identity));
-      const observed = checks.map((check) => `${check.name}: ${JSON.stringify(check.observed)}`).join("; ");
-      return { ok: checks.every((check) => check.ok), observed: observed === "" ? "the observe step ran" : observed };
+      const observed = checks
+        .map((check) => `${check.name}: ${JSON.stringify(check.observed)}`)
+        .join("; ");
+      return {
+        ok: checks.every((check) => check.ok),
+        observed: observed === "" ? "the observe step ran" : observed,
+      };
     } catch (error) {
       if (error instanceof StepFailed) return { ok: false, observed: error.message };
       throw error;
@@ -375,7 +432,10 @@ export class CaseRun {
     if (this.#browsers.has(identity) || session.browserFor === undefined) return;
     const browser = await session.browserFor(identity);
     if (this.#scope.project.config.identities[identity]?.auth[driver.surface] !== undefined) {
-      await this.#scope.credentials.authorize(identity, driver.surface, { kind: "browser", session: browser });
+      await this.#scope.credentials.authorize(identity, driver.surface, {
+        kind: "browser",
+        session: browser,
+      });
       // a pooled browser calls back in the async context of the case that launched it, so bind runs the listener in this case's context
       const listener = AsyncLocalStorage.bind((origin: string) =>
         this.#unauthorized(identity, driver.surface, browser, { kind: "unauthorized", origin }),
@@ -395,7 +455,12 @@ export class CaseRun {
   }
 
   /** Probes after a 401 or a redirect to the login page until the case has had its one recovery; after that, one more adds a note. */
-  #unauthorized(identity: string, surface: string, browser: BrowserSession, cause: RecoveryCause): void {
+  #unauthorized(
+    identity: string,
+    surface: string,
+    browser: BrowserSession,
+    cause: RecoveryCause,
+  ): void {
     if (this.#recovery !== undefined) return;
     if (this.#recovered) {
       if (!this.#notedLater)
@@ -429,11 +494,22 @@ export class CaseRun {
     )
       return;
     // the browser may use another surface that reuses this one with from:
-    if (identities.ownerSurface(identity, driver.surface) !== identities.ownerSurface(identity, surface)) return;
+    if (
+      identities.ownerSurface(identity, driver.surface) !==
+      identities.ownerSurface(identity, surface)
+    )
+      return;
     const loading: Promise<void> = Promise.resolve(this.#recovery)
-      .then(() => this.#scope.credentials.authorize(identity, driver.surface, { kind: "browser", session: browser }))
+      .then(() =>
+        this.#scope.credentials.authorize(identity, driver.surface, {
+          kind: "browser",
+          session: browser,
+        }),
+      )
       .catch((error: unknown) => {
-        evidence.note(`loading ${identity}'s refreshed ${driver.surface} credential failed: ${messageOf(error)}`);
+        evidence.note(
+          `loading ${identity}'s refreshed ${driver.surface} credential failed: ${messageOf(error)}`,
+        );
       })
       .finally(() => {
         if (this.#recovery === loading) this.#recovery = undefined;

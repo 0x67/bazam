@@ -39,7 +39,15 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     target: "web",
     links: ["jira:DEMO-12"],
     status: "fail",
-    checks: [{ name: "session endpoint returns the customer", kind: "api", expected: 200, observed: 401, ok: false }],
+    checks: [
+      {
+        name: "session endpoint returns the customer",
+        kind: "api",
+        expected: 200,
+        observed: 401,
+        ok: false,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: ["01-code-entry.png"],
@@ -131,7 +139,11 @@ describe("jiraClient", () => {
   }
 
   // answers the requests `match` picks with `status` before they reach the stub; call it before connect
-  function refuse(match: (method: string, path: string) => boolean, status: number, message: string): void {
+  function refuse(
+    match: (method: string, path: string) => boolean,
+    status: number,
+    message: string,
+  ): void {
     const send = globalThis.fetch;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const { pathname } = new URL(input instanceof Request ? input.url : input);
@@ -172,7 +184,11 @@ describe("jiraClient", () => {
     const config = ProjectConfig.parse({
       envs: {},
       trackers: {
-        jira: { site: stub.site, secrets: { email: "JIRA_EMAIL", token: "JIRA_API_TOKEN" }, projects: { DEMO: {} } },
+        jira: {
+          site: stub.site,
+          secrets: { email: "JIRA_EMAIL", token: "JIRA_API_TOKEN" },
+          projects: { DEMO: {} },
+        },
       },
     });
     const registry = await PluginRegistry.load(config, import.meta.dirname, [manifest]);
@@ -203,7 +219,11 @@ describe("jiraClient", () => {
       assignee: "acct-assignee-01",
       reporter: "acct-reporter-02",
     });
-    await expect(connection.ticket("DEMO-13")).resolves.toEqual({ key: "DEMO-13", status: "Done", done: true });
+    await expect(connection.ticket("DEMO-13")).resolves.toEqual({
+      key: "DEMO-13",
+      status: "Done",
+      done: true,
+    });
     expect(sent()).toEqual(["GET /rest/api/3/issue/DEMO-12", "GET /rest/api/3/issue/DEMO-13"]);
     expect(stub.requests[0]?.query).toEqual({ fields: "status,assignee,reporter" });
   });
@@ -212,7 +232,11 @@ describe("jiraClient", () => {
     stub.issues.set("DEMO-12", { key: "SEC-3", status: "To Do" });
     const connection = await connect();
 
-    await expect(connection.ticket("DEMO-12")).resolves.toEqual({ key: "SEC-3", status: "To Do", done: false });
+    await expect(connection.ticket("DEMO-12")).resolves.toEqual({
+      key: "SEC-3",
+      status: "To Do",
+      done: false,
+    });
   });
 
   it("uploads at most ten attachments per request", async () => {
@@ -221,8 +245,12 @@ describe("jiraClient", () => {
 
     await connection.attach("DEMO-12", uploads);
 
-    expect(stub.issues.get("DEMO-12")?.attachments?.map((file) => file.name)).toEqual(uploads.map((file) => file.name));
-    expect(stub.requests.map((request) => (Array.isArray(request.body) ? request.body.length : 0))).toEqual([10, 2]);
+    expect(stub.issues.get("DEMO-12")?.attachments?.map((file) => file.name)).toEqual(
+      uploads.map((file) => file.name),
+    );
+    expect(
+      stub.requests.map((request) => (Array.isArray(request.body) ? request.body.length : 0)),
+    ).toEqual([10, 2]);
   });
 
   it("posts the ADF comment with a last paragraph of mentions and returns its browse URL", async () => {
@@ -261,7 +289,12 @@ describe("jiraClient", () => {
 
     await expect(connection.editComment("DEMO-12", url, passed, [])).resolves.toEqual({ url });
     await expect(
-      connection.editComment("DEMO-12", `http://${stub.site}/rest/api/3/issue/DEMO-12/comment/${id}`, passed, []),
+      connection.editComment(
+        "DEMO-12",
+        `http://${stub.site}/rest/api/3/issue/DEMO-12/comment/${id}`,
+        passed,
+        [],
+      ),
     ).resolves.toEqual({ url });
 
     expect(sent("PUT")).toEqual([
@@ -285,19 +318,30 @@ describe("jiraClient", () => {
   ])("returns undefined and sends no PUT for %s", async (_, url) => {
     const connection = await connect();
 
-    await expect(connection.editComment("DEMO-12", url, jiraTracker.render(result()), [])).resolves.toBeUndefined();
+    await expect(
+      connection.editComment("DEMO-12", url, jiraTracker.render(result()), []),
+    ).resolves.toBeUndefined();
     expect(stub.requests).toEqual([]);
   });
 
   it("returns undefined after one PUT when the comment is gone or this account may not edit it", async () => {
-    const readOnly = { id: "55774", body: { type: "doc", version: 1, content: [] }, readOnly: true };
+    const readOnly = {
+      id: "55774",
+      body: { type: "doc", version: 1, content: [] },
+      readOnly: true,
+    };
     stub.issues.get("DEMO-12")!.comments = [readOnly];
     const connection = await connect();
     const comment = jiraTracker.render(result());
-    const browse = (id: string): string => `https://example.atlassian.net/browse/DEMO-12?focusedCommentId=${id}`;
+    const browse = (id: string): string =>
+      `https://example.atlassian.net/browse/DEMO-12?focusedCommentId=${id}`;
 
-    await expect(connection.editComment("DEMO-12", browse("55773"), comment, [])).resolves.toBeUndefined();
-    await expect(connection.editComment("DEMO-12", browse("55774"), comment, [])).resolves.toBeUndefined();
+    await expect(
+      connection.editComment("DEMO-12", browse("55773"), comment, []),
+    ).resolves.toBeUndefined();
+    await expect(
+      connection.editComment("DEMO-12", browse("55774"), comment, []),
+    ).resolves.toBeUndefined();
 
     expect(sent()).toEqual([
       "PUT /rest/api/3/issue/DEMO-12/comment/55773",
@@ -317,21 +361,26 @@ describe("jiraClient", () => {
     const connection = await connect();
     const url = "https://example.atlassian.net/browse/DEMO-12?focusedCommentId=55773";
 
-    await expect(connection.editComment("DEMO-12", url, jiraTracker.render(result()), [])).resolves.toBeUndefined();
+    await expect(
+      connection.editComment("DEMO-12", url, jiraTracker.render(result()), []),
+    ).resolves.toBeUndefined();
   });
 
-  it.each([401, 500])("rejects an edit answered %i, so no new comment doubles one that may exist", async (status) => {
-    refuse((method) => method === "PUT", status, "the edit failed");
-    const connection = await connect();
-    const url = "https://example.atlassian.net/browse/DEMO-12?focusedCommentId=55773";
+  it.each([401, 500])(
+    "rejects an edit answered %i, so no new comment doubles one that may exist",
+    async (status) => {
+      refuse((method) => method === "PUT", status, "the edit failed");
+      const connection = await connect();
+      const url = "https://example.atlassian.net/browse/DEMO-12?focusedCommentId=55773";
 
-    const error: unknown = await connection
-      .editComment("DEMO-12", url, jiraTracker.render(result()), [])
-      .catch((caught: unknown) => caught);
+      const error: unknown = await connection
+        .editComment("DEMO-12", url, jiraTracker.render(result()), [])
+        .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(TrackerRequestFailed);
-    expect(error).toMatchObject({ status });
-  });
+      expect(error).toBeInstanceOf(TrackerRequestFailed);
+      expect(error).toMatchObject({ status });
+    },
+  );
 
   it("moves a ticket by transition name or by target status, ignoring case", async () => {
     const connection = await connect();
@@ -339,10 +388,9 @@ describe("jiraClient", () => {
     await connection.transition("DEMO-12", "approve");
     await connection.transition("DEMO-12", "IN PROGRESS");
 
-    expect(stub.requests.filter((request) => request.method === "POST").map((request) => request.body)).toEqual([
-      { transition: { id: "31" } },
-      { transition: { id: "41" } },
-    ]);
+    expect(
+      stub.requests.filter((request) => request.method === "POST").map((request) => request.body),
+    ).toEqual([{ transition: { id: "31" } }, { transition: { id: "41" } }]);
     expect(stub.issues.get("DEMO-12")?.status).toBe("In Progress");
   });
 
@@ -357,13 +405,25 @@ describe("jiraClient", () => {
 
   it("finds the newest open issue with the label in the project", async () => {
     stub.issues.set("DEMO-20", { key: "DEMO-20", status: "Open", labels: [LABEL] });
-    stub.issues.set("DEMO-21", { key: "DEMO-21", status: "In Progress", category: "indeterminate", labels: [LABEL] });
-    stub.issues.set("DEMO-22", { key: "DEMO-22", status: "Closed", category: "done", labels: [LABEL] });
+    stub.issues.set("DEMO-21", {
+      key: "DEMO-21",
+      status: "In Progress",
+      category: "indeterminate",
+      labels: [LABEL],
+    });
+    stub.issues.set("DEMO-22", {
+      key: "DEMO-22",
+      status: "Closed",
+      category: "done",
+      labels: [LABEL],
+    });
     stub.issues.set("OTHER-5", { key: "OTHER-5", status: "Open", labels: [LABEL] });
     const connection = await connect();
 
     await expect(connection.findOpenBug("DEMO", LABEL)).resolves.toBe("DEMO-21");
-    await expect(connection.findOpenBug("DEMO", "regression-AUTH-LOGIN-002")).resolves.toBeUndefined();
+    await expect(
+      connection.findOpenBug("DEMO", "regression-AUTH-LOGIN-002"),
+    ).resolves.toBeUndefined();
     expect(stub.requests[0]?.body).toEqual({
       jql: `project = "DEMO" AND labels = "${LABEL}" AND statusCategory != Done ORDER BY created DESC`,
       fields: ["created"],
@@ -460,7 +520,9 @@ describe("jiraClient", () => {
   it("returns the new bug with a problem for a link Jira refuses, and still makes the next link", async () => {
     const connection = await connect();
 
-    await expect(connection.createBug(bugDraft({ relatesTo: ["DEMO-99", "DEMO-12"] }))).resolves.toEqual({
+    await expect(
+      connection.createBug(bugDraft({ relatesTo: ["DEMO-99", "DEMO-12"] })),
+    ).resolves.toEqual({
       key: "DEMO-14",
       url: `http://${stub.site}/browse/DEMO-14`,
       problems: [
@@ -486,7 +548,11 @@ describe("jiraClient", () => {
   });
 
   it("returns the new bug with a problem when the link types cannot be read", async () => {
-    refuse((method, path) => method === "GET" && path === "/rest/api/3/issueLinkType", 500, "try again later");
+    refuse(
+      (method, path) => method === "GET" && path === "/rest/api/3/issueLinkType",
+      500,
+      "try again later",
+    );
     const connection = await connect();
 
     await expect(connection.createBug(bugDraft())).resolves.toEqual({
@@ -513,7 +579,10 @@ describe("jiraClient", () => {
   });
 
   it("sends REST calls to api under its base path while browse links use the site", async () => {
-    const connection = await connect({ site: "example.atlassian.net", api: `http://${stub.site}/ex/jira/cloud-0001` });
+    const connection = await connect({
+      site: "example.atlassian.net",
+      api: `http://${stub.site}/ex/jira/cloud-0001`,
+    });
 
     await connection.ticket("DEMO-12");
     const { url } = await connection.postComment("DEMO-12", jiraTracker.render(result()), []);
@@ -522,7 +591,9 @@ describe("jiraClient", () => {
       "GET /ex/jira/cloud-0001/rest/api/3/issue/DEMO-12",
       "POST /ex/jira/cloud-0001/rest/api/3/issue/DEMO-12/comment",
     ]);
-    expect(url).toMatch(/^https:\/\/example\.atlassian\.net\/browse\/DEMO-12\?focusedCommentId=\d+$/);
+    expect(url).toMatch(
+      /^https:\/\/example\.atlassian\.net\/browse\/DEMO-12\?focusedCommentId=\d+$/,
+    );
   });
 
   it("fails a wrong token with a TrackerRequestFailed that never shows the token", async () => {
@@ -544,17 +615,31 @@ describe("jiraClient", () => {
   });
 
   it.each([
-    ["an api outside api.atlassian.com", { api: "https://jira.example.test/ex/jira/cloud-0001" }, "trackers.jira.api"],
-    ["a project key with a quote", { projects: { 'DEMO" OR project = "OPS': {} } }, "not a Jira project key"],
+    [
+      "an api outside api.atlassian.com",
+      { api: "https://jira.example.test/ex/jira/cloud-0001" },
+      "trackers.jira.api",
+    ],
+    [
+      "a project key with a quote",
+      { projects: { 'DEMO" OR project = "OPS': {} } },
+      "not a Jira project key",
+    ],
     ["a missing site", { site: undefined }, "trackers.jira.site is not set"],
-    ["a missing token name", { secrets: { email: "JIRA_EMAIL" } }, "trackers.jira.secrets.token is not set"],
+    [
+      "a missing token name",
+      { secrets: { email: "JIRA_EMAIL" } },
+      "trackers.jira.secrets.token is not set",
+    ],
   ])("refuses %s at connect", async (_, config, message) => {
     await expect(connect(config)).rejects.toThrow(message);
     expect(stub.requests).toEqual([]);
   });
 
   it("accepts a scoped token's api", async () => {
-    await expect(connect({ api: "https://api.atlassian.com/ex/jira/cloud-0001" })).resolves.toBeDefined();
+    await expect(
+      connect({ api: "https://api.atlassian.com/ex/jira/cloud-0001" }),
+    ).resolves.toBeDefined();
   });
 
   it("refuses a key that is not a Jira issue key before any request", async () => {
@@ -563,14 +648,18 @@ describe("jiraClient", () => {
     await expect(connection.ticket("DEMO-12/../../../myself")).rejects.toThrow(
       "DEMO-12/../../../myself is not a Jira issue key",
     );
-    await expect(connection.postComment("demo-12", jiraTracker.render(result()), [])).rejects.toThrow(
-      "demo-12 is not a Jira issue key",
-    );
+    await expect(
+      connection.postComment("demo-12", jiraTracker.render(result()), []),
+    ).rejects.toThrow("demo-12 is not a Jira issue key");
     expect(stub.requests).toEqual([]);
   });
 
   it("is the tracker client the plugin serves for jira", async () => {
-    const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {} }), import.meta.dirname, [manifest]);
+    const registry = await PluginRegistry.load(
+      ProjectConfig.parse({ envs: {} }),
+      import.meta.dirname,
+      [manifest],
+    );
 
     expect(registry.trackerClient("jira")).toBe(jiraClient);
   });
@@ -600,12 +689,15 @@ describe("jiraClient", () => {
     stub.issues.set("DEMO-12", { ...seed()[0]!, key: "SEC-3" });
     const [upload] = await files(1);
 
-    const [outcome] = await postDirect([planItem({ attachments: [upload!.name], transition: "Approve" })]);
+    const [outcome] = await postDirect([
+      planItem({ attachments: [upload!.name], transition: "Approve" }),
+    ]);
 
     expect(outcome).toMatchObject({
       ok: false,
       actions: [],
-      error: "DEMO-12 is now SEC-3, in project SEC, which is not listed under trackers.jira.projects",
+      error:
+        "DEMO-12 is now SEC-3, in project SEC, which is not listed under trackers.jira.projects",
     });
     expect(sent()).toEqual(["GET /rest/api/3/issue/DEMO-12"]);
     const receipts = await loadReceipts(join(folder, BRAND.stateDir));

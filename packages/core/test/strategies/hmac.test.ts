@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { hmacStrategy } from "../../src/auth/strategies/index.ts";
-import { authContext, draft, redacted, sendWith, serve, type LocalServer, type ReceivedRequest } from "./support.ts";
+import {
+  authContext,
+  draft,
+  redacted,
+  sendWith,
+  serve,
+  type LocalServer,
+  type ReceivedRequest,
+} from "./support.ts";
 
 const SECRET = "fake-hmac-secret";
 const SETTINGS = { keyId: "fake-key-id", secret: SECRET };
@@ -49,10 +57,14 @@ describe("hmacStrategy", () => {
           return response.writeHead(templateSignatureIsValid(request) ? 200 : 401).end();
         case "/api/hmac/who":
           return response
-            .writeHead(templateSignatureIsValid(request) ? 200 : 401, { "content-type": "application/json" })
+            .writeHead(templateSignatureIsValid(request) ? 200 : 401, {
+              "content-type": "application/json",
+            })
             .end(JSON.stringify({ user_id: 42 }));
         case "/api/hmac/hook": {
-          const valid = request.headers["x-hook-signature"] === hmacHex(`${request.method} ${request.url.pathname}`);
+          const valid =
+            request.headers["x-hook-signature"] ===
+            hmacHex(`${request.method} ${request.url.pathname}`);
           return response.writeHead(valid ? 200 : 401).end();
         }
         default:
@@ -79,8 +91,18 @@ describe("hmacStrategy", () => {
     const ctx = authContext();
     const url = `${server.origin}/api/hmac/echo?order=42`;
 
-    const first = await sendWith(hmacStrategy, SETTINGS, draft("POST", url, '{"amount":"1.50"}'), ctx);
-    const second = await sendWith(hmacStrategy, SETTINGS, draft("POST", url, '{"amount":"2.50"}'), ctx);
+    const first = await sendWith(
+      hmacStrategy,
+      SETTINGS,
+      draft("POST", url, '{"amount":"1.50"}'),
+      ctx,
+    );
+    const second = await sendWith(
+      hmacStrategy,
+      SETTINGS,
+      draft("POST", url, '{"amount":"2.50"}'),
+      ctx,
+    );
 
     expect([first.response.status, second.response.status]).toEqual([200, 200]);
     const nonces = server.received.slice(-2).map((request) => request.headers["x-nonce"]);
@@ -97,7 +119,11 @@ describe("hmacStrategy", () => {
     const config = hmacStrategy.config.parse({ ...SETTINGS, timestamp });
     const request = draft("GET", `${server.origin}/api/hmac/echo`);
 
-    await hmacStrategy.apply(await hmacStrategy.acquire(config, authContext()), { kind: "http", request }, config);
+    await hmacStrategy.apply(
+      await hmacStrategy.acquire(config, authContext()),
+      { kind: "http", request },
+      config,
+    );
 
     expect(request.headers.get("x-timestamp")).toBe(expected);
   });
@@ -118,9 +144,9 @@ describe("hmacStrategy", () => {
   it("refuses a sign hook outside the project root", async () => {
     const config = hmacStrategy.config.parse({ ...SETTINGS, sign: "../outside.ts" });
 
-    await expect(hmacStrategy.acquire(config, authContext({ projectRoot: project }))).rejects.toThrow(
-      "is outside the project root",
-    );
+    await expect(
+      hmacStrategy.acquire(config, authContext({ projectRoot: project })),
+    ).rejects.toThrow("is outside the project root");
   });
 
   it("the probe passes within maxSkewSeconds and throws when the clock is further from the server's Date", async () => {
@@ -163,11 +189,16 @@ describe("hmacStrategy", () => {
     ["{signature} in stringToSign", { stringToSign: "{method}\n{signature}" }],
     ["{host} in headers", { headers: { "X-Signature": "{signature}", "X-Host": "{host}" } }],
   ])("refuses %s, a placeholder it cannot fill", (_placeholder, templates) => {
-    expect(() => hmacStrategy.config.parse({ ...SETTINGS, ...templates })).toThrow("a template takes only {method}");
+    expect(() => hmacStrategy.config.parse({ ...SETTINGS, ...templates })).toThrow(
+      "a template takes only {method}",
+    );
   });
 
   it("the redactor masks the secret in the credential", async () => {
-    const credential = await hmacStrategy.acquire(hmacStrategy.config.parse(SETTINGS), authContext());
+    const credential = await hmacStrategy.acquire(
+      hmacStrategy.config.parse(SETTINGS),
+      authContext(),
+    );
 
     expect(redacted(hmacStrategy.secrets(credential), JSON.stringify(credential))).toBe(
       '{"keyId":"fake-key-id","secret":"[redacted]"}',

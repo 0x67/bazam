@@ -6,15 +6,33 @@ import { mapTests, testTitle, type MappingInputs } from "../src/ingest/mapping.t
 const TARGET = "shop-chrome";
 
 function caseSpec(id: string, targets: string[] = [TARGET]): CaseSpec {
-  return CaseSpec.parse({ id, title: `Title of ${id}`, stage: "acceptance", risk: "medium", targets });
+  return CaseSpec.parse({
+    id,
+    title: `Title of ${id}`,
+    stage: "acceptance",
+    risk: "medium",
+    targets,
+  });
 }
 
 function externalTest(title: string[], extra: Partial<ExternalTest> = {}): ExternalTest {
-  return { title, tags: [], outcome: "passed", retries: 0, attachments: [], source: "results/junit.xml", ...extra };
+  return {
+    title,
+    tags: [],
+    outcome: "passed",
+    retries: 0,
+    attachments: [],
+    source: "results/junit.xml",
+    ...extra,
+  };
 }
 
 function inputs(tests: ExternalTest[], extra: Partial<MappingInputs> = {}): MappingInputs {
-  const cases = [caseSpec("SHOP-CART-001"), caseSpec("SHOP-CART-002"), caseSpec("SHOP-PAY-001", ["shop-firefox"])];
+  const cases = [
+    caseSpec("SHOP-CART-001"),
+    caseSpec("SHOP-CART-002"),
+    caseSpec("SHOP-PAY-001", ["shop-firefox"]),
+  ];
   return {
     target: TARGET,
     tests,
@@ -31,7 +49,9 @@ function byCase(mapped: ReturnType<typeof mapTests>): [string, string[]][] {
 
 describe("testTitle", () => {
   it("joins the title with › and puts the Playwright project in front", () => {
-    expect(testTitle(externalTest(["cart.spec.ts", "cart", "keeps items"]))).toBe("cart.spec.ts › cart › keeps items");
+    expect(testTitle(externalTest(["cart.spec.ts", "cart", "keeps items"]))).toBe(
+      "cart.spec.ts › cart › keeps items",
+    );
     expect(testTitle(externalTest(["cart", "keeps items"], { project: "chromium" }))).toBe(
       "[chromium] cart › keeps items",
     );
@@ -40,7 +60,10 @@ describe("testTitle", () => {
 
 describe("mapTests", () => {
   it("takes the bracketed id nearest the test's own name, then the enclosing suites", () => {
-    const own = externalTest(["Cart [SHOP-CART-001]", "keeps items [SHOP-CART-002] [SHOP-CART-001]"]);
+    const own = externalTest([
+      "Cart [SHOP-CART-001]",
+      "keeps items [SHOP-CART-002] [SHOP-CART-001]",
+    ]);
     const suite = externalTest(["Cart [SHOP-CART-001]", "checkout", "keeps items"]);
 
     expect(byCase(mapTests(inputs([own, suite])))).toEqual([
@@ -99,9 +122,17 @@ describe("mapTests", () => {
         title: "[chromium] checkout › pays",
         reason: "no case id in the test name, its tags or the mapping file",
       },
-      { target: TARGET, title: "constructor", reason: "no case id in the test name, its tags or the mapping file" },
+      {
+        target: TARGET,
+        title: "constructor",
+        reason: "no case id in the test name, its tags or the mapping file",
+      },
       { target: TARGET, title: "pays [SHOP-CART-404]", reason: "no case SHOP-CART-404" },
-      { target: TARGET, title: "pays", reason: "case SHOP-PAY-001 does not run on target shop-chrome" },
+      {
+        target: TARGET,
+        title: "pays",
+        reason: "case SHOP-PAY-001 does not run on target shop-chrome",
+      },
     ]);
   });
 
@@ -119,7 +150,13 @@ describe("mapTests", () => {
       ["SHOP-CART-002", ["second [SHOP-CART-002]", "second again [SHOP-CART-002]"]],
       ["SHOP-CART-001", ["first [SHOP-CART-001]"]],
     ]);
-    expect([all.outsideSelection, narrowed.outsideSelection, narrowed.unmapped]).toEqual([0, 1, []]);
-    expect(byCase(narrowed)).toEqual([["SHOP-CART-002", ["second [SHOP-CART-002]", "second again [SHOP-CART-002]"]]]);
+    expect([all.outsideSelection, narrowed.outsideSelection, narrowed.unmapped]).toEqual([
+      0,
+      1,
+      [],
+    ]);
+    expect(byCase(narrowed)).toEqual([
+      ["SHOP-CART-002", ["second [SHOP-CART-002]", "second again [SHOP-CART-002]"]],
+    ]);
   });
 });

@@ -6,17 +6,29 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { BRAND } from "../src/brand.ts";
-import { humanResolver, type ChallengeKindSpec, type ChallengeResolver } from "../src/challenge/index.ts";
+import {
+  humanResolver,
+  type ChallengeKindSpec,
+  type ChallengeResolver,
+} from "../src/challenge/index.ts";
 import { builtinRules, checkProject, type CheckIssue } from "../src/check/index.ts";
-import { definePlugin, PLUGIN_API_VERSION, PluginRegistry, type PluginManifest } from "../src/plugin/index.ts";
+import {
+  definePlugin,
+  PLUGIN_API_VERSION,
+  PluginRegistry,
+  type PluginManifest,
+} from "../src/plugin/index.ts";
 import { FIXTURES_FILE, loadProject, loadProjectConfig, type Project } from "../src/project.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 
 const run = promisify(execFile);
 // a git hook exports variables such as GIT_DIR, which would point these git calls at the repository running the hook
-const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")));
+const gitEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")),
+);
 const git = (args: readonly string[]) => run("git", args, { env: gitEnv });
-const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/check/${name}`, import.meta.url));
+const fixture = (name: string) =>
+  fileURLToPath(new URL(`./fixtures/check/${name}`, import.meta.url));
 const clean = fixture("clean");
 
 const faceScan: ChallengeKindSpec = {
@@ -28,11 +40,17 @@ const faceScan: ChallengeKindSpec = {
 const web = definePlugin({
   name: "fake-web",
   apiVersion: PLUGIN_API_VERSION,
-  drivers: [fakeDriver({ name: "playwright", steps: ["open", "tap", "fill", "expect"].map(fakeStep) })],
+  drivers: [
+    fakeDriver({ name: "playwright", steps: ["open", "tap", "fill", "expect"].map(fakeStep) }),
+  ],
   challengeKinds: [faceScan],
 });
 
-function fakeResolver(name: string, kinds: readonly string[], automated: boolean): ChallengeResolver {
+function fakeResolver(
+  name: string,
+  kinds: readonly string[],
+  automated: boolean,
+): ChallengeResolver {
   return { name, kinds, requires: [], automated, resolve: async () => undefined };
 }
 const otpMailpit = fakeResolver("otp-mailpit", ["otp-email"], true);
@@ -40,7 +58,11 @@ const resolvers = definePlugin({
   name: "fake-resolvers",
   apiVersion: PLUGIN_API_VERSION,
   // ops-pager pages a person on call, so like human it is not automated
-  resolvers: [otpMailpit, fakeResolver("face-bot", ["face-scan"], true), fakeResolver("ops-pager", ["*"], false)],
+  resolvers: [
+    otpMailpit,
+    fakeResolver("face-bot", ["face-scan"], true),
+    fakeResolver("ops-pager", ["*"], false),
+  ],
 });
 
 async function registryFor(
@@ -48,7 +70,8 @@ async function registryFor(
   plugins: readonly PluginManifest[] = [web, resolvers],
 ): Promise<PluginRegistry> {
   const { config, issues } = await loadProjectConfig(root);
-  if (config === undefined) throw new Error(`the fixture config has issues: ${JSON.stringify(issues)}`);
+  if (config === undefined)
+    throw new Error(`the fixture config has issues: ${JSON.stringify(issues)}`);
   return PluginRegistry.load(config, root, plugins);
 }
 
@@ -75,9 +98,18 @@ const failing: [string, Expected][] = [
   ["id-format", [["cases/auth/format.yaml", 2, "id"]]],
   [
     "id-domain",
-    [["cases/auth/domain.yaml", 2, "BILLING-REFUND-001 starts with BILLING but the case is in cases/auth/"]],
+    [
+      [
+        "cases/auth/domain.yaml",
+        2,
+        "BILLING-REFUND-001 starts with BILLING but the case is in cases/auth/",
+      ],
+    ],
   ],
-  ["id-unique", [["cases/auth/unique.yaml", 2, "AUTH-LOGIN-001 is already used at cases/auth/login.yaml:2"]]],
+  [
+    "id-unique",
+    [["cases/auth/unique.yaml", 2, "AUTH-LOGIN-001 is already used at cases/auth/login.yaml:2"]],
+  ],
   ["id-retired", [["cases/auth/retired.yaml", 2, "AUTH-OLD-001 is retired"]]],
   ["case-has-check", [["cases/auth/unchecked.yaml", 2, "AUTH-UNCHECKED-001 has no check"]]],
   [
@@ -93,7 +125,11 @@ const failing: [string, Expected][] = [
       ["cases/auth/flows.yaml", 8, "flow logn: no such flow"],
       ["cases/auth/flows.yaml", 9, "flow login: missing parameter email"],
       ["cases/auth/flows.yaml", 10, "flow cycle: loop-a -> loop-b -> loop-a"],
-      ["cases/auth/flows.yaml", 11, "flow login: a challenge trigger runs one step, and the flow expands to 3"],
+      [
+        "cases/auth/flows.yaml",
+        11,
+        "flow login: a challenge trigger runs one step, and the flow expands to 3",
+      ],
       ["cases/auth/flows.yaml", 14, "flow logn: no such flow"],
     ],
   ],
@@ -111,7 +147,11 @@ const failing: [string, Expected][] = [
       ["cases/auth/placeholders.yaml", 9, "${secret.PARTNER_KEY} names a secret"],
       ["cases/auth/placeholders.yaml", 10, `${FIXTURES_FILE} has no phone for identity customer`],
       ["cases/auth/placeholders.yaml", 11, `${FIXTURES_FILE} has no email for identity partner`],
-      ["cases/auth/placeholders.yaml", 12, `email of identity customer in ${FIXTURES_FILE} is not a phone number`],
+      [
+        "cases/auth/placeholders.yaml",
+        12,
+        `email of identity customer in ${FIXTURES_FILE} is not a phone number`,
+      ],
       [BRAND.configFile, 27, "${secret.PARTNER_HMAC_SECRT} names a secret"],
       [BRAND.configFile, 28, "${env.APP_URLL} is not a var of env uat, prod"],
     ],
@@ -124,21 +164,33 @@ const failing: [string, Expected][] = [
       ["cases/auth/secrets.yaml", 10, "a Slack token"],
       ["cases/auth/secrets.yaml", 11, "a JWT"],
       ["cases/auth/secrets.yaml", 12, "a private key block"],
-      ["cases/auth/secrets.yaml", 13, "a 38-character string with 4.7 bits of entropy per character"],
+      [
+        "cases/auth/secrets.yaml",
+        13,
+        "a 38-character string with 4.7 bits of entropy per character",
+      ],
     ],
   ],
   ["fixture-domain", [["fixtures/identities.example.yaml", 5, "example.invalid"]]],
   [
     "human-only-chain",
     [
-      [BRAND.configFile, 9, "env uat answers human-only challenge otp-email with otp-mailpit, human"],
+      [
+        BRAND.configFile,
+        9,
+        "env uat answers human-only challenge otp-email with otp-mailpit, human",
+      ],
       [BRAND.configFile, 15, "env prod answers human-only challenge face-scan with face-bot"],
     ],
   ],
   [
     "prod-safe",
     [
-      ["cases/auth/prod.yaml", 10, "AUTH-PROD-001 is prod_safe but its DELETE request does not set write: true"],
+      [
+        "cases/auth/prod.yaml",
+        10,
+        "AUTH-PROD-001 is prod_safe but its DELETE request does not set write: true",
+      ],
       ["cases/auth/prod.yaml", 14, "its POST request"],
       ["cases/auth/prod.yaml", 16, "its PATCH request"],
       ["cases/auth/prod.yaml", 18, "its DELETE request"],
@@ -155,13 +207,32 @@ const failing: [string, Expected][] = [
   [
     "external-case-shape",
     [
-      ["cases/auth/external.yaml", 12, "AUTH-EXT-002 runs on runner target shop-chrome but has steps"],
-      ["cases/auth/external.yaml", 19, "AUTH-EXT-003 runs on runner target shop-chrome but has checks"],
-      ["cases/auth/external.yaml", 25, "AUTH-EXT-004 lists runner targets (shop-chrome) and driver targets (web)"],
-      ["cases/auth/external.yaml", 31, "AUTH-EXT-005 runs on runner target shop-chrome but has finally"],
+      [
+        "cases/auth/external.yaml",
+        12,
+        "AUTH-EXT-002 runs on runner target shop-chrome but has steps",
+      ],
+      [
+        "cases/auth/external.yaml",
+        19,
+        "AUTH-EXT-003 runs on runner target shop-chrome but has checks",
+      ],
+      [
+        "cases/auth/external.yaml",
+        25,
+        "AUTH-EXT-004 lists runner targets (shop-chrome) and driver targets (web)",
+      ],
+      [
+        "cases/auth/external.yaml",
+        31,
+        "AUTH-EXT-005 runs on runner target shop-chrome but has finally",
+      ],
     ],
   ],
-  ["runner-format-known", [[BRAND.configFile, 26, "runner shop-suite uses format ctrf, which no plugin registers"]]],
+  [
+    "runner-format-known",
+    [[BRAND.configFile, 26, "runner shop-suite uses format ctrf, which no plugin registers"]],
+  ],
   [
     "refresh-interval",
     [
@@ -170,7 +241,11 @@ const failing: [string, Expected][] = [
         26,
         "identities.ops.auth.web sets refreshEveryMs, but its session-cookie settings have no refresh request",
       ],
-      [BRAND.configFile, 31, "identities.ops.auth.api sets refreshEveryMs, but strategy api-key has no refresh"],
+      [
+        BRAND.configFile,
+        31,
+        "identities.ops.auth.api sets refreshEveryMs, but strategy api-key has no refresh",
+      ],
     ],
   ],
   [
@@ -178,7 +253,11 @@ const failing: [string, Expected][] = [
     [
       [BRAND.configFile, 32, "mapping file interop/api-suite.yaml of runner api-suite is missing"],
       ["interop/old-suite.yaml", 1, "tests: Invalid input: expected record"],
-      ["interop/shop-suite.yaml", 3, 'test "CartTest › oldTest" maps to AUTH-GONE-001, which no case declares'],
+      [
+        "interop/shop-suite.yaml",
+        3,
+        'test "CartTest › oldTest" maps to AUTH-GONE-001, which no case declares',
+      ],
       [
         "interop/shop-suite.yaml",
         4,
@@ -199,7 +278,10 @@ describe("checkProject with the built-in rules", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  async function loadFailing(ruleId: string, plugins?: readonly PluginManifest[]): Promise<Project> {
+  async function loadFailing(
+    ruleId: string,
+    plugins?: readonly PluginManifest[],
+  ): Promise<Project> {
     await cp(clean, root, { recursive: true });
     await cp(fixture(`failing/${ruleId}`), root, { recursive: true });
     return load(root, plugins);
@@ -213,22 +295,28 @@ describe("checkProject with the built-in rules", () => {
     expect(failing.map(([ruleId]) => ruleId)).toEqual(builtinRules.map((rule) => rule.id));
   });
 
-  it.each(failing)("%s reports its failing fixture with file, line, message and fix", async (ruleId, expected) => {
-    const issues = checkProject(await loadFailing(ruleId), builtinRules);
-    const severity = ruleId === "selector-test-id" ? "warning" : "error";
+  it.each(failing)(
+    "%s reports its failing fixture with file, line, message and fix",
+    async (ruleId, expected) => {
+      const issues = checkProject(await loadFailing(ruleId), builtinRules);
+      const severity = ruleId === "selector-test-id" ? "warning" : "error";
 
-    expect(issues.map((issue) => [issue.ruleId, issue.severity, issue.file, issue.line])).toEqual(
-      expected.map(([file, line]) => [ruleId, severity, file, line]),
-    );
-    issues.forEach((issue, index) => {
-      expect(issue.message).toContain(expected[index]?.[2]);
-      expect(issue.fix).not.toBe("");
-    });
-  });
+      expect(issues.map((issue) => [issue.ruleId, issue.severity, issue.file, issue.line])).toEqual(
+        expected.map(([file, line]) => [ruleId, severity, file, line]),
+      );
+      issues.forEach((issue, index) => {
+        expect(issue.message).toContain(expected[index]?.[2]);
+        expect(issue.fix).not.toBe("");
+      });
+    },
+  );
 
   it("leaves an external case with no steps and no checks out of case-has-check, but not a native one", async () => {
     await cp(clean, root, { recursive: true });
-    await cp(fixture("failing/external-case-shape/bazam.config.yaml"), join(root, BRAND.configFile));
+    await cp(
+      fixture("failing/external-case-shape/bazam.config.yaml"),
+      join(root, BRAND.configFile),
+    );
     const cases = ["shop-chrome", "web"].map((target, index) =>
       [
         `  - id: AUTH-BARE-00${index + 1}`,
@@ -240,9 +328,9 @@ describe("checkProject with the built-in rules", () => {
     );
     await writeFile(join(root, "cases/auth/bare.yaml"), `cases:\n${cases.join("\n")}\n`);
 
-    expect(checkProject(await load(root), builtinRules).map((issue) => [issue.ruleId, issue.message])).toEqual([
-      ["case-has-check", "AUTH-BARE-002 has no check"],
-    ]);
+    expect(
+      checkProject(await load(root), builtinRules).map((issue) => [issue.ruleId, issue.message]),
+    ).toEqual([["case-has-check", "AUTH-BARE-002 has no check"]]);
   });
 
   it("leaves a runner mapping file out of no-literal-secret, since its keys are test titles", async () => {
@@ -256,7 +344,9 @@ describe("checkProject with the built-in rules", () => {
     const issues = checkProject(await load(root), builtinRules);
 
     expect(
-      issues.filter((issue) => issue.ruleId === "no-literal-secret" && issue.file === "interop/shop-suite.yaml"),
+      issues.filter(
+        (issue) => issue.ruleId === "no-literal-secret" && issue.file === "interop/shop-suite.yaml",
+      ),
     ).toEqual([]);
   });
 
@@ -270,14 +360,19 @@ describe("checkProject with the built-in rules", () => {
     const config = join(root, BRAND.configFile);
     await writeFile(
       config,
-      (await readFile(config, "utf8")).replace("mapping: interop/api-suite.yaml", `mapping: ${mapping}`),
+      (await readFile(config, "utf8")).replace(
+        "mapping: interop/api-suite.yaml",
+        `mapping: ${mapping}`,
+      ),
     );
 
     const issues = checkProject(await load(root), builtinRules).filter(
       (issue) => issue.ruleId === "runner-mapping-valid" && issue.file === BRAND.configFile,
     );
 
-    expect(issues.map((issue) => [issue.line, issue.message])).toEqual([[32, `mapping file ${mapping} ${message}`]]);
+    expect(issues.map((issue) => [issue.line, issue.message])).toEqual([
+      [32, `mapping file ${mapping} ${message}`],
+    ]);
   });
 
   it("tells a trigger whose flow has several steps to name a one-step flow", async () => {
@@ -313,7 +408,10 @@ describe("checkProject with the built-in rules", () => {
       "  customer:\n    fixture: customer\n",
       "  customer:\n    fixture: customer\n  partner:\n    fixture: partner\n",
     );
-    await writeFile(configPath, `${config}roles:\n  tester:\n    identities: [customer, partner]\n`);
+    await writeFile(
+      configPath,
+      `${config}roles:\n  tester:\n    identities: [customer, partner]\n`,
+    );
     const roleCase = [
       "cases:",
       "  - id: AUTH-ROLE-001",
@@ -342,7 +440,10 @@ describe("checkProject with the built-in rules", () => {
 
   it("accepts a phone form of a fixture field that holds a possible number", async () => {
     await cp(clean, root, { recursive: true });
-    await writeFile(join(root, FIXTURES_FILE), 'customer:\n  email: customer@example.test\n  phone: "+447700900123"\n');
+    await writeFile(
+      join(root, FIXTURES_FILE),
+      'customer:\n  email: customer@example.test\n  phone: "+447700900123"\n',
+    );
     const phone = [
       "cases:",
       "  - id: AUTH-PHONE-001",
@@ -461,7 +562,9 @@ describe("loadProject", () => {
       source: { file: "flows/login.yaml", line: 2 },
     });
     expect(project.suites).toEqual(new Map([["nightly", { stages: ["regression"] }]]));
-    expect(project.fixtures).toEqual({ customer: { email: "customer@example.test", name: "Fake Customer" } });
+    expect(project.fixtures).toEqual({
+      customer: { email: "customer@example.test", name: "Fake Customer" },
+    });
     expect([...project.retiredIds]).toEqual(["AUTH-OLD-001"]);
     expect([...project.challengeKinds.keys()]).toEqual(["otp-email", "pin", "face-scan"]);
     expect(project.challengeKinds.get("face-scan")).toBe(faceScan);
@@ -521,7 +624,12 @@ describe("loadProjectConfig", () => {
 
     expect(config).toBeUndefined();
     expect(issues.map((issue) => [issue.ruleId, issue.file, issue.line, issue.message])).toEqual([
-      ["schema", BRAND.configFile, 2, "envs.uat.production: Invalid input: expected boolean, received undefined"],
+      [
+        "schema",
+        BRAND.configFile,
+        2,
+        "envs.uat.production: Invalid input: expected boolean, received undefined",
+      ],
       ["schema", BRAND.configFile, 5, 'Unrecognized key: "identity"'],
     ]);
   });
@@ -545,7 +653,10 @@ describe("loadProjectConfig", () => {
       expect(loaded).toBeUndefined();
       expect(issues.map((issue) => [issue.line, issue.message])).toEqual([
         [6, expect.stringMatching(/^roles\.alice: role alice has the name of an identity/)],
-        [7, "roles.tester.identities[1]: role tester lists identity carol, which is not defined under identities"],
+        [
+          7,
+          "roles.tester.identities[1]: role tester lists identity carol, which is not defined under identities",
+        ],
         [
           7,
           expect.stringMatching(
@@ -595,12 +706,19 @@ describe("loadProjectConfig", () => {
         shown: [],
       });
 
-      await writeFile(join(root, BRAND.configFile), `${[...redaction, "    - '(unclosed'"].join("\n")}\n`);
+      await writeFile(
+        join(root, BRAND.configFile),
+        `${[...redaction, "    - '(unclosed'"].join("\n")}\n`,
+      );
       const { config, issues } = await loadProjectConfig(root);
 
       expect(config).toBeUndefined();
       expect(issues.map((issue) => [issue.file, issue.line, issue.message])).toEqual([
-        [BRAND.configFile, 6, expect.stringMatching(/^redaction\.patterns\[1\]: not a regular expression: /)],
+        [
+          BRAND.configFile,
+          6,
+          expect.stringMatching(/^redaction\.patterns\[1\]: not a regular expression: /),
+        ],
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });

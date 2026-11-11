@@ -22,11 +22,23 @@ import { loadProjectConfig, type ProjectConfig } from "../packages/core/src/proj
 import { defaultRedactionRules, Redactor } from "../packages/core/src/redact/index.ts";
 import type { CaseResult } from "../packages/core/src/result/evidence.ts";
 import { unzipEntries } from "../packages/core/src/scan/evidence-scan.ts";
-import { MIN_ANYWHERE, MIN_SCANNED, RUN_ID, secretOf, textHits, type Secret } from "../packages/core/src/scan/forms.ts";
-import { resolveSecret, SecretMissing, type SecretProvider } from "../packages/core/src/secrets/index.ts";
+import {
+  MIN_ANYWHERE,
+  MIN_SCANNED,
+  RUN_ID,
+  secretOf,
+  textHits,
+  type Secret,
+} from "../packages/core/src/scan/forms.ts";
+import {
+  resolveSecret,
+  SecretMissing,
+  type SecretProvider,
+} from "../packages/core/src/secrets/index.ts";
 import { totpCode } from "../packages/resolvers/src/totp.ts";
 
-const USAGE = "usage: node scripts/secret-scan.ts <project root> [--totp-seed <secret name>] [--mailpit <url>]";
+const USAGE =
+  "usage: node scripts/secret-scan.ts <project root> [--totp-seed <secret name>] [--mailpit <url>]";
 
 // the evidence store writes these result.json fields unmasked, since the harness makes them
 // (see packages/core/src/result/evidence.ts::EvidenceStore.finish)
@@ -121,8 +133,12 @@ async function projectConfig(projectRoot: string): Promise<ProjectConfig> {
   return config;
 }
 
-async function secretValues(config: ProjectConfig, projectRoot: string): Promise<Map<string, string>> {
-  if (config.secrets.names.length === 0) throw new ScanError("the project config registers no secrets");
+async function secretValues(
+  config: ProjectConfig,
+  projectRoot: string,
+): Promise<Map<string, string>> {
+  if (config.secrets.names.length === 0)
+    throw new ScanError("the project config registers no secrets");
   // the providers the core plugin registers; a plugin's own provider would need the plugin registry
   const builtin = builtinContributions(config, projectRoot).secretProviders ?? [];
   const providers = config.secrets.providers.map((name): SecretProvider => {
@@ -135,19 +151,24 @@ async function secretValues(config: ProjectConfig, projectRoot: string): Promise
   });
   const redactor = new Redactor(defaultRedactionRules());
   const values = new Map<string, string>();
-  for (const name of config.secrets.names) values.set(name, await resolveSecret(name, providers, redactor));
+  for (const name of config.secrets.names)
+    values.set(name, await resolveSecret(name, providers, redactor));
   return values;
 }
 
 function registered(values: ReadonlyMap<string, string>): Secret[] {
   return [...values].flatMap(([name, value]) => {
     if (value.length < MIN_SCANNED) {
-      console.error(`${name} is shorter than ${MIN_SCANNED} characters, which the redactor leaves alone; not scanned`);
+      console.error(
+        `${name} is shorter than ${MIN_SCANNED} characters, which the redactor leaves alone; not scanned`,
+      );
       return [];
     }
     const secret = secretOf(name, [value]);
     if (secret.short.length > 0)
-      console.error(`${name}: forms shorter than ${MIN_ANYWHERE} characters count only as whole tokens`);
+      console.error(
+        `${name}: forms shorter than ${MIN_ANYWHERE} characters count only as whole tokens`,
+      );
     return [secret];
   });
 }
@@ -173,15 +194,20 @@ function cachedCredentials(config: ProjectConfig, projectRoot: string): Secret[]
     .map((file) => {
       const stem = file.slice(0, -".json".length);
       const owner = decodeURIComponent(stem.split("+").at(-1) ?? "");
-      const { credential } = JSON.parse(readFileSync(path.join(dir, file), "utf8")) as CachedCredential;
-      const strategy = strategies.find((candidate) => candidate.cacheable && candidate.name === owner);
+      const { credential } = JSON.parse(
+        readFileSync(path.join(dir, file), "utf8"),
+      ) as CachedCredential;
+      const strategy = strategies.find(
+        (candidate) => candidate.cacheable && candidate.name === owner,
+      );
       const values: string[] | undefined =
         strategy !== undefined
           ? strategy.secrets(credential)
           : owner === PASSKEY_RESOLVER
             ? passkeyKeys(credential)
             : undefined;
-      if (values === undefined) throw new ScanError(`cannot tell which values of the cached ${file} are secret`);
+      if (values === undefined)
+        throw new ScanError(`cannot tell which values of the cached ${file} are secret`);
       return secretOf(`credential ${stem}`, values);
     });
 }
@@ -189,7 +215,9 @@ function cachedCredentials(config: ProjectConfig, projectRoot: string): Secret[]
 function passkeyKeys(credential: JsonValue): string[] | undefined {
   if (!Array.isArray(credential)) return undefined;
   const keys = credential.map((passkey) =>
-    typeof passkey === "object" && passkey !== null && !Array.isArray(passkey) ? passkey["privateKey"] : undefined,
+    typeof passkey === "object" && passkey !== null && !Array.isArray(passkey)
+      ? passkey["privateKey"]
+      : undefined,
   );
   return keys.every((key) => typeof key === "string") ? keys : undefined;
 }
@@ -198,7 +226,8 @@ function runSpans(runsDir: string, files: readonly string[]): Map<string, RunSpa
   const spans = new Map<string, RunSpan>();
   for (const file of files) {
     const [run, caseDir, name, ...rest] = path.relative(runsDir, file).split(path.sep);
-    if (run === undefined || caseDir === undefined || name !== "result.json" || rest.length > 0) continue;
+    if (run === undefined || caseDir === undefined || name !== "result.json" || rest.length > 0)
+      continue;
     const result = parsedJson(readFileSync(file, "utf8")) as Partial<CaseResult> | null | undefined;
     const from = Date.parse(result?.startedAt ?? "");
     const to = Date.parse(result?.finishedAt ?? "");
@@ -226,7 +255,9 @@ async function runCodes(
   if (totpSeed !== undefined && seed === undefined)
     throw new ScanError(`--totp-seed ${totpSeed} is not a secret the project config registers`);
   const mailpit =
-    options.mailpit === undefined ? undefined : { base: options.mailpit, mail: await mailpitMail(options.mailpit) };
+    options.mailpit === undefined
+      ? undefined
+      : { base: options.mailpit, mail: await mailpitMail(options.mailpit) };
   const codes = new Map<string, Secret[]>();
   for (const [run, span] of spans) {
     const from = span.from - CODE_MARGIN_MS;
@@ -234,7 +265,9 @@ async function runCodes(
     const secrets: Secret[] = [];
     if (span.kinds.has("totp")) {
       if (seed === undefined)
-        throw new ScanError(`run ${run} used TOTP codes; give --totp-seed the name of the secret that holds the seed`);
+        throw new ScanError(
+          `run ${run} used TOTP codes; give --totp-seed the name of the secret that holds the seed`,
+        );
       secrets.push(secretOf(`TOTP code of ${totpSeed}`, totpCodes(seed, from, to)));
     }
     const readMailpit = span.resolvers.has("otp-mailpit");
@@ -245,7 +278,9 @@ async function runCodes(
       // such as a code a test hook returned
       const received = mailpit.mail.filter((mail) => mail.created >= from && mail.created <= to);
       if (readMailpit && received.length === 0)
-        throw new ScanError(`run ${run} read codes from Mailpit, which holds no mail from that time`);
+        throw new ScanError(
+          `run ${run} read codes from Mailpit, which holds no mail from that time`,
+        );
       secrets.push(secretOf("code mailed to Mailpit", await mailedCodes(mailpit.base, received)));
     }
     codes.set(run, secrets);
@@ -264,11 +299,16 @@ function totpCodes(seed: string, from: number, to: number): string[] {
 async function mailpitMail(base: string): Promise<Mail[]> {
   const mail: Mail[] = [];
   for (;;) {
-    const page = (await mailpitJson(base, `/api/v1/messages?start=${mail.length}&limit=${MAILPIT_PAGE}`)) as {
+    const page = (await mailpitJson(
+      base,
+      `/api/v1/messages?start=${mail.length}&limit=${MAILPIT_PAGE}`,
+    )) as {
       total: number;
       messages: { ID: string; Created: string }[];
     };
-    mail.push(...page.messages.map((message) => ({ id: message.ID, created: Date.parse(message.Created) })));
+    mail.push(
+      ...page.messages.map((message) => ({ id: message.ID, created: Date.parse(message.Created) })),
+    );
     if (page.messages.length === 0 || mail.length >= page.total) return mail;
   }
 }
@@ -276,7 +316,9 @@ async function mailpitMail(base: string): Promise<Mail[]> {
 async function mailedCodes(base: string, mail: readonly Mail[]): Promise<string[]> {
   const codes: string[] = [];
   for (const { id } of mail) {
-    const message = (await mailpitJson(base, `/api/v1/message/${encodeURIComponent(id)}`)) as { Text?: string };
+    const message = (await mailpitJson(base, `/api/v1/message/${encodeURIComponent(id)}`)) as {
+      Text?: string;
+    };
     codes.push(...((message.Text ?? "").match(MAILED_CODE) ?? []));
   }
   return codes;
@@ -301,8 +343,11 @@ function filesUnder(dir: string): string[] {
   } catch (error) {
     throw new ScanError(`cannot read ${dir}: ${(error as Error).message}`);
   }
-  const files = entries.filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name));
-  if (files.length === 0) throw new ScanError(`${dir} holds no files; run the cases before the scan`);
+  const files = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name));
+  if (files.length === 0)
+    throw new ScanError(`${dir} holds no files; run the cases before the scan`);
   return files.sort();
 }
 
@@ -332,14 +377,19 @@ function contentHits(where: string, bytes: Uint8Array, secrets: readonly Secret[
     ]);
   }
   const found = IMAGE_MAGIC.some((magic) => startsWith(bytes, magic))
-    ? secrets.filter((secret) => secret.long.some((form) => contains(bytes, form))).map((secret) => secret.name)
+    ? secrets
+        .filter((secret) => secret.long.some((form) => contains(bytes, form)))
+        .map((secret) => secret.name)
     : textHits(scannedText(where, asText(bytes)), secrets);
   return found.map((secret) => ({ where, secret }));
 }
 
 // a run id is generated, and its hex part can hold a short value by chance
 function scannedText(where: string, text: string): string {
-  return (path.basename(where) === "result.json" ? withoutHarnessFields(text) : text).replaceAll(RUN_ID, " ");
+  return (path.basename(where) === "result.json" ? withoutHarnessFields(text) : text).replaceAll(
+    RUN_ID,
+    " ",
+  );
 }
 
 function withoutHarnessFields(text: string): string {
@@ -362,7 +412,9 @@ function startsWith(bytes: Uint8Array, magic: Buffer): boolean {
 }
 
 function contains(bytes: Uint8Array, form: string): boolean {
-  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).includes(Buffer.from(form, "utf8"));
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).includes(
+    Buffer.from(form, "utf8"),
+  );
 }
 
 // Bytes that are not UTF-8 read as U+FFFD, which joins no token. The trace scrubber copies such zip entries
@@ -375,6 +427,8 @@ try {
   process.exitCode = await main();
 } catch (error) {
   // a problem the scan names prints its message alone; anything else keeps its stack
-  console.error(error instanceof ScanError || error instanceof SecretMissing ? error.message : error);
+  console.error(
+    error instanceof ScanError || error instanceof SecretMissing ? error.message : error,
+  );
   process.exitCode = 2;
 }

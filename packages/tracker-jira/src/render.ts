@@ -1,4 +1,10 @@
-import { cellText, escapeMarkdown, STATUS_LABELS, type MediaRefs, type TrackerRenderer } from "@bazam/core/report";
+import {
+  cellText,
+  escapeMarkdown,
+  STATUS_LABELS,
+  type MediaRefs,
+  type TrackerRenderer,
+} from "@bazam/core/report";
 import type { CaseResult, CheckRecord } from "@bazam/core/result";
 import { checkResult, followupText, renderJiraAdf, resultSubject, type AdfDoc } from "./adf.ts";
 
@@ -15,7 +21,11 @@ export function renderJiraComment(
   result: CaseResult,
   media: MediaRefs = {},
 ): { markdown: string; html: string; adf: AdfDoc } {
-  return { markdown: markdownComment(result), html: htmlComment(result, media), adf: renderJiraAdf(result) };
+  return {
+    markdown: markdownComment(result),
+    html: htmlComment(result, media),
+    adf: renderJiraAdf(result),
+  };
 }
 
 export const jiraTracker: TrackerRenderer = { tracker: "jira", render: renderJiraComment };
@@ -55,7 +65,9 @@ function markdownComment(result: CaseResult): string {
           ...result.checks.map(markdownRow),
         ].join("\n"),
     markdownList("Notes:", result.notes),
-    result.attachments.length === 0 ? "" : `Attached files: ${escapeMarkdown(result.attachments.join(", "))}`,
+    result.attachments.length === 0
+      ? ""
+      : `Attached files: ${escapeMarkdown(result.attachments.join(", "))}`,
   ].filter((block) => block !== "");
   return `${[
     `**${STATUS_LABELS[result.status]}** on ${escapeMarkdown(resultSubject(result))}`,
@@ -68,7 +80,12 @@ function markdownComment(result: CaseResult): string {
 }
 
 function htmlRow(check: CheckRecord): string {
-  const cells = [check.name, cellText(check.expected), cellText(check.observed), checkResult(check)];
+  const cells = [
+    check.name,
+    cellText(check.expected),
+    cellText(check.observed),
+    checkResult(check),
+  ];
   return `<tr>${cells.map((text) => `<td>${escapeHtml(text)}</td>`).join("")}</tr>`;
 }
 
@@ -83,7 +100,8 @@ function figure(name: string, ref: MediaRef): string {
     .replace(/^\d+-/, "")
     .replace(/\.png$/, "")
     .replaceAll("-", " ");
-  const collection = ref.collection === undefined ? "" : ` data-collection="${escapeHtml(ref.collection)}"`;
+  const collection =
+    ref.collection === undefined ? "" : ` data-collection="${escapeHtml(ref.collection)}"`;
   const media = `<div data-type="media" data-media-type="file" data-id="${escapeHtml(ref.id)}"${collection} data-alt="${escapeHtml(name)}"></div>`;
   return `<figure data-type="media-single" data-layout="center" data-width="60" data-width-type="percentage">${media}<figcaption>${escapeHtml(caption)}</figcaption></figure>`;
 }
@@ -98,7 +116,12 @@ function escapeHtml(text: string): string {
 }
 
 function markdownRow(check: CheckRecord): string {
-  const cells = [check.name, cellText(check.expected), cellText(check.observed), checkResult(check)];
+  const cells = [
+    check.name,
+    cellText(check.expected),
+    cellText(check.observed),
+    checkResult(check),
+  ];
   return `| ${cells.map(escapeMarkdown).join(" | ")} |`;
 }
 

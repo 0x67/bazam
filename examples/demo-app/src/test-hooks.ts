@@ -26,7 +26,8 @@ export function testHookRoutes(deps: DemoDeps): Hono {
   app.post("/test/expire-sessions", (c) => {
     const email = c.req.query("email")?.toLowerCase() ?? ""
     if (!email.includes("@")) return c.json({ error: "email must be an email address" }, 400)
-    for (const [id, session] of store.sessions) if (session.email === email) store.sessions.delete(id)
+    for (const [id, session] of store.sessions)
+      if (session.email === email) store.sessions.delete(id)
     return c.body(null, 204)
   })
 

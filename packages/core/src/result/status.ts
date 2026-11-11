@@ -27,7 +27,10 @@ export function deriveStatus(checks: readonly CheckRecord[], outcome: CaseOutcom
 }
 
 /** The reason recorded beside the status; a harness error is prefixed `internal:`. */
-export function deriveReason(checks: readonly CheckRecord[], outcome: CaseOutcome): string | undefined {
+export function deriveReason(
+  checks: readonly CheckRecord[],
+  outcome: CaseOutcome,
+): string | undefined {
   switch (outcome.kind) {
     case "blocked":
       return outcome.reason;

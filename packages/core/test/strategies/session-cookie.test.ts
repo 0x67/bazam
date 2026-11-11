@@ -36,7 +36,9 @@ describe("sessionCookieStrategy", () => {
       const cookies = request.headers.cookie ?? "";
       switch (`${request.method} ${request.url.pathname}`) {
         case "GET /api/session/me":
-          return response.writeHead(/\bsession=fake-session-[12]\b/.test(cookies) ? 200 : 401).end();
+          return response
+            .writeHead(/\bsession=fake-session-[12]\b/.test(cookies) ? 200 : 401)
+            .end();
         case "GET /api/session/page":
           if (/\bsession=fake-session-[12]\b/.test(cookies)) return response.writeHead(200).end();
           return response.writeHead(302, { location: "/login" }).end();
@@ -49,7 +51,10 @@ describe("sessionCookieStrategy", () => {
           return response.writeHead(200).end();
         case "POST /auth/rotate":
           return response
-            .writeHead(303, { location: "/home", "set-cookie": "session=fake-session-2; Path=/; HttpOnly" })
+            .writeHead(303, {
+              location: "/home",
+              "set-cookie": "session=fake-session-2; Path=/; HttpOnly",
+            })
             .end();
         case "POST /auth/refresh":
           if (!cookies.includes("session=fake-session-1")) return response.writeHead(401).end();
@@ -105,9 +110,14 @@ describe("sessionCookieStrategy", () => {
 
   it("a scripted login without a person sends no prompt and waits a minute", async () => {
     const login = new FakeBrowserLogin(LOGGED_IN.cookies);
-    const scripted = { login: { url: `${server.origin}/login`, flow: "enter-email", until: { cookie: "session" } } };
+    const scripted = {
+      login: { url: `${server.origin}/login`, flow: "enter-email", until: { cookie: "session" } },
+    };
 
-    await sessionCookieStrategy.acquire(sessionCookieStrategy.config.parse(scripted), authContext({ browser: login }));
+    await sessionCookieStrategy.acquire(
+      sessionCookieStrategy.config.parse(scripted),
+      authContext({ browser: login }),
+    );
 
     expect(login.requests[0]?.prompt).toBeUndefined();
     expect(login.requests[0]?.timeoutMs).toBe(60_000);
@@ -119,9 +129,11 @@ describe("sessionCookieStrategy", () => {
         login: { url: "${env.APP_URL}/login", person: { steps: ["Enter the code"] } },
       }),
     ).toBe(true);
-    expect(sessionCookieStrategy.needsPerson?.({ login: { url: "${env.APP_URL}/login", flow: "enter-email" } })).toBe(
-      false,
-    );
+    expect(
+      sessionCookieStrategy.needsPerson?.({
+        login: { url: "${env.APP_URL}/login", flow: "enter-email" },
+      }),
+    ).toBe(false);
   });
 
   it("sends only the cookies whose domain, path, Secure flag and expiry match the request", async () => {
@@ -143,12 +155,17 @@ describe("sessionCookieStrategy", () => {
     await sessionCookieStrategy.apply(state, { kind: "http", request: https }, config());
     await sessionCookieStrategy.apply(state, { kind: "http", request: http }, config());
 
-    expect(https.headers.get("cookie")).toBe("parent=fake-parent; admin=fake-admin; secure=fake-secure");
+    expect(https.headers.get("cookie")).toBe(
+      "parent=fake-parent; admin=fake-admin; secure=fake-secure",
+    );
     expect(http.headers.get("cookie")).toBe("parent=fake-parent; admin=fake-admin");
   });
 
   describe("headers", () => {
-    const withCsrf: StorageState = { cookies: [...LOGGED_IN.cookies, cookie("csrf", "fake-csrf-1")], origins: [] };
+    const withCsrf: StorageState = {
+      cookies: [...LOGGED_IN.cookies, cookie("csrf", "fake-csrf-1")],
+      origins: [],
+    };
     const headers = { origin: "https://app.example.test", "x-csrf-token": { cookie: "csrf" } };
     const withHeaders = (purpose: "probe" | "refresh") =>
       sessionCookieStrategy.config.parse({
@@ -156,19 +173,22 @@ describe("sessionCookieStrategy", () => {
         [purpose]: { ...(settings[purpose] as object), headers },
       });
 
-    it.each(["probe", "refresh"] as const)("the %s sends its headers and copies a cached cookie", async (purpose) => {
-      const config = withHeaders(purpose);
-      const ctx = authContext();
+    it.each(["probe", "refresh"] as const)(
+      "the %s sends its headers and copies a cached cookie",
+      async (purpose) => {
+        const config = withHeaders(purpose);
+        const ctx = authContext();
 
-      if (purpose === "probe") await sessionCookieStrategy.probe?.(withCsrf, config, ctx);
-      else await sessionCookieStrategy.refresh?.(withCsrf, config, ctx);
+        if (purpose === "probe") await sessionCookieStrategy.probe?.(withCsrf, config, ctx);
+        else await sessionCookieStrategy.refresh?.(withCsrf, config, ctx);
 
-      expect(server.received.at(-1)?.headers).toMatchObject({
-        origin: "https://app.example.test",
-        "x-csrf-token": "fake-csrf-1",
-        cookie: "session=fake-session-1; tracker=fake-tracker-1; csrf=fake-csrf-1",
-      });
-    });
+        expect(server.received.at(-1)?.headers).toMatchObject({
+          origin: "https://app.example.test",
+          "x-csrf-token": "fake-csrf-1",
+          cookie: "session=fake-session-1; tracker=fake-tracker-1; csrf=fake-csrf-1",
+        });
+      },
+    );
 
     it("fails with a message that names the cookie and no value when the state does not send it", async () => {
       const count = server.received.length;
@@ -185,7 +205,10 @@ describe("sessionCookieStrategy", () => {
     });
 
     it("refuses a header named cookie", () => {
-      const refused = { ...settings, probe: { ...settings.probe, headers: { Cookie: "session=fake-forged" } } };
+      const refused = {
+        ...settings,
+        probe: { ...settings.probe, headers: { Cookie: "session=fake-forged" } },
+      };
 
       expect(() => sessionCookieStrategy.config.parse(refused)).toThrow(
         "the cookie header comes from the cached state",
@@ -203,7 +226,13 @@ describe("sessionCookieStrategy", () => {
     it("passes only when each path holds the expected value, a number matching its text", async () => {
       const ctx = authContext();
 
-      expect(await sessionCookieStrategy.probe?.(LOGGED_IN, who({ user_id: "42", name: "Fake User" }), ctx)).toBe(true);
+      expect(
+        await sessionCookieStrategy.probe?.(
+          LOGGED_IN,
+          who({ user_id: "42", name: "Fake User" }),
+          ctx,
+        ),
+      ).toBe(true);
       await expect(
         sessionCookieStrategy.probe?.(LOGGED_IN, who({ user_id: "7", name: "Fake User" }), ctx),
       ).rejects.toMatchObject({
@@ -213,7 +242,11 @@ describe("sessionCookieStrategy", () => {
     });
 
     it("checkProbe returns false for a wrong status before it reads the body", () => {
-      const check = RequestCheck.parse({ request: "GET http://127.0.0.1/me", status: 200, body: { user_id: 42 } });
+      const check = RequestCheck.parse({
+        request: "GET http://127.0.0.1/me",
+        status: 200,
+        body: { user_id: 42 },
+      });
       const response = { status: 401, headers: new Headers(), body: { user_id: 7 } };
 
       expect(checkProbe(check, response)).toBe(false);
@@ -233,7 +266,9 @@ describe("sessionCookieStrategy", () => {
 
     const refreshed = await sessionCookieStrategy.refresh?.(LOGGED_IN, config(), ctx);
 
-    expect(server.received.at(-1)?.headers.cookie).toBe("session=fake-session-1; tracker=fake-tracker-1");
+    expect(server.received.at(-1)?.headers.cookie).toBe(
+      "session=fake-session-1; tracker=fake-tracker-1",
+    );
     expect(refreshed?.cookies).toEqual([
       cookie("session", "fake-session-2", { sameSite: "Strict" }),
       cookie("csrf", "fake-csrf-1", { path: "/auth", httpOnly: false }),
@@ -259,17 +294,35 @@ describe("sessionCookieStrategy", () => {
 
     const refreshed = await sessionCookieStrategy.refresh?.(LOGGED_IN, rotate, authContext());
 
-    expect(refreshed?.cookies).toEqual([cookie("tracker", "fake-tracker-1"), cookie("session", "fake-session-2")]);
+    expect(refreshed?.cookies).toEqual([
+      cookie("tracker", "fake-tracker-1"),
+      cookie("session", "fake-session-2"),
+    ]);
     expect(server.received.at(-1)?.url.pathname).toBe("/auth/rotate");
   });
 
   it.each([
-    ["part of an IP address", "http://127.0.0.1/auth/refresh", "Domain=0.0.1", "http://10.0.0.1/me"],
-    ["a public suffix", "https://api.example.test/auth/refresh", "Domain=test", "https://partner.other.test/me"],
+    [
+      "part of an IP address",
+      "http://127.0.0.1/auth/refresh",
+      "Domain=0.0.1",
+      "http://10.0.0.1/me",
+    ],
+    [
+      "a public suffix",
+      "https://api.example.test/auth/refresh",
+      "Domain=test",
+      "https://partner.other.test/me",
+    ],
   ])("refresh ignores a cookie whose Domain names %s", async (_, refreshUrl, domain, elsewhere) => {
     const headers = new Headers({ "set-cookie": `wide=fake-wide-cookie; ${domain}` });
-    const ctx = authContext({ http: { send: async () => ({ status: 200, headers, body: undefined }) } });
-    const wide = sessionCookieStrategy.config.parse({ ...settings, refresh: { request: `POST ${refreshUrl}` } });
+    const ctx = authContext({
+      http: { send: async () => ({ status: 200, headers, body: undefined }) },
+    });
+    const wide = sessionCookieStrategy.config.parse({
+      ...settings,
+      refresh: { request: `POST ${refreshUrl}` },
+    });
     const request = draft("GET", elsewhere);
 
     const refreshed = await sessionCookieStrategy.refresh?.(STALE, wide, ctx);
@@ -317,7 +370,10 @@ describe("sessionCookieStrategy", () => {
       origins: [],
     };
 
-    expect(sessionCookieStrategy.secrets(state)).toEqual(["fake-session-1", "fake-csrf-token-0001"]);
+    expect(sessionCookieStrategy.secrets(state)).toEqual([
+      "fake-session-1",
+      "fake-csrf-token-0001",
+    ]);
   });
 
   it("secrets lists token-like localStorage values, also inside a JSON value", () => {

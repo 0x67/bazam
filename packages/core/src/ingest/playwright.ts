@@ -1,12 +1,20 @@
 import { stripVTControlCharacters } from "node:util";
 import { z } from "zod";
-import { ResultParseError, type ExternalTest, type ResultFile, type ResultFormat, type TestOutcome } from "./format.ts";
+import {
+  ResultParseError,
+  type ExternalTest,
+  type ResultFile,
+  type ResultFormat,
+  type TestOutcome,
+} from "./format.ts";
 
 // the parts of Playwright's JSONReport that become tests
 const JsonResult = z.object({
   duration: z.number(),
   errors: z.array(z.object({ message: z.string() })),
-  attachments: z.array(z.object({ name: z.string(), path: z.string().optional(), contentType: z.string() })),
+  attachments: z.array(
+    z.object({ name: z.string(), path: z.string().optional(), contentType: z.string() }),
+  ),
 });
 const JsonTest = z.object({
   projectName: z.string(),
@@ -15,7 +23,11 @@ const JsonTest = z.object({
   results: z.array(JsonResult),
 });
 type JsonTest = z.infer<typeof JsonTest>;
-const JsonSpec = z.object({ title: z.string(), tags: z.array(z.string()), tests: z.array(JsonTest) });
+const JsonSpec = z.object({
+  title: z.string(),
+  tags: z.array(z.string()),
+  tests: z.array(JsonTest),
+});
 const JsonSuite = z.object({
   title: z.string(),
   specs: z.array(JsonSpec),
@@ -65,21 +77,35 @@ function lineAndColumn(text: string, position: number): string {
 }
 
 // a file's suite is titled with its path from rootDir, and each describe nests a suite inside it
-function collect(suite: JsonSuite, parents: readonly string[], source: string, tests: ExternalTest[]): void {
+function collect(
+  suite: JsonSuite,
+  parents: readonly string[],
+  source: string,
+  tests: ExternalTest[],
+): void {
   const titles = suite.title === "" ? parents : [...parents, suite.title];
   for (const spec of suite.specs) {
-    for (const test of spec.tests) tests.push(testOf([...titles, spec.title], spec.tags, test, source));
+    for (const test of spec.tests)
+      tests.push(testOf([...titles, spec.title], spec.tags, test, source));
   }
   for (const child of suite.suites ?? []) collect(child, titles, source, tests);
 }
 
-function testOf(title: readonly string[], tags: readonly string[], test: JsonTest, source: string): ExternalTest {
+function testOf(
+  title: readonly string[],
+  tags: readonly string[],
+  test: JsonTest,
+  source: string,
+): ExternalTest {
   const last = test.results.at(-1);
   const message = last?.errors[0]?.message;
   return {
     title,
     tags,
-    outcome: test.status === "expected" && test.expectedStatus === "skipped" ? "skipped" : OUTCOMES[test.status],
+    outcome:
+      test.status === "expected" && test.expectedStatus === "skipped"
+        ? "skipped"
+        : OUTCOMES[test.status],
     ...(message === undefined ? {} : { message: stripVTControlCharacters(message) }),
     retries: Math.max(test.results.length - 1, 0),
     ...(test.projectName === "" ? {} : { project: test.projectName }),

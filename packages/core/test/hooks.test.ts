@@ -41,7 +41,13 @@ describe("loadAuthHook", () => {
     `;
     const hooksModule = new URL("../src/auth/hooks.ts", import.meta.url).href;
 
-    const { stdout } = await run(process.execPath, ["--input-type=module", "-e", caller, hooksModule, project]);
+    const { stdout } = await run(process.execPath, [
+      "--input-type=module",
+      "-e",
+      caller,
+      hooksModule,
+      project,
+    ]);
 
     expect(JSON.parse(stdout)).toEqual({ "X-Signature": "POST /orders fake-key-id" });
   });
@@ -65,7 +71,10 @@ describe("loadAuthHook", () => {
   );
 
   it("refuses a module whose default export is not a function", async () => {
-    await writeFile(join(project, "hooks", "headers.ts"), 'export default { "X-Signature": "fake-signature" };\n');
+    await writeFile(
+      join(project, "hooks", "headers.ts"),
+      'export default { "X-Signature": "fake-signature" };\n',
+    );
 
     await expect(loadAuthHook(project, "./hooks/headers.ts")).rejects.toThrow(
       'auth hook "./hooks/headers.ts" has no default export function',

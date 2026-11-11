@@ -44,7 +44,8 @@ const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ServiceRequest = z.strictObject({
   kind: z.string().min(1),
   caseId: z.string().regex(PLAIN_NAME, {
-    error: "caseId must be letters, digits, dots, dashes and underscores, starting with a letter or digit",
+    error:
+      "caseId must be letters, digits, dots, dashes and underscores, starting with a letter or digit",
   }),
   params: z.record(z.string(), z.string()).default({}),
   identity: z.string().min(1).default("tester"),
@@ -116,8 +117,10 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
   };
 
   const respond = async (req: IncomingMessage, hungUp: AbortSignal): Promise<Reply> => {
-    if (!authorized(req.headers.authorization)) return failure(401, "missing or wrong bearer token");
-    if (new URL(req.url ?? "/", `http://${HOST}`).pathname !== PATH) return failure(404, `the endpoint is ${PATH}`);
+    if (!authorized(req.headers.authorization))
+      return failure(401, "missing or wrong bearer token");
+    if (new URL(req.url ?? "/", `http://${HOST}`).pathname !== PATH)
+      return failure(404, `the endpoint is ${PATH}`);
     if (req.method !== "POST") return failure(405, `send POST ${PATH}`);
     const body = await readBody(req);
     if (body === undefined) return failure(413, `the body is over ${BODY_LIMIT_BYTES} bytes`);
@@ -160,7 +163,10 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
       signal,
     };
     try {
-      const resolved = await untilAborted(resolveChallenge(request, kind, chain, ctx, noTrigger), signal);
+      const resolved = await untilAborted(
+        resolveChallenge(request, kind, chain, ctx, noTrigger),
+        signal,
+      );
       log(`challenge ${request.kind} for ${request.caseId}: answered by ${resolved.resolver}`);
       const challenges = answered.get(request.caseId) ?? [];
       challenges.push({ step: request.step, kind: request.kind, resolver: resolved.resolver });
@@ -187,7 +193,8 @@ export async function startChallengeService(deps: ChallengeServiceDeps): Promise
     respond(req, hungUp.signal)
       .catch((error: unknown) => failure(500, messageOf(error)))
       .then((reply) => {
-        const masked = "error" in reply.body ? { error: deps.redactor.text(reply.body.error) } : reply.body;
+        const masked =
+          "error" in reply.body ? { error: deps.redactor.text(reply.body.error) } : reply.body;
         if ("error" in masked) log(`challenge request answered ${reply.status}: ${masked.error}`);
         // the value goes back as it is: the caller types it into its app
         send(res, reply.status, masked);
@@ -259,7 +266,11 @@ function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
 }
 
 /** Masks the title and steps built from the caller's request, and flags a timeout, which humanResolver reports only as text. */
-function personChannel(queued: HumanChannel, redactor: Redactor, person: { timedOut: boolean }): HumanChannel {
+function personChannel(
+  queued: HumanChannel,
+  redactor: Redactor,
+  person: { timedOut: boolean },
+): HumanChannel {
   return {
     async ask(prompt, signal) {
       const masked: PersonPrompt = {

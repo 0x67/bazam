@@ -32,7 +32,9 @@ describe("totpCode", () => {
   });
 
   it("reads a seed in lower case with spaces and padding", () => {
-    expect(totpCode("gezd gnbv gy3t qojq gezd gnbv gy3t qojq====", new Date(59_000))).toBe("287082");
+    expect(totpCode("gezd gnbv gy3t qojq gezd gnbv gy3t qojq====", new Date(59_000))).toBe(
+      "287082",
+    );
   });
 
   it("rejects a seed that is not base32 without echoing it", () => {

@@ -90,7 +90,10 @@ beforeEach(async () => {
   await write(BRAND.configFile, config());
   await write("fake-plugin.mjs", PLUGIN);
   await write("fixtures/identities.local.yaml", FIXTURES);
-  await write("cases/doc/cases.yaml", cases({ note: "act", as: "alice" }, { note: "act", as: "tester" }));
+  await write(
+    "cases/doc/cases.yaml",
+    cases({ note: "act", as: "alice" }, { note: "act", as: "tester" }),
+  );
   await write(`${BRAND.stateDir}/secrets.env`, `APP_TOKEN=${SECRET}\n`);
   await chmod(join(root, BRAND.stateDir, "secrets.env"), 0o600);
 });
@@ -108,7 +111,8 @@ describe("doctor", () => {
     expect(code, stdout + stderr).toBe(ExitCode.Pass);
     expect(stdout).toContain("APP_TOKEN: held by dotenv");
     expect(stdout).toContain("0 problems");
-    for (const value of [PASSWORD, SECRET, "alice@example.test", "+447700900123"]) expect(stdout).not.toContain(value);
+    for (const value of [PASSWORD, SECRET, "alice@example.test", "+447700900123"])
+      expect(stdout).not.toContain(value);
   });
 
   it("covers the identities of a role", async () => {
@@ -131,7 +135,9 @@ describe("doctor", () => {
 
     expect(code).toBe(ExitCode.Fail);
     expect(stdout).toContain("APP_TOKEN: no provider holds it");
-    expect(stdout).toContain(`fix: set APP_TOKEN in ${join(root, BRAND.stateDir, "secrets.env")} or the environment`);
+    expect(stdout).toContain(
+      `fix: set APP_TOKEN in ${join(root, BRAND.stateDir, "secrets.env")} or the environment`,
+    );
     expect(stdout).toContain("1 problem");
   });
 
@@ -159,11 +165,15 @@ describe("doctor", () => {
         fix: `set APP_TOKEN in ${join(root, BRAND.stateDir, "secrets.env")} or the environment`,
       },
     ]);
-    for (const value of [PASSWORD, SECRET, "alice@example.test"]) expect(stdout).not.toContain(value);
+    for (const value of [PASSWORD, SECRET, "alice@example.test"])
+      expect(stdout).not.toContain(value);
   });
 
   it("does not print the line of a malformed fixtures file", async () => {
-    await write("fixtures/identities.local.yaml", `alice:\n  email: [alice@example.test\n  password: ${PASSWORD}\n`);
+    await write(
+      "fixtures/identities.local.yaml",
+      `alice:\n  email: [alice@example.test\n  password: ${PASSWORD}\n`,
+    );
 
     const { code, stdout, stderr } = await doctor();
 
@@ -172,14 +182,17 @@ describe("doctor", () => {
     expect(stdout + stderr).not.toContain(PASSWORD);
   });
 
-  it.skipIf(process.platform === "win32")("reports a secrets.env that others can read", async () => {
-    await chmod(join(root, BRAND.stateDir, "secrets.env"), 0o644);
+  it.skipIf(process.platform === "win32")(
+    "reports a secrets.env that others can read",
+    async () => {
+      await chmod(join(root, BRAND.stateDir, "secrets.env"), 0o644);
 
-    const { code, stdout } = await doctor();
+      const { code, stdout } = await doctor();
 
-    expect(code).toBe(ExitCode.Fail);
-    expect(stdout).toContain(`fix: chmod 600 ${join(root, BRAND.stateDir, "secrets.env")}`);
-  });
+      expect(code).toBe(ExitCode.Fail);
+      expect(stdout).toContain(`fix: chmod 600 ${join(root, BRAND.stateDir, "secrets.env")}`);
+    },
+  );
 
   it("reports an identity with no fixture entry", async () => {
     await write("fixtures/identities.local.yaml", "bob:\n  phone: '+447700900124'\n");

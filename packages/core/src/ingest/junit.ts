@@ -1,7 +1,13 @@
 import { basename } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { parseXml, XmlElement, XmlError } from "@rgrove/parse-xml";
-import { ResultParseError, type ExternalTest, type ResultFile, type ResultFormat, type TestOutcome } from "./format.ts";
+import {
+  ResultParseError,
+  type ExternalTest,
+  type ResultFile,
+  type ResultFormat,
+  type TestOutcome,
+} from "./format.ts";
 
 const OUTCOME_CHILDREN: readonly (readonly [string, TestOutcome])[] = [
   ["failure", "failed"],
@@ -37,11 +43,18 @@ function rootOf(file: ResultFile): XmlElement {
   } catch (error) {
     if (!(error instanceof XmlError)) throw error;
     // the first line ends with the position; the lines after it quote the file
-    const reason = (error.message.split("\n", 1)[0] ?? "").replace(/ \(line \d+, column \d+\)$/, "");
-    throw new ResultParseError(`${file.path}: ${reason} (line ${error.line}, column ${error.column})`);
+    const reason = (error.message.split("\n", 1)[0] ?? "").replace(
+      / \(line \d+, column \d+\)$/,
+      "",
+    );
+    throw new ResultParseError(
+      `${file.path}: ${reason} (line ${error.line}, column ${error.column})`,
+    );
   }
   if (root?.name !== "testsuites" && root?.name !== "testsuite") {
-    throw new ResultParseError(`${file.path}: the root element is neither testsuites nor testsuite`);
+    throw new ResultParseError(
+      `${file.path}: the root element is neither testsuites nor testsuite`,
+    );
   }
   return root;
 }
@@ -57,20 +70,32 @@ function xmlText(raw: string): string {
       start = index + 1;
     }
   }
-  return (kept + text.slice(start)).replace(CHARACTER_REFERENCE, (reference: string, hex?: string, decimal?: string) =>
-    forbidden(hex === undefined ? Number(decimal) : Number.parseInt(hex, 16)) ? "" : reference,
+  return (kept + text.slice(start)).replace(
+    CHARACTER_REFERENCE,
+    (reference: string, hex?: string, decimal?: string) =>
+      forbidden(hex === undefined ? Number(decimal) : Number.parseInt(hex, 16)) ? "" : reference,
   );
 }
 
 // C0 controls other than tab, line feed and carriage return, plus U+FFFE and U+FFFF
 function forbidden(code: number): boolean {
-  return (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) || code === 0xfffe || code === 0xffff;
+  return (
+    (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
 }
 
-function collect(parent: XmlElement, suites: readonly string[], source: string, tests: ExternalTest[]): void {
+function collect(
+  parent: XmlElement,
+  suites: readonly string[],
+  source: string,
+  tests: ExternalTest[],
+): void {
   for (const child of elements(parent)) {
     if (child.name === "testcase") tests.push(testOf(child, suites, source));
-    else collect(child, child.name === "testsuite" ? withName(suites, child) : suites, source, tests);
+    else
+      collect(child, child.name === "testsuite" ? withName(suites, child) : suites, source, tests);
   }
 }
 
@@ -109,11 +134,15 @@ function titleOf(testcase: XmlElement, suites: readonly string[]): string[] {
   return [classname, name];
 }
 
-function outcomeOf(testcase: XmlElement, children: readonly XmlElement[]): Pick<ExternalTest, "outcome" | "message"> {
+function outcomeOf(
+  testcase: XmlElement,
+  children: readonly XmlElement[],
+): Pick<ExternalTest, "outcome" | "message"> {
   for (const [name, outcome] of OUTCOME_CHILDREN) {
     const child = children.find((element) => element.name === name);
     if (child === undefined) continue;
-    const message = outcome === "skipped" ? undefined : child.attributes.message || firstLine(child.text);
+    const message =
+      outcome === "skipped" ? undefined : child.attributes.message || firstLine(child.text);
     return message ? { outcome, message } : { outcome };
   }
   return { outcome: STATUS_OUTCOMES.get(testcase.attributes.status ?? "") ?? "passed" };

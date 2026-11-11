@@ -67,7 +67,10 @@ describe("bindRoles", () => {
         bindings,
       ),
     ).toEqual({
-      fill: { value: "${identity.bob.email} and ${identity.bob.phone.national}", raw: "$${identity.tester.email}" },
+      fill: {
+        value: "${identity.bob.email} and ${identity.bob.phone.national}",
+        raw: "$${identity.tester.email}",
+      },
     });
   });
 

@@ -13,11 +13,25 @@ const envs = EnvsConfig.parse({
 const URL_TO_CALL = new URL("https://api.example.test/balance");
 
 function planned(caseId: string, fields: Partial<PlannedCase> = {}): PlannedCase {
-  return { caseId, target: "web", stage: "acceptance", identities: [], logins: [], challenges: [], ...fields };
+  return {
+    caseId,
+    target: "web",
+    stage: "acceptance",
+    identities: [],
+    logins: [],
+    challenges: [],
+    ...fields,
+  };
 }
 
 function loaded(caseId: string): LoadedCase {
-  const spec = CaseSpec.parse({ id: caseId, title: caseId, stage: "acceptance", risk: "low", targets: ["web"] });
+  const spec = CaseSpec.parse({
+    id: caseId,
+    title: caseId,
+    stage: "acceptance",
+    risk: "low",
+    targets: ["web"],
+  });
   return { spec } as LoadedCase;
 }
 
@@ -28,8 +42,17 @@ interface Setup {
   loginsBlocked?: ReadonlyMap<string, string>;
 }
 
-function setup(options: Setup = {}): { run: PlanCheckRun; plan: RunPlan; logged: string[]; redactor: Redactor } {
-  const cases = options.cases ?? [planned("DEMO-A-001"), planned("DEMO-A-002"), planned("DEMO-A-003")];
+function setup(options: Setup = {}): {
+  run: PlanCheckRun;
+  plan: RunPlan;
+  logged: string[];
+  redactor: Redactor;
+} {
+  const cases = options.cases ?? [
+    planned("DEMO-A-001"),
+    planned("DEMO-A-002"),
+    planned("DEMO-A-003"),
+  ];
   const plan: RunPlan = { env: "uat", cases, confirmations: [], personSteps: 0, roles: {} };
   const logged: string[] = [];
   const redactor = new Redactor(defaultRedactionRules());
@@ -55,7 +78,10 @@ describe("runPlanChecks", () => {
   it("blocks the case a check names with its reason and leaves the others", async () => {
     const { run, plan } = setup();
 
-    await runPlanChecks([check("budget", async () => ({ "DEMO-A-002": "balance 5 is under the 9 planned" }))], run);
+    await runPlanChecks(
+      [check("budget", async () => ({ "DEMO-A-002": "balance 5 is under the 9 planned" }))],
+      run,
+    );
 
     expect(plan.cases.map((entry) => entry.blocked)).toEqual([
       undefined,
@@ -106,7 +132,10 @@ describe("runPlanChecks", () => {
       cases: [planned("DEMO-A-001", { blocked: "earlier reason" }), planned("DEMO-A-002")],
     });
 
-    await runPlanChecks([check("budget", async () => ({ "DEMO-A-001": "late", "DEMO-A-404": "no such case" }))], run);
+    await runPlanChecks(
+      [check("budget", async () => ({ "DEMO-A-001": "late", "DEMO-A-404": "no such case" }))],
+      run,
+    );
 
     expect(plan.cases.map((entry) => entry.blocked)).toEqual(["earlier reason", undefined]);
     expect(logged).toEqual([
@@ -135,10 +164,15 @@ describe("runPlanChecks", () => {
 
   it("hands the run's resolve to each check", async () => {
     const { run, plan } = setup({ cases: [planned("DEMO-A-001")] });
-    run.resolve = async <T>(value: T) => (value === "${env.APP_URL}" ? "https://app.example.test" : value) as T;
+    run.resolve = async <T>(value: T) =>
+      (value === "${env.APP_URL}" ? "https://app.example.test" : value) as T;
 
     await runPlanChecks(
-      [check("lookup", async (input) => ({ "DEMO-A-001": `saw ${await input.resolve("${env.APP_URL}")}` }))],
+      [
+        check("lookup", async (input) => ({
+          "DEMO-A-001": `saw ${await input.resolve("${env.APP_URL}")}`,
+        })),
+      ],
       run,
     );
 
@@ -146,7 +180,9 @@ describe("runPlanChecks", () => {
   });
 
   it("blocks every case it was given when a check throws", async () => {
-    const { run, plan } = setup({ cases: [planned("DEMO-A-001"), planned("DEMO-A-002", { blocked: "earlier" })] });
+    const { run, plan } = setup({
+      cases: [planned("DEMO-A-001"), planned("DEMO-A-002", { blocked: "earlier" })],
+    });
 
     await runPlanChecks(
       [
@@ -175,7 +211,8 @@ describe("runPlanChecks", () => {
           await input.http.send({ method, url: URL_TO_CALL, headers: new Headers() });
           results[`${input.env.name} ${method}`] = "sent";
         } catch (error) {
-          results[`${input.env.name} ${method}`] = error instanceof ProdWriteRefused ? error.message : "other";
+          results[`${input.env.name} ${method}`] =
+            error instanceof ProdWriteRefused ? error.message : "other";
         }
       }
       return {};

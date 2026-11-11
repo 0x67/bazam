@@ -62,7 +62,9 @@ export async function signInByEmail(visitor: Visitor, email: string): Promise<vo
 export async function mailedCode(recipient: string): Promise<string> {
   for (let attempt = 0; attempt < 50; attempt++) {
     const query = encodeURIComponent(`to:"${recipient}"`)
-    const search = await getJson<{ messages: { ID: string }[] }>(`${MAILPIT_URL}/api/v1/search?query=${query}`)
+    const search = await getJson<{ messages: { ID: string }[] }>(
+      `${MAILPIT_URL}/api/v1/search?query=${query}`,
+    )
     const id = search.messages[0]?.ID
     if (id) {
       const message = await getJson<{ Text: string }>(`${MAILPIT_URL}/api/v1/message/${id}`)
@@ -89,7 +91,8 @@ async function waitUntilUp(urls: string[]): Promise<void> {
         () => false,
       ))
     ) {
-      if (Date.now() > deadline) throw new Error(`${url} is not up; start it with docker compose up -d`)
+      if (Date.now() > deadline)
+        throw new Error(`${url} is not up; start it with docker compose up -d`)
       await sleep(250)
     }
   }

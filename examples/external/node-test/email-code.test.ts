@@ -83,14 +83,18 @@ void test(
 );
 
 const ONCE = "API-OTP-002";
-void test(`[${ONCE}] accepts a mailed code only once`, { timeout: 60_000, skip: skip(ONCE) }, async (t) => {
-  const appUrl = setting("APP_URL");
-  const email = newAddress("otp-once");
-  await mailCode(appUrl, email);
-  const code = await mailedCode(ONCE, email, t.signal);
-  const first = await verify(appUrl, email, code);
-  assert.equal(first.status, 303);
-  const second = await verify(appUrl, email, code);
-  assert.equal(second.status, 401);
-  assert.match(await second.text(), /That code is wrong or has expired\./);
-});
+void test(
+  `[${ONCE}] accepts a mailed code only once`,
+  { timeout: 60_000, skip: skip(ONCE) },
+  async (t) => {
+    const appUrl = setting("APP_URL");
+    const email = newAddress("otp-once");
+    await mailCode(appUrl, email);
+    const code = await mailedCode(ONCE, email, t.signal);
+    const first = await verify(appUrl, email, code);
+    assert.equal(first.status, 303);
+    const second = await verify(appUrl, email, code);
+    assert.equal(second.status, 401);
+    assert.match(await second.text(), /That code is wrong or has expired\./);
+  },
+);

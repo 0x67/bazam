@@ -5,8 +5,19 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { CredentialCache, Identities, type LoginMode } from "../auth/index.ts";
 import { BRAND } from "../brand.ts";
 import { bindRoles, roleBindings, type LoadedCase } from "../case/index.ts";
-import { oneAtATime, startChallengeService, type ChallengeService, type HumanChannel } from "../challenge/index.ts";
-import { guardedHttp, type Capability, type Driver, type DriverSession, type LaunchOptions } from "../driver/index.ts";
+import {
+  oneAtATime,
+  startChallengeService,
+  type ChallengeService,
+  type HumanChannel,
+} from "../challenge/index.ts";
+import {
+  guardedHttp,
+  type Capability,
+  type Driver,
+  type DriverSession,
+  type LaunchOptions,
+} from "../driver/index.ts";
 import {
   resolvePlaceholders,
   type CaseRunValues,
@@ -136,7 +147,10 @@ class Run {
     const { project } = options;
     const bindings = roleBindings(project.config.roles, options.roles ?? {});
     const flows = new Map(
-      [...project.flows].map(([name, flow]) => [name, { ...flow, steps: bindRoles(flow.steps, bindings) }]),
+      [...project.flows].map(([name, flow]) => [
+        name,
+        { ...flow, steps: bindRoles(flow.steps, bindings) },
+      ]),
     );
     const bound: RunOptions = {
       ...options,
@@ -235,7 +249,10 @@ class Run {
     if (targets !== undefined) inputs.targets = targets;
     const credentials = new Map<string, LoginMode>();
     for (const login of planLogins(inputs)) {
-      credentials.set(loginKey(login), await this.#scope.identities.credentialState(login.identity, login.surface));
+      credentials.set(
+        loginKey(login),
+        await this.#scope.identities.credentialState(login.identity, login.surface),
+      );
     }
     return planRun({ ...inputs, credentials });
   }
@@ -252,9 +269,13 @@ class Run {
     const { env, redactor, cases, project } = this.#options;
     const http = guardedHttp({ env, redactor, log: this.#log.line });
     blockUnreachable(plan, cases, project, env, await probeEnv(env, http, this.#scope.signal));
-    for (const { runner, command } of plan.confirmations) await this.#confirm(plan, runner, command);
-    const withLogins = plan.cases.filter((planned) => planned.blocked === undefined && planned.logins.length > 0);
-    const blocked = withLogins.length === 0 ? new Map<string, string>() : await this.#logIn(plan, withLogins);
+    for (const { runner, command } of plan.confirmations)
+      await this.#confirm(plan, runner, command);
+    const withLogins = plan.cases.filter(
+      (planned) => planned.blocked === undefined && planned.logins.length > 0,
+    );
+    const blocked =
+      withLogins.length === 0 ? new Map<string, string>() : await this.#logIn(plan, withLogins);
     // plan checks belong to no case, so run and case placeholders have no value
     const checkSources: PlaceholderSources = {
       ...placeholderSources(this.#scope, this.#options.runValues.forCase("")),
@@ -277,7 +298,10 @@ class Run {
   }
 
   /** Runs preflight for the cases' logins in a browser session of its own; returns the reasons of the logins that failed. */
-  async #logIn(plan: RunPlan, withLogins: readonly PlannedCase[]): Promise<ReadonlyMap<string, string>> {
+  async #logIn(
+    plan: RunPlan,
+    withLogins: readonly PlannedCase[],
+  ): Promise<ReadonlyMap<string, string>> {
     // logins run in a session of their own, launched once and only when a login needs a browser
     const target = await this.#loginTarget(withLogins);
     const launch: { session?: Promise<DriverSession> } = {};
@@ -288,10 +312,16 @@ class Run {
     const { blocked } = await preflight(plan, this.#scope.identities);
     this.#logins.use(undefined);
     const session = await launch.session?.catch((error: unknown) => {
-      throw new Error(`could not launch target ${target} for the logins: ${messageOf(error)}`, { cause: error });
+      throw new Error(`could not launch target ${target} for the logins: ${messageOf(error)}`, {
+        cause: error,
+      });
     });
     if (session !== undefined) {
-      const evidence = new EvidenceStore(this.#options.runDir, PREFLIGHT_DIR, this.#options.redactor);
+      const evidence = new EvidenceStore(
+        this.#options.runDir,
+        PREFLIGHT_DIR,
+        this.#options.redactor,
+      );
       await this.#close(session, { status: blocked.size === 0 ? "pass" : "blocked", evidence });
     }
     return blocked;
@@ -302,7 +332,10 @@ class Run {
    * so the runner's output masks them, and starts the run's challenge service.
    */
   async startService(plan: RunPlan): Promise<void> {
-    if (!plan.cases.some((planned) => planned.runner !== undefined && planned.blocked === undefined)) return;
+    if (
+      !plan.cases.some((planned) => planned.runner !== undefined && planned.blocked === undefined)
+    )
+      return;
     const { project, env, registry, redactor } = this.#options;
     for (const name of declaredSecretNames(project.config)) {
       const value = process.env[name];
@@ -334,7 +367,8 @@ class Run {
       const position = positions[0]!;
       const planned = plan.cases[position]!;
       try {
-        if (planned.runner !== undefined && planned.blocked === undefined) return await this.#runSuite(plan, positions);
+        if (planned.runner !== undefined && planned.blocked === undefined)
+          return await this.#runSuite(plan, positions);
         // every other case is a unit of its own
         const loaded = this.#loaded(plan, position);
         return [await this.#log.apart(() => this.runCase(loaded, planned, loginsBlocked))];
@@ -365,7 +399,10 @@ class Run {
     loginsBlocked: ReadonlyMap<string, string>,
   ): { refresh: IntervalRefresh; counted: Map<string, string[]> } {
     const { identities } = this.#scope;
-    const entries = new Map<string, { identity: string; surface: string; everyMs: number; cases: number }>();
+    const entries = new Map<
+      string,
+      { identity: string; surface: string; everyMs: number; cases: number }
+    >();
     const counted = new Map<string, string[]>();
     for (const planned of plan.cases) {
       if (planned.blocked !== undefined || planned.runner !== undefined) continue;
@@ -387,7 +424,8 @@ class Run {
     const refresh = new IntervalRefresh(
       {
         identities,
-        refreshed: ({ identity, surface }) => this.#running.get(identity)?.run.reloadCredential(identity, surface),
+        refreshed: ({ identity, surface }) =>
+          this.#running.get(identity)?.run.reloadCredential(identity, surface),
         failed: ({ identity }, note) => this.#running.get(identity)?.evidence.note(note),
         log: this.#log.line,
       },
@@ -407,7 +445,12 @@ class Run {
     const evidence = new CaseEvidence(runDir, spec.id, redactor);
     const runValues = this.#options.runValues.forCase(spec.id);
     const values = new CaseValues(spec.id, spec.title);
-    const outcome = await this.#caseOutcome(loaded, planned, { evidence, runValues, values, loginsBlocked });
+    const outcome = await this.#caseOutcome(loaded, planned, {
+      evidence,
+      runValues,
+      values,
+      loginsBlocked,
+    });
     const result = await evidence.finish(
       outcome,
       {
@@ -491,13 +534,15 @@ class Run {
     let failure = signal.aborted ? "run cancelled" : undefined;
     let suiteEnv: Record<string, string> = {};
     try {
-      if (failure === undefined) suiteEnv = await this.#resolveSuiteEnv({ ...runner.env, ...targetEnv });
+      if (failure === undefined)
+        suiteEnv = await this.#resolveSuiteEnv({ ...runner.env, ...targetEnv });
     } catch (error) {
       failure = messageOf(error);
     }
     let run: ExternalSuiteRun | undefined;
     if (failure === undefined) {
-      if (this.#service === undefined) throw new Error("the challenge service did not start before the suite");
+      if (this.#service === undefined)
+        throw new Error("the challenge service did not start before the suite");
       run = await runExternalSuite(
         { target, runnerName: name, runner, env: suiteEnv, caseIds: cases.map((spec) => spec.id) },
         {
@@ -509,7 +554,9 @@ class Run {
           redactor,
           signal,
           now: () => new Date(),
-          withheldVars: Object.values(project.config.trackers).flatMap((tracker) => Object.values(tracker.secrets)),
+          withheldVars: Object.values(project.config.trackers).flatMap((tracker) =>
+            Object.values(tracker.secrets),
+          ),
           log: this.#log.line,
         },
       );
@@ -576,7 +623,9 @@ class Run {
   #loaded(plan: RunPlan, position: number): LoadedCase {
     const loaded = this.#options.cases[position];
     if (loaded === undefined)
-      throw new Error(`the plan lists case ${plan.cases[position]?.caseId}, which the run was not given`);
+      throw new Error(
+        `the plan lists case ${plan.cases[position]?.caseId}, which the run was not given`,
+      );
     return loaded;
   }
 
@@ -591,7 +640,9 @@ class Run {
     },
   ): Promise<CaseOutcome> {
     const { signal } = this.#scope;
-    const reason = signal.aborted ? "run cancelled" : (planned.blocked ?? loginReason(planned, parts.loginsBlocked));
+    const reason = signal.aborted
+      ? "run cancelled"
+      : (planned.blocked ?? loginReason(planned, parts.loginsBlocked));
     if (reason !== undefined) return { kind: "blocked", reason };
     const { driver, options } = this.#target(planned.target);
     let session: DriverSession;
@@ -618,7 +669,8 @@ class Run {
               values: parts.values,
             });
             const held = caseLocks(planned);
-            for (const identity of held) this.#running.set(identity, { run, evidence: parts.evidence });
+            for (const identity of held)
+              this.#running.set(identity, { run, evidence: parts.evidence });
             try {
               await run.run();
             } finally {
@@ -631,7 +683,8 @@ class Run {
       const hint = probeHint(this.#options.env, error);
       if (outcome.kind === "blocked" && hint !== undefined && !signal.aborted)
         outcome = { ...outcome, reason: `${outcome.reason}; ${hint}` };
-      if (outcome.kind === "errored" && outcome.source === "harness") this.#log.line(stackOf(error));
+      if (outcome.kind === "errored" && outcome.source === "harness")
+        this.#log.line(stackOf(error));
     }
     // the session needs the status first, so a case that did not pass keeps its trace
     const failure = await this.#close(session, {
@@ -645,11 +698,18 @@ class Run {
       outcome.kind === "completed" || (outcome.kind === "errored" && outcome.source === "product");
     if (isBlocking(failure) && causedByRefusal) return { kind: "blocked", reason: failure.message };
     if (outcome.kind !== "completed") return outcome;
-    return { kind: "errored", source: "harness", message: "closing the driver session failed; case.log has the error" };
+    return {
+      kind: "errored",
+      source: "harness",
+      message: "closing the driver session failed; case.log has the error",
+    };
   }
 
   /** Returns what closing threw, if anything; the error also goes to the log. */
-  async #close(session: DriverSession, ending: Parameters<DriverSession["close"]>[0]): Promise<unknown> {
+  async #close(
+    session: DriverSession,
+    ending: Parameters<DriverSession["close"]>[0],
+  ): Promise<unknown> {
     try {
       await session.close(ending);
       return undefined;
@@ -672,7 +732,8 @@ class Run {
 
   /** The target of the first of `cases` whose driver offers browser.login, where browser logins can run. */
   async #loginTarget(cases: readonly PlannedCase[]): Promise<string | undefined> {
-    for (const { target } of cases) if ((await this.#probe(target)).has("browser.login")) return target;
+    for (const { target } of cases)
+      if ((await this.#probe(target)).has("browser.login")) return target;
     return undefined;
   }
 
@@ -683,7 +744,8 @@ class Run {
   }
 
   #identityField(identity: string, field: string): string | undefined {
-    const fixture = this.#options.project.config.identities[this.#roles.get(identity) ?? identity]?.fixture;
+    const fixture =
+      this.#options.project.config.identities[this.#roles.get(identity) ?? identity]?.fixture;
     return fixture === undefined ? undefined : this.#fixtures?.[fixture]?.[field];
   }
 
@@ -693,7 +755,10 @@ class Run {
     for (const [identity, { fixture }] of Object.entries(this.#options.project.config.identities)) {
       if (fixture === undefined) continue;
       if (this.#fixtures === undefined)
-        problems.set(identity, `identity ${identity} needs fixture ${fixture}, but ${LOCAL_FIXTURES_FILE} is missing`);
+        problems.set(
+          identity,
+          `identity ${identity} needs fixture ${fixture}, but ${LOCAL_FIXTURES_FILE} is missing`,
+        );
       else if (!Object.hasOwn(this.#fixtures, fixture)) {
         problems.set(
           identity,
@@ -821,7 +886,9 @@ function blockingCredentials(
         .then((recovery) => {
           if (recovery === "none") return false;
           if (recovery === "loggedIn")
-            runningCase.getStore()?.note(`logged in again as ${identity} on ${surface} after an HTTP 401`);
+            runningCase
+              .getStore()
+              ?.note(`logged in again as ${identity} on ${surface} after an HTTP 401`);
           // the case's open browser context holds the old credential until it is loaded
           reload(identity, surface);
           return true;

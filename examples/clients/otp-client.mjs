@@ -34,7 +34,11 @@ if (login.status !== 303) {
 const response = await fetch(new URL("/challenge", serviceUrl), {
   method: "POST",
   headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-  body: JSON.stringify({ kind: "otp-email", caseId: "otp-client", params: { recipient, url: mailpitUrl } }),
+  body: JSON.stringify({
+    kind: "otp-email",
+    caseId: "otp-client",
+    params: { recipient, url: mailpitUrl },
+  }),
 });
 const answer = await response.json().catch(() => ({}));
 if (response.status !== 200 || typeof answer.value !== "string" || answer.value === "") {

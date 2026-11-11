@@ -46,7 +46,9 @@ export function sessionRoutes(deps: DemoDeps): Hono {
   app.get("/api/session/me", (c) => {
     const user = sessionUser(c, store)
     if (!user) return c.json({ error: "no session" }, 401)
-    const passkeys = [...store.passkeys.values()].filter((passkey) => passkey.email === user.email).length
+    const passkeys = [...store.passkeys.values()].filter(
+      (passkey) => passkey.email === user.email,
+    ).length
     return c.json({
       email: user.email,
       totpEnabled: user.totpSeed !== undefined,

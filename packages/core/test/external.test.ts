@@ -65,7 +65,13 @@ const expectStep: StepHandler = {
   kind: "expect",
   schema: z.unknown(),
   run: async (_payload, ctx) => {
-    ctx.evidence.record({ name: "home is visible", kind: "ui", expected: "visible", observed: "visible", ok: true });
+    ctx.evidence.record({
+      name: "home is visible",
+      kind: "ui",
+      expected: "visible",
+      observed: "visible",
+      ok: true,
+    });
   },
 };
 
@@ -83,7 +89,8 @@ function externalCase(id: string, fields: CaseFields = {}): CaseFields {
   };
 }
 
-const nativeCase = (id: string): CaseFields => externalCase(id, { targets: ["web"], steps: [{ expect: {} }] });
+const nativeCase = (id: string): CaseFields =>
+  externalCase(id, { targets: ["web"], steps: [{ expect: {} }] });
 
 interface SuiteSetup {
   cases: readonly CaseFields[];
@@ -150,12 +157,16 @@ async function prepare(setup: SuiteSetup): Promise<Prepared> {
   return { root, runDir, run };
 }
 
-async function runSuite(setup: SuiteSetup): Promise<{ results: CaseResult[]; root: string; runDir: string }> {
+async function runSuite(
+  setup: SuiteSetup,
+): Promise<{ results: CaseResult[]; root: string; runDir: string }> {
   const prepared = await prepare(setup);
   return { ...prepared, results: await prepared.run() };
 }
 
-function outcomes(results: readonly CaseResult[]): { caseId: string; status: string; reason: string | undefined }[] {
+function outcomes(
+  results: readonly CaseResult[],
+): { caseId: string; status: string; reason: string | undefined }[] {
   return results.map(({ caseId, status, reason }) => ({ caseId, status, reason }));
 }
 
@@ -170,7 +181,8 @@ async function waitFor(file: string): Promise<void> {
   }
 }
 
-const runnerLog = (runDir: string) => readFile(join(runDir, "runner-shop-chrome", "runner.log"), "utf8");
+const runnerLog = (runDir: string) =>
+  readFile(join(runDir, "runner-shop-chrome", "runner.log"), "utf8");
 
 describe("runCases with external suites", () => {
   it("records external and native cases in one run, with the five variables in the runner's environment", async () => {
@@ -181,7 +193,13 @@ describe("runCases with external suites", () => {
         nativeCase("SHOP-HOME-001"),
         externalCase("SHOP-OLD-001", { stage: "retired" }),
       ],
-      runner: { env: { SUITE_REPORT: "report.json", SUITE_FAIL: "SHOP-CART-002", SUITE_UNMAPPED: "untagged test" } },
+      runner: {
+        env: {
+          SUITE_REPORT: "report.json",
+          SUITE_FAIL: "SHOP-CART-002",
+          SUITE_UNMAPPED: "untagged test",
+        },
+      },
     });
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-CART-001", status: "pass", reason: undefined },
@@ -190,7 +208,11 @@ describe("runCases with external suites", () => {
       { caseId: "SHOP-OLD-001", status: "blocked", reason: "stage retired does not run" },
     ]);
     expect(results[1]?.checks).toEqual([
-      expect.objectContaining({ name: "Shop › [SHOP-CART-002] works", kind: "external", ok: false }),
+      expect.objectContaining({
+        name: "Shop › [SHOP-CART-002] works",
+        kind: "external",
+        ok: false,
+      }),
     ]);
     // the blocked case is left out of the case ids, and the tracker token out of the environment
     expect(await readJson(join(root, "report.json"))).toEqual({
@@ -201,7 +223,9 @@ describe("runCases with external suites", () => {
       [ENV_VAR]: "demo",
       JIRA_API_TOKEN: null,
     });
-    const summary = await readJson<{ cases: { caseId: string }[]; unmapped: unknown }>(join(runDir, "summary.json"));
+    const summary = await readJson<{ cases: { caseId: string }[]; unmapped: unknown }>(
+      join(runDir, "summary.json"),
+    );
     expect(summary.cases.map((entry) => entry.caseId)).toEqual([
       "SHOP-CART-001",
       "SHOP-CART-002",
@@ -215,7 +239,10 @@ describe("runCases with external suites", () => {
         reason: "no case id in the test name, its tags or the mapping file",
       },
     ]);
-    expect(await readJson<RunProgress>(join(runDir, "status.json"))).toMatchObject({ state: "finished", total: 4 });
+    expect(await readJson<RunProgress>(join(runDir, "status.json"))).toMatchObject({
+      state: "finished",
+      total: 4,
+    });
   });
 
   it("masks an inherited declared secret in runner.log and the run log", async () => {
@@ -261,7 +288,9 @@ describe("runCases with external suites", () => {
       cases: [externalCase("SHOP-CART-001")],
       runner: { env: { SUITE_GARBAGE: "1" } },
     });
-    expect(await readFile(join(runDir, "run.log"), "utf8")).toMatch(/^\[shop-chrome\] reports\/results\.xml: .+$/m);
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toMatch(
+      /^\[shop-chrome\] reports\/results\.xml: .+$/m,
+    );
   });
 
   it("keeps the results written before a timeout and blocks the other cases with it", async () => {
@@ -271,34 +300,55 @@ describe("runCases with external suites", () => {
     });
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-CART-001", status: "pass", reason: undefined },
-      { caseId: "SHOP-CART-002", status: "blocked", reason: "runner shop timed out after 0.02 min" },
+      {
+        caseId: "SHOP-CART-002",
+        status: "blocked",
+        reason: "runner shop timed out after 0.02 min",
+      },
     ]);
   });
 
-  it("sends SIGKILL to a runner that ignores the SIGTERM of a timeout", { timeout: 30_000 }, async () => {
-    const { results, root } = await runSuite({
-      cases: [externalCase("SHOP-CART-001")],
-      runner: {
-        timeoutMinutes: 0.02,
-        env: { SUITE_HANG: "1", SUITE_NO_RESULTS: "1", SUITE_IGNORE_TERM: "1", SUITE_SIGNAL_FILE: "signal.txt" },
-      },
-    });
-    expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-CART-001", status: "blocked", reason: "runner shop timed out after 0.02 min" },
-    ]);
-    expect(await readFile(join(root, "signal.txt"), "utf8")).toBe("SIGTERM\n");
-  });
+  it(
+    "sends SIGKILL to a runner that ignores the SIGTERM of a timeout",
+    { timeout: 30_000 },
+    async () => {
+      const { results, root } = await runSuite({
+        cases: [externalCase("SHOP-CART-001")],
+        runner: {
+          timeoutMinutes: 0.02,
+          env: {
+            SUITE_HANG: "1",
+            SUITE_NO_RESULTS: "1",
+            SUITE_IGNORE_TERM: "1",
+            SUITE_SIGNAL_FILE: "signal.txt",
+          },
+        },
+      });
+      expect(outcomes(results)).toEqual([
+        {
+          caseId: "SHOP-CART-001",
+          status: "blocked",
+          reason: "runner shop timed out after 0.02 min",
+        },
+      ]);
+      expect(await readFile(join(root, "signal.txt"), "utf8")).toBe("SIGTERM\n");
+    },
+  );
 
   it("stops the runner with SIGINT on cancel and reads none of its files", async () => {
     const prepared = await prepare({
       cases: [externalCase("SHOP-CART-001")],
-      runner: { env: { SUITE_HANG: "1", SUITE_URL_FILE: "url.txt", SUITE_SIGNAL_FILE: "signal.txt" } },
+      runner: {
+        env: { SUITE_HANG: "1", SUITE_URL_FILE: "url.txt", SUITE_SIGNAL_FILE: "signal.txt" },
+      },
     });
     const running = prepared.run();
     // the runner writes its results before it hangs
     await waitFor(join(prepared.root, "reports", "results.xml"));
     cancel.abort();
-    expect(outcomes(await running)).toEqual([{ caseId: "SHOP-CART-001", status: "blocked", reason: "run cancelled" }]);
+    expect(outcomes(await running)).toEqual([
+      { caseId: "SHOP-CART-001", status: "blocked", reason: "run cancelled" },
+    ]);
     expect(await readFile(join(prepared.root, "signal.txt"), "utf8")).toBe("SIGINT\n");
   });
 
@@ -317,7 +367,11 @@ describe("runCases with external suites", () => {
     await utimes(old, minuteAgo, minuteAgo);
     expect(outcomes(await prepared.run())).toEqual([
       { caseId: "SHOP-CART-001", status: "pass", reason: undefined },
-      { caseId: "SHOP-CART-002", status: "blocked", reason: "no result from runner shop for SHOP-CART-002" },
+      {
+        caseId: "SHOP-CART-002",
+        status: "blocked",
+        reason: "no result from runner shop for SHOP-CART-002",
+      },
     ]);
     expect(await readFile(join(prepared.runDir, "run.log"), "utf8")).toContain(
       "[shop-chrome] skipped reports/old.xml: written before this run's runner started",
@@ -326,7 +380,10 @@ describe("runCases with external suites", () => {
   });
 
   it("starts no runner when every selected case is blocked", async () => {
-    const { results, root, runDir } = await runSuite({ cases: [externalCase("SHOP-CART-001")], env: "live" });
+    const { results, root, runDir } = await runSuite({
+      cases: [externalCase("SHOP-CART-001")],
+      env: "live",
+    });
     expect(outcomes(results)).toEqual([
       {
         caseId: "SHOP-CART-001",
@@ -374,9 +431,13 @@ describe("runCases with external suites", () => {
       workers: 2,
     });
     root = prepared.root;
-    await expect(prepared.run()).rejects.toThrow("could not launch target web: fake launch 1 failed");
+    await expect(prepared.run()).rejects.toThrow(
+      "could not launch target web: fake launch 1 failed",
+    );
     const url = await readFile(join(root, "url.txt"), "utf8");
-    await expect(fetch(url, { method: "POST" })).rejects.toMatchObject({ cause: { code: "ECONNREFUSED" } });
+    await expect(fetch(url, { method: "POST" })).rejects.toMatchObject({
+      cause: { code: "ECONNREFUSED" },
+    });
     const suite = await readJson<CaseResult>(join(prepared.runDir, "SHOP-CART-001", "result.json"));
     expect(suite).toMatchObject({ status: "blocked", reason: "run cancelled" });
   });

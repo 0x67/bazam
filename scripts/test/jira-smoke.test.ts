@@ -7,7 +7,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { BRAND } from "@bazam/core/brand";
 import { bugLabel } from "@bazam/core/report";
-import { startJiraStub, type JiraStub } from "../../packages/tracker-jira/test/support/jira-stub.ts";
+import {
+  startJiraStub,
+  type JiraStub,
+} from "../../packages/tracker-jira/test/support/jira-stub.ts";
 
 const SCRIPT = path.resolve(import.meta.dirname, "..", "jira-smoke.ts");
 const EMAIL = "qa@example.test";
@@ -24,7 +27,10 @@ interface ScriptRun {
 }
 
 /** What a proxy answers in place of the stub: a status and a JSON body, or `hold` to never answer. */
-type Intercept = (method: string, url: string) => { status: number; body: unknown } | "hold" | undefined;
+type Intercept = (
+  method: string,
+  url: string,
+) => { status: number; body: unknown } | "hold" | undefined;
 
 let stub: JiraStub;
 let dir: string;
@@ -32,7 +38,11 @@ let envFile: string;
 let closers: (() => Promise<void>)[];
 
 beforeEach(async () => {
-  stub = await startJiraStub({ email: EMAIL, token: TOKEN, issues: [{ key: "DEMO-1", status: "To Do" }] });
+  stub = await startJiraStub({
+    email: EMAIL,
+    token: TOKEN,
+    issues: [{ key: "DEMO-1", status: "To Do" }],
+  });
   dir = await mkdtemp(path.join(tmpdir(), "jira-smoke-test-"));
   // missing unless a test writes it, so a developer's own env file never reaches the script
   envFile = path.join(dir, ".jira-smoke.env");
@@ -46,7 +56,10 @@ afterEach(async () => {
 });
 
 /** Starts the script with only `vars` among the JIRA_ variables, so the shell's own never reach it. */
-function launch(vars: Record<string, string>, ...args: string[]): { child: ChildProcess; done: Promise<ScriptRun> } {
+function launch(
+  vars: Record<string, string>,
+  ...args: string[]
+): { child: ChildProcess; done: Promise<ScriptRun> } {
   const inherited = Object.entries(process.env).filter(([name]) => !name.startsWith("JIRA_"));
   const env = { ...Object.fromEntries(inherited), ...vars };
   const child = spawn(process.execPath, [SCRIPT, "--inputs", envFile, ...args], { env });
@@ -93,7 +106,9 @@ async function proxy(intercept: Intercept): Promise<string> {
       const answer = intercept(req.method ?? "GET", req.url ?? "/");
       if (answer === "hold") return;
       if (answer !== undefined) {
-        res.writeHead(answer.status, { "content-type": "application/json" }).end(JSON.stringify(answer.body));
+        res
+          .writeHead(answer.status, { "content-type": "application/json" })
+          .end(JSON.stringify(answer.body));
         return;
       }
       const headers = new Headers();
@@ -134,7 +149,10 @@ describe("jira-smoke", () => {
     "comments on the ticket, files a linked bug, comments on it after the pass, posts the probe and moves nothing",
     async () => {
       // the environment wins over the file, and the file supplies what the environment leaves out
-      await writeFile(envFile, `# smoke inputs\n\nJIRA_SMOKE_TICKET=DEMO-9\nJIRA_API_TOKEN="${TOKEN}"\n`);
+      await writeFile(
+        envFile,
+        `# smoke inputs\n\nJIRA_SMOKE_TICKET=DEMO-9\nJIRA_API_TOKEN="${TOKEN}"\n`,
+      );
       const run = await smoke({ ...site(), JIRA_EMAIL: EMAIL });
       expect(run.code, run.stderr).toBe(0);
       expect(run.stdout + run.stderr).not.toContain(TOKEN);
@@ -151,7 +169,9 @@ describe("jira-smoke", () => {
       const bug = stub.issues.get("DEMO-2");
       const caseId = /^\[(SMOKE-JIRA\d{6}-\d{6})\] /.exec(bug?.summary ?? "")?.[1] ?? "";
       expect(caseId).not.toBe("");
-      const create = stub.requests.find((request) => request.method === "POST" && request.path === "/rest/api/3/issue");
+      const create = stub.requests.find(
+        (request) => request.method === "POST" && request.path === "/rest/api/3/issue",
+      );
       expect(create?.body).toMatchObject({
         fields: {
           project: { key: "DEMO" },
@@ -167,7 +187,10 @@ describe("jira-smoke", () => {
       expect(probe?.body).toMatchObject({
         type: "doc",
         content: expect.arrayContaining([
-          expect.objectContaining({ type: "expand", content: [expect.objectContaining({ type: "paragraph" })] }),
+          expect.objectContaining({
+            type: "expand",
+            content: [expect.objectContaining({ type: "paragraph" })],
+          }),
         ]),
       });
       expect(stub.requests.filter((request) => request.path.endsWith("/transitions"))).toEqual([]);
@@ -182,7 +205,11 @@ describe("jira-smoke", () => {
           `probe comment ${browse}/DEMO-2?focusedCommentId=${probe?.id}`,
         ]),
       );
-      expect(out).toEqual(expect.arrayContaining([expect.stringMatching(/^the search found DEMO-2 after \d+\.\d s$/)]));
+      expect(out).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^the search found DEMO-2 after \d+\.\d s$/),
+        ]),
+      );
     },
     SLOW,
   );
@@ -195,7 +222,12 @@ describe("jira-smoke", () => {
           ? { status: 403, body: { errorMessages: ["You do not have permission to link issues."] } }
           : undefined,
       );
-      const run = await smoke({ ...site(), JIRA_SMOKE_API: api, JIRA_EMAIL: EMAIL, JIRA_API_TOKEN: TOKEN });
+      const run = await smoke({
+        ...site(),
+        JIRA_SMOKE_API: api,
+        JIRA_EMAIL: EMAIL,
+        JIRA_API_TOKEN: TOKEN,
+      });
       expect(run.code, run.stderr).toBe(1);
 
       const out = lines(run.stdout);
@@ -214,7 +246,12 @@ describe("jira-smoke", () => {
     async () => {
       // the script's first search is the second one
       const api = await proxy(failSearch(2, 503));
-      const run = await smoke({ ...site(), JIRA_SMOKE_API: api, JIRA_EMAIL: EMAIL, JIRA_API_TOKEN: TOKEN });
+      const run = await smoke({
+        ...site(),
+        JIRA_SMOKE_API: api,
+        JIRA_EMAIL: EMAIL,
+        JIRA_API_TOKEN: TOKEN,
+      });
       expect(run.code, run.stderr).toBe(0);
       expect(comments("DEMO-2")).toHaveLength(2);
     },
@@ -225,7 +262,12 @@ describe("jira-smoke", () => {
     "stops searching at an answer that will not pass and skips the passing run and the probe",
     async () => {
       const api = await proxy(failSearch(2, 400));
-      const run = await smoke({ ...site(), JIRA_SMOKE_API: api, JIRA_EMAIL: EMAIL, JIRA_API_TOKEN: TOKEN });
+      const run = await smoke({
+        ...site(),
+        JIRA_SMOKE_API: api,
+        JIRA_EMAIL: EMAIL,
+        JIRA_API_TOKEN: TOKEN,
+      });
       expect(run.code).toBe(1);
       expect(run.stderr).toContain(
         `POST ${SEARCH} answered 400: try again later; skipped the passing run and the probe`,
@@ -329,9 +371,11 @@ describe("jira-smoke", () => {
 
   it("masks the credentials in what it prints", async () => {
     const echo = await serve((req, res) => {
-      res
-        .writeHead(400, { "content-type": "application/json" })
-        .end(JSON.stringify({ errorMessages: [`echo ${TOKEN} ${EMAIL} ${req.headers.authorization ?? ""}`] }));
+      res.writeHead(400, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          errorMessages: [`echo ${TOKEN} ${EMAIL} ${req.headers.authorization ?? ""}`],
+        }),
+      );
     });
     const run = await smoke({
       JIRA_SMOKE_SITE: echo,
@@ -356,7 +400,9 @@ describe("jira-smoke", () => {
       expect(lines(run.stdout)).toEqual(
         expect.arrayContaining([
           expect.stringContaining(`jira:DEMO-1 post the fail comment for ${caseId}`),
-          expect.stringContaining(`jira:DEMO ${caseId}: comment on the open bug labelled ${bugLabel(caseId)}, or file`),
+          expect.stringContaining(
+            `jira:DEMO ${caseId}: comment on the open bug labelled ${bugLabel(caseId)}, or file`,
+          ),
         ]),
       );
       expect(run.stdout).toContain("passing result");

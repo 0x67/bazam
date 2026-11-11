@@ -12,7 +12,11 @@ async function parseReport(): Promise<ExternalTest[]> {
   return playwrightJsonFormat.parse({ path: REPORT, text: await readFile(REPORT, "utf8") });
 }
 
-function find(tests: readonly ExternalTest[], project: string, id: string): ExternalTest | undefined {
+function find(
+  tests: readonly ExternalTest[],
+  project: string,
+  id: string,
+): ExternalTest | undefined {
   return tests.find((test) => test.project === project && test.title.at(-1)?.includes(`[${id}]`));
 }
 
@@ -20,17 +24,59 @@ describe("playwrightJsonFormat", () => {
   it("gives one test per project, titled by the file suite, its describes and the spec", async () => {
     const tests = await parseReport();
 
-    expect(tests.map((test) => [test.project, test.title.join(" › "), test.outcome, test.retries])).toEqual([
-      ["chromium", "auth/login.spec.ts › login › signs in with an email code [AUTH-LOGIN-001]", "passed", 0],
-      ["firefox", "auth/login.spec.ts › login › signs in with an email code [AUTH-LOGIN-001]", "passed", 0],
-      ["chromium", "auth/login.spec.ts › login › keeps the session after reload [AUTH-LOGIN-002]", "passed", 1],
-      ["firefox", "auth/login.spec.ts › login › keeps the session after reload [AUTH-LOGIN-002]", "passed", 0],
+    expect(
+      tests.map((test) => [test.project, test.title.join(" › "), test.outcome, test.retries]),
+    ).toEqual([
+      [
+        "chromium",
+        "auth/login.spec.ts › login › signs in with an email code [AUTH-LOGIN-001]",
+        "passed",
+        0,
+      ],
+      [
+        "firefox",
+        "auth/login.spec.ts › login › signs in with an email code [AUTH-LOGIN-001]",
+        "passed",
+        0,
+      ],
+      [
+        "chromium",
+        "auth/login.spec.ts › login › keeps the session after reload [AUTH-LOGIN-002]",
+        "passed",
+        1,
+      ],
+      [
+        "firefox",
+        "auth/login.spec.ts › login › keeps the session after reload [AUTH-LOGIN-002]",
+        "passed",
+        0,
+      ],
       ["chromium", "auth/login.spec.ts › login › signs out [AUTH-LOGIN-004]", "failed", 1],
       ["firefox", "auth/login.spec.ts › login › signs out [AUTH-LOGIN-004]", "failed", 1],
-      ["chromium", "auth/login.spec.ts › login › resets the password [AUTH-LOGIN-005]", "skipped", 0],
-      ["firefox", "auth/login.spec.ts › login › resets the password [AUTH-LOGIN-005]", "skipped", 0],
-      ["chromium", "auth/login.spec.ts › login › lockout › locks after five tries [AUTH-LOGIN-003]", "failed", 1],
-      ["firefox", "auth/login.spec.ts › login › lockout › locks after five tries [AUTH-LOGIN-003]", "failed", 1],
+      [
+        "chromium",
+        "auth/login.spec.ts › login › resets the password [AUTH-LOGIN-005]",
+        "skipped",
+        0,
+      ],
+      [
+        "firefox",
+        "auth/login.spec.ts › login › resets the password [AUTH-LOGIN-005]",
+        "skipped",
+        0,
+      ],
+      [
+        "chromium",
+        "auth/login.spec.ts › login › lockout › locks after five tries [AUTH-LOGIN-003]",
+        "failed",
+        1,
+      ],
+      [
+        "firefox",
+        "auth/login.spec.ts › login › lockout › locks after five tries [AUTH-LOGIN-003]",
+        "failed",
+        1,
+      ],
       ["chromium", "home.spec.ts › home page loads [WEB-HOME-001]", "passed", 0],
       ["firefox", "home.spec.ts › home page loads [WEB-HOME-001]", "passed", 0],
     ]);
@@ -67,7 +113,14 @@ describe("playwrightJsonFormat", () => {
     });
 
     expect(await playwrightJsonFormat.parse({ path: INLINE, text })).toEqual([
-      { title: ["cart.spec.ts", "pays"], tags: [], outcome: "skipped", retries: 0, attachments: [], source: INLINE },
+      {
+        title: ["cart.spec.ts", "pays"],
+        tags: [],
+        outcome: "skipped",
+        retries: 0,
+        attachments: [],
+        source: INLINE,
+      },
     ]);
   });
 
@@ -79,12 +132,17 @@ describe("playwrightJsonFormat", () => {
     ],
     ["a syntax error V8 quotes the input for", MARKER, `${INLINE}: not valid JSON`],
     ["JSON without a suites array", `{"${MARKER}": []}`, `${INLINE}: not a Playwright JSON report`],
-  ])("throws ResultParseError for %s, naming the file and quoting none of it", async (_, text, message) => {
-    const failure: unknown = await playwrightJsonFormat.parse({ path: INLINE, text }).catch((error: unknown) => error);
+  ])(
+    "throws ResultParseError for %s, naming the file and quoting none of it",
+    async (_, text, message) => {
+      const failure: unknown = await playwrightJsonFormat
+        .parse({ path: INLINE, text })
+        .catch((error: unknown) => error);
 
-    expect(failure).toBeInstanceOf(ResultParseError);
-    expect((failure as ResultParseError).message).toBe(message);
-    expect((failure as ResultParseError).message).not.toContain(MARKER);
-    expect((failure as ResultParseError).message).not.toContain("\n");
-  });
+      expect(failure).toBeInstanceOf(ResultParseError);
+      expect((failure as ResultParseError).message).toBe(message);
+      expect((failure as ResultParseError).message).not.toContain(MARKER);
+      expect((failure as ResultParseError).message).not.toContain("\n");
+    },
+  );
 });

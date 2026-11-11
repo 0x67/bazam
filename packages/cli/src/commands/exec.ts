@@ -40,7 +40,10 @@ export interface ExecOptions {
 export async function runWithChallengeService(options: ExecOptions): Promise<number> {
   const service = await startChallengeService(options.service);
   try {
-    return await runChild(options, { [CHALLENGE_URL_VAR]: service.url.href, [CHALLENGE_TOKEN_VAR]: service.token });
+    return await runChild(options, {
+      [CHALLENGE_URL_VAR]: service.url.href,
+      [CHALLENGE_TOKEN_VAR]: service.token,
+    });
   } finally {
     await service.close();
   }
@@ -49,7 +52,9 @@ export async function runWithChallengeService(options: ExecOptions): Promise<num
 export async function execCommand(ctx: CommandContext): Promise<number> {
   const [command, ...args] = ctx.args;
   if (command === undefined) {
-    throw new CommandError(`exec needs a command to run: ${BRAND.name} exec --env <env> -- <command> [args]`);
+    throw new CommandError(
+      `exec needs a command to run: ${BRAND.name} exec --env <env> -- <command> [args]`,
+    );
   }
   const { config, registry } = await ctx.loadPlugins();
   const env = envOf(config, ctx.flags.env);
@@ -95,10 +100,12 @@ async function runChild(options: ExecOptions, vars: Record<string, string>): Pro
   if (signal.aborted) interrupt();
   else signal.addEventListener("abort", interrupt, { once: true });
   try {
-    const [code, ended] = await new Promise<[number | null, NodeJS.Signals | null]>((done, fail) => {
-      child.once("error", fail);
-      child.once("exit", (exitCode, exitSignal) => done([exitCode, exitSignal]));
-    });
+    const [code, ended] = await new Promise<[number | null, NodeJS.Signals | null]>(
+      (done, fail) => {
+        child.once("error", fail);
+        child.once("exit", (exitCode, exitSignal) => done([exitCode, exitSignal]));
+      },
+    );
     if (code !== null) return code;
     const numbers: Readonly<Record<string, number | undefined>> = constants.signals;
     return 128 + (ended === null ? 0 : (numbers[ended] ?? 0));

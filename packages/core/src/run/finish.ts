@@ -9,7 +9,12 @@ import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { buildPostPlans, loadReceipts, PeopleRegistry } from "../report/index.ts";
 import { loadScanValues, withheldAttachments } from "../scan/index.ts";
-import { writeRunStatus, writeRunSummary, type CaseResult, type RunProgress } from "../result/index.ts";
+import {
+  writeRunStatus,
+  writeRunSummary,
+  type CaseResult,
+  type RunProgress,
+} from "../result/index.ts";
 
 export interface FinishDeps {
   runId: string;
@@ -78,7 +83,8 @@ async function withheldFrom(
     const around = first === undefined ? new Date() : new Date(first.startedAt);
     const values = await loadScanValues({ project, registry, env, redactor, around });
     const withheld = await withheldAttachments(runDir, results, values);
-    for (const [attachment, kinds] of withheld) deps.log.line(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
+    for (const [attachment, kinds] of withheld)
+      deps.log.line(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
     return withheld;
   } catch (error) {
     deps.log.line(`scanning the attachments failed: ${(error as Error).message}`);

@@ -124,7 +124,9 @@ describe("main", () => {
       await project.cli("run", "--no-such-flag", "--json"),
     ];
     for (const { stdout } of runs) expect(() => JSON.parse(stdout)).not.toThrow();
-    const [run, plan, check, , unknownEnv, unknownFlag] = runs.map(({ stdout }) => JSON.parse(stdout) as unknown);
+    const [run, plan, check, , unknownEnv, unknownFlag] = runs.map(
+      ({ stdout }) => JSON.parse(stdout) as unknown,
+    );
     expect(run).toMatchObject({
       counts: { pass: 1, fail: 1, blocked: 1, followup: 0, total: 3 },
       cases: [
@@ -145,11 +147,29 @@ describe("main", () => {
     const project = await fixtureProject(api);
     const codes = {
       pass: await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001"),
-      fail: await project.cli("run", "--env", "demo", "--case", "SHOP-FAIL-001", "--case", "SHOP-DOWN-001"),
-      blocked: await project.cli("run", "--env", "demo", "--case", "SHOP-DOWN-001", "--case", "SHOP-OK-001"),
+      fail: await project.cli(
+        "run",
+        "--env",
+        "demo",
+        "--case",
+        "SHOP-FAIL-001",
+        "--case",
+        "SHOP-DOWN-001",
+      ),
+      blocked: await project.cli(
+        "run",
+        "--env",
+        "demo",
+        "--case",
+        "SHOP-DOWN-001",
+        "--case",
+        "SHOP-OK-001",
+      ),
       unknownEnv: await project.cli("run", "--env", "nope"),
     };
-    expect(Object.fromEntries(Object.entries(codes).map(([name, run]) => [name, run.code]))).toEqual({
+    expect(
+      Object.fromEntries(Object.entries(codes).map(([name, run]) => [name, run.code])),
+    ).toEqual({
       pass: 0,
       fail: 1,
       blocked: 3,
@@ -161,7 +181,9 @@ describe("main", () => {
 
   it("exits 2 when a case's target names a driver no plugin registered", async () => {
     const project = await fixtureProject(api);
-    const config = JSON.parse(await project.read(BRAND.configFile)) as { targets: Record<string, unknown> };
+    const config = JSON.parse(await project.read(BRAND.configFile)) as {
+      targets: Record<string, unknown>;
+    };
     config.targets["t"] = { driver: "missing" };
     await project.write(BRAND.configFile, JSON.stringify(config));
     const { code, stderr } = await project.cli("run", "--env", "demo", "--case", "SHOP-OK-001");
@@ -171,7 +193,10 @@ describe("main", () => {
 
   it("exits 2 and prints file:line issues when a case file does not load at run start", async () => {
     const project = await fixtureProject(api);
-    await project.write("cases/shop/broken.yaml", "cases:\n  - id: SHOP-BAD-001\n    title: No stage\n");
+    await project.write(
+      "cases/shop/broken.yaml",
+      "cases:\n  - id: SHOP-BAD-001\n    title: No stage\n",
+    );
     const { code, stderr } = await project.cli("run", "--env", "demo");
     expect(code).toBe(ExitCode.CouldNotStart);
     expect(stderr).toContain("cases/shop/broken.yaml:2: error schema:");
@@ -201,11 +226,18 @@ describe("main", () => {
     const project = await fixtureProject(api);
     const config = JSON.parse(await project.read(BRAND.configFile)) as { plugins: unknown[] };
     const pidFile = join(project.root, "quiet.pid");
-    const quiet = { command: [process.execPath, join(project.root, "quiet.mjs")], env: { QUIET_PID_FILE: pidFile } };
+    const quiet = {
+      command: [process.execPath, join(project.root, "quiet.mjs")],
+      env: { QUIET_PID_FILE: pidFile },
+    };
     await project.write("quiet.mjs", QUIET_PLUGIN);
     await project.write(
       BRAND.configFile,
-      JSON.stringify({ ...config, plugins: [...config.plugins, quiet], secrets: { names: ["DEMO_PLUGIN_SECRET"] } }),
+      JSON.stringify({
+        ...config,
+        plugins: [...config.plugins, quiet],
+        secrets: { names: ["DEMO_PLUGIN_SECRET"] },
+      }),
     );
     process.env["DEMO_PLUGIN_SECRET"] = PLUGIN_SECRET;
     let pid = 0;
@@ -237,11 +269,21 @@ describe("main", () => {
   it("masks on stdout a secret the run reads after an earlier case finished", async () => {
     const project = await fixtureProject(api);
     const config = JSON.parse(await project.read(BRAND.configFile)) as Record<string, unknown>;
-    await project.write(BRAND.configFile, JSON.stringify({ ...config, secrets: { names: ["DESK_TOKEN"] } }));
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, secrets: { names: ["DESK_TOKEN"] } }),
+    );
     await project.write(`${BRAND.stateDir}/secrets.env`, `DESK_TOKEN=${DESK_TOKEN}\n`);
     await project.write("cases/desk/cases.yaml", TOKEN_CASES);
     for (const json of [[], ["--json"]]) {
-      const { code, stdout, stderr } = await project.cli("run", "--env", "demo", "--domain", "desk", ...json);
+      const { code, stdout, stderr } = await project.cli(
+        "run",
+        "--env",
+        "demo",
+        "--domain",
+        "desk",
+        ...json,
+      );
       expect(code, stderr).toBe(ExitCode.Pass);
       expect(stdout).toContain("DESK-TITLE-001");
       expect(stdout).not.toContain(DESK_TOKEN);
@@ -250,20 +292,38 @@ describe("main", () => {
 
   it("ends a web run cancelled on the first Ctrl-C, with exit 3 and one JSON document", async () => {
     const project = await fixtureProject(api);
-    const config = JSON.parse(await project.read(BRAND.configFile)) as { targets: Record<string, unknown> };
+    const config = JSON.parse(await project.read(BRAND.configFile)) as {
+      targets: Record<string, unknown>;
+    };
     config.targets["w"] = { driver: "playwright" };
     await project.write(BRAND.configFile, JSON.stringify(config));
     await project.write("cases/desk/cases.yaml", WAIT_CASES);
     const before = api.requests.length;
-    const argv = ["run", "--env", "demo", "--domain", "desk", "--json", "--run", "stop", "--root", project.root];
-    const child = spawn(process.execPath, ["--conditions=development", BIN, ...argv], { stdio: "pipe" });
+    const argv = [
+      "run",
+      "--env",
+      "demo",
+      "--domain",
+      "desk",
+      "--json",
+      "--run",
+      "stop",
+      "--root",
+      project.root,
+    ];
+    const child = spawn(process.execPath, ["--conditions=development", BIN, ...argv], {
+      stdio: "pipe",
+    });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (text: string) => (stdout += text));
     child.stderr.setEncoding("utf8").on("data", (text: string) => (stderr += text));
     const exited = new Promise<number | null>((done) => child.on("exit", done));
     // the browser has the page open once the api sees its request
-    await vi.waitFor(() => expect(api.requests.length).toBeGreaterThan(before), { timeout: 30_000, interval: 50 });
+    await vi.waitFor(() => expect(api.requests.length).toBeGreaterThan(before), {
+      timeout: 30_000,
+      interval: 50,
+    });
     child.kill("SIGINT");
     expect(await exited, stderr).toBe(ExitCode.Incomplete);
     expect(JSON.parse(stdout)).toMatchObject({
@@ -273,7 +333,9 @@ describe("main", () => {
         { caseId: "DESK-LATER-001", reason: "run cancelled" },
       ],
     });
-    expect(JSON.parse(await project.read("runs/stop/status.json"))).toMatchObject({ state: "finished" });
+    expect(JSON.parse(await project.read("runs/stop/status.json"))).toMatchObject({
+      state: "finished",
+    });
     expect(existsSync(join(project.root, "runs", "stop", "post-plan.json"))).toBe(true);
   }, 60_000);
 

@@ -7,7 +7,8 @@ export type ExitCode = (typeof ExitCode)[keyof typeof ExitCode];
 /** 1 when any case failed, else 3 when any is blocked or needs follow-up, else 0. */
 export function exitCodeFor(statuses: readonly Status[]): ExitCode {
   if (statuses.includes("fail")) return ExitCode.Fail;
-  if (statuses.some((status) => status === "blocked" || status === "followup")) return ExitCode.Incomplete;
+  if (statuses.some((status) => status === "blocked" || status === "followup"))
+    return ExitCode.Incomplete;
   return ExitCode.Pass;
 }
 

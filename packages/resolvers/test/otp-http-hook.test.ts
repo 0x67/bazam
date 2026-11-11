@@ -29,7 +29,10 @@ describe("httpHookResolver", () => {
 
   it("follows a dot path with array indexes and turns a number into text", async () => {
     const origin = await serveJson(fakeHook({ data: { codes: [{ value: 654321 }] } }));
-    expect(await resolveFrom(origin, "data.codes[0].value")).toEqual({ kind: "value", value: "654321" });
+    expect(await resolveFrom(origin, "data.codes[0].value")).toEqual({
+      kind: "value",
+      value: "654321",
+    });
   });
 
   it("returns undefined when the hook answers 404", async () => {
@@ -39,10 +42,14 @@ describe("httpHookResolver", () => {
 
   it("fails naming the field when the answer holds no value there", async () => {
     const origin = await serveJson(fakeHook({ otp: "123456" }));
-    await expect(resolveFrom(origin, "code")).rejects.toThrow("the hook's answer holds no text or number at code");
+    await expect(resolveFrom(origin, "code")).rejects.toThrow(
+      "the hook's answer holds no text or number at code",
+    );
   });
 
   it("refuses a hook outside the env hosts", async () => {
-    await expect(resolveFrom("http://otp.example.test", "code")).rejects.toBeInstanceOf(HostNotAllowed);
+    await expect(resolveFrom("http://otp.example.test", "code")).rejects.toBeInstanceOf(
+      HostNotAllowed,
+    );
   });
 });

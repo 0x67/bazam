@@ -7,7 +7,12 @@ import {
   sessionCookieStrategy,
 } from "../auth/strategies/index.ts";
 import { BRAND } from "../brand.ts";
-import { answersFileChannel, builtinKinds, humanResolver, terminalChannel } from "../challenge/index.ts";
+import {
+  answersFileChannel,
+  builtinKinds,
+  humanResolver,
+  terminalChannel,
+} from "../challenge/index.ts";
 import { builtinRules } from "../check/index.ts";
 import { httpSteps } from "../driver/http.ts";
 import { junitFormat } from "../ingest/junit.ts";
@@ -28,7 +33,13 @@ export function builtinContributions(
 ): Omit<PluginManifest, "name" | "apiVersion"> {
   return {
     steps: [...httpSteps],
-    authStrategies: [apiKeyStrategy, basicStrategy, oauth2Strategy, sessionCookieStrategy, hmacStrategy],
+    authStrategies: [
+      apiKeyStrategy,
+      basicStrategy,
+      oauth2Strategy,
+      sessionCookieStrategy,
+      hmacStrategy,
+    ],
     resolvers: [humanResolver],
     challengeKinds: [...builtinKinds],
     secretProviders: [
@@ -38,7 +49,10 @@ export function builtinContributions(
     ],
     channels: [
       // stdout carries only a command's result, such as the one JSON document of --json
-      { name: "terminal", create: () => terminalChannel({ input: process.stdin, output: process.stderr }) },
+      {
+        name: "terminal",
+        create: () => terminalChannel({ input: process.stdin, output: process.stderr }),
+      },
       { name: "answers-file", create: (runDir) => answersFileChannel(runDir) },
     ],
     checkRules: [...builtinRules],

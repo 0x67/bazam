@@ -64,8 +64,10 @@ export async function requestChallenge(
     );
   }
   const endpoint = loopbackUrl(url);
-  const limit = options.timeoutMs === undefined ? undefined : AbortSignal.timeout(options.timeoutMs);
-  const signal = limit && options.signal ? AbortSignal.any([limit, options.signal]) : (limit ?? options.signal);
+  const limit =
+    options.timeoutMs === undefined ? undefined : AbortSignal.timeout(options.timeoutMs);
+  const signal =
+    limit && options.signal ? AbortSignal.any([limit, options.signal]) : (limit ?? options.signal);
   const reply = await post(endpoint, token, JSON.stringify(request), signal);
   return answerOf(reply);
 }
@@ -78,7 +80,12 @@ function loopbackUrl(text: string): URL {
   return url;
 }
 
-function post(url: URL, token: string, body: string, signal: AbortSignal | undefined): Promise<Reply> {
+function post(
+  url: URL,
+  token: string,
+  body: string,
+  signal: AbortSignal | undefined,
+): Promise<Reply> {
   return new Promise((done, fail) => {
     const failed = (error: Error): void => fail(signal?.aborted ? signal.reason : error);
     const req = httpRequest(
@@ -96,7 +103,9 @@ function post(url: URL, token: string, body: string, signal: AbortSignal | undef
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.once("end", () => done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }));
+        res.once("end", () =>
+          done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }),
+        );
         res.once("error", failed);
       },
     );
@@ -109,7 +118,10 @@ function answerOf({ status, text }: Reply): ChallengeClientAnswer {
   const json = objectOf(text);
   if (status === 200 && typeof json["value"] === "string") return { value: json["value"] };
   if (status === 200 && json["done"] === true) return { done: true };
-  throw new ChallengeRequestFailed(status, typeof json["error"] === "string" ? json["error"] : text);
+  throw new ChallengeRequestFailed(
+    status,
+    typeof json["error"] === "string" ? json["error"] : text,
+  );
 }
 
 function objectOf(text: string): Record<string, unknown> {

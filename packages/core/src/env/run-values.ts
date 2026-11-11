@@ -40,7 +40,10 @@ export class RunValues {
         if (range === undefined) throw new UnresolvedPlaceholder(`\${run.${expression}}`);
         let drawn = values.get(range.key);
         if (drawn === undefined) {
-          drawn = unscaled(range.min + Math.floor(next() * (range.max - range.min + 1)), range.decimals);
+          drawn = unscaled(
+            range.min + Math.floor(next() * (range.max - range.min + 1)),
+            range.decimals,
+          );
           values.set(range.key, drawn);
         }
         return drawn;

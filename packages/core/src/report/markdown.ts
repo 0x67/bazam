@@ -15,7 +15,9 @@ export function markdownTracker(tracker: string): TrackerRenderer {
 }
 
 function markdownComment(result: CaseResult): string {
-  const followups = result.followups.map((followup) => `- ${escapeMarkdown(`${followup.item}: ${followup.hint}`)}`);
+  const followups = result.followups.map(
+    (followup) => `- ${escapeMarkdown(`${followup.item}: ${followup.hint}`)}`,
+  );
   const subject = `${result.env}: ${result.caseId} ${result.title} (run ${result.runId})`;
   return [
     `**${STATUS_LABELS[result.status]}** on ${escapeMarkdown(subject)}`,
@@ -27,10 +29,17 @@ function markdownComment(result: CaseResult): string {
     "| Check | Expected | Observed | Result |",
     "| --- | --- | --- | --- |",
     ...result.checks.map((check) =>
-      row([check.name, cellText(check.expected), cellText(check.observed), check.ok ? "ok" : "not ok"]),
+      row([
+        check.name,
+        cellText(check.expected),
+        cellText(check.observed),
+        check.ok ? "ok" : "not ok",
+      ]),
     ),
     ...(result.notes.length === 0 ? [] : ["", `Notes: ${escapeMarkdown(result.notes.join(" "))}`]),
-    ...(result.attachments.length === 0 ? [] : ["", `Attachments: ${escapeMarkdown(result.attachments.join(", "))}`]),
+    ...(result.attachments.length === 0
+      ? []
+      : ["", `Attachments: ${escapeMarkdown(result.attachments.join(", "))}`]),
     "",
   ].join("\n");
 }

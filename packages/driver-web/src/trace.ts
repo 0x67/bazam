@@ -42,9 +42,12 @@ class TraceScrubber {
     // trace.trace and trace.network hold one JSON event per line; parsing line by line first keeps the line breaks
     const lines = text.split("\n").map((line) => ({ line, parsed: parseJson(line) }));
     const isJsonLines =
-      lines.some(({ line }) => line !== "") && lines.every(({ line, parsed }) => line === "" || parsed.ok);
+      lines.some(({ line }) => line !== "") &&
+      lines.every(({ line, parsed }) => line === "" || parsed.ok);
     if (isJsonLines)
-      return lines.map(({ line, parsed }) => (parsed.ok ? this.#json(line, parsed.value) : line)).join("\n");
+      return lines
+        .map(({ line, parsed }) => (parsed.ok ? this.#json(line, parsed.value) : line))
+        .join("\n");
     const whole = parseJson(text);
     return whole.ok ? this.#json(text, whole.value) : this.#mask(text);
   }
@@ -68,7 +71,10 @@ class TraceScrubber {
     if (Array.isArray(value)) return value.map((item) => this.#value(item));
     if (typeof value !== "object" || value === null) return value;
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, this.#value(this.#maskCredentials(key, item))]),
+      Object.entries(value).map(([key, item]) => [
+        key,
+        this.#value(this.#maskCredentials(key, item)),
+      ]),
     );
   }
 
@@ -85,9 +91,12 @@ class TraceScrubber {
     if (!Array.isArray(item)) return item;
     if (key === "headers")
       return item.map((header) =>
-        isPair(header) && this.#isSensitiveHeader(header.name) ? { ...header, value: MASK } : header,
+        isPair(header) && this.#isSensitiveHeader(header.name)
+          ? { ...header, value: MASK }
+          : header,
       );
-    if (CREDENTIAL_ARRAYS.has(key)) return item.map((pair) => (isPair(pair) ? { ...pair, value: MASK } : pair));
+    if (CREDENTIAL_ARRAYS.has(key))
+      return item.map((pair) => (isPair(pair) ? { ...pair, value: MASK } : pair));
     return item;
   }
 
@@ -96,7 +105,9 @@ class TraceScrubber {
     let sensitive = this.#sensitiveHeaders.get(lower);
     if (sensitive === undefined) {
       // the redactor keeps its key rule to itself, so ask it to mask a value under this name
-      sensitive = CREDENTIAL_HEADERS.has(lower) || Object.values(this.#redactor.value({ [lower]: "x" }))[0] !== "x";
+      sensitive =
+        CREDENTIAL_HEADERS.has(lower) ||
+        Object.values(this.#redactor.value({ [lower]: "x" }))[0] !== "x";
       this.#sensitiveHeaders.set(lower, sensitive);
     }
     return sensitive;

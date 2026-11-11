@@ -58,7 +58,8 @@ async function resolveValue(value: unknown, sources: PlaceholderSources): Promis
   }
   if (!isPlainObject(value)) return value;
   const entries: [string, unknown][] = [];
-  for (const [key, item] of Object.entries(value)) entries.push([key, await resolveValue(item, sources)]);
+  for (const [key, item] of Object.entries(value))
+    entries.push([key, await resolveValue(item, sources)]);
   return Object.fromEntries(entries);
 }
 
@@ -73,7 +74,11 @@ async function resolveString(text: string, sources: PlaceholderSources): Promise
   return out + text.slice(last);
 }
 
-async function resolveOne(placeholder: string, expression: string, sources: PlaceholderSources): Promise<string> {
+async function resolveOne(
+  placeholder: string,
+  expression: string,
+  sources: PlaceholderSources,
+): Promise<string> {
   const [namespace, path] = splitFirst(expression);
   let value: unknown;
   if (path !== "") {
@@ -86,7 +91,8 @@ async function resolveOne(placeholder: string, expression: string, sources: Plac
         break;
       case "identity": {
         const [name, field] = splitFirst(path);
-        if (field !== "") value = sources.identity(name, field) ?? identityPhoneForm(name, field, sources);
+        if (field !== "")
+          value = sources.identity(name, field) ?? identityPhoneForm(name, field, sources);
         break;
       }
       case "run":
@@ -103,7 +109,11 @@ async function resolveOne(placeholder: string, expression: string, sources: Plac
 }
 
 /** `phone.national` formats the `phone` field when the identity has no field named `phone.national`. */
-function identityPhoneForm(name: string, field: string, sources: PlaceholderSources): string | undefined {
+function identityPhoneForm(
+  name: string,
+  field: string,
+  sources: PlaceholderSources,
+): string | undefined {
   const dot = field.lastIndexOf(".");
   const form = field.slice(dot + 1);
   if (dot === -1 || !isPhoneForm(form)) return undefined;

@@ -96,7 +96,9 @@ function tokenStrategy(name: string, options: { probe: boolean; cacheable?: bool
       if (loginFailure !== undefined) throw loginFailure;
       return issue();
     },
-    ...(options.probe ? { probe: async (credential: { token: string }) => probe(credential.token) } : {}),
+    ...(options.probe
+      ? { probe: async (credential: { token: string }) => probe(credential.token) }
+      : {}),
     canRefresh: () => refreshable,
     refresh: async () => {
       events.push(`refresh starts in ${als.getStore()}`);
@@ -147,7 +149,8 @@ class PooledContext extends FakeBrowserSession {
 
 async function pooledContext(ctx: StepContext): Promise<PooledContext> {
   const browser = await ctx.session.browserFor?.(ctx.identity ?? "");
-  if (!(browser instanceof PooledContext)) throw new Error("the step runs without the identity's browser context");
+  if (!(browser instanceof PooledContext))
+    throw new Error("the step runs without the identity's browser context");
   return browser;
 }
 
@@ -223,7 +226,10 @@ const config = {
   targets: { web: { driver: "fake" } },
 };
 
-function testCase(id: string, caseSteps: readonly Record<string, unknown>[]): Record<string, unknown> {
+function testCase(
+  id: string,
+  caseSteps: readonly Record<string, unknown>[],
+): Record<string, unknown> {
   return {
     id,
     title: `case ${id}`,
@@ -246,7 +252,9 @@ interface CaseRan {
  * Loads a project with `cases` and returns a function that runs one of them in a new session, inside
  * `als.run(<case id>)`. The cases share one run: its identities, and a browser pool the first case launches.
  */
-async function startRun(cases: readonly Record<string, unknown>[]): Promise<(caseId: string) => Promise<CaseRan>> {
+async function startRun(
+  cases: readonly Record<string, unknown>[],
+): Promise<(caseId: string) => Promise<CaseRan>> {
   const plugin = definePlugin({
     name: "test-reauth",
     apiVersion: PLUGIN_API_VERSION,
@@ -387,14 +395,22 @@ describe("CaseRun after a 401 in a browser context", () => {
   it("returns only after a refresh the last step started, and stops listening then", async () => {
     refreshDelayMs = 100;
     const runCase = await startRun([
-      testCase("SHOP-REAUTH-001", [{ look: true, as: "customer" }, { expire: true }, { call: 1, as: "customer" }]),
+      testCase("SHOP-REAUTH-001", [
+        { look: true, as: "customer" },
+        { expire: true },
+        { call: 1, as: "customer" },
+      ]),
     ]);
 
     const { notes, browser } = await runCase("SHOP-REAUTH-001");
     browser("customer")?.unauthorized();
     await sleep(refreshDelayMs);
 
-    expect(events).toEqual(["look with Bearer fake-token-1", "refresh starts in SHOP-REAUTH-001", "refresh ends"]);
+    expect(events).toEqual([
+      "look with Bearer fake-token-1",
+      "refresh starts in SHOP-REAUTH-001",
+      "refresh ends",
+    ]);
     expect(notes).toEqual([`refreshed customer's web credential after a 401 from ${ORIGIN}`]);
   });
 

@@ -39,7 +39,11 @@ function send(signing: Signing, body = signing.body): Promise<Response> {
 }
 
 describe("/api/hmac/echo", () => {
-  const order = { method: "POST", pathAndQuery: "/api/hmac/echo?side=buy&qty=2", body: '{"symbol":"DEMO"}' }
+  const order = {
+    method: "POST",
+    pathAndQuery: "/api/hmac/echo?side=buy&qty=2",
+    body: '{"symbol":"DEMO"}',
+  }
 
   it("echoes a request signed with the documented string to sign", async () => {
     const response = await send(order)

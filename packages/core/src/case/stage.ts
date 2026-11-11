@@ -31,12 +31,19 @@ export type PromoteDecision = { ok: true } | { ok: false; reason: string };
 
 /** `latest` is the newest result of the case in the environment it is promoted for. */
 export function canPromote(spec: CaseSpec, latest: CaseResult | undefined): PromoteDecision {
-  if (spec.once) return { ok: false, reason: `${spec.id} has once: true; a once case is never promoted` };
+  if (spec.once)
+    return { ok: false, reason: `${spec.id} has once: true; a once case is never promoted` };
   if (spec.stage !== "acceptance") {
-    return { ok: false, reason: `${spec.id} is in stage ${spec.stage}; only acceptance cases are promoted` };
+    return {
+      ok: false,
+      reason: `${spec.id} is in stage ${spec.stage}; only acceptance cases are promoted`,
+    };
   }
   if (latest === undefined)
-    return { ok: false, reason: `${spec.id} has no result in this environment; run it there first` };
+    return {
+      ok: false,
+      reason: `${spec.id} has no result in this environment; run it there first`,
+    };
   if (latest.status !== "pass") {
     return {
       ok: false,
@@ -47,7 +54,11 @@ export function canPromote(spec: CaseSpec, latest: CaseResult | undefined): Prom
 }
 
 /** Moves the case to `regression` when its latest result in `env` passed, editing only the stage value in its file. */
-export async function promoteCase(root: string, target: LoadedCase, env: string): Promise<PromoteDecision> {
+export async function promoteCase(
+  root: string,
+  target: LoadedCase,
+  env: string,
+): Promise<PromoteDecision> {
   const decision = canPromote(target.spec, await latestResult(root, target.spec.id, env));
   if (!decision.ok) return decision;
   const file = join(root, target.source.file);
@@ -72,7 +83,11 @@ export async function retireCase(root: string, target: LoadedCase): Promise<void
   else await writeFile(file, edited);
 }
 
-async function latestResult(root: string, caseId: string, env: string): Promise<CaseResult | undefined> {
+async function latestResult(
+  root: string,
+  caseId: string,
+  env: string,
+): Promise<CaseResult | undefined> {
   let runs;
   try {
     runs = await readdir(join(root, "runs"), { withFileTypes: true });
@@ -91,7 +106,8 @@ async function latestResult(root: string, caseId: string, env: string): Promise<
     }
     const result = JSON.parse(text) as CaseResult;
     if (result.env !== env) continue;
-    if (latest === undefined || Date.parse(result.finishedAt) > Date.parse(latest.finishedAt)) latest = result;
+    if (latest === undefined || Date.parse(result.finishedAt) > Date.parse(latest.finishedAt))
+      latest = result;
   }
   return latest;
 }
@@ -102,7 +118,8 @@ function findCase(text: string, target: LoadedCase): { cases: YAMLSeq; item: YAM
   const item = isSeq(cases)
     ? cases.items.find((entry) => isMap(entry) && entry.get("id") === target.spec.id)
     : undefined;
-  if (!isSeq(cases) || !isMap(item)) throw new Error(`${target.spec.id} is not in ${target.source.file}`);
+  if (!isSeq(cases) || !isMap(item))
+    throw new Error(`${target.spec.id} is not in ${target.source.file}`);
   return { cases, item };
 }
 
@@ -112,7 +129,8 @@ function findCase(text: string, target: LoadedCase): { cases: YAMLSeq; item: YAM
  */
 function withoutItem(text: string, cases: YAMLSeq, item: YAMLMap): string {
   const token = cases.srcToken;
-  if (token?.type !== "block-seq") throw new Error("retire needs `cases` written as a block list, one `- ` per case");
+  if (token?.type !== "block-seq")
+    throw new Error("retire needs `cases` written as a block list, one `- ` per case");
   const at = token.items.findIndex((entry) => entry.value === item.srcToken);
   const lineStart = (offset: number) => text.lastIndexOf("\n", offset - 1) + 1;
   // a comment after the last item is an entry of its own, with no value

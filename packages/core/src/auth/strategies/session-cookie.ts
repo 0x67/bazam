@@ -4,7 +4,12 @@ import { RequestStep } from "../../case/index.ts";
 import type { PersonPrompt } from "../../challenge/index.ts";
 import { bodyMismatches, type HttpResponse } from "../../driver/http.ts";
 import type { BrowserLoginRequest, StorageState } from "../browser.ts";
-import { defineAuthStrategy, IdentityMismatch, MissingHeaderCookie, type HttpRequestDraft } from "../strategy.ts";
+import {
+  defineAuthStrategy,
+  IdentityMismatch,
+  MissingHeaderCookie,
+  type HttpRequestDraft,
+} from "../strategy.ts";
 
 const SCRIPTED_LOGIN_TIMEOUT_MS = 60_000;
 export const PERSON_LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -18,7 +23,10 @@ const TOKEN_CHARACTERS = /^[\w.~+/=%-]+$/;
 const RequestLine = z.string().transform((line, ctx) => {
   const match = REQUEST_LINE.exec(line);
   if (match?.[1] === undefined || match[2] === undefined || !URL.canParse(match[2])) {
-    ctx.addIssue({ code: "custom", message: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"' });
+    ctx.addIssue({
+      code: "custom",
+      message: 'a request is a method and a URL, such as "GET ${env.API_URL}/me"',
+    });
     return z.NEVER;
   }
   return { method: match[1], url: match[2] };
@@ -38,13 +46,20 @@ export const RequestCheck = z.strictObject({
 export type RequestCheck = z.infer<typeof RequestCheck>;
 
 export function requestDraft(check: RequestCheck): HttpRequestDraft {
-  return { method: check.request.method, url: new URL(check.request.url), headers: new Headers(), redirect: "manual" };
+  return {
+    method: check.request.method,
+    url: new URL(check.request.url),
+    headers: new Headers(),
+    redirect: "manual",
+  };
 }
 
 /** False when the status is wrong; throws IdentityMismatch when the status is right and a body path holds another value. */
 export function checkProbe(check: RequestCheck, response: HttpResponse): boolean {
   const statusOk =
-    check.status === undefined ? response.status >= 200 && response.status < 300 : response.status === check.status;
+    check.status === undefined
+      ? response.status >= 200 && response.status < 300
+      : response.status === check.status;
   if (!statusOk) return false;
   const paths = bodyMismatches(check.body ?? {}, response);
   if (paths.length > 0) throw new IdentityMismatch(paths);
@@ -56,7 +71,8 @@ const SessionRequest = RequestCheck.extend({
   headers: z
     .record(z.string().regex(/^[a-z0-9-]+$/i), HeaderValue)
     .refine((headers) => !Object.keys(headers).some((name) => name.toLowerCase() === "cookie"), {
-      error: "the cookie header comes from the cached state; name the cookie under a header such as x-csrf-token",
+      error:
+        "the cookie header comes from the cached state; name the cookie under a header such as x-csrf-token",
     })
     .optional(),
 });
@@ -77,7 +93,13 @@ function sessionRequestDraft(
     }
     const cookie = cookies.find((entry) => entry.name === value.cookie);
     if (cookie === undefined) {
-      throw new MissingHeaderCookie(use.purpose, use.identity, value.cookie, header, draft.url.origin);
+      throw new MissingHeaderCookie(
+        use.purpose,
+        use.identity,
+        value.cookie,
+        header,
+        draft.url.origin,
+      );
     }
     draft.headers.set(header, cookie.value);
   }
@@ -92,7 +114,12 @@ const PersonLogin = z.strictObject({
 type PersonLogin = z.infer<typeof PersonLogin>;
 
 /** What the person sees during a browser login. A login belongs to no case, and the strategy does not know the run. */
-export function loginPrompt(strategy: string, identity: string, person: PersonLogin, timeoutMs: number): PersonPrompt {
+export function loginPrompt(
+  strategy: string,
+  identity: string,
+  person: PersonLogin,
+  timeoutMs: number,
+): PersonPrompt {
   const prompt: PersonPrompt = {
     id: `${identity}-${strategy}-login`,
     runId: "",
@@ -111,7 +138,10 @@ const SessionCookieConfig = z.strictObject({
     url: z.url(),
     /** The flow that logs in; with `person`, it runs the steps before the person acts, such as entering the email. */
     flow: z.string().min(1).optional(),
-    until: z.union([z.strictObject({ cookie: z.string().min(1) }), z.strictObject({ urlMatches: z.string().min(1) })]),
+    until: z.union([
+      z.strictObject({ cookie: z.string().min(1) }),
+      z.strictObject({ urlMatches: z.string().min(1) }),
+    ]),
     person: PersonLogin.optional(),
     timeoutMs: z.number().int().positive().optional(),
   }),
@@ -146,7 +176,9 @@ const StoredCookie = z.object({
 });
 type StoredCookie = z.infer<typeof StoredCookie>;
 
-const StoredOrigin = z.object({ localStorage: z.array(z.object({ value: z.string() })).default([]) });
+const StoredOrigin = z.object({
+  localStorage: z.array(z.object({ value: z.string() })).default([]),
+});
 
 export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, StorageState>({
   name: "session-cookie",
@@ -158,9 +190,12 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
   },
   acquire: async ({ login }, ctx) => {
     if (ctx.browser === undefined)
-      throw new Error(`the session-cookie login of ${ctx.identity} needs a driver that offers browser.login`);
+      throw new Error(
+        `the session-cookie login of ${ctx.identity} needs a driver that offers browser.login`,
+      );
     const timeoutMs =
-      login.timeoutMs ?? (login.person === undefined ? SCRIPTED_LOGIN_TIMEOUT_MS : PERSON_LOGIN_TIMEOUT_MS);
+      login.timeoutMs ??
+      (login.person === undefined ? SCRIPTED_LOGIN_TIMEOUT_MS : PERSON_LOGIN_TIMEOUT_MS);
     const request: BrowserLoginRequest = { url: new URL(login.url), until: login.until, timeoutMs };
     if (login.flow !== undefined) request.flow = [{ use: login.flow }];
     if (login.person !== undefined)
@@ -173,14 +208,20 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
   },
   probe: async (state, config, ctx) => {
     if (config.probe === undefined) return true;
-    const draft = sessionRequestDraft(config.probe, state, { identity: ctx.identity, purpose: "probe" });
+    const draft = sessionRequestDraft(config.probe, state, {
+      identity: ctx.identity,
+      purpose: "probe",
+    });
     return checkProbe(config.probe, await ctx.http.send(draft));
   },
   canRefresh: (_state, settings) => settings["refresh"] !== undefined,
   refresh: async (state, config, ctx) => {
     if (config.refresh === undefined)
       throw new Error(`the session-cookie settings of ${ctx.identity} have no refresh request`);
-    const draft = sessionRequestDraft(config.refresh, state, { identity: ctx.identity, purpose: "refresh" });
+    const draft = sessionRequestDraft(config.refresh, state, {
+      identity: ctx.identity,
+      purpose: "refresh",
+    });
     const response = await ctx.http.send(draft);
     if (!checkProbe(config.refresh, response))
       throw new Error(`the session refresh of ${ctx.identity} answered ${response.status}`);
@@ -201,7 +242,12 @@ export const sessionCookieStrategy = defineAuthStrategy<SessionCookieConfig, Sto
 
 /** A random value such as a session id or a JWT, as opposed to a word such as "accepted" or a URL. */
 function looksLikeToken(value: string): boolean {
-  return value.length >= MIN_TOKEN_LENGTH && TOKEN_CHARACTERS.test(value) && /\d/.test(value) && /[a-z]/i.test(value);
+  return (
+    value.length >= MIN_TOKEN_LENGTH &&
+    TOKEN_CHARACTERS.test(value) &&
+    /\d/.test(value) &&
+    /[a-z]/i.test(value)
+  );
 }
 
 /** The value, or every string inside it when it holds JSON, where SPAs keep tokens such as `{"accessToken": ...}`. */
@@ -242,7 +288,12 @@ function isSentTo(cookie: StoredCookie, url: URL, nowMs: number): boolean {
 }
 
 /** The state after the response's Set-Cookie headers: new cookies added, changed ones replaced, expired ones removed. */
-function storeSetCookies(state: StorageState, url: URL, lines: readonly string[], now: Date): StorageState {
+function storeSetCookies(
+  state: StorageState,
+  url: URL,
+  lines: readonly string[],
+  now: Date,
+): StorageState {
   let cookies = state.cookies;
   for (const line of lines) {
     const cookie = parseSetCookie(line, url, now);
@@ -299,12 +350,14 @@ function parseSetCookie(line: string, url: URL, now: Date): BrowserCookie | unde
         break;
       case "samesite":
         cookie.sameSite =
-          SAME_SITE.find((sameSite) => sameSite.toLowerCase() === value.toLowerCase()) ?? cookie.sameSite;
+          SAME_SITE.find((sameSite) => sameSite.toLowerCase() === value.toLowerCase()) ??
+          cookie.sameSite;
         break;
     }
   }
   // Max-Age wins over Expires
-  if (maxAge !== undefined) cookie.expires = maxAge <= 0 ? 0 : Math.floor(now.getTime() / 1000) + maxAge;
+  if (maxAge !== undefined)
+    cookie.expires = maxAge <= 0 ? 0 : Math.floor(now.getTime() / 1000) + maxAge;
   return cookie;
 }
 

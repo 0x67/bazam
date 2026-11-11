@@ -35,28 +35,41 @@ describe("pinSecretResolver", () => {
   }
 
   it("is an automated resolver of pin alone that needs no driver capability and has no arm", () => {
-    expect(pinSecretResolver).toMatchObject({ name: "pin-secret", kinds: ["pin"], requires: [], automated: true });
+    expect(pinSecretResolver).toMatchObject({
+      name: "pin-secret",
+      kinds: ["pin"],
+      requires: [],
+      automated: true,
+    });
     expect(pinSecretResolver).not.toHaveProperty("arm");
   });
 
   it("returns the secret params.secret names as the value", async () => {
     await writeFile(join(stateDir, "secrets.env"), `DEMO_PIN=${DEMO_PIN}\n`);
 
-    const answer = await pinSecretResolver.resolve(challenge("pin", { secret: "DEMO_PIN" }), dotenvContext(), PIN);
+    const answer = await pinSecretResolver.resolve(
+      challenge("pin", { secret: "DEMO_PIN" }),
+      dotenvContext(),
+      PIN,
+    );
 
     expect(answer).toEqual({ kind: "value", value: DEMO_PIN });
   });
 
   it("throws a configuration error naming params.secret when it is missing", async () => {
     for (const params of [{}, { secret: "" }]) {
-      await expect(pinSecretResolver.resolve(challenge("pin", params), dotenvContext(), PIN)).rejects.toThrow(
-        MISSING_PARAM,
-      );
+      await expect(
+        pinSecretResolver.resolve(challenge("pin", params), dotenvContext(), PIN),
+      ).rejects.toThrow(MISSING_PARAM);
     }
   });
 
   it("rejects with SecretMissing when no provider has the secret", async () => {
-    const resolving = pinSecretResolver.resolve(challenge("pin", { secret: "DEMO_PIN" }), dotenvContext(), PIN);
+    const resolving = pinSecretResolver.resolve(
+      challenge("pin", { secret: "DEMO_PIN" }),
+      dotenvContext(),
+      PIN,
+    );
 
     await expect(resolving).rejects.toThrow(SecretMissing);
     await expect(resolving).rejects.toMatchObject({ key: "DEMO_PIN" });
@@ -108,7 +121,8 @@ describe("pinSecretDeclared", () => {
       "secrets:",
       "  names: [DEMO_PIN]",
     ];
-    const pin = (secret: string) => `{ kind: pin, fill: { id: pin-input }, params: { secret: ${secret} } }`;
+    const pin = (secret: string) =>
+      `{ kind: pin, fill: { id: pin-input }, params: { secret: ${secret} } }`;
     const cases = [
       "cases:",
       "  - id: BANK-PIN-001",
@@ -149,7 +163,8 @@ describe("pinSecretDeclared", () => {
     await writeFile(join(root, "cases", "bank", "pin.yaml"), `${cases.join("\n")}\n`);
     await writeFile(join(root, "flows", "pin.yaml"), `${flows.join("\n")}\n`);
     const loaded = await loadProjectConfig(root);
-    if (loaded.config === undefined) throw new Error(`the config has issues: ${JSON.stringify(loaded.issues)}`);
+    if (loaded.config === undefined)
+      throw new Error(`the config has issues: ${JSON.stringify(loaded.issues)}`);
     const registry = await PluginRegistry.load(loaded.config, root, [resolvers]);
     return pinSecretDeclared.check(await loadProject(root, registry));
   }

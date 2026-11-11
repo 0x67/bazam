@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   fmt: {
-    printWidth: 120,
+    printWidth: 100,
     semi: true,
     singleQuote: false,
     tabWidth: 2,

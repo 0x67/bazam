@@ -40,7 +40,8 @@ async function fixtureValues(project: Project): Promise<{ kind: FindingKind; val
       const forms = new Set([value]);
       // a field that holds a phone number is also written in its national and domestic forms
       if (phoneForm(value, "e164", "en") !== undefined) {
-        for (const form of ["e164", "national", "domestic"] as const) forms.add(phoneForm(value, form, "en") ?? value);
+        for (const form of ["e164", "national", "domestic"] as const)
+          forms.add(phoneForm(value, form, "en") ?? value);
       }
       for (const form of forms) values.push({ kind, value: form });
     }
@@ -56,7 +57,10 @@ async function secretValues(
   const values: { kind: FindingKind; value: string }[] = [];
   for (const name of declaredSecretNames(project.config)) {
     try {
-      values.push({ kind: `secret ${name}`, value: await resolveSecret(name, providers, redactor) });
+      values.push({
+        kind: `secret ${name}`,
+        value: await resolveSecret(name, providers, redactor),
+      });
     } catch (error) {
       skipped.push(`secret ${name} was not read: ${redactor.text((error as Error).message)}`);
     }
@@ -74,13 +78,18 @@ async function credentialValues(
     if (key.env !== env.name) continue;
     const kind: FindingKind = `credential ${key.identity}/${key.surface}`;
     const secrets = credentialSecrets(registry, key.strategy, credential);
-    if (secrets === undefined) skipped.push(`${kind} was not scanned: its secret values cannot be told`);
+    if (secrets === undefined)
+      skipped.push(`${kind} was not scanned: its secret values cannot be told`);
     else values.push(...secrets.map((value) => ({ kind, value })));
   }
   return values;
 }
 
-function credentialSecrets(registry: PluginRegistry, name: string, credential: JsonValue): string[] | undefined {
+function credentialSecrets(
+  registry: PluginRegistry,
+  name: string,
+  credential: JsonValue,
+): string[] | undefined {
   try {
     const strategy = registry.strategy(name);
     if (strategy.cacheable) return strategy.secrets(credential);
@@ -93,7 +102,9 @@ function credentialSecrets(registry: PluginRegistry, name: string, credential: J
 function passkeyKeys(credential: JsonValue): string[] | undefined {
   if (!Array.isArray(credential)) return undefined;
   const keys = credential.map((passkey) =>
-    typeof passkey === "object" && passkey !== null && !Array.isArray(passkey) ? passkey["privateKey"] : undefined,
+    typeof passkey === "object" && passkey !== null && !Array.isArray(passkey)
+      ? passkey["privateKey"]
+      : undefined,
   );
   return keys.every((key) => typeof key === "string") ? keys : undefined;
 }

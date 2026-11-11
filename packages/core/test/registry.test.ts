@@ -42,11 +42,17 @@ function config(fields: object = {}): ProjectConfig {
   return ProjectConfig.parse({ envs: {}, ...fields });
 }
 
-function plugin(name: string, contributions: Omit<PluginManifest, "name" | "apiVersion"> = {}): PluginManifest {
+function plugin(
+  name: string,
+  contributions: Omit<PluginManifest, "name" | "apiVersion"> = {},
+): PluginManifest {
   return definePlugin({ name, apiVersion: PLUGIN_API_VERSION, ...contributions });
 }
 
-async function loadFailure(defaults: readonly PluginManifest[], plugins: readonly string[] = []): Promise<unknown> {
+async function loadFailure(
+  defaults: readonly PluginManifest[],
+  plugins: readonly string[] = [],
+): Promise<unknown> {
   return PluginRegistry.load(config({ plugins }), projectRoot, defaults).then(
     () => undefined,
     (error: unknown) => error,
@@ -118,7 +124,9 @@ describe("PluginRegistry.load", () => {
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual(["mail", "sms"]);
-    expect((failure as PluginConflict).message).toBe('step kind "wait" comes from both plugin "mail" and plugin "sms"');
+    expect((failure as PluginConflict).message).toBe(
+      'step kind "wait" comes from both plugin "mail" and plugin "sms"',
+    );
   });
 
   it.each([
@@ -214,7 +222,9 @@ describe("PluginRegistry.load", () => {
   ])("refuses %s plugin path outside the project root", async (_, entry) => {
     const failure = await loadFailure([], [entry]);
 
-    expect((failure as Error).message).toContain(`plugin path "${entry}" is outside the project root`);
+    expect((failure as Error).message).toContain(
+      `plugin path "${entry}" is outside the project root`,
+    );
   });
 
   // from the fixture root the resolver reaches packages/core/node_modules, so ".." climbs into packages/core/test
@@ -256,7 +266,9 @@ describe("PluginRegistry.load", () => {
   );
 
   it("refuses a driver step of a core step kind", async () => {
-    const failure = await loadFailure([plugin("rogue", { drivers: [fakeDriver({ steps: [fakeStep("challenge")] })] })]);
+    const failure = await loadFailure([
+      plugin("rogue", { drivers: [fakeDriver({ steps: [fakeStep("challenge")] })] }),
+    ]);
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "rogue"]);
@@ -278,16 +290,17 @@ describe("built-in secret providers", () => {
   it("registers env, dotenv and 1password", async () => {
     const registry = await PluginRegistry.load(config(), root, []);
 
-    expect(registry.secretProviders(["env", "dotenv", "1password"]).map((provider) => provider.name)).toEqual([
-      "env",
-      "dotenv",
-      "1password",
-    ]);
+    expect(
+      registry.secretProviders(["env", "dotenv", "1password"]).map((provider) => provider.name),
+    ).toEqual(["env", "dotenv", "1password"]);
   });
 
   it("reads dotenv values from the project's state directory", async () => {
     await mkdir(join(root, BRAND.stateDir));
-    await writeFile(join(root, BRAND.stateDir, "secrets.env"), "DEMO_TOTP_SEED=fake-seed-from-dotenv\n");
+    await writeFile(
+      join(root, BRAND.stateDir, "secrets.env"),
+      "DEMO_TOTP_SEED=fake-seed-from-dotenv\n",
+    );
     const registry = await PluginRegistry.load(config(), root, []);
 
     const [dotenv] = registry.secretProviders(["dotenv"]);
@@ -296,18 +309,21 @@ describe("built-in secret providers", () => {
   });
 
   // execFile cannot run the sh stub on Windows
-  it.skipIf(process.platform === "win32")("gives the 1password provider the refs from config", async () => {
-    vi.stubEnv("PATH", fileURLToPath(new URL("./fixtures/bin", import.meta.url)));
-    const registry = await PluginRegistry.load(
-      config({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }),
-      root,
-      [],
-    );
+  it.skipIf(process.platform === "win32")(
+    "gives the 1password provider the refs from config",
+    async () => {
+      vi.stubEnv("PATH", fileURLToPath(new URL("./fixtures/bin", import.meta.url)));
+      const registry = await PluginRegistry.load(
+        config({ secrets: { refs: { PARTNER_HMAC_SECRET: "op://qa/partner/hmac" } } }),
+        root,
+        [],
+      );
 
-    const [onePassword] = registry.secretProviders(["1password"]);
+      const [onePassword] = registry.secretProviders(["1password"]);
 
-    expect(await onePassword?.load("PARTNER_HMAC_SECRET")).toBe("fake-hmac-secret-from-op");
-  });
+      expect(await onePassword?.load("PARTNER_HMAC_SECRET")).toBe("fake-hmac-secret-from-op");
+    },
+  );
 });
 
 describe("PluginRegistry.secretProviders", () => {
@@ -319,7 +335,10 @@ describe("PluginRegistry.secretProviders", () => {
   it("returns providers in the order of the names, not the order plugins registered them", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
-    expect(registry.secretProviders(["gcp", "vault"]).map((provider) => provider.name)).toEqual(["gcp", "vault"]);
+    expect(registry.secretProviders(["gcp", "vault"]).map((provider) => provider.name)).toEqual([
+      "gcp",
+      "vault",
+    ]);
   });
 
   it("throws on an unknown provider name and lists the known ones", async () => {
@@ -344,17 +363,28 @@ describe("PluginRegistry.strategy", () => {
   it("throws on an unknown strategy name and lists the known ones", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
-    expect(() => registry.strategy("ssso")).toThrow(/^unknown auth strategy "ssso"; known: .*\bsso\b/);
+    expect(() => registry.strategy("ssso")).toThrow(
+      /^unknown auth strategy "ssso"; known: .*\bsso\b/,
+    );
   });
 
   it("registers the built-in strategies and caches only the credentials that come from a login", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
     const cacheable = Object.fromEntries(
-      ["api-key", "basic", "oauth2", "session-cookie", "hmac"].map((name) => [name, registry.strategy(name).cacheable]),
+      ["api-key", "basic", "oauth2", "session-cookie", "hmac"].map((name) => [
+        name,
+        registry.strategy(name).cacheable,
+      ]),
     );
 
-    expect(cacheable).toEqual({ "api-key": false, basic: false, oauth2: true, "session-cookie": true, hmac: false });
+    expect(cacheable).toEqual({
+      "api-key": false,
+      basic: false,
+      oauth2: true,
+      "session-cookie": true,
+      hmac: false,
+    });
   });
 });
 
@@ -399,7 +429,9 @@ describe("PluginRegistry.checkRules", () => {
   });
 
   it("refuses a plugin rule with the id of a built-in rule", async () => {
-    const failure = await loadFailure([plugin("lint-plugin", { checkRules: [checkRule("schema")] })]);
+    const failure = await loadFailure([
+      plugin("lint-plugin", { checkRules: [checkRule("schema")] }),
+    ]);
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "lint-plugin"]);
@@ -464,7 +496,9 @@ describe("PluginRegistry.resultFormat and trackerClient", () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
     expect(() => registry.resultFormat("ctfr")).toThrow('unknown result format "ctfr"');
-    expect(() => registry.trackerClient("notion")).toThrow('unknown tracker client "notion"; known: jira');
+    expect(() => registry.trackerClient("notion")).toThrow(
+      'unknown tracker client "notion"; known: jira',
+    );
   });
 
   it("registers the built-in junit and playwright-json formats", async () => {
@@ -475,7 +509,9 @@ describe("PluginRegistry.resultFormat and trackerClient", () => {
   });
 
   it("refuses a plugin result format with the name of a built-in one", async () => {
-    const failure = await loadFailure([plugin("junit-plugin", { resultFormats: [resultFormat("junit")] })]);
+    const failure = await loadFailure([
+      plugin("junit-plugin", { resultFormats: [resultFormat("junit")] }),
+    ]);
 
     expect(failure).toBeInstanceOf(PluginConflict);
     expect((failure as PluginConflict).plugins).toEqual([`${BRAND.scope}/core`, "junit-plugin"]);
@@ -507,7 +543,12 @@ describe("PluginRegistry.kind", () => {
       fallbackAfterTrigger: false,
     });
     for (const name of ["face", "biometric"]) {
-      expect(registry.kind(name)).toEqual({ name, answer: "action", humanOnly: false, fallbackAfterTrigger: true });
+      expect(registry.kind(name)).toEqual({
+        name,
+        answer: "action",
+        humanOnly: false,
+        fallbackAfterTrigger: true,
+      });
     }
     expect(builtinKinds.filter((kind) => registry.kind(kind.name).humanOnly)).toEqual([]);
   });
@@ -540,7 +581,10 @@ describe("PluginRegistry.resolverChain", () => {
 
   it("returns the env's resolvers for the kind in config order", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
-    const chain = registry.resolverChain(uat({ "otp-email": ["otp-mailpit", "human"], totp: ["totp"] }), "otp-email");
+    const chain = registry.resolverChain(
+      uat({ "otp-email": ["otp-mailpit", "human"], totp: ["totp"] }),
+      "otp-email",
+    );
 
     expect(chain).toHaveLength(2);
     expect(chain[0]).toBe(mailpit);
@@ -554,21 +598,34 @@ describe("PluginRegistry.resolverChain", () => {
   });
 
   it("refuses an automated resolver in the chain of a kind config lists as human-only", async () => {
-    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["totp"] } }), projectRoot, defaults);
+    const registry = await PluginRegistry.load(
+      config({ challenges: { humanOnly: ["totp"] } }),
+      projectRoot,
+      defaults,
+    );
 
-    expect(() => registry.resolverChain(uat({ totp: ["human", "totp"] }), "totp")).toThrow(HumanOnlyViolation);
+    expect(() => registry.resolverChain(uat({ totp: ["human", "totp"] }), "totp")).toThrow(
+      HumanOnlyViolation,
+    );
   });
 
   it("refuses an automated resolver for a kind that config lists under challenges.humanOnly", async () => {
     const automatableFaceScan = { ...faceScan, humanOnly: false };
     const faceBot = challengeResolver("face-bot", ["face-scan"]);
-    const facePlugin = plugin("face-plugin", { challengeKinds: [automatableFaceScan], resolvers: [faceBot] });
-    const registry = await PluginRegistry.load(config({ challenges: { humanOnly: ["face-scan"] } }), projectRoot, [
-      facePlugin,
-    ]);
+    const facePlugin = plugin("face-plugin", {
+      challengeKinds: [automatableFaceScan],
+      resolvers: [faceBot],
+    });
+    const registry = await PluginRegistry.load(
+      config({ challenges: { humanOnly: ["face-scan"] } }),
+      projectRoot,
+      [facePlugin],
+    );
 
     expect(registry.kind("face-scan")).toEqual({ ...automatableFaceScan, humanOnly: true });
-    expect(() => registry.resolverChain(uat({ "face-scan": ["face-bot"] }), "face-scan")).toThrow(HumanOnlyViolation);
+    expect(() => registry.resolverChain(uat({ "face-scan": ["face-bot"] }), "face-scan")).toThrow(
+      HumanOnlyViolation,
+    );
   });
 
   it("throws on a resolver name no plugin registered and lists the known ones", async () => {
@@ -582,9 +639,9 @@ describe("PluginRegistry.resolverChain", () => {
   it("throws on a kind name no plugin registered", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, defaults);
 
-    expect(() => registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp")).toThrow(
-      'unknown challenge kind "otp-whatsapp"',
-    );
+    expect(() =>
+      registry.resolverChain(uat({ "otp-whatsapp": ["human"] }), "otp-whatsapp"),
+    ).toThrow('unknown challenge kind "otp-whatsapp"');
   });
 
   it("throws when the env lists a resolver for a kind it does not answer", async () => {
@@ -610,7 +667,9 @@ describe("PluginRegistry.resolver", () => {
   it("throws on a name no plugin registered and lists the known ones", async () => {
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
-    expect(() => registry.resolver("otp-mailpt")).toThrow('unknown challenge resolver "otp-mailpt"; known: human');
+    expect(() => registry.resolver("otp-mailpt")).toThrow(
+      'unknown challenge resolver "otp-mailpt"; known: human',
+    );
   });
 });
 
@@ -639,7 +698,9 @@ describe("PluginRegistry.channel", () => {
     await writeFile(join(runDir, "answers", `${prompt.id}.json`), JSON.stringify({ kind: "done" }));
     const registry = await PluginRegistry.load(config(), projectRoot, []);
 
-    const answer = await registry.channel("answers-file")(runDir).ask(prompt, new AbortController().signal);
+    const answer = await registry
+      .channel("answers-file")(runDir)
+      .ask(prompt, new AbortController().signal);
 
     expect(answer).toEqual({ kind: "done" });
     expect(await readdir(join(runDir, "prompts", "done"))).toEqual([`${prompt.id}.json`]);
@@ -665,7 +726,9 @@ describe("PluginRegistry.channel", () => {
         .ask(prompt, new AbortController().signal)
         .catch(() => undefined);
 
-      expect(stderr).toHaveBeenCalledWith(expect.stringContaining("AUTH-LOGIN-001: Log in with MPIN"));
+      expect(stderr).toHaveBeenCalledWith(
+        expect.stringContaining("AUTH-LOGIN-001: Log in with MPIN"),
+      );
       expect(stdout).not.toHaveBeenCalledWith(expect.stringContaining("Log in with MPIN"));
     } finally {
       stdout.mockRestore();

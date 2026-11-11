@@ -4,7 +4,13 @@ import type { GuardedHttp } from "../driver/http.ts";
 import type { Environment } from "../env/index.ts";
 import type { BrowserLogin, BrowserSession } from "./browser.ts";
 
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 export interface HttpRequestDraft {
   method: string;
@@ -17,7 +23,9 @@ export interface HttpRequestDraft {
   signal?: AbortSignal;
 }
 
-export type ApplyTarget = { kind: "http"; request: HttpRequestDraft } | { kind: "browser"; session: BrowserSession };
+export type ApplyTarget =
+  | { kind: "http"; request: HttpRequestDraft }
+  | { kind: "browser"; session: BrowserSession };
 
 export interface AuthContext {
   identity: string;

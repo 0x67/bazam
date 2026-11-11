@@ -40,7 +40,12 @@ export const pinSecretDeclared: CheckRule = {
   ],
 };
 
-function undeclared(project: Project, owner: string, at: SourceSpan, steps: readonly Step[]): CheckIssue[] {
+function undeclared(
+  project: Project,
+  owner: string,
+  at: SourceSpan,
+  steps: readonly Step[],
+): CheckIssue[] {
   return steps.flatMap((step) => {
     const name = undeclaredSecret(project, step);
     if (name === undefined) return [];
@@ -62,7 +67,11 @@ function undeclaredSecret(project: Project, step: Step): string | undefined {
   if (stepKind(step) !== "challenge") return undefined;
   const { kind, params } = step["challenge"] as ChallengeStep;
   const name = params?.["secret"];
-  if (name === undefined || findPlaceholders(name).length > 0 || project.config.secrets.names.includes(name)) {
+  if (
+    name === undefined ||
+    findPlaceholders(name).length > 0 ||
+    project.config.secrets.names.includes(name)
+  ) {
     return undefined;
   }
   const chains = Object.values(project.config.envs).map(({ challenges }) => challenges[kind] ?? []);

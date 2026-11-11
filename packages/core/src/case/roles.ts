@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-const RoleName = z.string().regex(/^[a-z][a-z0-9-]*$/, { error: 'a role name looks like "tester" or "shop-admin"' });
+const RoleName = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]*$/, { error: 'a role name looks like "tester" or "shop-admin"' });
 
 /** Each role, the identities that may play it and the one that plays it when a run names none. */
 export const RolesConfig = z.record(
@@ -30,7 +32,9 @@ export function roleBindings(
     const entry = Object.hasOwn(roles, role) ? roles[role] : undefined;
     if (entry === undefined) {
       const known = Object.keys(roles);
-      throw new RoleRefused(`unknown role "${role}"; roles: ${known.length === 0 ? "none" : known.join(", ")}`);
+      throw new RoleRefused(
+        `unknown role "${role}"; roles: ${known.length === 0 ? "none" : known.join(", ")}`,
+      );
     }
     if (!entry.identities.includes(identity)) {
       throw new RoleRefused(`role ${role} lists ${entry.identities.join(", ")}, not ${identity}`);
@@ -65,10 +69,13 @@ function bind(value: unknown, bindings: ReadonlyMap<string, string>): unknown {
 }
 
 function bindText(text: string, bindings: ReadonlyMap<string, string>): string {
-  return text.replace(IDENTITY_TOKEN, (token, role: string | undefined, rest: string | undefined) => {
-    const identity = role === undefined ? undefined : bindings.get(role);
-    return identity === undefined ? token : `\${identity.${identity}.${rest}}`;
-  });
+  return text.replace(
+    IDENTITY_TOKEN,
+    (token, role: string | undefined, rest: string | undefined) => {
+      const identity = role === undefined ? undefined : bindings.get(role);
+      return identity === undefined ? token : `\${identity.${identity}.${rest}}`;
+    },
+  );
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

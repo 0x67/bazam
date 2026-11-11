@@ -38,7 +38,9 @@ async function otpHook(): Promise<string> {
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/test/otp" && url.searchParams.get("recipient") === RECIPIENT) {
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ code: CODE }));
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ code: CODE }));
     } else {
       res.writeHead(404).end();
     }
@@ -51,7 +53,11 @@ async function otpHook(): Promise<string> {
 function context(): ResolverContext {
   return {
     env: demo,
-    http: guardedHttp({ env: demo, redactor: new Redactor(defaultRedactionRules()), log: () => {} }),
+    http: guardedHttp({
+      env: demo,
+      redactor: new Redactor(defaultRedactionRules()),
+      log: () => {},
+    }),
     channel: {
       ask: async () => {
         throw new Error("no person in this test");
@@ -69,7 +75,11 @@ function context(): ResolverContext {
 
 /** Loads one example as the only plugin entry and asks its resolver for a waiting code and a missing one. */
 async function answers(entry: string | { command: string[] }) {
-  const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {}, plugins: [entry] }), EXAMPLES, []);
+  const registry = await PluginRegistry.load(
+    ProjectConfig.parse({ envs: {}, plugins: [entry] }),
+    EXAMPLES,
+    [],
+  );
   registries.push(registry);
   const origin = await otpHook();
   const resolver = registry.resolver("demo-otp-hook");
@@ -93,7 +103,11 @@ async function answers(entry: string | { command: string[] }) {
  * `-32001` through ends in `CaseBlocked`; one that answers `-32603` keeps the message but not the class.
  */
 async function refusal(entry: { command: string[] }) {
-  const registry = await PluginRegistry.load(ProjectConfig.parse({ envs: {}, plugins: [entry] }), EXAMPLES, []);
+  const registry = await PluginRegistry.load(
+    ProjectConfig.parse({ envs: {}, plugins: [entry] }),
+    EXAMPLES,
+    [],
+  );
   registries.push(registry);
   return registry.resolver("demo-otp-hook").resolve(
     {
@@ -117,7 +131,9 @@ describe("plugin examples", () => {
   });
 
   it("answers from the hook with the TypeScript example as a process", async () => {
-    const entry = { command: [process.execPath, "--conditions=development", "plugins/ts-resolver/plugin.ts"] };
+    const entry = {
+      command: [process.execPath, "--conditions=development", "plugins/ts-resolver/plugin.ts"],
+    };
 
     expect(await answers(entry)).toEqual(EXPECTED);
     const refused = refusal(entry);

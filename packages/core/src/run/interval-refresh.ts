@@ -32,7 +32,10 @@ export class IntervalRefresh {
   readonly #entries: Entry[];
   readonly #loops: Promise<void>[] = [];
 
-  constructor(deps: IntervalRefreshDeps, plan: readonly (RefreshedCredential & { everyMs: number; cases: number })[]) {
+  constructor(
+    deps: IntervalRefreshDeps,
+    plan: readonly (RefreshedCredential & { everyMs: number; cases: number })[],
+  ) {
     this.#deps = deps;
     this.#entries = plan.map((entry) => ({ ...entry, stop: new AbortController() }));
   }

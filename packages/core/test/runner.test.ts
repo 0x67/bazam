@@ -6,7 +6,16 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import { zipSync } from "fflate";
 import { z } from "zod";
 import { defineAuthStrategy, RefreshLockTimeout } from "../src/auth/index.ts";
@@ -29,7 +38,12 @@ import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import type { CaseResult, RunProgress } from "../src/result/index.ts";
 import { HarnessError, runCases, type PlanCheck } from "../src/run/index.ts";
 import { FakeBrowserSession } from "./support/fake-browser.ts";
-import { fakeDriver, type FakeDriver, type FakeDriverOptions, type FakeSession } from "./support/fake-driver.ts";
+import {
+  fakeDriver,
+  type FakeDriver,
+  type FakeDriverOptions,
+  type FakeSession,
+} from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
 // the interval timer waits until a step fires it; every other wait runs as usual
@@ -152,12 +166,17 @@ afterEach(async () => {
 });
 
 /** A step that notes `<case> <kind> [as <identity>]` in `events`, then acts on its resolved payload. */
-function step(kind: string, act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {}): StepHandler {
+function step(
+  kind: string,
+  act: (payload: unknown, ctx: StepContext) => Promise<void> = async () => {},
+): StepHandler {
   return {
     kind,
     schema: z.unknown(),
     run: async (written, ctx) => {
-      events.push(`${ctx.values.get("id")} ${kind}${ctx.identity === undefined ? "" : ` as ${ctx.identity}`}`);
+      events.push(
+        `${ctx.values.get("id")} ${kind}${ctx.identity === undefined ? "" : ` as ${ctx.identity}`}`,
+      );
       await act(await ctx.resolve(written), ctx);
     },
   };
@@ -190,7 +209,10 @@ function webSteps(): StepHandler[] {
       await ctx.evidence.attach("leak", zipSync({ "trace.trace": text }), "zip");
     }),
     step("break-fixtures", async (_payload, ctx) => {
-      await writeFile(join(projectRoot(ctx), "fixtures/identities.local.yaml"), "customer: [not, a, map]\n");
+      await writeFile(
+        join(projectRoot(ctx), "fixtures/identities.local.yaml"),
+        "customer: [not, a, map]\n",
+      );
     }),
     step("crash", async () => {
       throw new Error("element gone did not appear within 5000 ms");
@@ -238,7 +260,8 @@ function webSteps(): StepHandler[] {
 
 // plugin steps that look for the identity's browser context, as pageFor does
 function pluginSteps(driver: FakeDriver): StepHandler[] {
-  const browser = (ctx: StepContext) => driver.sessions.at(-1)?.browsers.has(ctx.identity ?? "") ?? false;
+  const browser = (ctx: StepContext) =>
+    driver.sessions.at(-1)?.browsers.has(ctx.identity ?? "") ?? false;
   return [
     step("keep", async (payload, ctx) => {
       const { name, value } = payload as { name: string; value: string };
@@ -253,7 +276,9 @@ function pluginSteps(driver: FakeDriver): StepHandler[] {
     step("scrape-quietly", async (_payload, ctx) => {
       events.push(`browser open: ${browser(ctx)}`);
       if (!browser(ctx))
-        throw new HarnessError(`pageFor was called as identity "${ctx.identity}"; set opensBrowser: true`);
+        throw new HarnessError(
+          `pageFor was called as identity "${ctx.identity}"; set opensBrowser: true`,
+        );
     }),
   ];
 }
@@ -277,7 +302,11 @@ const expiringStrategy = defineAuthStrategy<object, { token: string }>({
   acquire: async () => issueToken(),
   probe: async (credential) => liveTokens.has(credential.token),
   refresh: async (_credential, _config, ctx) => {
-    await ctx.http.send({ method: "POST", url: new URL(`${origin}/token`), headers: new Headers() });
+    await ctx.http.send({
+      method: "POST",
+      url: new URL(`${origin}/token`),
+      headers: new Headers(),
+    });
     return issueToken();
   },
   apply: async (credential, target) => {
@@ -393,7 +422,9 @@ function configFor(): object {
         auth: {
           web: {
             strategy: "session-cookie",
-            with: { login: { url: `${origin}/login`, flow: "enter-email", until: { cookie: "session" } } },
+            with: {
+              login: { url: `${origin}/login`, flow: "enter-email", until: { cookie: "session" } },
+            },
           },
         },
       },
@@ -413,9 +444,13 @@ function configFor(): object {
       rejected: { auth: { api: { strategy: "fake-rejected" } } },
       waiting: { auth: { api: { strategy: "fake-locked" } } },
       rider: { auth: { web: { strategy: "fake-expiring" } } },
-      keeper: { auth: { web: { strategy: "fake-expiring", refreshEveryMs: intervalTimers.everyMs } } },
+      keeper: {
+        auth: { web: { strategy: "fake-expiring", refreshEveryMs: intervalTimers.everyMs } },
+      },
       clerk: { auth: { api: { strategy: "fake-session" } } },
-      attendant: { auth: { web: { strategy: "fake-session" }, api: { strategy: "fake-session", from: "web" } } },
+      attendant: {
+        auth: { web: { strategy: "fake-session" }, api: { strategy: "fake-session", from: "web" } },
+      },
     },
     roles: { tester: { identities: ["customer", "shopper"] } },
     runners: {
@@ -446,7 +481,12 @@ function configFor(): object {
 
 /** The driver of target web. */
 function webDriver(options: FakeDriverOptions = {}): FakeDriver {
-  return fakeDriver({ capabilities: ["browser.login"], steps: webSteps(), loginCookies: [SESSION_COOKIE], ...options });
+  return fakeDriver({
+    capabilities: ["browser.login"],
+    steps: webSteps(),
+    loginCookies: [SESSION_COOKIE],
+    ...options,
+  });
 }
 
 type CaseFields = Record<string, unknown>;
@@ -511,7 +551,13 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     apiVersion: PLUGIN_API_VERSION,
     drivers: [driver, phone],
     steps: pluginSteps(driver),
-    authStrategies: [bearerStrategy, rejectedStrategy, lockedStrategy, expiringStrategy, sessionStrategy],
+    authStrategies: [
+      bearerStrategy,
+      rejectedStrategy,
+      lockedStrategy,
+      expiringStrategy,
+      sessionStrategy,
+    ],
     resolvers: [otpResolver, stuckResolver],
     ...(setup.planChecks === undefined ? {} : { planChecks: setup.planChecks }),
   });
@@ -520,7 +566,10 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     "cases/shop/run.yaml": { cases },
     "flows/login.yaml": {
       flows: [
-        { name: "enter-email", steps: [{ fill: { field: { id: "email" }, value: "${identity.shopper.email}" } }] },
+        {
+          name: "enter-email",
+          steps: [{ fill: { field: { id: "email" }, value: "${identity.shopper.email}" } }],
+        },
       ],
     },
     [join(BRAND.stateDir, "secrets.env")]: `API_PASSWORD=${API_PASSWORD}\n`,
@@ -540,7 +589,8 @@ async function runProject(cases: readonly CaseFields[], setup: RunSetup = {}): P
     env: project.config.envs[setup.env ?? "demo"]!,
     cases: project.cases,
     registry,
-    channel: typeof setup.channel === "function" ? setup.channel(runDir) : (setup.channel ?? person()),
+    channel:
+      typeof setup.channel === "function" ? setup.channel(runDir) : (setup.channel ?? person()),
     runDir,
     runValues: new RunValues(RUN_ID, new Date("2026-11-07T10:15:00Z"), 7),
     seed: 7,
@@ -556,7 +606,9 @@ function readStatus(runDir: string): RunProgress {
   return JSON.parse(readFileSync(join(runDir, "status.json"), "utf8")) as RunProgress;
 }
 
-function outcomes(results: readonly CaseResult[]): { caseId: string; status: string; reason: string | undefined }[] {
+function outcomes(
+  results: readonly CaseResult[],
+): { caseId: string; status: string; reason: string | undefined }[] {
   return results.map(({ caseId, status, reason }) => ({ caseId, status, reason }));
 }
 
@@ -572,8 +624,12 @@ describe("runCases", () => {
     });
     const { results, driver } = await runProject(
       [
-        testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
-        testCase("SHOP-SECOND-001", { steps: [{ open: "${env.API_URL}/cart", as: "shopper" }, expectVisible] }),
+        testCase("SHOP-FIRST-001", {
+          steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+        }),
+        testCase("SHOP-SECOND-001", {
+          steps: [{ open: "${env.API_URL}/cart", as: "shopper" }, expectVisible],
+        }),
       ],
       { channel, driver: webDriver({ loginWaitsFor: answered.promise }) },
     );
@@ -597,7 +653,9 @@ describe("runCases", () => {
     // the login ran in a session of its own, which closes clean and opened no identity's browser
     expect(preflightSession?.closedWith?.status).toBe("pass");
     expect(preflightSession?.browsers.size).toBe(0);
-    expect([firstCase, secondCase].map((session) => session?.browserLogin?.requests.length)).toEqual([0, 0]);
+    expect(
+      [firstCase, secondCase].map((session) => session?.browserLogin?.requests.length),
+    ).toEqual([0, 0]);
     expect(firstCase?.browsers.get("shopper")?.state.cookies).toEqual([
       expect.objectContaining({ value: SESSION_COOKIE.value }),
     ]);
@@ -606,10 +664,16 @@ describe("runCases", () => {
 
   it("runs scripted logins in preflight before person logins", async () => {
     const { results, driver } = await runProject([
-      testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
-      testCase("SHOP-COURIER-001", { steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible] }),
+      testCase("SHOP-FIRST-001", {
+        steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+      }),
+      testCase("SHOP-COURIER-001", {
+        steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible],
+      }),
     ]);
-    const logins = driver.sessions[0]?.browserLogin?.requests.map((request) => request.prompt?.id ?? "scripted");
+    const logins = driver.sessions[0]?.browserLogin?.requests.map(
+      (request) => request.prompt?.id ?? "scripted",
+    );
     expect(logins).toEqual(["scripted", "shopper-session-cookie-login"]);
     expect(results.map((result) => result.status)).toEqual(["pass", "pass"]);
   });
@@ -621,7 +685,9 @@ describe("runCases", () => {
         steps: [{ swipe: {} }],
         checks: [{ api: { request: "GET ${env.API_URL}/me", as: "customer", status: 200 } }],
       }),
-      testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
+      testCase("SHOP-FIRST-001", {
+        steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+      }),
     ]);
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-PHONE-001", status: "pass", reason: undefined },
@@ -649,7 +715,13 @@ describe("runCases", () => {
           expectVisible,
         ],
         checks: [
-          { api: { request: "GET ${env.API_URL}/orders/${case.orderId}", status: 200, body: { status: "PAID" } } },
+          {
+            api: {
+              request: "GET ${env.API_URL}/orders/${case.orderId}",
+              status: 200,
+              body: { status: "PAID" },
+            },
+          },
         ],
       }),
     ]);
@@ -676,23 +748,40 @@ describe("runCases", () => {
       [
         testCase("SHOP-SAVE-001", {
           steps: [
-            { request: { method: "POST", url: "${env.API_URL}/orders", json: {}, save: { orderId: "body.id" } } },
+            {
+              request: {
+                method: "POST",
+                url: "${env.API_URL}/orders",
+                json: {},
+                save: { orderId: "body.id" },
+              },
+            },
             { keep: { name: "account", value: "12345678" } },
             { keep: { name: "orderId", value: "7" } },
             expectVisible,
           ],
-          finally: [{ request: { method: "GET", url: "${env.API_URL}/orders/42", save: { cleaned: "body.status" } } }],
+          finally: [
+            {
+              request: {
+                method: "GET",
+                url: "${env.API_URL}/orders/42",
+                save: { cleaned: "body.status" },
+              },
+            },
+          ],
         }),
         testCase("SHOP-NONE-001", { steps: [expectVisible] }),
-        testCase("SHOP-BLOCKED-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] }),
+        testCase("SHOP-BLOCKED-001", {
+          steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible],
+        }),
       ],
       { localFixtures: null },
     );
     const [saved, none, blocked] = results;
     expect(saved?.caseValues).toEqual({ orderId: "7", account: "••••5678", cleaned: "PAID" });
-    expect(JSON.parse(await readFile(join(runDir, "SHOP-SAVE-001", "result.json"), "utf8")).caseValues).toEqual(
-      saved?.caseValues,
-    );
+    expect(
+      JSON.parse(await readFile(join(runDir, "SHOP-SAVE-001", "result.json"), "utf8")).caseValues,
+    ).toEqual(saved?.caseValues);
     expect(Object.keys(saved?.values ?? {})).toEqual([]);
     expect(none?.caseValues).toEqual({});
     expect(blocked?.status).toBe("blocked");
@@ -709,7 +798,10 @@ describe("runCases", () => {
       [
         testCase("SHOP-ONE-001", { steps: [expectVisible] }),
         testCase("SHOP-TWO-001", {
-          steps: [{ "read-status": {} }, { guided: { title: "Look at the cart", steps: ["Open the cart"] } }],
+          steps: [
+            { "read-status": {} },
+            { guided: { title: "Look at the cart", steps: ["Open the cart"] } },
+          ],
         }),
       ],
       { channel: verdict },
@@ -758,7 +850,11 @@ describe("runCases", () => {
         params: { recipient: "customer@example.test" },
       },
     ]);
-    expect(events).toEqual(["SHOP-OTP-001 tap as customer", "SHOP-OTP-001 fill as customer", "SHOP-OTP-001 expect"]);
+    expect(events).toEqual([
+      "SHOP-OTP-001 tap as customer",
+      "SHOP-OTP-001 fill as customer",
+      "SHOP-OTP-001 expect",
+    ]);
     expect(fills).toEqual([{ field: { id: "code" }, value: OTP }]);
     expect(results[0]).toMatchObject({
       status: "pass",
@@ -770,7 +866,10 @@ describe("runCases", () => {
     otpAnswer = "${secret.API_PASSWORD} $${env.API_URL}";
     const { results } = await runProject([
       testCase("SHOP-OTP-001", {
-        steps: [{ challenge: { kind: "otp-email", fill: { id: "code" } }, as: "customer" }, expectVisible],
+        steps: [
+          { challenge: { kind: "otp-email", fill: { id: "code" } }, as: "customer" },
+          expectVisible,
+        ],
       }),
     ]);
     expect(fills).toEqual([{ field: { id: "code" }, value: otpAnswer }]);
@@ -835,13 +934,17 @@ describe("runCases", () => {
   });
 
   it("withholds an attachment that holds a secret and logs it", async () => {
-    const { runDir } = await runProject([testCase("SHOP-LEAK-001", { steps: [{ "attach-leak": {} }, { crash: {} }] })]);
+    const { runDir } = await runProject([
+      testCase("SHOP-LEAK-001", { steps: [{ "attach-leak": {} }, { crash: {} }] }),
+    ]);
     const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
       items: { attachments: string[]; withheld?: unknown; comment: { markdown: string } }[];
     };
     const [item] = postPlan.items;
     expect(item?.attachments).toEqual(["SHOP-LEAK-001/02-trace.zip"]);
-    expect(item?.withheld).toEqual([{ attachment: "SHOP-LEAK-001/01-leak.zip", kinds: ["secret API_PASSWORD"] }]);
+    expect(item?.withheld).toEqual([
+      { attachment: "SHOP-LEAK-001/01-leak.zip", kinds: ["secret API_PASSWORD"] },
+    ]);
     expect(item?.comment.markdown).not.toContain("01-leak.zip");
     expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
       "post plan withholds SHOP-LEAK-001/01-leak.zip: secret API_PASSWORD",
@@ -853,8 +956,12 @@ describe("runCases", () => {
       testCase("SHOP-SCAN-001", { steps: [{ "break-fixtures": {} }, { crash: {} }] }),
     ]);
     expect(outcomes(results).map(({ status }) => status)).toEqual(["fail"]);
-    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain("scanning the attachments failed:");
-    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: unknown[] };
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
+      "scanning the attachments failed:",
+    );
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: unknown[];
+    };
     expect(postPlan.items).toHaveLength(1);
   });
 
@@ -868,13 +975,18 @@ describe("runCases", () => {
       },
     };
     const report = { comment: "update", on: { fail: { mention: ["role:qa-lead"] } } };
-    const { runDir } = await runProject([testCase("SHOP-CRASH-001", { report, steps: [{ crash: {} }] })], {
-      files: {
-        "people.yaml": { roles: { "qa-lead": { jira: "fake-account-20165700" } } },
-        [join(BRAND.stateDir, "receipts.json")]: JSON.stringify(receipts),
+    const { runDir } = await runProject(
+      [testCase("SHOP-CRASH-001", { report, steps: [{ crash: {} }] })],
+      {
+        files: {
+          "people.yaml": { roles: { "qa-lead": { jira: "fake-account-20165700" } } },
+          [join(BRAND.stateDir, "receipts.json")]: JSON.stringify(receipts),
+        },
       },
-    });
-    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as { items: unknown[] };
+    );
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: unknown[];
+    };
     expect(postPlan.items).toEqual([
       expect.objectContaining({
         mentions: [{ role: "qa-lead", accountId: "fake-account-20165700" }],
@@ -890,10 +1002,21 @@ describe("runCases", () => {
           steps: [
             { open: "${env.API_URL}/home", as: "customer" },
             {
-              challenge: { kind: "otp-email", trigger: { tap: { id: "send-code" } }, fill: { id: "code" } },
+              challenge: {
+                kind: "otp-email",
+                trigger: { tap: { id: "send-code" } },
+                fill: { id: "code" },
+              },
               as: "customer",
             },
-            { request: { method: "GET", url: "${env.API_URL}/me", as: "customer", save: { echoed: "body.echoed" } } },
+            {
+              request: {
+                method: "GET",
+                url: "${env.API_URL}/me",
+                as: "customer",
+                save: { echoed: "body.echoed" },
+              },
+            },
             {
               request: {
                 method: "POST",
@@ -936,7 +1059,9 @@ describe("runCases", () => {
     );
     expect(results[0]?.status).toBe("pass");
     const entries = await readdir(runDir, { recursive: true, withFileTypes: true });
-    const files = entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name));
+    const files = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name));
     expect(files.map((file) => file.slice(runDir.length + 1)).sort()).toEqual([
       "SHOP-SECRET-001/case.log",
       "SHOP-SECRET-001/result.json",
@@ -987,7 +1112,11 @@ describe("runCases error outcomes", () => {
         status: "blocked",
         reason: "case SHOP-UNSAFE-001 is not prod_safe and env live is production",
       },
-      { caseId: "SHOP-WRITE-001", status: "blocked", reason: "POST needs write: true in production env live" },
+      {
+        caseId: "SHOP-WRITE-001",
+        status: "blocked",
+        reason: "POST needs write: true in production env live",
+      },
     ]);
     // the refused case never got a session
     expect(driver.sessions).toHaveLength(1);
@@ -999,7 +1128,11 @@ describe("runCases error outcomes", () => {
       testCase("SHOP-SECRET-001", { steps: [{ note: "${secret.NOT_SET}" }, expectVisible] }),
     ]);
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-VAR-001", status: "blocked", reason: "unresolved placeholder ${env.MISSING_URL}" },
+      {
+        caseId: "SHOP-VAR-001",
+        status: "blocked",
+        reason: "unresolved placeholder ${env.MISSING_URL}",
+      },
       {
         caseId: "SHOP-SECRET-001",
         status: "blocked",
@@ -1011,7 +1144,11 @@ describe("runCases error outcomes", () => {
 
   it("blocks the cases of an identity whose fixture the local fixtures file lacks", async () => {
     const { results } = await runProject(
-      [testCase("SHOP-FIXTURE-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] })],
+      [
+        testCase("SHOP-FIXTURE-001", {
+          steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible],
+        }),
+      ],
       {
         localFixtures: null,
       },
@@ -1023,14 +1160,19 @@ describe("runCases error outcomes", () => {
 
   it("blocks a case that names a role no --as bound, listing the identities to choose from", async () => {
     const { results } = await runProject([
-      testCase("SHOP-ROLE-001", { steps: [{ open: "${env.API_URL}", as: "tester" }, expectVisible] }),
-      testCase("SHOP-PLAIN-001", { steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible] }),
+      testCase("SHOP-ROLE-001", {
+        steps: [{ open: "${env.API_URL}", as: "tester" }, expectVisible],
+      }),
+      testCase("SHOP-PLAIN-001", {
+        steps: [{ open: "${env.API_URL}", as: "customer" }, expectVisible],
+      }),
     ]);
     expect(outcomes(results)).toEqual([
       {
         caseId: "SHOP-ROLE-001",
         status: "blocked",
-        reason: "role tester plays no identity in this run; pass --as tester=<identity>, one of customer, shopper",
+        reason:
+          "role tester plays no identity in this run; pass --as tester=<identity>, one of customer, shopper",
       },
       { caseId: "SHOP-PLAIN-001", status: "pass", reason: undefined },
     ]);
@@ -1069,7 +1211,9 @@ describe("runCases error outcomes", () => {
     async (_label, answer, refusal) => {
       const { results, driver } = await runProject(
         [
-          testCase("SHOP-LOGIN-001", { steps: [{ open: "${env.API_URL}", as: "shopper" }, expectVisible] }),
+          testCase("SHOP-LOGIN-001", {
+            steps: [{ open: "${env.API_URL}", as: "shopper" }, expectVisible],
+          }),
           testCase("SHOP-ANON-001", { steps: [expectVisible] }),
         ],
         { channel: person(() => answer), driver: webDriver({ loginDelayMs: 10_000 }) },
@@ -1141,15 +1285,28 @@ describe("runCases error outcomes", () => {
     config.identities.courier.auth.web.with.login.url = `${away}/login`;
     const { results, driver } = await runProject(
       [
-        testCase("SHOP-STEP-001", { steps: [{ request: { method: "GET", url: `${away}/orders` } }] }),
-        testCase("SHOP-LOGIN-001", { steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible] }),
-        testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
-        testCase("SHOP-DOWN-001", { steps: [{ request: { method: "GET", url: `${closedOrigin}/health` } }] }),
+        testCase("SHOP-STEP-001", {
+          steps: [{ request: { method: "GET", url: `${away}/orders` } }],
+        }),
+        testCase("SHOP-LOGIN-001", {
+          steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible],
+        }),
+        testCase("SHOP-FIRST-001", {
+          steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+        }),
+        testCase("SHOP-DOWN-001", {
+          steps: [{ request: { method: "GET", url: `${closedOrigin}/health` } }],
+        }),
       ],
       { files: { [BRAND.configFile]: config } },
     );
     const refused = `failed: .*ECONNREFUSED.*; connect the VPN$`;
-    expect(results.map((result) => result.status)).toEqual(["blocked", "blocked", "pass", "blocked"]);
+    expect(results.map((result) => result.status)).toEqual([
+      "blocked",
+      "blocked",
+      "pass",
+      "blocked",
+    ]);
     expect(results[0]?.reason).toMatch(new RegExp(`^GET ${away}/health ${refused}`));
     expect(results[1]?.reason).toBe(results[0]?.reason);
     // only the shopper logged in, and not the courier whose login URL sits on the unreachable host
@@ -1168,28 +1325,47 @@ describe("runCases error outcomes", () => {
 
   it("blocks a case whose session reports on close a navigation its guard refused, naming the host", async () => {
     const driver = webDriver({ closeError: new HostNotAllowed("late.example.test", "demo") });
-    const { results } = await runProject([testCase("SHOP-LATE-001", { steps: [expectVisible] })], { driver });
+    const { results } = await runProject([testCase("SHOP-LATE-001", { steps: [expectVisible] })], {
+      driver,
+    });
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-LATE-001", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" },
+      {
+        caseId: "SHOP-LATE-001",
+        status: "blocked",
+        reason: "host late.example.test is not in the hosts of env demo",
+      },
     ]);
   });
 
   it("blocks a case whose step failed after a navigation the guard refused and no step threw", async () => {
     const driver = webDriver({ closeError: new HostNotAllowed("late.example.test", "demo") });
-    const { results } = await runProject([testCase("SHOP-LATE-002", { steps: [{ crash: {} }] })], { driver });
+    const { results } = await runProject([testCase("SHOP-LATE-002", { steps: [{ crash: {} }] })], {
+      driver,
+    });
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-LATE-002", status: "blocked", reason: "host late.example.test is not in the hosts of env demo" },
+      {
+        caseId: "SHOP-LATE-002",
+        status: "blocked",
+        reason: "host late.example.test is not in the hosts of env demo",
+      },
     ]);
   });
 
   it("blocks a case whose challenge chain gives no answer, with the resolver's reason", async () => {
     const { results } = await runProject([
       testCase("SHOP-PASSKEY-001", {
-        steps: [{ challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" }, expectVisible],
+        steps: [
+          { challenge: { kind: "passkey", trigger: { tap: { id: "sign-in" } } }, as: "customer" },
+          expectVisible,
+        ],
       }),
     ]);
     expect(outcomes(results)).toEqual([
-      { caseId: "SHOP-PASSKEY-001", status: "blocked", reason: 'resolver "fake-stuck" found no answer' },
+      {
+        caseId: "SHOP-PASSKEY-001",
+        status: "blocked",
+        reason: 'resolver "fake-stuck" found no answer',
+      },
     ]);
   });
 
@@ -1200,11 +1376,20 @@ describe("runCases error outcomes", () => {
       "blocked",
       "person: blocked: no test card",
     ],
-    ["times out", { kind: "timeout" }, "blocked", 'no verdict from a person for "Pay by card" in time'],
+    [
+      "times out",
+      { kind: "timeout" },
+      "blocked",
+      'no verdict from a person for "Pay by card" in time',
+    ],
     ["answers fail", { kind: "verdict", verdict: "fail", note: "" }, "fail", undefined],
   ] as const)("ends a guided case when the person %s", async (_label, answer, status, reason) => {
     const guided = {
-      guided: { title: "Pay by card", steps: ["Pay with the test card"], expected: "Payment accepted" },
+      guided: {
+        title: "Pay by card",
+        steps: ["Pay with the test card"],
+        expected: "Payment accepted",
+      },
     };
     const { results } = await runProject([testCase("SHOP-PAY-001", { steps: [guided] })], {
       channel: person(() => answer),
@@ -1236,7 +1421,9 @@ describe("runCases error outcomes", () => {
     ]);
     expect(driver.sessions[0]?.closedWith?.status).toBe("fail");
     // the trace the session attached on close is in the result
-    const written = JSON.parse(await readFile(join(runDir, "SHOP-CRASH-001", "result.json"), "utf8")) as CaseResult;
+    const written = JSON.parse(
+      await readFile(join(runDir, "SHOP-CRASH-001", "result.json"), "utf8"),
+    ) as CaseResult;
     expect(written.attachments).toEqual(["01-trace.zip"]);
   });
 
@@ -1251,8 +1438,12 @@ describe("runCases error outcomes", () => {
   it("stops the run without launching again when the session for the logins cannot launch", async () => {
     const driver = webDriver({ failingLaunches: [1] });
     const cases = [
-      testCase("SHOP-COURIER-001", { steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible] }),
-      testCase("SHOP-FIRST-001", { steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible] }),
+      testCase("SHOP-COURIER-001", {
+        steps: [{ open: "${env.API_URL}/route", as: "courier" }, expectVisible],
+      }),
+      testCase("SHOP-FIRST-001", {
+        steps: [{ open: "${env.API_URL}/home", as: "shopper" }, expectVisible],
+      }),
     ];
     await expect(runProject(cases, { driver })).rejects.toThrow(
       "could not launch target web for the logins: fake launch 1 failed",
@@ -1262,14 +1453,21 @@ describe("runCases error outcomes", () => {
 
   it("blocks a later case whose session cannot launch", async () => {
     const { results } = await runProject(
-      [testCase("SHOP-ONE-001", { steps: [expectVisible] }), testCase("SHOP-TWO-001", { steps: [expectVisible] })],
+      [
+        testCase("SHOP-ONE-001", { steps: [expectVisible] }),
+        testCase("SHOP-TWO-001", { steps: [expectVisible] }),
+      ],
       {
         driver: webDriver({ failingLaunches: [2] }),
       },
     );
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-ONE-001", status: "pass", reason: undefined },
-      { caseId: "SHOP-TWO-001", status: "blocked", reason: "could not launch target web: fake launch 2 failed" },
+      {
+        caseId: "SHOP-TWO-001",
+        status: "blocked",
+        reason: "could not launch target web: fake launch 2 failed",
+      },
     ]);
   });
 
@@ -1292,9 +1490,12 @@ describe("runCases error outcomes", () => {
       },
     };
     const guided = { guided: { title: "Look at the page", steps: ["Look"] } };
-    const { results, runDir } = await runProject([testCase("SHOP-BROKEN-001", { steps: [guided] })], {
-      channel: broken,
-    });
+    const { results, runDir } = await runProject(
+      [testCase("SHOP-BROKEN-001", { steps: [guided] })],
+      {
+        channel: broken,
+      },
+    );
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-BROKEN-001", status: "blocked", reason: "internal: cannot read the answer" },
     ]);
@@ -1307,9 +1508,12 @@ describe("runCases error outcomes", () => {
 describe("runCases with workers", () => {
   it("never runs two cases that share an identity at once", async () => {
     const steps = [{ open: "${env.API_URL}/home", as: "customer" }, { hold: {} }, expectVisible];
-    const { results } = await runProject([testCase("SHOP-A-001", { steps }), testCase("SHOP-B-001", { steps })], {
-      workers: 2,
-    });
+    const { results } = await runProject(
+      [testCase("SHOP-A-001", { steps }), testCase("SHOP-B-001", { steps })],
+      {
+        workers: 2,
+      },
+    );
     expect(events).toEqual([
       "SHOP-A-001 open as customer",
       "SHOP-A-001 hold",
@@ -1343,10 +1547,18 @@ describe("runCases with workers", () => {
     const { results, runDir } = await runProject(
       [
         testCase("SHOP-A-001", {
-          steps: [{ request: { method: "GET", url: "${env.API_URL}/orders/42" } }, { meet: {} }, expectVisible],
+          steps: [
+            { request: { method: "GET", url: "${env.API_URL}/orders/42" } },
+            { meet: {} },
+            expectVisible,
+          ],
         }),
         testCase("SHOP-B-001", {
-          steps: [{ request: { method: "GET", url: "${env.API_URL}/skewed" } }, { meet: {} }, expectVisible],
+          steps: [
+            { request: { method: "GET", url: "${env.API_URL}/skewed" } },
+            { meet: {} },
+            expectVisible,
+          ],
         }),
       ],
       { workers: 2 },
@@ -1369,8 +1581,13 @@ describe("runCases with workers", () => {
       { workers: 2 },
     );
     expect(results.map((result) => result.caseId)).toEqual(["SHOP-A-001", "SHOP-B-001"]);
-    expect(readStatus(runDir).results.map((result) => result.caseId)).toEqual(["SHOP-B-001", "SHOP-A-001"]);
-    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as { cases: { caseId: string }[] };
+    expect(readStatus(runDir).results.map((result) => result.caseId)).toEqual([
+      "SHOP-B-001",
+      "SHOP-A-001",
+    ]);
+    const summary = JSON.parse(await readFile(join(runDir, "summary.json"), "utf8")) as {
+      cases: { caseId: string }[];
+    };
     expect(summary.cases.map((entry) => entry.caseId)).toEqual(["SHOP-A-001", "SHOP-B-001"]);
   });
 
@@ -1393,7 +1610,9 @@ describe("runCases with workers", () => {
       },
     };
     let runDir = "";
-    const cases = ["SHOP-A-001", "SHOP-B-001", "SHOP-C-001"].map((id) => testCase(id, { steps: [expectVisible] }));
+    const cases = ["SHOP-A-001", "SHOP-B-001", "SHOP-C-001"].map((id) =>
+      testCase(id, { steps: [expectVisible] }),
+    );
     const before = async (dir: string) => {
       runDir = dir;
     };
@@ -1403,7 +1622,9 @@ describe("runCases with workers", () => {
     expect(launches).toBe(2);
     expect(events).toEqual([]);
     expect(driver.sessions.map((session) => session.closedWith?.status)).toEqual(["blocked"]);
-    const first = JSON.parse(await readFile(join(runDir, "SHOP-A-001", "result.json"), "utf8")) as CaseResult;
+    const first = JSON.parse(
+      await readFile(join(runDir, "SHOP-A-001", "result.json"), "utf8"),
+    ) as CaseResult;
     expect(first).toMatchObject({ status: "blocked", reason: "run cancelled" });
     expect(existsSync(join(runDir, "SHOP-C-001"))).toBe(false);
   });
@@ -1469,7 +1690,8 @@ function pooledDriver(): FakeDriver {
   const sessions: FakeSession[] = [];
   const contextOf = async (ctx: StepContext): Promise<PooledContext> => {
     const browser = await ctx.session.browserFor?.(ctx.identity ?? "");
-    if (!(browser instanceof PooledContext)) throw new Error("the step runs without the identity's browser context");
+    if (!(browser instanceof PooledContext))
+      throw new Error("the step runs without the identity's browser context");
     return browser;
   };
   return {
@@ -1508,11 +1730,20 @@ function pooledDriver(): FakeDriver {
         (await contextOf(ctx)).unauthorized();
       }),
       step("expect", async (_payload, ctx) => {
-        ctx.evidence.record({ name: "the app took the login", kind: "ui", expected: "ok", observed: "ok", ok: true });
+        ctx.evidence.record({
+          name: "the app took the login",
+          kind: "ui",
+          expected: "ok",
+          observed: "ok",
+          ok: true,
+        });
       }),
       // passes when the app takes the credential in the identity's browser context
       step("take", async (_payload, ctx) => {
-        const token = String((await contextOf(ctx)).extraHeaders["authorization"]).replace("Bearer ", "");
+        const token = String((await contextOf(ctx)).extraHeaders["authorization"]).replace(
+          "Bearer ",
+          "",
+        );
         const ok = liveTokens.has(token);
         ctx.evidence.record({
           name: "the app takes the context",
@@ -1535,7 +1766,9 @@ describe("runCases with workers and a pooled browser", () => {
       const { results, runDir, driver } = await runProject(
         [
           testCase("SHOP-A-001", { steps: [look] }),
-          testCase("SHOP-B-001", { steps: [look, { expire: {} }, { unauthorized: {}, as: "rider" }, look] }),
+          testCase("SHOP-B-001", {
+            steps: [look, { expire: {} }, { unauthorized: {}, as: "rider" }, look],
+          }),
         ],
         { driver: pooledDriver(), workers },
       );
@@ -1544,7 +1777,9 @@ describe("runCases with workers and a pooled browser", () => {
         [],
         [`refreshed rider's web credential after a 401 from ${origin}`],
       ]);
-      expect(await readFile(join(runDir, "SHOP-B-001", "case.log"), "utf8")).toContain(`POST ${origin}/token 200`);
+      expect(await readFile(join(runDir, "SHOP-B-001", "case.log"), "utf8")).toContain(
+        `POST ${origin}/token 200`,
+      );
       const first = join(runDir, "SHOP-A-001", "case.log");
       expect(existsSync(first) ? await readFile(first, "utf8") : "").not.toContain("/token");
     },
@@ -1572,7 +1807,11 @@ describe("runCases HTTP 401 and the open browser", () => {
 
   it("loads the credential an HTTP login got into the browser context the case has open", async () => {
     const { results } = await runProject(
-      [testCase("SHOP-ATTEND-001", { steps: [look, { expire: {} }, clerk, { take: {}, as: "attendant" }] })],
+      [
+        testCase("SHOP-ATTEND-001", {
+          steps: [look, { expire: {} }, clerk, { take: {}, as: "attendant" }],
+        }),
+      ],
       { driver: pooledDriver() },
     );
 
@@ -1590,7 +1829,10 @@ describe("runCases HTTP 401 and the open browser", () => {
       { driver: pooledDriver() },
     );
 
-    expect(results[0]).toMatchObject({ status: "blocked", reason: expect.stringMatching(/answered 401 to the api/) });
+    expect(results[0]).toMatchObject({
+      status: "blocked",
+      reason: expect.stringMatching(/answered 401 to the api/),
+    });
     expect(issuedTokens).toBe(1);
     expect(results[0]?.notes).toEqual([]);
   });
@@ -1622,7 +1864,8 @@ describe("runCases interval refresh", () => {
       intervalTimers.pending.clear();
       const deadline = Date.now() + 5_000;
       while (!taken(ctx)) {
-        if (Date.now() > deadline) throw new Error("the browser context never got a live credential");
+        if (Date.now() > deadline)
+          throw new Error("the browser context never got a live credential");
         await sleep(5);
       }
     }),
@@ -1636,7 +1879,13 @@ describe("runCases interval refresh", () => {
           steps: [check, { "end-sessions": {} }, { "pass-interval": {}, as: "keeper" }, check],
         }),
       ],
-      { driver: fakeDriver({ capabilities: ["browser.login"], steps: steps(), loginCookies: [SESSION_COOKIE] }) },
+      {
+        driver: fakeDriver({
+          capabilities: ["browser.login"],
+          steps: steps(),
+          loginCookies: [SESSION_COOKIE],
+        }),
+      },
     );
 
     expect(results[0]).toMatchObject({ status: "pass" });
@@ -1648,7 +1897,10 @@ describe("runCases plan checks", () => {
   const plain = (id: string, fields: Partial<CaseFields> = {}) =>
     testCase(id, { prod_safe: true, steps: [expectVisible], ...fields });
   const three = [plain("SHOP-PLAN-001"), plain("SHOP-PLAN-002"), plain("SHOP-PLAN-003")];
-  const planCheck = (name: string, answer: PlanCheck["check"]): PlanCheck => ({ name, check: answer });
+  const planCheck = (name: string, answer: PlanCheck["check"]): PlanCheck => ({
+    name,
+    check: answer,
+  });
 
   it("blocks the case it names with the reason and runs the other two", async () => {
     const { results, runDir } = await runProject(three, {
@@ -1665,7 +1917,9 @@ describe("runCases plan checks", () => {
       { caseId: "SHOP-PLAN-003", status: "pass", reason: undefined },
     ]);
     expect(events[0]).toBe("budget saw SHOP-PLAN-001,SHOP-PLAN-002,SHOP-PLAN-003");
-    expect(readFileSync(join(runDir, "summary.md"), "utf8")).toContain("balance 5 is under the 9 planned");
+    expect(readFileSync(join(runDir, "summary.md"), "utf8")).toContain(
+      "balance 5 is under the 9 planned",
+    );
   });
 
   it("runs before the first case, once, even when no case logs in", async () => {
@@ -1681,7 +1935,10 @@ describe("runCases plan checks", () => {
     await runProject(three, {
       planChecks: [
         planCheck("first", async () => ({ "SHOP-PLAN-001": "over budget" })),
-        planCheck("second", async ({ cases }) => (seen.push(cases.map(({ caseId }) => caseId)), {})),
+        planCheck(
+          "second",
+          async ({ cases }) => (seen.push(cases.map(({ caseId }) => caseId)), {}),
+        ),
       ],
     });
     expect(seen).toEqual([["SHOP-PLAN-002", "SHOP-PLAN-003"]]);
@@ -1715,13 +1972,19 @@ describe("runCases plan checks", () => {
       env: "live",
       planChecks: [
         planCheck("budget", async ({ http }) => {
-          await http.send({ method: "POST", url: new URL(`${origin}/orders`), headers: new Headers() });
+          await http.send({
+            method: "POST",
+            url: new URL(`${origin}/orders`),
+            headers: new Headers(),
+          });
           return {};
         }),
       ],
     });
     expect(outcomes(results).map(({ reason }) => reason)).toEqual(
-      Array(3).fill("internal: plan check budget failed: POST needs write: true in production env live"),
+      Array(3).fill(
+        "internal: plan check budget failed: POST needs write: true in production env live",
+      ),
     );
   });
 
@@ -1731,7 +1994,10 @@ describe("runCases plan checks", () => {
     const { results } = await runProject(
       [
         plain("SHOP-PLAN-001", {
-          steps: [{ request: { method: "GET", url: "${env.API_URL}/clerk", as: "clerk" } }, expectVisible],
+          steps: [
+            { request: { method: "GET", url: "${env.API_URL}/clerk", as: "clerk" } },
+            expectVisible,
+          ],
         }),
       ],
       {
@@ -1840,7 +2106,12 @@ describe("runCases with external suites", () => {
       { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
       { caseId: "SHOP-SUITE-002", status: "pass", reason: undefined },
     ]);
-    expect(await suiteLog(runDir)).toEqual(["shop-a start", "shop-a end", "shop-b start", "shop-b end"]);
+    expect(await suiteLog(runDir)).toEqual([
+      "shop-a start",
+      "shop-a end",
+      "shop-b start",
+      "shop-b end",
+    ]);
   });
 
   it("does not read again a result file that a suite of another target already read", async () => {
@@ -1853,8 +2124,14 @@ describe("runCases with external suites", () => {
             ...config,
             targets: {
               ...config.targets,
-              "shop-a": { runner: "shop", env: { SUITE_NAME: "shop-a", SUITE_WRITE: "SHOP-CART-001,SHOP-CART-002" } },
-              "shop-b": { runner: "shop", env: { SUITE_NAME: "shop-b", SUITE_NO_RESULTS: "1", SUITE_EXIT: "1" } },
+              "shop-a": {
+                runner: "shop",
+                env: { SUITE_NAME: "shop-a", SUITE_WRITE: "SHOP-CART-001,SHOP-CART-002" },
+              },
+              "shop-b": {
+                runner: "shop",
+                env: { SUITE_NAME: "shop-b", SUITE_NO_RESULTS: "1", SUITE_EXIT: "1" },
+              },
             },
           },
         },
@@ -1884,56 +2161,64 @@ describe("runCases with external suites", () => {
       first: { name: "api", results: "reports/api/*.xml", file: "reports/api/api.xml" },
       second: { name: "ui", results: "reports/**/*.xml", file: "reports/ui.xml" },
     },
-  ])("never runs two runners whose result globs reach one folder at once ($roots)", async ({ first, second }) => {
-    const config = configFor() as { runners: Record<string, unknown>; targets: Record<string, unknown> };
-    const suite = (name: string, results: string, env: Record<string, string>) => ({
-      command: SUITE_COMMAND,
-      results,
-      format: "junit",
-      identities: [],
-      env: { SUITE_LOG: "suite.log", SUITE_NAME: name, ...env },
-    });
-    const names = [first.name, second.name, "solo"];
-    const caseId = (name: string) => `SHOP-${name.toUpperCase()}-001`;
-    const { results, runDir } = await runProject(
-      names.map((name) => external(caseId(name), name)),
-      {
-        workers: 2,
-        files: {
-          [BRAND.configFile]: {
-            ...config,
-            runners: {
-              ...config.runners,
-              // the first writes its file, then runs on until solo has written its own
-              [first.name]: suite(first.name, first.results, {
-                SUITE_RESULTS: first.file,
-                SUITE_WAIT_AFTER: "solo/results.xml",
-              }),
-              [second.name]: suite(second.name, second.results, {
-                SUITE_RESULTS: second.file,
-                SUITE_WAIT_FOR: first.file,
-              }),
-              solo: suite("solo", "solo/*.xml", { SUITE_RESULTS: "solo/results.xml" }),
+  ])(
+    "never runs two runners whose result globs reach one folder at once ($roots)",
+    async ({ first, second }) => {
+      const config = configFor() as {
+        runners: Record<string, unknown>;
+        targets: Record<string, unknown>;
+      };
+      const suite = (name: string, results: string, env: Record<string, string>) => ({
+        command: SUITE_COMMAND,
+        results,
+        format: "junit",
+        identities: [],
+        env: { SUITE_LOG: "suite.log", SUITE_NAME: name, ...env },
+      });
+      const names = [first.name, second.name, "solo"];
+      const caseId = (name: string) => `SHOP-${name.toUpperCase()}-001`;
+      const { results, runDir } = await runProject(
+        names.map((name) => external(caseId(name), name)),
+        {
+          workers: 2,
+          files: {
+            [BRAND.configFile]: {
+              ...config,
+              runners: {
+                ...config.runners,
+                // the first writes its file, then runs on until solo has written its own
+                [first.name]: suite(first.name, first.results, {
+                  SUITE_RESULTS: first.file,
+                  SUITE_WAIT_AFTER: "solo/results.xml",
+                }),
+                [second.name]: suite(second.name, second.results, {
+                  SUITE_RESULTS: second.file,
+                  SUITE_WAIT_FOR: first.file,
+                }),
+                solo: suite("solo", "solo/*.xml", { SUITE_RESULTS: "solo/results.xml" }),
+              },
+              targets: { ...config.targets, ui: { runner: "ui" }, api: { runner: "api" } },
             },
-            targets: { ...config.targets, ui: { runner: "ui" }, api: { runner: "api" } },
           },
         },
-      },
-    );
-    expect(outcomes(results)).toEqual(
-      names.map((name) => ({ caseId: caseId(name), status: "pass", reason: undefined })),
-    );
-    expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).not.toHaveProperty("unmapped");
-    const log = await suiteLog(runDir);
-    expect(log.filter((line) => !line.startsWith("solo "))).toEqual([
-      `${first.name} start`,
-      `${first.name} end`,
-      `${second.name} start`,
-      `${second.name} end`,
-    ]);
-    // the first ends only after solo writes its file, so solo ran beside it
-    expect(log.indexOf("solo start")).toBeLessThan(log.indexOf(`${first.name} end`));
-  });
+      );
+      expect(outcomes(results)).toEqual(
+        names.map((name) => ({ caseId: caseId(name), status: "pass", reason: undefined })),
+      );
+      expect(JSON.parse(await readFile(join(runDir, "summary.json"), "utf8"))).not.toHaveProperty(
+        "unmapped",
+      );
+      const log = await suiteLog(runDir);
+      expect(log.filter((line) => !line.startsWith("solo "))).toEqual([
+        `${first.name} start`,
+        `${first.name} end`,
+        `${second.name} start`,
+        `${second.name} end`,
+      ]);
+      // the first ends only after solo writes its file, so solo ran beside it
+      expect(log.indexOf("solo start")).toBeLessThan(log.indexOf(`${first.name} end`));
+    },
+  );
 
   it.each([{ identities: [] }, { identities: ["shopper"] }])(
     "gives an external suite one worker, however many cases it runs (runner identities $identities)",
@@ -1968,7 +2253,11 @@ describe("runCases with external suites", () => {
     );
     expect(outcomes(results)).toEqual([
       { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
-      { caseId: "SHOP-HOME-001", status: "blocked", reason: "could not launch target web: fake launch 1 failed" },
+      {
+        caseId: "SHOP-HOME-001",
+        status: "blocked",
+        reason: "could not launch target web: fake launch 1 failed",
+      },
     ]);
     expect(existsSync(join(runDir, "summary.json"))).toBe(true);
     expect(existsSync(join(runDir, "post-plan.json"))).toBe(true);
@@ -1982,7 +2271,9 @@ describe("runCases production confirmation", () => {
   it("runs a runner without prodSafe after a yes", async () => {
     const channel = person(() => pass);
     const { results } = await runProject([external], { env: "live", channel });
-    expect(outcomes(results)).toEqual([{ caseId: "SHOP-SUITE-001", status: "pass", reason: undefined }]);
+    expect(outcomes(results)).toEqual([
+      { caseId: "SHOP-SUITE-001", status: "pass", reason: undefined },
+    ]);
     expect(channel.prompts).toEqual([
       {
         id: expect.stringMatching(/^preflight-shop-confirm-[0-9a-f]{7}$/),
@@ -2001,20 +2292,30 @@ describe("runCases production confirmation", () => {
   });
 
   it.each([
-    ["no", { kind: "verdict", verdict: "fail", note: "not during the sale" }, ": not during the sale"],
+    [
+      "no",
+      { kind: "verdict", verdict: "fail", note: "not during the sale" },
+      ": not during the sale",
+    ],
     ["no answer in time", { kind: "timeout" }, ""],
-  ] as const)("blocks the runner's cases and starts no process on %s", async (_label, answer, note) => {
-    const { results, runDir } = await runProject([external], { env: "live", channel: person(() => answer) });
-    expect(outcomes(results)).toEqual([
-      {
-        caseId: "SHOP-SUITE-001",
-        status: "blocked",
-        reason: `production run of runner shop was not confirmed${note}`,
-      },
-    ]);
-    expect(existsSync(join(runDir, "..", "..", "suite.log"))).toBe(false);
-    expect(existsSync(join(runDir, "runner-shop-a"))).toBe(false);
-  });
+  ] as const)(
+    "blocks the runner's cases and starts no process on %s",
+    async (_label, answer, note) => {
+      const { results, runDir } = await runProject([external], {
+        env: "live",
+        channel: person(() => answer),
+      });
+      expect(outcomes(results)).toEqual([
+        {
+          caseId: "SHOP-SUITE-001",
+          status: "blocked",
+          reason: `production run of runner shop was not confirmed${note}`,
+        },
+      ]);
+      expect(existsSync(join(runDir, "..", "..", "suite.log"))).toBe(false);
+      expect(existsSync(join(runDir, "runner-shop-a"))).toBe(false);
+    },
+  );
 
   it("asks before the person logins", async () => {
     // the login lasts until the person answers, so the run cannot drop its prompt

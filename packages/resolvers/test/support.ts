@@ -18,7 +18,11 @@ const demo = EnvsConfig.parse({ demo: { production: false, hosts: ["127.0.0.1"] 
 export function context(overrides: Partial<ResolverContext> = {}): ResolverContext {
   return {
     env: demo,
-    http: guardedHttp({ env: demo, redactor: new Redactor(defaultRedactionRules()), log: () => {} }),
+    http: guardedHttp({
+      env: demo,
+      redactor: new Redactor(defaultRedactionRules()),
+      log: () => {},
+    }),
     channel: {
       ask: async () => {
         throw new Error("no person in this test");
@@ -57,7 +61,9 @@ export interface Reply {
 const servers: Server[] = [];
 
 /** Serves JSON replies from `route` on 127.0.0.1 and returns the origin. A request `route` gives no reply hangs. */
-export async function serveJson(route: (url: URL, req: IncomingMessage) => Reply | undefined): Promise<string> {
+export async function serveJson(
+  route: (url: URL, req: IncomingMessage) => Reply | undefined,
+): Promise<string> {
   const server = createServer((req, res) => {
     const reply = route(new URL(req.url ?? "/", "http://127.0.0.1"), req);
     if (reply === undefined) return;

@@ -28,7 +28,12 @@ async function listen(handler: Parameters<typeof createServer>[1]): Promise<stri
 
 function envWith(probes: object[], hosts = ["127.0.0.1"]) {
   return EnvsConfig.parse({
-    uat: { production: false, vars: { CORE_URL: "https://core.example.test", ID: "7" }, hosts, probes },
+    uat: {
+      production: false,
+      vars: { CORE_URL: "https://core.example.test", ID: "7" },
+      hosts,
+      probes,
+    },
   })["uat"]!;
 }
 
@@ -53,7 +58,9 @@ describe("probeEnv", () => {
   });
 
   it("does not follow a redirect, so a 302 is not a 2xx", async () => {
-    const origin = await listen((_req, res) => res.writeHead(302, { location: "/elsewhere" }).end());
+    const origin = await listen((_req, res) =>
+      res.writeHead(302, { location: "/elsewhere" }).end(),
+    );
     const env = envWith([{ request: `GET ${origin}/health`, hint: "log in" }]);
 
     expect(await probeEnv(env, http(env), new AbortController().signal)).toEqual([
@@ -81,7 +88,10 @@ describe("probeEnv", () => {
     const env = envWith([{ request: `GET ${origin}/health`, hint: "connect the VPN" }]);
 
     expect(await probeEnv(env, http(env), new AbortController().signal)).toEqual([
-      { host: "127.0.0.1", reason: `GET ${origin}/health failed: timed out after 5 s; connect the VPN` },
+      {
+        host: "127.0.0.1",
+        reason: `GET ${origin}/health failed: timed out after 5 s; connect the VPN`,
+      },
     ]);
     expect(timeout).toHaveBeenCalledWith(5_000);
   });
@@ -100,7 +110,11 @@ describe("probeEnv", () => {
 const flows = new Map<string, FlowSpec>([
   [
     "sign-in",
-    { name: "sign-in", params: [], steps: [{ request: { method: "GET", url: "https://auth.example.test/login" } }] },
+    {
+      name: "sign-in",
+      params: [],
+      steps: [{ request: { method: "GET", url: "https://auth.example.test/login" } }],
+    },
   ],
 ]);
 const project = {
@@ -109,12 +123,20 @@ const project = {
     identities: {
       ops: {
         auth: {
-          web: { strategy: "session-cookie", with: { login: { url: "${env.CORE_URL}/login" }, token: "${secret.X}" } },
+          web: {
+            strategy: "session-cookie",
+            with: { login: { url: "${env.CORE_URL}/login" }, token: "${secret.X}" },
+          },
           api: { strategy: "session-cookie", from: "web" },
         },
       },
       other: {
-        auth: { web: { strategy: "session-cookie", with: { login: { url: "https://other.example.test/in" } } } },
+        auth: {
+          web: {
+            strategy: "session-cookie",
+            with: { login: { url: "https://other.example.test/in" } },
+          },
+        },
       },
     },
   },
@@ -167,7 +189,9 @@ describe("caseHosts", () => {
             request: {
               method: "GET",
               url: "https://x.example.test/p",
-              json: { note: "see https://a.example.test, then (https://b.example.test) and https://c.example.test." },
+              json: {
+                note: "see https://a.example.test, then (https://b.example.test) and https://c.example.test.",
+              },
             },
           },
         ],
@@ -177,7 +201,12 @@ describe("caseHosts", () => {
       [],
     );
 
-    expect([...hosts].sort()).toEqual(["a.example.test", "b.example.test", "c.example.test", "x.example.test"]);
+    expect([...hosts].sort()).toEqual([
+      "a.example.test",
+      "b.example.test",
+      "c.example.test",
+      "x.example.test",
+    ]);
   });
 
   it("leaves out the identities the case does not list and text that is not a URL", () => {
@@ -219,7 +248,10 @@ describe("blockUnreachable", () => {
         }),
       },
       {
-        spec: spec({ id: "OPS-PROBE-102", steps: [{ request: { method: "GET", url: "https://app.example.test/a" } }] }),
+        spec: spec({
+          id: "OPS-PROBE-102",
+          steps: [{ request: { method: "GET", url: "https://app.example.test/a" } }],
+        }),
       },
       {
         spec: spec({
@@ -229,7 +261,9 @@ describe("blockUnreachable", () => {
       },
     ] as LoadedCase[];
 
-    blockUnreachable(plan, cases, project, env, [{ host: "core.example.test", reason: "probe failed" }]);
+    blockUnreachable(plan, cases, project, env, [
+      { host: "core.example.test", reason: "probe failed" },
+    ]);
 
     expect(plan.cases.map((c) => c.blocked)).toEqual(["probe failed", undefined, "earlier reason"]);
   });
@@ -242,7 +276,8 @@ describe("probeHint", () => {
   );
 
   it("gives the hint of the probe for the host a connection failure names", () => {
-    const failed = (host: string) => new ConnectionFailed("GET https://x.test/", "refused", { host });
+    const failed = (host: string) =>
+      new ConnectionFailed("GET https://x.test/", "refused", { host });
 
     expect(probeHint(env, failed("core.example.test"))).toBe("connect the VPN");
     expect(probeHint(env, failed("other.example.test"))).toBeUndefined();

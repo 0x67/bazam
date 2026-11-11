@@ -1,5 +1,10 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import type { BrowserLogin, BrowserLoginRequest, BrowserSession, StorageState } from "../../src/auth/index.ts";
+import type {
+  BrowserLogin,
+  BrowserLoginRequest,
+  BrowserSession,
+  StorageState,
+} from "../../src/auth/index.ts";
 
 /** One browser context held in memory: its storage state and the extra headers and HTTP credentials set on it. */
 export class FakeBrowserSession implements BrowserSession {
@@ -50,8 +55,15 @@ export class FakeBrowserLogin implements BrowserLogin {
   async login(request: BrowserLoginRequest): Promise<{ state: StorageState; finalUrl: URL }> {
     this.requests.push(request);
     if (this.#delayMs !== undefined)
-      await sleep(this.#delayMs, undefined, request.signal === undefined ? {} : { signal: request.signal });
+      await sleep(
+        this.#delayMs,
+        undefined,
+        request.signal === undefined ? {} : { signal: request.signal },
+      );
     if (this.#waitsFor !== undefined) await this.#waitsFor;
-    return { state: { cookies: structuredClone(this.#cookies), origins: [] }, finalUrl: request.url };
+    return {
+      state: { cookies: structuredClone(this.#cookies), origins: [] },
+      finalUrl: request.url,
+    };
   }
 }

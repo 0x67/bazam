@@ -33,7 +33,15 @@ function failed(runId: string): CaseResult {
     target: "web",
     links: ["jira:DEMO-246", "jira:DEMO-250"],
     status: "fail",
-    checks: [{ name: "dashboard shows the account", kind: "ui", expected: "visible", observed: "hidden", ok: false }],
+    checks: [
+      {
+        name: "dashboard shows the account",
+        kind: "ui",
+        expected: "visible",
+        observed: "hidden",
+        ok: false,
+      },
+    ],
     notes: [],
     followups: [],
     attachments: [],

@@ -1,5 +1,10 @@
 import { mkdtemp } from "node:fs/promises";
-import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -58,7 +63,9 @@ export async function startSite(routes: Record<string, Handler>): Promise<Site> 
 export function html(body: string): Handler {
   return (_request, response, site) => {
     response.setHeader("content-type", "text/html");
-    response.end(`<!doctype html><html><body>${body.replaceAll("{elsewhere}", site.elsewhere)}</body></html>`);
+    response.end(
+      `<!doctype html><html><body>${body.replaceAll("{elsewhere}", site.elsewhere)}</body></html>`,
+    );
   };
 }
 
@@ -73,7 +80,12 @@ export async function tempDir(): Promise<string> {
 
 export async function launch(
   engine: Engine,
-  options: { env: Environment; runDir: string; redactor?: Redactor; settings?: Record<string, unknown> },
+  options: {
+    env: Environment;
+    runDir: string;
+    redactor?: Redactor;
+    settings?: Record<string, unknown>;
+  },
 ): Promise<WebSession> {
   const session = await playwrightDriver.launch({
     env: options.env,
@@ -151,7 +163,11 @@ export async function runSteps(ctx: StepContext, steps: readonly Step[]): Promis
 }
 
 /** Runs `steps`, then short waits until a step throws, for a refusal that lands after the step that caused it. */
-export async function runUntilThrown(ctx: StepContext, steps: readonly Step[], timeout = 10_000): Promise<void> {
+export async function runUntilThrown(
+  ctx: StepContext,
+  steps: readonly Step[],
+  timeout = 10_000,
+): Promise<void> {
   await runSteps(ctx, steps);
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) await runSteps(ctx, [{ wait: { ms: 50 } }]);

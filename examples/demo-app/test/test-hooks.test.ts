@@ -16,7 +16,9 @@ describe("test hooks", () => {
   })
 
   it("answers 404 when no code is pending for the recipient", async () => {
-    const response = await new Visitor().request(`/test/otp?recipient=${encodeURIComponent(newEmail())}`)
+    const response = await new Visitor().request(
+      `/test/otp?recipient=${encodeURIComponent(newEmail())}`,
+    )
 
     expect(response.status).toBe(404)
   })
@@ -53,9 +55,12 @@ describe("test hooks", () => {
     ] as const)
       await visitor.request(`/test/login?email=${encodeURIComponent(who)}`)
 
-    const expired = await new Visitor().request(`/test/expire-sessions?email=${encodeURIComponent(email)}`, {
-      method: "POST",
-    })
+    const expired = await new Visitor().request(
+      `/test/expire-sessions?email=${encodeURIComponent(email)}`,
+      {
+        method: "POST",
+      },
+    )
 
     expect(expired.status).toBe(204)
     expect((await gone.request("/api/session/me")).status).toBe(401)
@@ -82,20 +87,32 @@ describe("test hooks", () => {
   it("are not mounted when DEMO_TEST_HOOKS is not 1", async () => {
     const env: NodeJS.ProcessEnv = { ...process.env, PORT: "0" }
     delete env.DEMO_TEST_HOOKS
-    const app = spawn(process.execPath, [fileURLToPath(new URL("../src/main.ts", import.meta.url))], { env })
+    const app = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../src/main.ts", import.meta.url))],
+      { env },
+    )
     try {
       const [banner] = (await once(app.stdout, "data")) as [Buffer]
       const port = /listening on port (\d+)/.exec(banner.toString())?.[1]
       expect(banner.toString()).toContain("test hooks off")
 
-      const otp = await fetch(`http://localhost:${port}/test/otp?recipient=${encodeURIComponent(newEmail())}`)
+      const otp = await fetch(
+        `http://localhost:${port}/test/otp?recipient=${encodeURIComponent(newEmail())}`,
+      )
       const reset = await fetch(`http://localhost:${port}/test/reset`, { method: "POST" })
-      const expire = await fetch(`http://localhost:${port}/test/expire-sessions?email=a@example.test`, {
-        method: "POST",
-      })
-      const login = await fetch(`http://localhost:${port}/test/login?email=${encodeURIComponent(newEmail())}`, {
-        redirect: "manual",
-      })
+      const expire = await fetch(
+        `http://localhost:${port}/test/expire-sessions?email=a@example.test`,
+        {
+          method: "POST",
+        },
+      )
+      const login = await fetch(
+        `http://localhost:${port}/test/login?email=${encodeURIComponent(newEmail())}`,
+        {
+          redirect: "manual",
+        },
+      )
 
       expect(otp.status).toBe(404)
       expect(reset.status).toBe(404)

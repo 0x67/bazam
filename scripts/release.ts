@@ -80,14 +80,20 @@ function highest<T extends { version: Version }>(tags: readonly T[]): T | undefi
   );
 }
 
-export function nextVersion(bump: Bump, line: ReleaseLine, tags: readonly TagRef[], head: string): NextRelease {
+export function nextVersion(
+  bump: Bump,
+  line: ReleaseLine,
+  tags: readonly TagRef[],
+  head: string,
+): NextRelease {
   const versioned = tags.flatMap((tag) => {
     const version = parseTag(tag.tag);
     return version === undefined ? [] : [{ ...tag, version }];
   });
   const lineTags = versioned.filter(
     ({ onLine, version }) =>
-      onLine && (line.kind === "main" || (version.major === line.major && version.minor === line.minor)),
+      onLine &&
+      (line.kind === "main" || (version.major === line.major && version.minor === line.minor)),
   );
   const base = highest(lineTags.filter(({ version }) => version.rc === undefined));
   if (line.kind === "release" && base === undefined) {
@@ -100,7 +106,9 @@ export function nextVersion(bump: Bump, line: ReleaseLine, tags: readonly TagRef
   const candidate = highest(
     lineTags.filter(
       ({ version }) =>
-        version.rc !== undefined && compare(version, from) > 0 && (line.kind === "release" || version.patch === 0),
+        version.rc !== undefined &&
+        compare(version, from) > 0 &&
+        (line.kind === "release" || version.patch === 0),
     ),
   );
 
@@ -113,8 +121,10 @@ export function nextVersion(bump: Bump, line: ReleaseLine, tags: readonly TagRef
   } else if (bump === "patch") {
     version = { major: from.major, minor: from.minor, patch: from.patch + 1 };
   } else if (bump === "rc") {
-    if (candidate !== undefined) version = { ...candidate.version, rc: (candidate.version.rc ?? 0) + 1 };
-    else if (line.kind === "main") version = { major: from.major, minor: from.minor + 1, patch: 0, rc: 1 };
+    if (candidate !== undefined)
+      version = { ...candidate.version, rc: (candidate.version.rc ?? 0) + 1 };
+    else if (line.kind === "main")
+      version = { major: from.major, minor: from.minor + 1, patch: 0, rc: 1 };
     else version = { major: from.major, minor: from.minor, patch: from.patch + 1, rc: 1 };
   } else {
     if (candidate === undefined)
@@ -127,11 +137,20 @@ export function nextVersion(bump: Bump, line: ReleaseLine, tags: readonly TagRef
   }
 
   const tag = formatTag(version);
-  if (tags.some((existing) => existing.tag === tag)) throw new ReleaseRefused(`tag ${tag} already exists`);
+  if (tags.some((existing) => existing.tag === tag))
+    throw new ReleaseRefused(`tag ${tag} already exists`);
   const prerelease = version.rc !== undefined;
   const newestFinal = highest(versioned.filter((other) => other.version.rc === undefined));
-  const latest = !prerelease && (newestFinal === undefined || compare(version, newestFinal.version) > 0);
-  return { version, tag, target, prerelease, latest, ...(base === undefined ? {} : { previousFinal: base.tag }) };
+  const latest =
+    !prerelease && (newestFinal === undefined || compare(version, newestFinal.version) > 0);
+  return {
+    version,
+    tag,
+    target,
+    prerelease,
+    latest,
+    ...(base === undefined ? {} : { previousFinal: base.tag }),
+  };
 }
 
 function sectionOf(subject: string): string {
@@ -154,7 +173,9 @@ export function releaseNotes(tag: string, commits: readonly Commit[]): string {
 
 export async function stamp(root: string, version: string): Promise<string[]> {
   if (parseTag(`v${version}`) === undefined) {
-    throw new ReleaseRefused(`version ${version} is not <major>.<minor>.<patch> with an optional -rc.<n>`);
+    throw new ReleaseRefused(
+      `version ${version} is not <major>.<minor>.<patch> with an optional -rc.<n>`,
+    );
   }
   const packagesDir = path.join(root, "packages");
   const manifests = (await readdir(packagesDir, { withFileTypes: true }))
@@ -183,7 +204,9 @@ function lines(text: string): string[] {
 }
 
 function isAncestorOfHead(sha: string): boolean {
-  const result = spawnSync("git", ["merge-base", "--is-ancestor", sha, "HEAD"], { encoding: "utf8" });
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", sha, "HEAD"], {
+    encoding: "utf8",
+  });
   if (result.status === 0 || result.status === 1) return result.status === 0;
   throw new Error(`git merge-base --is-ancestor ${sha} HEAD failed: ${result.stderr}`);
 }
@@ -193,16 +216,19 @@ async function plan(bump: Bump): Promise<void> {
   const line = releaseLine(ref);
   // an annotated tag names a tag object, so take the commit it peels to
   const peeled = "%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)";
-  const tags = lines(git("tag", "--list", "v*", `--format=%(refname:strip=2) ${peeled}`)).map((entry) => {
-    const [tag = "", sha = ""] = entry.split(" ");
-    return { tag, sha, onLine: isAncestorOfHead(sha) };
-  });
+  const tags = lines(git("tag", "--list", "v*", `--format=%(refname:strip=2) ${peeled}`)).map(
+    (entry) => {
+      const [tag = "", sha = ""] = entry.split(" ");
+      return { tag, sha, onLine: isAncestorOfHead(sha) };
+    },
+  );
   const offLine = tags.filter(({ onLine }) => !onLine).map(({ tag }) => tag);
   if (offLine.length > 0) console.log(`tags not on ${ref}, ignored: ${offLine.join(", ")}`);
 
   const next = nextVersion(bump, line, tags, git("rev-parse", "HEAD"));
   console.log(`${next.tag} on ${next.target} ${git("log", "-1", "--format=%s", next.target)}`);
-  const range = next.previousFinal === undefined ? next.target : `${next.previousFinal}..${next.target}`;
+  const range =
+    next.previousFinal === undefined ? next.target : `${next.previousFinal}..${next.target}`;
   const commits = lines(git("log", "--format=%H%x09%s", range)).map((entry) => {
     const tab = entry.indexOf("\t");
     return { sha: entry.slice(0, tab), subject: entry.slice(tab + 1) };
@@ -233,7 +259,8 @@ export async function main(argv: readonly string[]): Promise<number> {
       return 0;
     }
     if (command === "stamp" && args.length === 1 && args[0] !== undefined) {
-      for (const file of await stamp(repoRoot, args[0])) console.log(`stamped ${path.relative(repoRoot, file)}`);
+      for (const file of await stamp(repoRoot, args[0]))
+        console.log(`stamped ${path.relative(repoRoot, file)}`);
       return 0;
     }
   } catch (error) {

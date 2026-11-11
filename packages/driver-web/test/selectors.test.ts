@@ -45,7 +45,10 @@ describe.each(ENGINES)("locate on %s", (engine) => {
   it("finds an { id } that holds quotes, a backslash and a line break", async () => {
     const id = 'say "hi" \\ to\nthem';
     const opened = await page();
-    await opened.evaluate((value) => document.querySelector("[data-test=total]")?.setAttribute("data-test", value), id);
+    await opened.evaluate(
+      (value) => document.querySelector("[data-test=total]")?.setAttribute("data-test", value),
+      id,
+    );
     expect(await locate(opened, { id }, "data-test").textContent()).toBe("test total");
   });
 });

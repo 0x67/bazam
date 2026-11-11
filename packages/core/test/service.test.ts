@@ -80,7 +80,9 @@ function personAt(
       signals.push(signal);
       const answer = answers.shift();
       if (answer !== undefined) return sleep(afterMs, answer, { signal });
-      return new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+      return new Promise((_, reject) =>
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+      );
     },
   };
 }
@@ -184,7 +186,11 @@ function postChunked(service: ChallengeService, chunks: readonly string[]): Prom
   });
 }
 
-const otpEmail = { kind: "otp-email", caseId: "EXT-OTP-001", params: { recipient: "ops@example.test" } };
+const otpEmail = {
+  kind: "otp-email",
+  caseId: "EXT-OTP-001",
+  params: { recipient: "ops@example.test" },
+};
 
 describe("startChallengeService", () => {
   it("binds 127.0.0.1", async () => {
@@ -194,14 +200,18 @@ describe("startChallengeService", () => {
     expect(Number(service.url.port)).toBeGreaterThan(0);
     expect((await post(service, otpEmail)).status).toBe(200);
     // the IPv6 loopback is another address, where nothing listens
-    await expect(fetch(`http://[::1]:${service.url.port}/challenge`, { method: "POST" })).rejects.toThrow();
+    await expect(
+      fetch(`http://[::1]:${service.url.port}/challenge`, { method: "POST" }),
+    ).rejects.toThrow();
     // so is this machine's own network address, which a bind to every interface would answer on
     const lan = Object.values(networkInterfaces())
       .flat()
       .find((info) => info?.family === "IPv4" && !info.internal);
     if (lan !== undefined) {
       const offHost = `http://${lan.address}:${service.url.port}/challenge`;
-      await expect(fetch(offHost, { method: "POST", signal: AbortSignal.timeout(2_000) })).rejects.toThrow();
+      await expect(
+        fetch(offHost, { method: "POST", signal: AbortSignal.timeout(2_000) }),
+      ).rejects.toThrow();
     }
   });
 
@@ -210,7 +220,9 @@ describe("startChallengeService", () => {
     expect(service.token).toMatch(/^[0-9a-f]{64}$/);
     expect(await post(service, otpEmail)).toEqual({ status: 200, json: { value: CODE } });
     expect(calls).toEqual({ armed: 0, resolved: 1 });
-    expect(redactor.text(`code ${CODE}, token ${service.token}`)).toBe("code [redacted], token [redacted]");
+    expect(redactor.text(`code ${CODE}, token ${service.token}`)).toBe(
+      "code [redacted], token [redacted]",
+    );
   });
 
   it("401 on a bad token", async () => {
@@ -239,7 +251,9 @@ describe("startChallengeService", () => {
     expect((await post(service, { ...otpEmail, caseId: "../EXT-OTP-001" })).status).toBe(400);
     expect((await post(service, { ...otpEmail, extra: true })).status).toBe(400);
     const headers = { authorization: `Bearer ${service.token}` };
-    expect((await fetch(new URL("/other", service.url), { method: "POST", headers })).status).toBe(404);
+    expect((await fetch(new URL("/other", service.url), { method: "POST", headers })).status).toBe(
+      404,
+    );
     expect((await fetch(service.url, { headers })).status).toBe(405);
     expect(calls.resolved).toBe(0);
   });
@@ -253,7 +267,9 @@ describe("startChallengeService", () => {
 
     // the channel's own timeout, which humanResolver reports only as text
     const timedOut = await start({ channel: personAt([{ kind: "timeout" }]) });
-    expect((await post(timedOut.service, { kind: "totp", caseId: "EXT-TOTP-001" })).status).toBe(504);
+    expect((await post(timedOut.service, { kind: "totp", caseId: "EXT-TOTP-001" })).status).toBe(
+      504,
+    );
   });
 
   it("16 KiB body limit", async () => {
@@ -278,7 +294,9 @@ describe("startChallengeService", () => {
     const totp = { kind: "totp", caseId: "EXT-TOTP-001" };
     const refused = await post(service, totp);
     expect(refused.status).toBe(502);
-    expect(refused.json["error"]).toContain("the person sent a value, but this challenge only takes done");
+    expect(refused.json["error"]).toContain(
+      "the person sent a value, but this challenge only takes done",
+    );
     expect(JSON.stringify(refused.json)).not.toContain("135790");
     expect(await post(service, totp)).toEqual({ status: 200, json: { done: true } });
     expect(channel.prompts.map((prompt) => prompt.ask)).toEqual(["action", "action"]);
@@ -319,7 +337,10 @@ describe("startChallengeService", () => {
       json: { error: 'resolver "fake-otp" failed: the SMS inbox refused [redacted]' },
     });
     const none = await post(service, { kind: "face", caseId: "EXT-FACE-001" });
-    expect(none).toEqual({ status: 502, json: { error: "env demo has no resolver chain for challenge face" } });
+    expect(none).toEqual({
+      status: 502,
+      json: { error: "env demo has no resolver chain for challenge face" },
+    });
   });
 
   it("500 when the env chain names a resolver that does not answer the kind", async () => {
@@ -372,7 +393,10 @@ describe("startChallengeService", () => {
     output.on("data", (chunk: Buffer) => {
       shown += chunk.toString("utf8");
     });
-    const { service } = await start({ channel: terminalChannel({ input, output }), timeoutMs: 3_000 });
+    const { service } = await start({
+      channel: terminalChannel({ input, output }),
+      timeoutMs: 3_000,
+    });
     const first = post(service, { kind: "totp", caseId: "EXT-TOTP-001" });
     await until(() => shown.includes("EXT-TOTP-001"));
     const second = post(service, { kind: "totp", caseId: "EXT-TOTP-002" });
@@ -389,7 +413,10 @@ describe("startChallengeService", () => {
 
   it("asks a second request with the same prompt id once the first is answered", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "service-test-run-"));
-    const { service } = await start({ channel: answersFileChannel(runDir, { pollMs: 20 }), timeoutMs: 3_000 });
+    const { service } = await start({
+      channel: answersFileChannel(runDir, { pollMs: 20 }),
+      timeoutMs: 3_000,
+    });
     const id = "EXT-TOTP-001-1-totp";
     const pending = async (): Promise<boolean> =>
       (await readdir(join(runDir, "prompts")).catch((): string[] => [])).includes(`${id}.json`);

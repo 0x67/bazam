@@ -28,7 +28,9 @@ interface Reply {
 
 /** The mcp command spawned from sources, with a JSON-RPC client on its stdin and stdout. */
 function startMcp(root: string) {
-  const child = spawn(process.execPath, ["--conditions=development", BIN, "mcp", "--root", root], { stdio: "pipe" });
+  const child = spawn(process.execPath, ["--conditions=development", BIN, "mcp", "--root", root], {
+    stdio: "pipe",
+  });
   let stderr = "";
   child.stderr.setEncoding("utf8").on("data", (text: string) => (stderr += text));
   const exited = new Promise<number | null>((done) => child.on("exit", done));
@@ -77,12 +79,21 @@ describe("mcp", () => {
     expect((await mcp.initialize()).result, mcp.stderr()).toHaveProperty("serverInfo");
     const tools = (await mcp.request("tools/list")).result?.["tools"] as { name: string }[];
     expect(tools).toHaveLength(12);
-    expect(tools.map((tool) => tool.name).sort()).toEqual(caseTools.map((tool) => tool.name).sort());
+    expect(tools.map((tool) => tool.name).sort()).toEqual(
+      caseTools.map((tool) => tool.name).sort(),
+    );
     // the tools read the project the command was started on
-    const search = await mcp.request("tools/call", { name: "cases_search", arguments: { text: "shop" } });
+    const search = await mcp.request("tools/call", {
+      name: "cases_search",
+      arguments: { text: "shop" },
+    });
     const { content } = search.result as { content: { text: string }[] };
     const { cases } = JSON.parse(content[0]!.text) as { cases: { id: string }[] };
-    expect(cases.map((found) => found.id).sort()).toEqual(["SHOP-DOWN-001", "SHOP-FAIL-001", "SHOP-OK-001"]);
+    expect(cases.map((found) => found.id).sort()).toEqual([
+      "SHOP-DOWN-001",
+      "SHOP-FAIL-001",
+      "SHOP-OK-001",
+    ]);
     mcp.child.stdin.end();
     expect(await mcp.exited, mcp.stderr()).toBe(ExitCode.Pass);
     expect(mcp.lines).toHaveLength(3);

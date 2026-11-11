@@ -21,14 +21,23 @@ export function checkGuidedOutcome(
   answer: PersonAnswer,
   observation: GuidedObservation | undefined,
 ): CheckRecord {
-  if (answer.kind === "timeout") throw new GuidedBlocked(`no verdict from a person for "${name}" in time`);
+  if (answer.kind === "timeout")
+    throw new GuidedBlocked(`no verdict from a person for "${name}" in time`);
   if (answer.kind !== "verdict")
-    throw new GuidedBlocked(`the person answered ${answer.kind} for "${name}", which needs a verdict`);
+    throw new GuidedBlocked(
+      `the person answered ${answer.kind} for "${name}", which needs a verdict`,
+    );
   const said = answer.note === "" ? answer.verdict : `${answer.verdict}: ${answer.note}`;
   if (answer.verdict === "blocked") throw new GuidedBlocked(`person: ${said}`);
 
   const observed = observation === undefined ? said : `${said}; observed: ${observation.observed}`;
   const disagrees = answer.verdict === "pass" && observation?.ok === false;
-  const check: CheckRecord = { name, kind: "guided", expected, observed, ok: answer.verdict === "pass" && !disagrees };
+  const check: CheckRecord = {
+    name,
+    kind: "guided",
+    expected,
+    observed,
+    ok: answer.verdict === "pass" && !disagrees,
+  };
   return disagrees ? { ...check, hint: DISAGREEMENT_HINT } : check;
 }

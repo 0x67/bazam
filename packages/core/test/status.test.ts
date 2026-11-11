@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { deriveReason, deriveStatus, type CaseOutcome, type CheckRecord, type Status } from "../src/result/index.ts";
+import {
+  deriveReason,
+  deriveStatus,
+  type CaseOutcome,
+  type CheckRecord,
+  type Status,
+} from "../src/result/index.ts";
 
 const passed: CheckRecord = {
   name: "dashboard heading",
@@ -8,7 +14,13 @@ const passed: CheckRecord = {
   observed: "Dashboard",
   ok: true,
 };
-const failed: CheckRecord = { name: "refund fee", kind: "api", expected: 2, observed: 0, ok: false };
+const failed: CheckRecord = {
+  name: "refund fee",
+  kind: "api",
+  expected: 2,
+  observed: 0,
+  ok: false,
+};
 const toConfirm: CheckRecord = {
   name: "welcome email arrives",
   kind: "followup",
@@ -20,8 +32,16 @@ const toConfirm: CheckRecord = {
 
 const completed: CaseOutcome = { kind: "completed" };
 const blocked: CaseOutcome = { kind: "blocked", reason: "identity admin-1 has no session" };
-const harnessError: CaseOutcome = { kind: "errored", message: "step handler threw", source: "harness" };
-const productError: CaseOutcome = { kind: "errored", message: "step 3 timed out after 30000 ms", source: "product" };
+const harnessError: CaseOutcome = {
+  kind: "errored",
+  message: "step handler threw",
+  source: "harness",
+};
+const productError: CaseOutcome = {
+  kind: "errored",
+  message: "step 3 timed out after 30000 ms",
+  source: "product",
+};
 
 describe("deriveStatus", () => {
   it.each<[string, CheckRecord[], CaseOutcome, Status, string | undefined]>([
@@ -32,8 +52,20 @@ describe("deriveStatus", () => {
       "fail",
       "identity admin-1 has no session",
     ],
-    ["blocks a blocked case that recorded no checks", [], blocked, "blocked", "identity admin-1 has no session"],
-    ["maps a harness error to blocked with internal:", [], harnessError, "blocked", "internal: step handler threw"],
+    [
+      "blocks a blocked case that recorded no checks",
+      [],
+      blocked,
+      "blocked",
+      "identity admin-1 has no session",
+    ],
+    [
+      "maps a harness error to blocked with internal:",
+      [],
+      harnessError,
+      "blocked",
+      "internal: step handler threw",
+    ],
     [
       "fails a case the product errored in after passing checks",
       [passed],

@@ -9,7 +9,13 @@ export const MIN_ANYWHERE = 8;
 export const RUN_ID = /\d{8}-\d{6}-[\da-f]{4}/g;
 // a JSON string escape, and a percent escape of an ASCII character
 export const JSON_ESCAPE = /\\(?:u[\da-fA-F]{4}|["\\/bfnrt])/g;
-const JSON_ESCAPED: Readonly<Record<string, string>> = { b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" };
+const JSON_ESCAPED: Readonly<Record<string, string>> = {
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+};
 export const PERCENT_ESCAPE = /%[0-7][\da-fA-F]/g;
 // enough for JSON inside a JSON string and for a URL encoded twice
 export const MAX_DECODE_ROUNDS = 3;
@@ -23,7 +29,9 @@ export interface Secret {
 }
 
 export function secretOf(name: string, values: readonly string[]): Secret {
-  const forms = [...new Set(values.filter((value) => value.length >= MIN_SCANNED).flatMap(encodedForms))];
+  const forms = [
+    ...new Set(values.filter((value) => value.length >= MIN_SCANNED).flatMap(encodedForms)),
+  ];
   return {
     name,
     long: forms.filter((form) => form.length >= MIN_ANYWHERE),
@@ -34,7 +42,12 @@ export function secretOf(name: string, values: readonly string[]): Secret {
 // the forms the redactor masks (see packages/core/src/redact/redactor.ts::Redactor.register)
 export function encodedForms(value: string): string[] {
   const formEncoded = new URLSearchParams({ value }).toString().slice("value=".length);
-  return [value, encodeURIComponent(value), formEncoded, Buffer.from(value, "utf8").toString("base64")];
+  return [
+    value,
+    encodeURIComponent(value),
+    formEncoded,
+    Buffer.from(value, "utf8").toString("base64"),
+  ];
 }
 
 export function unescaped(text: string): string {
@@ -46,7 +59,9 @@ export function unescaped(text: string): string {
           ? String.fromCharCode(Number.parseInt(escape.slice(2), 16))
           : (JSON_ESCAPED[escape.slice(1)] ?? escape.slice(1)),
       )
-      .replace(PERCENT_ESCAPE, (escape) => String.fromCharCode(Number.parseInt(escape.slice(1), 16)));
+      .replace(PERCENT_ESCAPE, (escape) =>
+        String.fromCharCode(Number.parseInt(escape.slice(1), 16)),
+      );
     if (next === out) break;
     out = next;
   }
@@ -65,7 +80,9 @@ export function textHits(text: string, secrets: readonly Secret[]): string[] {
   return secrets
     .filter((secret) =>
       views.some(
-        (view) => secret.long.some((form) => view.includes(form)) || secret.short.some((token) => token.test(view)),
+        (view) =>
+          secret.long.some((form) => view.includes(form)) ||
+          secret.short.some((token) => token.test(view)),
       ),
     )
     .map((secret) => secret.name);

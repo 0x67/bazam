@@ -19,6 +19,9 @@ function report(ctx: CommandContext, issues: readonly LoadIssue[]): ExitCode {
   const errors = sorted.filter((issue) => issue.severity === "error").length;
   const warnings = sorted.length - errors;
   const summary = `${plural(errors, "error")}, ${plural(warnings, "warning")}`;
-  ctx.out.result({ issues: sorted, errors, warnings }, [...sorted.map(issueText), summary, ""].join("\n"));
+  ctx.out.result(
+    { issues: sorted, errors, warnings },
+    [...sorted.map(issueText), summary, ""].join("\n"),
+  );
   return errors === 0 ? ExitCode.Pass : ExitCode.Fail;
 }

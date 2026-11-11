@@ -66,7 +66,11 @@ describe("parseVerdict", () => {
 });
 
 describe("terminalChannel", () => {
-  function terminal(): { input: PassThrough; printed: () => string; channel: ReturnType<typeof terminalChannel> } {
+  function terminal(): {
+    input: PassThrough;
+    printed: () => string;
+    channel: ReturnType<typeof terminalChannel>;
+  } {
     const input = new PassThrough();
     const output = new PassThrough();
     const chunks: string[] = [];
@@ -93,7 +97,10 @@ describe("terminalChannel", () => {
     const { input, printed, channel } = terminal();
     input.write("y\n");
 
-    await channel.ask(prompt({ caseId: "", title: "Run runner shop against production env live?" }), signal);
+    await channel.ask(
+      prompt({ caseId: "", title: "Run runner shop against production env live?" }),
+      signal,
+    );
 
     expect(printed()).toMatch(/^\nRun runner shop against production env live\?\n/);
   });
@@ -102,7 +109,10 @@ describe("terminalChannel", () => {
     const { input, channel } = terminal();
 
     input.write("123456\n");
-    expect(await channel.ask(prompt({ ask: "value" }), signal)).toEqual({ kind: "value", value: "123456" });
+    expect(await channel.ask(prompt({ ask: "value" }), signal)).toEqual({
+      kind: "value",
+      value: "123456",
+    });
     input.write("d\n");
     expect(await channel.ask(prompt({ ask: "action" }), signal)).toEqual({ kind: "done" });
   });
@@ -111,8 +121,13 @@ describe("terminalChannel", () => {
     const { input, channel } = terminal();
     input.write("123456\nd\n");
 
-    expect(await channel.ask(prompt({ ask: "value" }), signal)).toEqual({ kind: "value", value: "123456" });
-    expect(await channel.ask(prompt({ ask: "action", timeoutMs: 200 }), signal)).toEqual({ kind: "done" });
+    expect(await channel.ask(prompt({ ask: "value" }), signal)).toEqual({
+      kind: "value",
+      value: "123456",
+    });
+    expect(await channel.ask(prompt({ ask: "action", timeoutMs: 200 }), signal)).toEqual({
+      kind: "done",
+    });
   });
 
   it("answers timeout when no line arrives in time", async () => {
@@ -141,7 +156,10 @@ describe("oneAtATime", () => {
     const channel = person(50);
     const queued = oneAtATime(oneAtATime(channel));
 
-    await Promise.all([queued.ask(prompt({ id: "A-1" }), signal), queued.ask(prompt({ id: "B-1" }), signal)]);
+    await Promise.all([
+      queued.ask(prompt({ id: "A-1" }), signal),
+      queued.ask(prompt({ id: "B-1" }), signal),
+    ]);
 
     expect(channel.events).toEqual(["shown A-1", "answered A-1", "shown B-1", "answered B-1"]);
   });
@@ -197,7 +215,11 @@ describe("answersFileChannel", () => {
     expect(JSON.parse(written)).toEqual(asked);
     await writeAnswer(asked.id, { kind: "verdict", verdict: "fail", note: "face check looped" });
 
-    expect(await answering).toEqual({ kind: "verdict", verdict: "fail", note: "face check looped" });
+    expect(await answering).toEqual({
+      kind: "verdict",
+      verdict: "fail",
+      note: "face check looped",
+    });
     expect(await readdir(join(runDir, "answers"))).toEqual([]);
     expect(await readdir(join(runDir, "prompts"))).toEqual(["done"]);
     expect(await readdir(join(runDir, "prompts", "done"))).toEqual([`${asked.id}.json`]);
@@ -220,7 +242,9 @@ describe("answersFileChannel", () => {
   it("timeout answer when nobody answers in time, and the prompt leaves the pending list", async () => {
     const asked = prompt({ timeoutMs: 20 });
 
-    expect(await answersFileChannel(runDir, { pollMs: 5 }).ask(asked, signal)).toEqual({ kind: "timeout" });
+    expect(await answersFileChannel(runDir, { pollMs: 5 }).ask(asked, signal)).toEqual({
+      kind: "timeout",
+    });
     expect(await readdir(join(runDir, "prompts", "done"))).toEqual([`${asked.id}.json`]);
   });
 
@@ -235,8 +259,8 @@ describe("answersFileChannel", () => {
   });
 
   it("refuses a prompt id that is not a plain file name", async () => {
-    await expect(answersFileChannel(runDir).ask(prompt({ id: "../escape" }), signal)).rejects.toThrow(
-      'prompt id "../escape" is not a plain file name',
-    );
+    await expect(
+      answersFileChannel(runDir).ask(prompt({ id: "../escape" }), signal),
+    ).rejects.toThrow('prompt id "../escape" is not a plain file name');
   });
 });

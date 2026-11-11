@@ -101,7 +101,12 @@ export class RunSupervisor {
       child.once("exit", (code, signal) => exited.resolve({ code, signal }));
       await once(child, "spawn");
       child.unref();
-      const record: SupervisorRecord = { runId, pid: child.pid!, argv, startedAt: new Date().toISOString() };
+      const record: SupervisorRecord = {
+        runId,
+        pid: child.pid!,
+        argv,
+        startedAt: new Date().toISOString(),
+      };
       await writeJson(join(runDir, SUPERVISOR_FILE), record);
       void exited.promise.then(async (exit) => {
         this.#exits.set(runId, exit);
@@ -119,8 +124,14 @@ export class RunSupervisor {
     const runDir = this.#runDir(runId);
     const progress = await readJson<RunProgress>(join(runDir, "status.json"));
     const { record, exit, ended } = await this.#process(runId);
-    if (progress === undefined && record === undefined) throw new Error(`no run ${runId} has started`);
-    const state = progress?.state === "finished" ? "finished" : ended ? "stopped" : (progress?.state ?? "starting");
+    if (progress === undefined && record === undefined)
+      throw new Error(`no run ${runId} has started`);
+    const state =
+      progress?.state === "finished"
+        ? "finished"
+        : ended
+          ? "stopped"
+          : (progress?.state ?? "starting");
     const status: RunStatus = {
       runId,
       state,
@@ -139,17 +150,21 @@ export class RunSupervisor {
     const runDir = this.#runDir(runId);
     // a process killed while it waited leaves its prompt files behind, and nothing reads an answer to them
     if ((await this.#process(runId)).ended) return [];
-    const entries = await readdir(join(runDir, "prompts"), { withFileTypes: true }).catch((error: unknown) => {
-      if (isMissing(error)) return undefined;
-      throw error;
-    });
+    const entries = await readdir(join(runDir, "prompts"), { withFileTypes: true }).catch(
+      (error: unknown) => {
+        if (isMissing(error)) return undefined;
+        throw error;
+      },
+    );
     if (entries === undefined) {
       if (!existsSync(runDir)) throw new Error(`no run ${runId} has started`);
       return [];
     }
     const prompts: PersonPrompt[] = [];
     // only exact `<id>.json` names, which skips the temp files written in passing and the done/ folder
-    for (const entry of entries.filter((e) => e.isFile() && promptIdOf(e.name) !== undefined).sort(byName)) {
+    for (const entry of entries
+      .filter((e) => e.isFile() && promptIdOf(e.name) !== undefined)
+      .sort(byName)) {
       // a prompt answered or timed out since readdir has moved to done/
       const prompt = await readJson<PersonPrompt>(join(runDir, "prompts", entry.name));
       if (prompt !== undefined) prompts.push(prompt);
@@ -164,17 +179,21 @@ export class RunSupervisor {
    */
   async answer(runId: string, promptId: string, answer: ToolAnswer): Promise<void> {
     const runDir = this.#runDir(runId);
-    if (!PLAIN_NAME.test(promptId)) throw new Error(`prompt id "${promptId}" is not a plain file name`);
+    if (!PLAIN_NAME.test(promptId))
+      throw new Error(`prompt id "${promptId}" is not a plain file name`);
     const promptFile = join(runDir, "prompts", `${promptId}.json`);
     const prompt = await readJson<PersonPrompt>(promptFile);
     if (prompt === undefined) {
-      throw new Error(`prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`);
+      throw new Error(
+        `prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`,
+      );
     }
     if ((await this.#process(runId)).ended) {
       throw new Error(`run ${runId} has stopped, so prompt ${promptId} can no longer be answered`);
     }
     const refusal = answerRefusal(prompt.ask, answer);
-    if (refusal !== undefined) throw new Error(`prompt ${promptId} asks for ${prompt.ask}: ${refusal}`);
+    if (refusal !== undefined)
+      throw new Error(`prompt ${promptId} asks for ${prompt.ask}: ${refusal}`);
     const answers = join(runDir, "answers");
     await mkdir(answers, { recursive: true });
     const answerFile = join(answers, `${promptId}.json`);
@@ -183,17 +202,25 @@ export class RunSupervisor {
     // run claimed it first
     if (existsSync(promptFile) && !(await this.#process(runId)).ended) return;
     if (await removeFile(answerFile)) {
-      throw new Error(`prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`);
+      throw new Error(
+        `prompt ${promptId} is not pending in run ${runId}; prompt_list shows the prompts still waiting`,
+      );
     }
   }
 
   /** The run's process as supervisor.json and this supervisor know it; a run started some other way has no record. */
-  async #process(
-    runId: string,
-  ): Promise<{ record: SupervisorRecord | undefined; exit: ProcessExit | undefined; ended: boolean }> {
+  async #process(runId: string): Promise<{
+    record: SupervisorRecord | undefined;
+    exit: ProcessExit | undefined;
+    ended: boolean;
+  }> {
     const record = await readJson<SupervisorRecord>(join(this.#runDir(runId), SUPERVISOR_FILE));
     const exit = this.#exits.get(runId) ?? record?.exit;
-    return { record, exit, ended: record !== undefined && (exit !== undefined || !isAlive(record.pid)) };
+    return {
+      record,
+      exit,
+      ended: record !== undefined && (exit !== undefined || !isAlive(record.pid)),
+    };
   }
 
   /** `runs/<run-id>` under the root, refusing an id that could climb out of runs/. */

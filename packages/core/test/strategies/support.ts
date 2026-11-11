@@ -1,7 +1,12 @@
 import { createServer, type IncomingHttpHeaders, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
-import type { AuthContext, AuthStrategy, HttpRequestDraft, JsonValue } from "../../src/auth/index.ts";
+import type {
+  AuthContext,
+  AuthStrategy,
+  HttpRequestDraft,
+  JsonValue,
+} from "../../src/auth/index.ts";
 import { guardedHttp, type HttpResponse } from "../../src/driver/http.ts";
 import type { Environment } from "../../src/env/index.ts";
 import { defaultRedactionRules, Redactor } from "../../src/redact/index.ts";
@@ -20,7 +25,9 @@ export interface LocalServer {
 }
 
 /** Serves `route` on 127.0.0.1 and keeps every request it received. */
-export async function serve(route: (request: ReceivedRequest, response: ServerResponse) => void): Promise<LocalServer> {
+export async function serve(
+  route: (request: ReceivedRequest, response: ServerResponse) => void,
+): Promise<LocalServer> {
   const received: ReceivedRequest[] = [];
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
