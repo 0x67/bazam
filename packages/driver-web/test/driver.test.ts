@@ -855,15 +855,20 @@ describe.each(ENGINES)("browser settings on %s", (engine) => {
     expect(plain.viewportSize()).toEqual({ width: 1280, height: 720 });
   });
 
-  it("leases two browsers for targets that differ in args and one for targets that match", async () => {
-    // an argument each engine's build ignores or accepts without effect
-    const one = await pageWith({ args: ["--bazam-test-one"] });
-    const same = await pageWith({ args: ["--bazam-test-one"] });
-    const other = await pageWith({ args: ["--bazam-test-two"] });
+  // WebKit's Linux launcher refuses an option it does not know and has none that is harmless; the pool key does not
+  // depend on the engine
+  it.skipIf(engine === "webkit" && process.platform === "linux")(
+    "leases two browsers for targets that differ in args and one for targets that match",
+    async () => {
+      // an argument Chromium and Firefox, and WebKit on macOS, accept without effect
+      const one = await pageWith({ args: ["--bazam-test-one"] });
+      const same = await pageWith({ args: ["--bazam-test-one"] });
+      const other = await pageWith({ args: ["--bazam-test-two"] });
 
-    expect(same.context().browser()).toBe(one.context().browser());
-    expect(other.context().browser()).not.toBe(one.context().browser());
-  });
+      expect(same.context().browser()).toBe(one.context().browser());
+      expect(other.context().browser()).not.toBe(one.context().browser());
+    },
+  );
 
   it.runIf(engine === "chromium")("passes args to the browser launch", async () => {
     const page = await pageWith({ args: ["--user-agent=example-agent/1.0"] });
