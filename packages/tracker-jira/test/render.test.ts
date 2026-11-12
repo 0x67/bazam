@@ -233,6 +233,27 @@ describe("renderJiraComment", () => {
     expect(markdown).toContain("Attached files: 01-dashboard.png, 02-trace.zip");
   });
 
+  it("writes callouts as panels in the HTML and paragraphs in the Markdown, before the follow-ups", () => {
+    const withCallouts = result({
+      status: "fail",
+      callouts: ["Mind <the> limit."],
+      checks: [
+        { name: "balance", kind: "api", expected: "10", observed: "10", ok: true, callout: true },
+      ],
+      followups: [{ item: "layout", hint: "look" }],
+    });
+    const { markdown, html } = renderJiraComment(withCallouts);
+
+    expect(html).toContain(
+      '<div data-panel-type="error"><div data-panel-content="true"><p>Mind &lt;the&gt; limit.</p></div></div>' +
+        '<div data-panel-type="success"><div data-panel-content="true"><p>balance: expected 10, observed 10</p></div></div><p>Follow-up',
+    );
+    expect(html).toContain("<details>");
+    expect(markdown).toContain(
+      "**Attention:** Mind \\<the\\> limit.\n\n**Confirmed:** balance: expected 10, observed 10\n\nFollow-up for a person:",
+    );
+  });
+
   it("omits the evidence section when the result has no checks, notes or attachments", () => {
     const { markdown, html } = renderJiraComment(
       result({

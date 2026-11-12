@@ -1,4 +1,5 @@
 import {
+  calloutsOf,
   checkTable,
   DEFAULT_RESULT_LINE,
   escapeMarkdown,
@@ -15,11 +16,12 @@ import { checkResult, followupText, renderJiraAdf, type AdfDoc } from "./adf.ts"
 type MediaRef = MediaRefs[string];
 
 /**
- * The comment opens with the result line (the tracker's template, or the default) and any reason, then follow-ups for a person, then the evidence.
+ * The comment opens with the result line (the tracker's template, or the default) and any reason, then the callouts, follow-ups for a person, then the evidence.
  * The HTML folds the evidence and shows a screenshot inline when `media` holds its uploaded id.
  * Markdown has no fold or media embed (the Atlassian connector stores HTML tags in Markdown as
- * literal text), so its evidence goes under a heading and it lists every file by name. ADF, which
- * the Jira client posts, follows the Markdown in that.
+ * literal text), so its evidence goes under a heading and it lists every file by name. The ADF the
+ * Jira client posts folds the evidence in an expand titled Evidence and lists files by name;
+ * `withInlineMedia` can then show uploaded pngs inline.
  */
 export function renderJiraComment(
   result: CaseResult,
@@ -57,6 +59,10 @@ function htmlComment(result: CaseResult, media: MediaRefs, template?: string): s
   return [
     `<p>${htmlResultLine(result, template)}</p>`,
     result.reason === undefined ? "" : `<p>Reason: ${escapeHtml(result.reason)}</p>`,
+    ...calloutsOf(result).map(
+      (callout) =>
+        `<div data-panel-type="${callout.tone}"><div data-panel-content="true"><p>${escapeHtml(callout.text)}</p></div></div>`,
+    ),
     htmlList("Follow-up for a person:", result.followups.map(followupText)),
     evidence === "" ? "" : `<details><summary>Evidence</summary>${evidence}</details>`,
   ].join("");
@@ -80,6 +86,10 @@ function markdownComment(result: CaseResult, template?: string): string {
   return `${[
     markdownResultLine(result, template),
     result.reason === undefined ? "" : `Reason: ${escapeMarkdown(result.reason)}`,
+    ...calloutsOf(result).map(
+      (callout) =>
+        `${callout.tone === "error" ? "**Attention:**" : "**Confirmed:**"} ${escapeMarkdown(callout.text)}`,
+    ),
     markdownList("Follow-up for a person:", result.followups.map(followupText)),
     ...(evidence.length === 0 ? [] : ["### Evidence", ...evidence]),
   ]

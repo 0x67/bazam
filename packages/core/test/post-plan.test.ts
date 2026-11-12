@@ -264,6 +264,39 @@ describe("buildPostPlans", () => {
   });
 });
 
+describe("markdownTracker callouts", () => {
+  it("writes Attention and Confirmed paragraphs after the reason and before the follow-ups", () => {
+    const { markdown } = markdownTracker("notion").render(
+      result({
+        status: "fail",
+        reason: "one check failed",
+        callouts: ["Mind the <limit>."],
+        checks: [
+          {
+            name: "balance",
+            kind: "api",
+            expected: "10",
+            observed: "10",
+            ok: true,
+            callout: true,
+          },
+        ],
+        followups: [{ item: "layout", hint: "look" }],
+      }),
+    );
+
+    expect(markdown.split("\n").slice(2, 9)).toEqual([
+      "Reason: one check failed",
+      "",
+      "**Attention:** Mind the \\<limit\\>.",
+      "",
+      "**Confirmed:** balance: expected 10, observed 10",
+      "",
+      "Follow-up for a person:",
+    ]);
+  });
+});
+
 describe("markdownTracker", () => {
   it("words the first line from a result line template, escaping its text and bolding the status", () => {
     const { markdown } = markdownTracker("notion").render(

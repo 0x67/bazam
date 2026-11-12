@@ -4,6 +4,7 @@ export * from "./people.ts";
 export * from "./receipts.ts";
 export * from "./markdown.ts";
 export * from "./check-table.ts";
+export * from "./callouts.ts";
 export * from "./result-line.ts";
 export * from "./tracker-http.ts";
 export * from "./direct.ts";

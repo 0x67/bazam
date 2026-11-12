@@ -183,7 +183,7 @@ describe("jira-smoke", () => {
 
       const [recovery, probe, ...others] = bug?.comments ?? [];
       expect(others).toEqual([]);
-      expect(JSON.stringify(recovery?.body)).not.toContain('"expand"');
+      expect(JSON.stringify(recovery?.body)).toContain('"table"');
       expect(probe?.body).toMatchObject({
         type: "doc",
         content: expect.arrayContaining([

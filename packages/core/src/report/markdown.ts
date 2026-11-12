@@ -1,4 +1,5 @@
 import type { CaseResult, Status } from "../result/index.ts";
+import { calloutsOf } from "./callouts.ts";
 import { checkTable } from "./check-table.ts";
 import type { RenderOptions, TrackerRenderer } from "./post-plan.ts";
 import { DEFAULT_RESULT_LINE, resultLineParts, type ResultLinePart } from "./result-line.ts";
@@ -20,10 +21,15 @@ function markdownComment(result: CaseResult, options: RenderOptions = {}): strin
   const followups = result.followups.map(
     (followup) => `- ${escapeMarkdown(`${followup.item}: ${followup.hint}`)}`,
   );
+  const callouts = calloutsOf(result).flatMap((callout) => [
+    "",
+    `${callout.tone === "error" ? "**Attention:**" : "**Confirmed:**"} ${escapeMarkdown(callout.text)}`,
+  ]);
   const table = checkTable(result.checks, (check) => (check.ok ? "ok" : "not ok"));
   return [
     markdownResultLine(result, options.resultLine),
     ...(result.reason === undefined ? [] : ["", `Reason: ${escapeMarkdown(result.reason)}`]),
+    ...callouts,
     ...(followups.length === 0 ? [] : ["", "Follow-up for a person:", "", ...followups]),
     "",
     "### Evidence",

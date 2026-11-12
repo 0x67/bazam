@@ -33,52 +33,48 @@ exports[`renderJiraComment > matches the snapshot for a blocked result with medi
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
+            "content": [
+              {
+                "text": "Notes:",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
           },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
-            "text": "Notes:",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
-      },
-      {
-        "content": [
           {
             "content": [
               {
                 "content": [
                   {
-                    "text": "The mailbox for customer@example.test stayed empty.",
-                    "type": "text",
+                    "content": [
+                      {
+                        "text": "The mailbox for customer@example.test stayed empty.",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
                   },
                 ],
-                "type": "paragraph",
+                "type": "listItem",
               },
             ],
-            "type": "listItem",
+            "type": "bulletList",
           },
-        ],
-        "type": "bulletList",
-      },
-      {
-        "content": [
           {
-            "text": "Attached files: 01-code-entry.png",
-            "type": "text",
+            "content": [
+              {
+                "text": "Attached files: 01-code-entry.png",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
           },
         ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -133,52 +129,48 @@ exports[`renderJiraComment > matches the snapshot for a blocked result without m
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
+            "content": [
+              {
+                "text": "Notes:",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
           },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
-            "text": "Notes:",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
-      },
-      {
-        "content": [
           {
             "content": [
               {
                 "content": [
                   {
-                    "text": "The mailbox for customer@example.test stayed empty.",
-                    "type": "text",
+                    "content": [
+                      {
+                        "text": "The mailbox for customer@example.test stayed empty.",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
                   },
                 ],
-                "type": "paragraph",
+                "type": "listItem",
               },
             ],
-            "type": "listItem",
+            "type": "bulletList",
           },
-        ],
-        "type": "bulletList",
-      },
-      {
-        "content": [
           {
-            "text": "Attached files: 01-code-entry.png",
-            "type": "text",
+            "content": [
+              {
+                "text": "Attached files: 01-code-entry.png",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
           },
         ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -224,18 +216,206 @@ exports[`renderJiraComment > matches the snapshot for a fail result with media 1
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "code entry accepts the code",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "accepted",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "accepted",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "session endpoint returns the customer",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "{"status":200}",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "{"status":401}",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "not ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+            ],
+            "type": "table",
           },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
+          {
+            "content": [
+              {
+                "text": "Notes:",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
           {
             "content": [
               {
@@ -243,221 +423,29 @@ exports[`renderJiraComment > matches the snapshot for a fail result with media 1
                   {
                     "content": [
                       {
-                        "text": "Check",
+                        "text": "The code arrived 40 seconds after the request.",
                         "type": "text",
                       },
                     ],
                     "type": "paragraph",
                   },
                 ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Expected",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Observed",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Result",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
+                "type": "listItem",
               },
             ],
-            "type": "tableRow",
+            "type": "bulletList",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "code entry accepts the code",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "accepted",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "accepted",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "session endpoint returns the customer",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "{"status":200}",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "{"status":401}",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "not ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Notes:",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
-      },
-      {
-        "content": [
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "text": "The code arrived 40 seconds after the request.",
-                    "type": "text",
-                  },
-                ],
-                "type": "paragraph",
-              },
-            ],
-            "type": "listItem",
-          },
-        ],
-        "type": "bulletList",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -506,18 +494,206 @@ exports[`renderJiraComment > matches the snapshot for a fail result without medi
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "code entry accepts the code",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "accepted",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "accepted",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "session endpoint returns the customer",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "{"status":200}",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "{"status":401}",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "not ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+            ],
+            "type": "table",
           },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
+          {
+            "content": [
+              {
+                "text": "Notes:",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
           {
             "content": [
               {
@@ -525,221 +701,29 @@ exports[`renderJiraComment > matches the snapshot for a fail result without medi
                   {
                     "content": [
                       {
-                        "text": "Check",
+                        "text": "The code arrived 40 seconds after the request.",
                         "type": "text",
                       },
                     ],
                     "type": "paragraph",
                   },
                 ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Expected",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Observed",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Result",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
+                "type": "listItem",
               },
             ],
-            "type": "tableRow",
+            "type": "bulletList",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "code entry accepts the code",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "accepted",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "accepted",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "session endpoint returns the customer",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "{"status":200}",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "{"status":401}",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "not ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Notes:",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
-      },
-      {
-        "content": [
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "text": "The code arrived 40 seconds after the request.",
-                    "type": "text",
-                  },
-                ],
-                "type": "paragraph",
-              },
-            ],
-            "type": "listItem",
-          },
-        ],
-        "type": "bulletList",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-code-entry.png, 02-trace.zip, 03-session.json",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -816,212 +800,208 @@ exports[`renderJiraComment > matches the snapshot for a followup result with med
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
-          },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
             "content": [
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Check",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Expected",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "dashboard shows the account",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Observed",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "welcome email layout",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Result",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "checked by a person",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "not automated",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "follow-up",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
             ],
-            "type": "tableRow",
+            "type": "table",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "dashboard shows the account",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-dashboard.png",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "welcome email layout",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "checked by a person",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "not automated",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "follow-up",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-dashboard.png",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -1098,212 +1078,208 @@ exports[`renderJiraComment > matches the snapshot for a followup result without 
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
-          },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
             "content": [
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Check",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Expected",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "dashboard shows the account",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Observed",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "welcome email layout",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Result",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "checked by a person",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "not automated",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "follow-up",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
             ],
-            "type": "tableRow",
+            "type": "table",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "dashboard shows the account",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-dashboard.png",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "welcome email layout",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "checked by a person",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "not automated",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "follow-up",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-dashboard.png",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -1352,151 +1328,147 @@ exports[`renderJiraComment > matches the snapshot for a pass result with media 1
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
-          },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
             "content": [
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Check",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Expected",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "dashboard shows the account",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Observed",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Result",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
             ],
-            "type": "tableRow",
+            "type": "table",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "dashboard shows the account",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -1540,151 +1512,147 @@ exports[`renderJiraComment > matches the snapshot for a pass result without medi
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
-          },
-        ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
             "content": [
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Check",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
               {
                 "content": [
                   {
                     "content": [
                       {
-                        "text": "Expected",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "dashboard shows the account",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Observed",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
                   },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
                   {
                     "content": [
                       {
-                        "text": "Result",
-                        "type": "text",
+                        "content": [
+                          {
+                            "text": "visible",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
                       },
                     ],
-                    "type": "paragraph",
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
                   },
                 ],
-                "type": "tableHeader",
+                "type": "tableRow",
               },
             ],
-            "type": "tableRow",
+            "type": "table",
           },
           {
             "content": [
               {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "dashboard shows the account",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "visible",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
+                "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+                "type": "text",
               },
             ],
-            "type": "tableRow",
+            "type": "paragraph",
           },
         ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",
@@ -1728,399 +1696,395 @@ exports[`renderJiraComment > matches the snapshot for a result with levels 1`] =
       },
       {
         "attrs": {
-          "level": 3,
+          "title": "Evidence",
         },
         "content": [
           {
-            "text": "Evidence",
-            "type": "text",
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Check",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Expected",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Observed",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Level",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Result",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableHeader",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "balance",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "10",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "10",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "core",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "other",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "a|*b",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "markup",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "<b>x</b>",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "none",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "1",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                  {
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "ok",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "tableCell",
+                  },
+                ],
+                "type": "tableRow",
+              },
+            ],
+            "type": "table",
+          },
+          {
+            "content": [
+              {
+                "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
           },
         ],
-        "type": "heading",
-      },
-      {
-        "content": [
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Check",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Expected",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Observed",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Level",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "Result",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableHeader",
-              },
-            ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "balance",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "10",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "10",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "core",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "other",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "a|*b",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "markup",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "<b>x</b>",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
-          },
-          {
-            "content": [
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "none",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "1",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-              {
-                "content": [
-                  {
-                    "content": [
-                      {
-                        "text": "ok",
-                        "type": "text",
-                      },
-                    ],
-                    "type": "paragraph",
-                  },
-                ],
-                "type": "tableCell",
-              },
-            ],
-            "type": "tableRow",
-          },
-        ],
-        "type": "table",
-      },
-      {
-        "content": [
-          {
-            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
-            "type": "text",
-          },
-        ],
-        "type": "paragraph",
+        "type": "expand",
       },
     ],
     "type": "doc",

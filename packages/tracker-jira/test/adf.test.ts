@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { JsonValue } from "@bazam/core/auth";
 import type { CaseResult, Status } from "@bazam/core/result";
-import { renderJiraAdf } from "../src/adf.ts";
+import { ATTACHED_FILES_PREFIX, renderJiraAdf } from "../src/adf.ts";
 import { renderJiraComment } from "../src/render.ts";
 
 const RUN_ID = "20261107-100000-ab12";
@@ -136,7 +136,8 @@ describe("renderJiraAdf", () => {
   it.each(statuses)("holds the text of the HTML comment in its order for a %s result", (status) => {
     const { html, adf } = renderJiraComment(RESULTS[status]);
 
-    expect(textOf(adf)).toBe(htmlText(html));
+    // the HTML fold title is the expand's attribute in ADF, not text
+    expect(textOf(adf)).toBe(htmlText(html.replace("<summary>Evidence</summary>", "")));
   });
 
   it("words the first paragraph from a result line template with the status bold in the middle", () => {
@@ -209,25 +210,77 @@ describe("renderJiraAdf", () => {
     ]);
   });
 
-  it("puts the evidence under a level 3 heading before the checks table", () => {
-    const types = renderJiraAdf(RESULTS.fail).content.map((block) => nodes(block)[0]?.["type"]);
+  it("folds the evidence in one expand titled Evidence with the checks table first", () => {
+    const [, expand] = renderJiraAdf(RESULTS.fail).content;
+    const types = (expand as { content: JsonValue[] }).content.map(
+      (block) => nodes(block)[0]?.["type"],
+    );
+
+    expect(expand).toMatchObject({ type: "expand", attrs: { title: "Evidence" } });
+    expect(types).toEqual(["table", "paragraph", "bulletList", "paragraph"]);
+  });
+
+  it("puts a panel per callout between the reason and the follow-ups and folds the evidence in one expand", () => {
+    const doc = renderJiraAdf(
+      result({
+        status: "fail",
+        reason: "one check failed",
+        callouts: ["Mind the limit."],
+        checks: [
+          { name: "balance", kind: "api", expected: "10", observed: "10", ok: true, callout: true },
+          { name: "other", kind: "api", expected: "1", observed: "2", ok: false },
+        ],
+        followups: [{ item: "layout", hint: "look" }],
+      }),
+    );
+    const types = doc.content.map((node) => (node as Record<string, JsonValue>)["type"]);
+    const panels = nodes(doc).filter((node) => node["type"] === "panel");
 
     expect(types).toEqual([
       "paragraph",
-      "heading",
-      "table",
+      "paragraph",
+      "panel",
+      "panel",
       "paragraph",
       "bulletList",
-      "paragraph",
+      "expand",
     ]);
-    expect(renderJiraAdf(RESULTS.fail).content[1]).toEqual({
-      type: "heading",
-      attrs: { level: 3 },
-      content: [{ type: "text", text: "Evidence" }],
-    });
+    expect(panels.map((panel) => panel["attrs"])).toEqual([
+      { panelType: "error" },
+      { panelType: "success" },
+    ]);
+    expect(doc.content[6]).toMatchObject({ type: "expand", attrs: { title: "Evidence" } });
+    expect(nodes(doc).some((node) => node["type"] === "heading")).toBe(false);
   });
 
-  it("leaves out the evidence heading when the result has no checks, notes or attachments", () => {
+  it("starts the files paragraph with the shared prefix, as the last child of the expand", () => {
+    const expand = renderJiraAdf(result()).content.at(-1) as { content: JsonValue[] };
+
+    expect(textOf(expand.content.at(-1) as JsonValue).startsWith(ATTACHED_FILES_PREFIX)).toBe(true);
+  });
+
+  it("keeps the panels in the document over 30,000 characters", () => {
+    const notes = Array.from({ length: 500 }, (_, index) => `note ${index} `.repeat(10));
+    const doc = renderJiraAdf(result({ callouts: ["Mind the limit."], notes }));
+
+    expect(nodes(doc).filter((node) => node["type"] === "panel")).toHaveLength(1);
+    expect(nodes(doc).some((node) => node["type"] === "expand")).toBe(false);
+  });
+
+  it("cuts a long callout in the over-limit document so the comment can post", () => {
+    const observed = Array.from({ length: 1_500 }, (_, index) => `item-${index}-`.padEnd(40, "x"));
+    const doc = renderJiraAdf(
+      result({
+        checks: [{ name: "list", kind: "api", expected: [], observed, ok: false, callout: true }],
+        notes: Array.from({ length: 500 }, (_, index) => `note ${index} `.repeat(10)),
+      }),
+    );
+
+    expect(nodes(doc).filter((node) => node["type"] === "panel")).toHaveLength(1);
+    expect(JSON.stringify(doc).length).toBeLessThanOrEqual(30_000);
+  });
+
+  it("leaves out the expand when the result has no checks, notes or attachments", () => {
     const doc = renderJiraAdf(
       result({
         status: "blocked",
@@ -237,7 +290,7 @@ describe("renderJiraAdf", () => {
       }),
     );
 
-    expect(textOf(doc.content)).not.toContain("Evidence");
+    expect(nodes(doc).some((node) => node["type"] === "expand")).toBe(false);
     expect(doc.content).toHaveLength(2);
   });
 
