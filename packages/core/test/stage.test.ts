@@ -75,6 +75,7 @@ function result(runId: string, env: string, status: Status, finishedAt: string):
     status,
     checks: [],
     notes: [],
+    callouts: [],
     followups: [],
     attachments: [],
     challenges: [],

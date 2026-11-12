@@ -107,10 +107,19 @@ function expandUse(
   const filled = flow.steps.map((flowStep) => fillParams(flowStep, params, flow.name) as Step);
   const expanded = expandSteps(filled, flows, flowPath);
   const identity = step.as;
-  if (identity === undefined) return expanded;
-  return expanded.map((flowStep) =>
-    namesIdentity(flowStep) ? flowStep : { ...flowStep, as: identity },
-  );
+  return expanded.map((flowStep) => {
+    const marked = withMarks(flowStep, step);
+    if (identity === undefined || namesIdentity(flowStep)) return marked;
+    return { ...marked, as: identity };
+  });
+}
+
+// the flow steps keep their own level and callout, and take the use step's for the rest
+function withMarks(flowStep: Step, use: Step): Step {
+  const marks: Partial<Pick<Step, "level" | "callout">> = {};
+  if (use.level !== undefined && flowStep.level === undefined) marks.level = use.level;
+  if (use.callout !== undefined && flowStep.callout === undefined) marks.callout = use.callout;
+  return { ...flowStep, ...marks };
 }
 
 function namesIdentity(step: Step): boolean {

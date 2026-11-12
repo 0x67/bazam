@@ -386,6 +386,19 @@ describe("process plugins in a run", () => {
     });
   });
 
+  it("carries the level and callout of a recorded check, and refuses a level outside the form", async () => {
+    const marked = await runOnTarget(fixture("served"), "served", [
+      { graded: { name: "own", level: "core", callout: true } },
+    ]);
+    const refused = await runOnTarget(fixture("served"), "served", [
+      { graded: { name: "own", level: "two words" } },
+    ]);
+
+    expect(marked.checks).toMatchObject([{ name: "own", level: "core", callout: true }]);
+    expect(refused.status).not.toBe("pass");
+    expect(refused.checks).toEqual([]);
+  });
+
   it("answers -32602 to a host call that a step context does not offer, which ends the case blocked", async () => {
     const result = await runOnTarget(fixture("raw", { args: ["step-secret"] }), "raw", [
       { peek: {} },

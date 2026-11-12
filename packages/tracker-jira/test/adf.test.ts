@@ -26,6 +26,7 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
       },
     ],
     notes: [],
+    callouts: [],
     followups: [],
     attachments: ["01-dashboard.png", "02-trace.zip"],
     challenges: [],

@@ -47,6 +47,7 @@ function result(fields: Partial<CaseResult> = {}): CaseResult {
     status: "fail",
     checks: [],
     notes: [],
+    callouts: [],
     followups: [],
     attachments: ["01-cart.png"],
     challenges: [],

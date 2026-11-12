@@ -17,6 +17,14 @@ const steps: StepHandler[] = [
     const { name, value } = await ctx.resolve(payload);
     ctx.evidence.record({ name, kind: "ui", expected: value, observed: value, ok: true });
   }),
+  step(
+    "graded",
+    z.strictObject({ name: z.string(), level: z.string(), callout: z.boolean().optional() }),
+    async ({ name, level, callout }, ctx) => {
+      const check = { name, kind: "ui" as const, expected: "shown", observed: "shown", ok: true, level };
+      ctx.evidence.record(callout === undefined ? check : { ...check, callout });
+    },
+  ),
   step("attach", z.strictObject({ ext: z.enum(["txt", "zip"]) }), async ({ ext }, ctx) => {
     await ctx.evidence.attach("served", new TextEncoder().encode("served notes"), ext);
   }),

@@ -24,6 +24,8 @@ export interface CaseResult {
   reason?: string;
   checks: CheckRecord[];
   notes: string[];
+  /** Notes shown above the fold of a tracker comment instead of in `notes`. */
+  callouts: string[];
   followups: { item: string; hint: string }[];
   /** File names inside the case directory, numbered in the order they were taken. */
   attachments: string[];
@@ -60,6 +62,7 @@ export class EvidenceStore {
   readonly #redactor: Redactor;
   readonly #checks: CheckRecord[] = [];
   readonly #notes: string[] = [];
+  readonly #callouts: string[] = [];
   // one slot per number taken; a slot stays undefined until its file is on disk
   readonly #attachments: (string | undefined)[] = [];
   readonly #challenges: CaseResult["challenges"] = [];
@@ -80,16 +83,14 @@ export class EvidenceStore {
     this.#notes.push(text);
   }
 
+  /** A note shown above the fold of a tracker comment instead of in the notes list. */
+  callout(text: string): void {
+    this.#callouts.push(text);
+  }
+
   /** Records an item a person still has to confirm, so a case that otherwise passes ends `followup`. */
   followup(item: string, hint: string): void {
-    this.#checks.push({
-      name: item,
-      kind: "followup",
-      expected: "checked by a person",
-      observed: "not automated",
-      ok: true,
-      hint,
-    });
+    this.#checks.push(followupCheck(item, hint));
   }
 
   /** Writes `<NN>-<label>.<ext>` and returns that file name. A failed write uses up its number but stays out of the result. */
@@ -127,6 +128,7 @@ export class EvidenceStore {
       ...(reason === undefined ? {} : { reason }),
       checks: this.#checks,
       notes: this.#notes,
+      callouts: this.#callouts,
       followups: this.#checks
         .filter((check) => check.kind === "followup")
         .map((check) => ({ item: check.name, hint: check.hint ?? "" })),
@@ -151,6 +153,18 @@ export class EvidenceStore {
     await writeFile(join(this.#dir, "result.json"), `${JSON.stringify(masked, null, 2)}\n`);
     return masked;
   }
+}
+
+/** The record a follow-up item is stored as. */
+export function followupCheck(item: string, hint: string): CheckRecord {
+  return {
+    name: item,
+    kind: "followup",
+    expected: "checked by a person",
+    observed: "not automated",
+    ok: true,
+    hint,
+  };
 }
 
 function maskedContent(

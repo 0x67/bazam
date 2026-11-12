@@ -8,6 +8,9 @@ export interface CheckRecord {
   observed: unknown;
   ok: boolean;
   hint?: string;
+  level?: string;
+  /** Shown above the fold of a tracker comment. */
+  callout?: boolean;
 }
 
 /** How a case ended, apart from its checks. */

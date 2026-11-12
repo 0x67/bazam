@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { JsonValue } from "../auth/index.ts";
+import { CheckLevel } from "../case/index.ts";
 import type { ChallengeAnswer, ChallengeKindSpec, ChallengeRequest } from "../challenge/index.ts";
 import type { ExternalTest, ResultFile } from "../ingest/index.ts";
 import { TrackerConfig } from "../project.ts";
@@ -192,6 +193,8 @@ const CheckRecordSchema = z.object({
   observed: AnyValue,
   ok: z.boolean(),
   hint: z.string().exactOptional(),
+  level: CheckLevel.exactOptional(),
+  callout: z.boolean().exactOptional(),
 }) satisfies z.ZodType<CheckRecord>;
 
 const StatusSchema = z.enum(["pass", "fail", "blocked", "followup"]) satisfies z.ZodType<Status>;

@@ -32,6 +32,8 @@ const CORE_STEP_KINDS: ReadonlySet<string> = new Set([
   "guided",
   "note",
   "followup",
+  "level",
+  "callout",
   "api",
 ]);
 const STEP_KIND = "step kind";

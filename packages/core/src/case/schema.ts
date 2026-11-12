@@ -15,9 +15,19 @@ export interface StepSchemaSource {
   schema: z.ZodType;
 }
 
+/** A label a project gives a check, such as `core`, shown in the Level column of a comment. */
+export const CheckLevel = z.string().regex(/^[A-Za-z0-9-]{1,20}$/, {
+  error: "a level takes 1 to 20 letters, digits and dashes, such as core",
+});
+
+/** The keys a step may carry beside the key that names its kind. */
+export const STEP_MARKS = ["as", "level", "callout"] as const;
+
 /** One key names the step kind and holds its payload; `as` names the identity that runs the step. */
 export interface Step {
   as?: string;
+  level?: string;
+  callout?: boolean;
   [kind: string]: unknown;
 }
 
@@ -110,9 +120,13 @@ export type CaseSpec = {
   report?: ReportPolicy;
 };
 
+function isKindKey(key: string): boolean {
+  return !(STEP_MARKS as readonly string[]).includes(key);
+}
+
 /** Returns the key that names the step kind. */
 export function stepKind(step: Step): string {
-  const kind = Object.keys(step).find((key) => key !== "as");
+  const kind = Object.keys(step).find(isKindKey);
   if (kind === undefined) throw new Error("step has no kind key");
   return kind;
 }
@@ -152,7 +166,12 @@ export function buildStepSchema(sources: readonly StepSchemaSource[]): z.ZodType
   const shapes = new Map(
     [...payloads].map(([kind, payload]) => [
       kind,
-      z.strictObject({ [kind]: payload, as: IdentityName.optional() }),
+      z.strictObject({
+        [kind]: payload,
+        as: IdentityName.optional(),
+        level: CheckLevel.optional(),
+        callout: z.boolean().optional(),
+      }),
     ]),
   );
   // The transform checks the step against its own kind alone, so issues point inside the payload.
@@ -193,7 +212,7 @@ function stepShapeIssue(
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return { message: "a step is a mapping with one kind key, such as `note: text`" };
   }
-  const kinds = Object.keys(input).filter((key) => key !== "as");
+  const kinds = Object.keys(input).filter(isKindKey);
   if (kinds.length !== 1) {
     return {
       message: `a step has exactly one kind key, found ${kinds.length === 0 ? "none" : kinds.join(", ")}`,

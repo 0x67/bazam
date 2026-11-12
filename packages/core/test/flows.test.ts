@@ -209,4 +209,29 @@ describe("expandFlows", () => {
       expandFlows([{ use: { flow: "typo", with: { email: "a@example.test" } } }], flowMap(typo)),
     ).toThrow("flow typo: ${param.emial} names an undeclared parameter");
   });
+
+  it("gives the flow steps the level and callout of the use step unless they set their own", () => {
+    const flow: FlowSpec = {
+      name: "marked",
+      params: [],
+      steps: [{ note: "a" }, { note: "b", level: "own" }, { note: "c", callout: false }],
+    };
+    const one: FlowSpec = { name: "one", params: [], steps: [{ note: "n" }] };
+    const nested: Step = {
+      challenge: { kind: "otp-email", trigger: { use: "one", level: "core" }, fill: { id: "c" } },
+    };
+    const use: Step = { use: "marked", level: "core", callout: true };
+
+    expect(expandFlows([use], flowMap(flow))).toEqual([
+      { note: "a", level: "core", callout: true },
+      { note: "b", level: "own", callout: true },
+      { note: "c", level: "core", callout: false },
+    ]);
+    expect(expandFlows([{ use: "one", level: "core" }], flowMap(one))).toEqual([
+      { note: "n", level: "core" },
+    ]);
+    expect(expandFlows([nested], flowMap(one))).toMatchObject([
+      { challenge: { trigger: { note: "n", level: "core" } } },
+    ]);
+  });
 });

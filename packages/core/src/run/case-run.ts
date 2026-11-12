@@ -33,7 +33,7 @@ import { PluginCallFailed } from "../plugin/process.ts";
 import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { maskPrompt } from "./browser-login.ts";
-import type { CaseEvidence } from "./case-evidence.ts";
+import type { CaseEvidence, StepMarks } from "./case-evidence.ts";
 import {
   CaseBlocked,
   HarnessError,
@@ -74,6 +74,12 @@ function describeCause(cause: RecoveryCause): { event: string; after: string; an
   }
   const event = `${cause.step} landed on the login page`;
   return { event, after: event, another: event };
+}
+
+/** A copy of the step without its level and callout, for a step whose checks are notes. */
+function unmarked(step: Step): Step {
+  const { level: _level, callout: _callout, ...rest } = step;
+  return rest;
 }
 
 /** What every case of a run shares. */
@@ -216,7 +222,7 @@ export class CaseRun {
       let failure: unknown;
       const checks = await evidence.recordAside(async () => {
         try {
-          await this.#step(step, number, step.as);
+          await this.#step(unmarked(step), number, step.as);
         } catch (error) {
           failure = error;
         }
@@ -232,12 +238,25 @@ export class CaseRun {
 
   /** `identity` is the step's `as`, or the one it inherits from the challenge or guided step it sits in. */
   async #step(step: Step, number: number, identity: string | undefined): Promise<void> {
+    const marks: StepMarks = {};
+    if (step.level !== undefined) marks.level = step.level;
+    if (step.callout !== undefined) marks.callout = step.callout;
+    if (Object.keys(marks).length === 0) return this.#runStep(step, number, identity);
+    return this.#parts.evidence.marked(marks, () => this.#runStep(step, number, identity));
+  }
+
+  async #runStep(step: Step, number: number, identity: string | undefined): Promise<void> {
     // no step acts while a refresh replaces the credential under the page
     await this.#recovery;
     this.#signal.throwIfAborted();
     const kind = stepKind(step);
     const payload = step[kind];
-    if (kind === "note") return this.#parts.evidence.note(await this.#resolve(payload as string));
+    if (kind === "note") {
+      const text = await this.#resolve(payload as string);
+      if (step.callout === true) this.#parts.evidence.callout(text);
+      else this.#parts.evidence.note(text);
+      return;
+    }
     if (kind === "followup") {
       const { name, hint } = payload as { name: string; hint: string };
       return this.#parts.evidence.followup(name, await this.#resolve(hint));

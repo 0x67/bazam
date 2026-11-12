@@ -10,6 +10,7 @@ import {
   CaseSpec,
   caseJsonSchema,
   STEP_LISTS,
+  stepKind,
 } from "../src/case/index.ts";
 import {
   declaredSecretNames,
@@ -251,6 +252,50 @@ describe("buildCaseSchema", () => {
       "steps.1.request.body",
       "steps.2.challenge.trigger.tap.id",
     ]);
+  });
+});
+
+describe("step marks", () => {
+  const schema = buildCaseSchema([tap]);
+  const marks = { level: "core", callout: true };
+  const kinds: [string, unknown][] = [
+    ["use", "login"],
+    ["request", { method: "GET", url: "/health" }],
+    ["challenge", { kind: "otp" }],
+    ["guided", { title: "look", steps: ["open it"] }],
+    ["note", "seen"],
+    ["followup", { name: "badge", hint: "look" }],
+    ["tap", { id: "menu" }],
+  ];
+
+  it.each(kinds)("takes level and callout beside a %s step", (kind, payload) => {
+    const parsed = schema.safeParse({ ...minimal, checks: [{ [kind]: payload, ...marks }] });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it("refuses a level of two words, a level of 21 characters and a callout that is not a boolean", () => {
+    const refused = (mark: object) =>
+      schema.safeParse({ ...minimal, checks: [{ note: "seen", ...mark }] }).success;
+
+    expect(refused({ level: "two words" })).toBe(false);
+    expect(refused({ level: "a".repeat(21) })).toBe(false);
+    expect(refused({ level: "a".repeat(20) })).toBe(true);
+    expect(refused({ callout: "yes-please" })).toBe(false);
+  });
+
+  it("names the form of a level", () => {
+    expect(
+      issueMessages(schema, { ...minimal, checks: [{ note: "seen", level: "two words" }] }),
+    ).toContain("a level takes 1 to 20 letters, digits and dashes, such as core");
+  });
+
+  it("keeps one kind key when a step carries marks, and still refuses two", () => {
+    expect(stepKind({ api: { method: "GET" }, as: "alice", ...marks })).toBe("api");
+    expect(
+      schema.safeParse({ ...minimal, checks: [{ note: "seen", tap: { id: "menu" }, ...marks }] })
+        .success,
+    ).toBe(false);
   });
 });
 

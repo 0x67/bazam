@@ -175,6 +175,14 @@ describe("recordExternalResults outcomes", () => {
     ]);
   });
 
+  it("writes no callouts for an external case", async () => {
+    const tests = new Map([[CASE_ID, [externalTest("keeps items")]]]);
+
+    const [result] = await recordExternalResults(inputs({ tests }));
+
+    expect(result?.callouts).toEqual([]);
+  });
+
   it("blocks only the cases with no test when the suite ended early", async () => {
     const failure = "runner shop-selenium timed out after 60 min";
     const tests = new Map([[CASE_ID, [externalTest("keeps items")]]]);

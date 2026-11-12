@@ -1,6 +1,12 @@
 import { join } from "node:path";
 import type { Redactor } from "../redact/index.ts";
-import { EvidenceStore, type CheckRecord } from "../result/index.ts";
+import { EvidenceStore, followupCheck, type CheckRecord } from "../result/index.ts";
+
+/** The marks a step puts on the checks it records. */
+export interface StepMarks {
+  level?: string;
+  callout?: boolean;
+}
 
 /** The evidence store a case runs with. It also keeps what the runner needs before result.json exists. */
 export class CaseEvidence extends EvidenceStore {
@@ -9,6 +15,7 @@ export class CaseEvidence extends EvidenceStore {
   #captured: CheckRecord[] | undefined;
   #aside: CheckRecord[] | undefined;
   #screenshot: string | undefined;
+  #marks: StepMarks = {};
 
   constructor(runDir: string, caseId: string, redactor: Redactor) {
     super(runDir, caseId, redactor);
@@ -25,7 +32,8 @@ export class CaseEvidence extends EvidenceStore {
     return this.#screenshot;
   }
 
-  override record(check: CheckRecord): boolean {
+  override record(stored: CheckRecord): boolean {
+    const check = this.#stamped(stored);
     if (this.#aside !== undefined) {
       this.#aside.push(check);
       return check.ok;
@@ -39,21 +47,34 @@ export class CaseEvidence extends EvidenceStore {
   }
 
   override followup(item: string, hint: string): void {
-    const check: CheckRecord = {
-      name: item,
-      kind: "followup",
-      expected: undefined,
-      observed: undefined,
-      ok: true,
-      hint,
-    };
+    const check = followupCheck(item, hint);
+    if (this.#marks.level !== undefined) check.level = this.#marks.level;
     if (this.#aside !== undefined) {
       this.#aside.push(check);
       return;
     }
-    super.followup(item, hint);
-    // deriveStatus reads only the kind and ok of a followup
+    super.record(check);
     this.#checks.push(check);
+  }
+
+  /** Runs `step`; each check recorded meanwhile gets the marks it does not set itself, and each follow-up the level. */
+  async marked(marks: StepMarks, step: () => Promise<void>): Promise<void> {
+    const outer = this.#marks;
+    this.#marks = { ...outer, ...marks };
+    try {
+      await step();
+    } finally {
+      this.#marks = outer;
+    }
+  }
+
+  #stamped(check: CheckRecord): CheckRecord {
+    const { level, callout } = this.#marks;
+    return {
+      ...check,
+      ...(check.level === undefined && level !== undefined ? { level } : {}),
+      ...(check.callout === undefined && callout !== undefined ? { callout } : {}),
+    };
   }
 
   override async attach(

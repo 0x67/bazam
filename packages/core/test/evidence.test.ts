@@ -62,6 +62,7 @@ describe("EvidenceStore", () => {
     const store = newStore();
     store.record(heading);
     store.note("signed in as admin-1");
+    store.callout("session is a demo session");
     store.followup("welcome email arrives", "check the ops@example.test inbox");
     await store.attach("Dashboard", new Uint8Array(pngHeader), "png");
     store.challenge(2, "otp-email", "otp-mailpit");
@@ -90,6 +91,7 @@ describe("EvidenceStore", () => {
         },
       ],
       notes: ["signed in as admin-1"],
+      callouts: ["session is a demo session"],
       followups: [{ item: "welcome email arrives", hint: "check the ops@example.test inbox" }],
       attachments: ["01-dashboard.png"],
       challenges: [{ step: 2, kind: "otp-email", resolver: "otp-mailpit" }],
@@ -269,6 +271,7 @@ describe("writeRunSummary", () => {
       status,
       checks: [heading],
       notes: [],
+      callouts: [],
       followups: [],
       attachments: [],
       challenges: [],

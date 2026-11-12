@@ -43,6 +43,7 @@ function failed(runId: string): CaseResult {
       },
     ],
     notes: [],
+    callouts: [],
     followups: [],
     attachments: [],
     challenges: [],

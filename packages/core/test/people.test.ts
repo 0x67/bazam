@@ -56,6 +56,7 @@ function failedItem(people: PeopleRegistry, roles: readonly string[]): PostPlanI
       },
     ],
     notes: [],
+    callouts: [],
     followups: [],
     attachments: [],
     challenges: [],

@@ -123,6 +123,22 @@ async function run(
 }
 
 describe("finally steps", () => {
+  it("store neither the level nor the callout of a finally step", async () => {
+    const [result] = await run([
+      {
+        id: "SHOP-ONE-001",
+        checks: [{ expect: "cart" }],
+        finally: [
+          { expect: "gone", level: "core", callout: true },
+          { note: "bye", callout: true },
+        ],
+      },
+    ]);
+
+    expect(result?.callouts).toEqual([]);
+    expect(result?.notes).toEqual(["finally check gone is visible: ok", "bye"]);
+  });
+
   it("run after a pass with the values the steps saved, and add no check", async () => {
     const [result] = await run([
       {

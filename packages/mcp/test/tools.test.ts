@@ -375,6 +375,7 @@ describe("case tools", () => {
         },
       ],
       notes: [],
+      callouts: [],
       followups: [],
       attachments: [],
       challenges: [],
