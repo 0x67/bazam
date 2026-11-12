@@ -68,8 +68,18 @@ const WebSettings = z
     // granted to every context; Playwright grants none by default
     permissions: z.array(z.string().min(1)).optional(),
     args: z.array(z.string().min(1)).default([]),
+    // "window" leaves the page at the size of the browser window
     viewport: z
-      .strictObject({ width: z.number().int().positive(), height: z.number().int().positive() })
+      .union(
+        [
+          z.literal("window"),
+          z.strictObject({
+            width: z.number().int().positive(),
+            height: z.number().int().positive(),
+          }),
+        ],
+        { error: "a viewport is window or { width, height } in CSS pixels" },
+      )
       .optional(),
   })
   .refine((settings) => settings.channel === undefined || settings.browser === "chromium", {
@@ -182,7 +192,9 @@ function launchBrowser(kind: BrowserKind): Promise<Browser> {
 function contextOptions(settings: WebSettings): BrowserContextOptions {
   return {
     ...(settings.permissions === undefined ? {} : { permissions: settings.permissions }),
-    ...(settings.viewport === undefined ? {} : { viewport: settings.viewport }),
+    ...(settings.viewport === undefined
+      ? {}
+      : { viewport: settings.viewport === "window" ? null : settings.viewport }),
   };
 }
 

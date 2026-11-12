@@ -913,6 +913,12 @@ describe.each(ENGINES)("browser settings on %s", (engine) => {
     expect(plain.viewportSize()).toEqual({ width: 1280, height: 720 });
   });
 
+  it("opens a case context with no fixed viewport for viewport: window", async () => {
+    const page = await pageWith({ viewport: "window" });
+
+    expect(page.viewportSize()).toBeNull();
+  });
+
   // WebKit's Linux launcher refuses an option it does not know and has none that is harmless; the pool key does not
   // depend on the engine
   it.skipIf(engine === "webkit" && process.platform === "linux")(
@@ -1008,6 +1014,11 @@ describe("playwrightDriver", () => {
 
   it.each([
     ["a viewport of width 0", { viewport: { width: 0, height: 10 } }, /at viewport\.width/],
+    [
+      "a viewport word other than window",
+      { viewport: "screen" },
+      /a viewport is window or \{ width, height \} in CSS pixels/,
+    ],
     ["a non-string args entry", { args: ["--lang=en", 3] }, /at args\[1\]/],
   ])("refuses %s when the settings parse", async (_name, settings, field) => {
     const options = {
