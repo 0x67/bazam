@@ -42,7 +42,7 @@ const TICKETS = join(import.meta.dirname, "tickets");
 
 const GOOD = "DEMO-506";
 const BROKEN = "DEMO-505";
-const BROKEN_ID = "AUTH-SESSION-002";
+const BROKEN_ID = "AUTH-SESSION-099";
 // the agent only links an existing case, in the first run, and works until it is stopped, in the second
 const LINK_ONLY = "DEMO-502";
 const LINKED_ID = "API-KEY-001";
