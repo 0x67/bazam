@@ -143,6 +143,7 @@ function trackerClientProxy(call: PluginCall, within: Within, tracker: string): 
           await on((ids) =>
             call("trackerClient.attach", { ...ids, key, files: [...files] }, ctx.signal),
           );
+          return new Map();
         },
         postComment: (key, comment, mentions) =>
           on((ids) =>

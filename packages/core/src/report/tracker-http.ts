@@ -17,6 +17,8 @@ export interface TrackerRequest {
   json?: unknown;
   form?: FormData;
   headers?: Record<string, string>;
+  /** Returns the first redirect's `Location` as {@link TrackerResponse.location} instead of following it. */
+  redirect?: "report";
 }
 
 export interface TrackerResponse {
@@ -24,6 +26,8 @@ export interface TrackerResponse {
   headers: Headers;
   /** The parsed JSON for a JSON content type, otherwise the text; undefined for an empty body. */
   body: unknown;
+  /** The `Location` of the redirect a `redirect: "report"` request got; the redirect is not followed. */
+  location?: string;
 }
 
 export interface TrackerHttp {
@@ -91,6 +95,7 @@ export function trackerHttp(options: TrackerHttpOptions): TrackerHttp {
       });
       const location = response.headers.get("location");
       if (!REDIRECT_STATUSES.has(response.status) || location === null) return response;
+      if (request.redirect === "report") return response;
       await response.body?.cancel();
       const next = new URL(location, hop.url);
       if (next.origin !== base.origin)
@@ -118,6 +123,20 @@ export function trackerHttp(options: TrackerHttpOptions): TrackerHttp {
       const url = requestUrl(base, basePath, method, request);
       for (let attempt = 1; ; attempt += 1) {
         const response = await follow(method, request, url);
+        const redirected = response.headers.get("location");
+        if (
+          request.redirect === "report" &&
+          redirected !== null &&
+          REDIRECT_STATUSES.has(response.status)
+        ) {
+          await response.body?.cancel();
+          return {
+            status: response.status,
+            headers: response.headers,
+            body: undefined,
+            location: redirected,
+          };
+        }
         const retry = response.status === 429 || (response.status === 503 && method === "GET");
         if (!retry || attempt === MAX_ATTEMPTS)
           return readResponse(response, method, request.path, redactor);

@@ -28,7 +28,13 @@ export interface StubComment {
 export interface StubAttachment {
   name: string;
   size: number;
+  /** Set by the stub on an upload: the numeric id the answer holds, and the media id behind it. */
+  id?: string;
+  mediaId?: string;
 }
+
+/** How the content endpoint answers: a 303 to the media host, a 200, a 500, or a 303 whose path holds no UUID. */
+export type ContentAnswer = "redirect" | "plain" | "fail" | "no-uuid";
 
 /** An issue the test seeds or the client creates; the stub adds comments and attachments as they arrive. */
 export interface StubIssue {
@@ -74,6 +80,10 @@ export interface JiraStub {
   issues: Map<string, StubIssue>;
   links: StubLink[];
   requests: StubRequest[];
+  /** What the media host, a second origin the content redirect points at, was asked. */
+  mediaRequests: { path: string; authorization: string | undefined }[];
+  /** How `GET /attachment/content/<id>` answers; `redirect` when left alone. */
+  contentAnswer: ContentAnswer;
   close(): Promise<void>;
 }
 
@@ -88,11 +98,16 @@ export interface JiraStubOptions {
 interface Answer {
   status: number;
   body?: unknown;
+  location?: string;
 }
 
 const NO_ISSUE: Answer = {
   status: 404,
   body: { errorMessages: ["Issue does not exist or you do not have permission to see it."] },
+};
+const UNKNOWN_MEDIA: Answer = {
+  status: 400,
+  body: { errorMessages: ["ATTACHMENT_VALIDATION_ERROR"] },
 };
 // the one JQL shape the client sends, with its quoted values
 const OPEN_BUG_JQL =
@@ -108,7 +123,11 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
   const issues = new Map((options.issues ?? []).map((issue) => [issue.key, issue]));
   const links: StubLink[] = [];
   const requests: StubRequest[] = [];
+  const mediaRequests: JiraStub["mediaRequests"] = [];
+  const known = new Set<string>();
   let lastId = 10_000;
+  let mediaOrigin = "";
+  const state = { contentAnswer: "redirect" as ContentAnswer };
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const chunks: Buffer[] = [];
@@ -129,7 +148,9 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
             status: 401,
             body: { errorMessages: ["Client must be authenticated to access this resource."] },
           };
-    if (answer.body === undefined) res.writeHead(answer.status).end();
+    if (answer.location !== undefined)
+      res.writeHead(answer.status, { location: answer.location }).end();
+    else if (answer.body === undefined) res.writeHead(answer.status).end();
     else
       res
         .writeHead(answer.status, { "content-type": "application/json" })
@@ -150,6 +171,9 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
         body: { issueLinkTypes: linkTypes.map((name, index) => ({ id: `${index + 1}`, name })) },
       };
     if (method === "POST" && path === "/rest/api/3/issueLink") return link(body);
+    const content = /^\/rest\/api\/3\/attachment\/content\/([^/]+)$/.exec(path);
+    if (method === "GET" && content !== null)
+      return contentOf(decodeURIComponent(content[1] ?? ""));
     const match =
       /^\/rest\/api\/3\/issue\/([^/]+)(?:\/(attachments|comment|transitions)(?:\/([^/]+))?)?$/.exec(
         path,
@@ -169,6 +193,14 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
         return attach(issue, body, headers);
       case "POST comment":
         return comment(issue, body);
+      case "GET comment/{id}": {
+        const found = issue.comments?.find(
+          (existing) => existing.id === decodeURIComponent(id ?? ""),
+        );
+        return found === undefined
+          ? { status: 404, body: { errorMessages: ["comment not found"] } }
+          : { status: 200, body: found };
+      }
       case "PUT comment/{id}":
         return editComment(issue, decodeURIComponent(id ?? ""), body);
       case "GET transitions":
@@ -252,26 +284,61 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
     return { status: 201 };
   }
 
+  function contentOf(id: string): Answer {
+    const file = [...issues.values()]
+      .flatMap((issue) => issue.attachments ?? [])
+      .find((candidate) => candidate.id === id);
+    if (file?.mediaId === undefined) return NO_ISSUE;
+    if (state.contentAnswer === "fail")
+      return { status: 500, body: { errorMessages: ["the content service is down"] } };
+    if (state.contentAnswer === "plain") return { status: 200, body: { bytes: file.size } };
+    const path =
+      state.contentAnswer === "no-uuid" ? "/file/none/binary" : `/file/${file.mediaId}/binary`;
+    return { status: 303, location: `${mediaOrigin}${path}?token=fake-media-token` };
+  }
+
+  // Jira answers 400 to a media id it does not know
+  function unknownMedia(body: unknown): boolean {
+    const ids: unknown[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) node.forEach(walk);
+      else if (typeof node === "object" && node !== null) {
+        const record = node as Record<string, unknown>;
+        if (record["type"] === "media") ids.push(field(record, "attrs", "id"));
+        Object.values(record).forEach(walk);
+      }
+    };
+    walk(field(body, "body"));
+    return ids.some((id) => typeof id !== "string" || !known.has(id));
+  }
+
   function attach(issue: StubIssue, body: unknown, headers: IncomingHttpHeaders): Answer {
     if (headers["x-atlassian-token"] !== "no-check")
       return { status: 403, body: { errorMessages: ["XSRF check failed"] } };
     if (!Array.isArray(body) || body.length === 0)
       return { status: 400, body: { errorMessages: ["the request holds no file part"] } };
-    const files = body as StubAttachment[];
+    const files = (body as StubAttachment[]).map((file) => ({
+      ...file,
+      id: `${(lastId += 1)}`,
+      mediaId: `00000000-0000-4000-8000-${lastId.toString(16).padStart(12, "0")}`,
+    }));
     (issue.attachments ??= []).push(...files);
+    for (const file of files) known.add(file.mediaId);
     return {
       status: 200,
-      body: files.map((file) => ({ id: `${(lastId += 1)}`, filename: file.name, size: file.size })),
+      body: files.map((file) => ({ id: file.id, filename: file.name, size: file.size })),
     };
   }
 
   function comment(issue: StubIssue, body: unknown): Answer {
+    if (unknownMedia(body)) return UNKNOWN_MEDIA;
     const posted = { id: `${(lastId += 1)}`, body: field(body, "body") };
     (issue.comments ??= []).push(posted);
     return { status: 201, body: posted };
   }
 
   function editComment(issue: StubIssue, id: string, body: unknown): Answer {
+    if (unknownMedia(body)) return UNKNOWN_MEDIA;
     const found = issue.comments?.find((existing) => existing.id === id);
     if (found === undefined)
       return {
@@ -307,15 +374,32 @@ export async function startJiraStub(options: JiraStubOptions): Promise<JiraStub>
         .end(JSON.stringify({ errorMessages: [String(error)] }));
     });
   });
+  const media = createServer((req, res) => {
+    mediaRequests.push({ path: req.url ?? "", authorization: req.headers.authorization });
+    res.writeHead(200).end();
+  });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  await new Promise<void>((done) => media.listen(0, "127.0.0.1", done));
+  mediaOrigin = `http://127.0.0.1:${(media.address() as AddressInfo).port}`;
   return {
     site: `127.0.0.1:${(server.address() as AddressInfo).port}`,
     issues,
     links,
     requests,
+    mediaRequests,
+    get contentAnswer() {
+      return state.contentAnswer;
+    },
+    set contentAnswer(answer) {
+      state.contentAnswer = answer;
+    },
     async close() {
       server.closeAllConnections();
-      await new Promise((done) => server.close(done));
+      media.closeAllConnections();
+      await Promise.all([
+        new Promise((done) => server.close(done)),
+        new Promise((done) => media.close(done)),
+      ]);
     },
   };
 }

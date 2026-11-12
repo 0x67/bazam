@@ -203,6 +203,24 @@ describe("trackerHttp", () => {
     expect(elsewhere.seen).toEqual([]);
   });
 
+  it("returns the Location of a redirect to another origin when asked to report it, and sends nothing there", async () => {
+    tracker.route.current = (_req, res) =>
+      res.writeHead(303, { location: `${elsewhere.origin}/file/abc/binary` }).end();
+
+    const response = await client(tracker.origin).send({
+      method: "GET",
+      path: "/away",
+      redirect: "report",
+    });
+
+    expect(response).toMatchObject({
+      status: 303,
+      location: `${elsewhere.origin}/file/abc/binary`,
+    });
+    expect(paths()).toEqual(["GET /away"]);
+    expect(elsewhere.seen).toEqual([]);
+  });
+
   it("stops after five redirects", async () => {
     tracker.route.current = (_req, res) => res.writeHead(302, { location: "/loop" }).end();
 

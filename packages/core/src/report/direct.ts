@@ -2,9 +2,22 @@ import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import type { PluginRegistry } from "../plugin/index.ts";
 import type { ProjectConfig, TrackerConfig } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
-import type { AttachmentFile, Mention, TicketState, TrackerConnection } from "./client.ts";
-import { trackerProject, type PostPlan, type PostPlanItem, type TicketRef } from "./post-plan.ts";
+import type {
+  AttachmentFile,
+  Mention,
+  TicketState,
+  TrackerConnection,
+  UploadedMedia,
+} from "./client.ts";
+import {
+  trackerProject,
+  type PostPlan,
+  type PostPlanItem,
+  type RenderedComment,
+  type TicketRef,
+} from "./post-plan.ts";
 import { recordReceipt } from "./receipts.ts";
+import { TrackerRequestFailed } from "./tracker-http.ts";
 
 const NO_COMMENT_TO_EDIT = "posted a new comment: the receipt URL names no comment to edit";
 
@@ -87,11 +100,16 @@ async function postItem(
         `${key} is now ${state.key}, in project ${moved}, which is not listed under trackers.${tracker}.projects`,
       );
     const mentions = resolveMentions(item, state, outcome.unresolved);
+    let uploaded: UploadedMedia = new Map();
     if (files.length > 0) {
-      await connection.attach(key, files);
+      uploaded = await connection.attach(key, files);
       outcome.actions.push(`attached ${files.map((file) => file.name).join(", ")}`);
     }
-    const posted = await comment(connection, item, mentions, outcome.actions);
+    const shown =
+      uploaded.size > 0 && connection.showUploads !== undefined
+        ? connection.showUploads(item.comment, uploaded)
+        : item.comment;
+    const posted = await commentOrPlain(connection, item, shown, mentions, outcome.actions, deps);
     outcome.url = posted;
     await recordReceipt(deps.stateDir, item, posted, deps.now());
     if (item.transition !== undefined) {
@@ -118,22 +136,47 @@ export function runFile(runDir: string, path: string): AttachmentFile | undefine
   return { name: basename(file), path: file };
 }
 
+// the tracker answers 400 to a media id it does not accept, so inline media never costs the comment
+async function commentOrPlain(
+  connection: TrackerConnection,
+  item: PostPlanItem,
+  shown: RenderedComment,
+  mentions: readonly Mention[],
+  actions: string[],
+  deps: DirectPostDeps,
+): Promise<string> {
+  try {
+    // a refused edit of the media variant may only mean the tracker took a media id badly, so the plain one edits
+    const url = await comment(connection, item, shown, mentions, actions);
+    return url ?? (await comment(connection, item, item.comment, mentions, actions))!;
+  } catch (error) {
+    if (shown === item.comment || !(error instanceof TrackerRequestFailed) || error.status !== 400)
+      throw error;
+    deps.log(
+      `the tracker refused the comment with inline images, so it is posted without them: ${error.message}`,
+    );
+    return (await comment(connection, item, item.comment, mentions, actions))!;
+  }
+}
+
 /** The comment's URL; edits the receipt's comment when the item names one the client can edit. */
 async function comment(
   connection: TrackerConnection,
   item: PostPlanItem,
+  body: RenderedComment,
   mentions: readonly Mention[],
   actions: string[],
-): Promise<string> {
+): Promise<string | undefined> {
   const { key } = item.ticket;
   if (item.edit !== undefined) {
-    const edited = await connection.editComment(key, item.edit.url, item.comment, mentions);
+    const edited = await connection.editComment(key, item.edit.url, body, mentions);
     if (edited !== undefined) {
       actions.push("edited the comment");
       return edited.url;
     }
+    if (body !== item.comment) return undefined;
   }
-  const posted = await connection.postComment(key, item.comment, mentions);
+  const posted = await connection.postComment(key, body, mentions);
   actions.push(item.edit === undefined ? "posted a comment" : NO_COMMENT_TO_EDIT);
   return posted.url;
 }

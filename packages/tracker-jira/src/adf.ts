@@ -6,6 +6,7 @@ import {
   DEFAULT_RESULT_LINE,
   resultLineParts,
   STATUS_LABELS,
+  type UploadedMedia,
 } from "@bazam/core/report";
 import type { CaseResult, CheckRecord } from "@bazam/core/result";
 
@@ -78,6 +79,40 @@ function shortCallouts(callouts: Callout[]): Callout[] {
   return kept;
 }
 
+/**
+ * The document with a mediaSingle for each png the evidence lists and `uploaded` names, placed before the files
+ * paragraph, and those names taken off the list. Only the files paragraph, the last child of the expand, is read.
+ * A document without them, or one that would pass 30,000 characters, comes back unchanged.
+ */
+export function withInlineMedia(document: AdfDoc, uploaded: UploadedMedia): AdfDoc {
+  const index = document.content.findIndex((node) => at(node, "type") === "expand");
+  const children = at(document.content[index], "content");
+  if (!Array.isArray(children) || children.length === 0) return document;
+  const last: unknown = children[children.length - 1];
+  const text = at(last, "content", "0", "text");
+  if (at(last, "type") !== "paragraph" || typeof text !== "string") return document;
+  if (!text.startsWith(ATTACHED_FILES_PREFIX)) return document;
+
+  const names = text.slice(ATTACHED_FILES_PREFIX.length).split(", ");
+  const images = names.flatMap((name) => {
+    const media = uploaded.get(name);
+    return name.endsWith(".png") && media !== undefined ? [mediaSingle(name, media)] : [];
+  });
+  if (images.length === 0) return document;
+  const listed = names.filter((name) => !(name.endsWith(".png") && uploaded.has(name)));
+
+  const evidence = [
+    ...children.slice(0, -1),
+    ...images,
+    ...(listed.length === 0 ? [] : [paragraph(`${ATTACHED_FILES_PREFIX}${listed.join(", ")}`)]),
+  ] as JsonValue[];
+  const content = document.content.map((node, place) =>
+    place === index ? { ...(node as object), content: evidence } : node,
+  ) as JsonValue[];
+  const next = doc(content);
+  return JSON.stringify(next).length <= MAX_DOC_LENGTH ? next : document;
+}
+
 export function followupText(followup: CaseResult["followups"][number]): string {
   return followup.hint === "" ? followup.item : `${followup.item}: ${followup.hint}`;
 }
@@ -98,6 +133,41 @@ function textNodes(text: string): JsonValue[] {
 
 function paragraph(text: string): JsonValue {
   return { type: "paragraph", content: textNodes(text) };
+}
+
+function mediaSingle(
+  name: string,
+  media: { id: string; width?: number; height?: number },
+): JsonValue {
+  const { id, width, height } = media;
+  return {
+    type: "mediaSingle",
+    // align-start puts the picture at the left edge, in line with the table above it
+    attrs: { layout: "align-start" },
+    content: [
+      {
+        type: "media",
+        attrs: {
+          id,
+          type: "file",
+          collection: "",
+          alt: name,
+          ...(width === undefined ? {} : { width }),
+          ...(height === undefined ? {} : { height }),
+        },
+      },
+    ],
+  };
+}
+
+// the value at the key path, where an array index is a key too
+function at(value: unknown, ...keys: string[]): unknown {
+  let current = value;
+  for (const key of keys) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
 }
 
 function panel(tone: "error" | "success", text: string): JsonValue {

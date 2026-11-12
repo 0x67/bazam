@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
+import { crc32, deflateSync } from "node:zlib";
 import { BRAND } from "../packages/core/src/brand.ts";
 
 // posts to a real Jira site and is run by hand, never in CI; brand.ts imports nothing, so this process loads
@@ -41,6 +42,35 @@ const ENV = "smoke";
 const TARGET = "smoke";
 const FAIL_RUN = "smoke-fail";
 const PASS_RUN = "smoke-pass";
+const MEDIA_RUN = "smoke-media";
+const MEDIA_FILE = "01-screen.png";
+// a solid opaque 200 by 60 png, so the check on a real site can see it
+function pngChunk(type: string, data: Buffer): Buffer {
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const head = Buffer.alloc(4);
+  head.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([head, body, crc]);
+}
+
+function solidPng(width: number, height: number): Buffer {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  // orange, so the picture stands out on a light and on a dark page
+  const pixel = [0xf5, 0x82, 0x1f];
+  const row = Buffer.from([0, ...Array.from({ length: width }, () => pixel).flat()]);
+  const pixels = Buffer.concat(Array.from({ length: height }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(pixels)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 const SMOKE_LABEL = `${BRAND.markerPrefix}-smoke`;
 const PROBE_TITLE = "Folded section";
 const PROBE: unknown = {
@@ -159,6 +189,8 @@ interface Smoke {
   /** Aborted by Ctrl-C. */
   signal: AbortSignal;
   ticketComment?: string;
+  /** The comment of the media step on the ticket. */
+  mediaComment?: string;
   bug?: { key: string; url: string };
   /** The label of a bug the run may have filed but could not name. */
   possibleBugLabel?: string;
@@ -609,6 +641,86 @@ async function probe(smoke: Smoke, send: Send, key: string): Promise<void> {
   smoke.out.line(`probe comment ${browseUrl(smoke.inputs, key, id)}`);
 }
 
+/** The node types a comment's ADF holds, at any depth. */
+function nodeTypes(value: unknown, found = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) for (const item of value) nodeTypes(item, found);
+  else if (typeof value === "object" && value !== null) {
+    const type = at(value, "type");
+    if (typeof type === "string") found.add(type);
+    nodeTypes(at(value, "content"), found);
+  }
+  return found;
+}
+
+// a result written by hand: a failed check marked as a callout, a level and a png, as an agent run would leave it
+async function writeMediaRun(smoke: Smoke): Promise<void> {
+  const folder = path.join(smoke.root, "runs", MEDIA_RUN, smoke.caseId);
+  await mkdir(folder, { recursive: true });
+  await writeFile(path.join(folder, MEDIA_FILE), solidPng(200, 60));
+  const now = new Date().toISOString();
+  const result = {
+    runId: MEDIA_RUN,
+    caseId: smoke.caseId,
+    title: "Direct Jira posting",
+    stage: "acceptance",
+    env: ENV,
+    target: TARGET,
+    links: [`jira:${smoke.inputs.ticket}`],
+    status: "fail",
+    checks: [
+      {
+        name: "the screenshot shows the total",
+        kind: "ui",
+        expected: "visible",
+        observed: "hidden",
+        ok: false,
+        level: "critical",
+        callout: true,
+      },
+    ],
+    notes: [],
+    callouts: [],
+    followups: [],
+    attachments: [MEDIA_FILE],
+    challenges: [],
+    identities: [],
+    seed: 1,
+    values: {},
+    caseValues: {},
+    steps: [],
+    startedAt: now,
+    finishedAt: now,
+    durationMs: 0,
+  };
+  await writeFile(path.join(folder, "result.json"), `${JSON.stringify(result, null, 2)}\n`);
+}
+
+/** Posts the hand-written result and reads its comment back to see which node types Jira kept. */
+async function mediaStep(smoke: Smoke, send: Send): Promise<void> {
+  await writeMediaRun(smoke);
+  const output = await reportPost(smoke, MEDIA_RUN);
+  const item = output.items.find((outcome) => outcome.ticket.key === smoke.inputs.ticket);
+  if (item?.url !== undefined) {
+    smoke.mediaComment = item.url;
+    smoke.out.line(`media comment ${item.url}`);
+  }
+  if (output.code !== 0 || item?.ok !== true || item.url === undefined)
+    throw new Error(`report post of the media result exited ${output.code}${failures(output)}`);
+  const id = new URL(item.url).searchParams.get("focusedCommentId");
+  if (id === null || !COMMENT_ID.test(id)) throw new Error("the media comment has no comment id");
+  const body = at(
+    await send("GET", `/rest/api/3/issue/${smoke.inputs.ticket}/comment/${id}`),
+    "body",
+  );
+  const types = nodeTypes(body);
+  for (const type of ["expand", "panel", "mediaSingle"])
+    smoke.out.line(`the media comment body ${types.has(type) ? "holds" : "does not hold"} ${type}`);
+  if (!types.has("mediaSingle"))
+    smoke.out.line(
+      `finding: ${MEDIA_FILE} is listed by name, not shown; the post fell back, which is allowed`,
+    );
+}
+
 async function realRun(smoke: Smoke, credentials: Credentials): Promise<void> {
   const { out, inputs } = smoke;
   const send = jiraSender(inputs, credentials, smoke.signal);
@@ -632,6 +744,7 @@ async function realRun(smoke: Smoke, credentials: Credentials): Promise<void> {
   await waitForSearch(smoke, send, bug.key);
   await passingRun(smoke, bug.key);
   await probe(smoke, send, bug.key);
+  await mediaStep(smoke, send);
   out.line("");
   out.line("Check on the site:");
   out.line(
@@ -642,6 +755,9 @@ async function realRun(smoke: Smoke, credentials: Credentials): Promise<void> {
   );
   out.line("3. Each focusedCommentId link above opens its comment.");
   out.line(`4. The probe comment on ${bug.key} shows a folded section titled "${PROBE_TITLE}".`);
+  out.line(
+    `5. The media comment on ${inputs.ticket} shows a panel above a fold titled Evidence, and ${MEDIA_FILE} inside it.`,
+  );
 }
 
 async function dryRun(smoke: Smoke): Promise<void> {
@@ -663,6 +779,15 @@ async function dryRun(smoke: Smoke): Promise<void> {
     "4. ingest a passing result, then report post, which comments on the bug and moves nothing",
   );
   out.line("5. post a probe comment with an expand node on the bug");
+  out.line(
+    `6. write a result with a callout check, a level and a png by hand, report post it on ${inputs.ticket}, and read the comment back for an expand, a panel and a mediaSingle`,
+  );
+}
+
+function ticketComments(smoke: Smoke): string[] {
+  const count = [smoke.ticketComment, smoke.mediaComment].filter((url) => url !== undefined).length;
+  if (count === 0) return [];
+  return [`the comment${count === 1 ? "" : "s"} on ${smoke.inputs.ticket}`];
 }
 
 /** Everything the run created, for the person to delete. */
@@ -676,7 +801,7 @@ function cleanupLine(smoke: Smoke): string | undefined {
       : [
           `any bug in ${smoke.inputs.project} labelled ${smoke.possibleBugLabel}, which the run may have filed`,
         ]),
-    ...(smoke.ticketComment === undefined ? [] : [`the comment on ${smoke.inputs.ticket}`]),
+    ...ticketComments(smoke),
   ];
   return created.length === 0 ? undefined : `Delete afterwards: ${created.join(", and ")}.`;
 }

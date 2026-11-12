@@ -164,7 +164,7 @@ describe("jira-smoke", () => {
         query: { fields: "status" },
       });
       const ticketComments = stub.issues.get("DEMO-1")?.comments ?? [];
-      expect(ticketComments).toHaveLength(1);
+      expect(ticketComments).toHaveLength(2);
 
       const bug = stub.issues.get("DEMO-2");
       const caseId = /^\[(SMOKE-JIRA\d{6}-\d{6})\] /.exec(bug?.summary ?? "")?.[1] ?? "";
@@ -195,6 +195,10 @@ describe("jira-smoke", () => {
       });
       expect(stub.requests.filter((request) => request.path.endsWith("/transitions"))).toEqual([]);
 
+      // the media step: the callout panel, the fold and the uploaded png shown inline
+      const media = JSON.stringify(ticketComments[1]?.body);
+      for (const type of ["expand", "panel", "mediaSingle"]) expect(media).toContain(`"${type}"`);
+
       const browse = `http://${stub.site}/browse`;
       const out = lines(run.stdout);
       expect(out).toEqual(
@@ -203,6 +207,8 @@ describe("jira-smoke", () => {
           `bug DEMO-2 ${browse}/DEMO-2`,
           `recovery comment ${browse}/DEMO-2?focusedCommentId=${recovery?.id}`,
           `probe comment ${browse}/DEMO-2?focusedCommentId=${probe?.id}`,
+          `media comment ${browse}/DEMO-1?focusedCommentId=${ticketComments[1]?.id}`,
+          "the media comment body holds mediaSingle",
         ]),
       );
       expect(out).toEqual(
@@ -237,6 +243,21 @@ describe("jira-smoke", () => {
       expect(cleanup).toContain("the comment on DEMO-1");
       expect(stub.links).toEqual([]);
       expect(comments("DEMO-2")).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
+    "prints a finding and still exits 0 when the png could not be shown inline",
+    async () => {
+      stub.contentAnswer = "fail";
+      const run = await smoke({ ...site(), JIRA_EMAIL: EMAIL, JIRA_API_TOKEN: TOKEN });
+      expect(run.code, run.stderr).toBe(0);
+
+      expect(lines(run.stdout)).toEqual(
+        expect.arrayContaining(["the media comment body does not hold mediaSingle"]),
+      );
+      expect(run.stdout).toContain("finding: 01-screen.png is listed by name");
     },
     SLOW,
   );
@@ -407,6 +428,7 @@ describe("jira-smoke", () => {
       );
       expect(run.stdout).toContain("passing result");
       expect(run.stdout).toContain("expand");
+      expect(run.stdout).toContain("a callout check, a level and a png");
       expect(stub.requests).toEqual([]);
     },
     SLOW,

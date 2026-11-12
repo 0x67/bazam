@@ -14,6 +14,7 @@ import {
   type BugDraft,
   type ItemOutcome,
   type PostPlanItem,
+  type RenderedComment,
   type TrackerClientContext,
   type TrackerConnection,
 } from "@bazam/core/report";
@@ -253,6 +254,139 @@ describe("jiraClient", () => {
     expect(
       stub.requests.map((request) => (Array.isArray(request.body) ? request.body.length : 0)),
     ).toEqual([10, 2]);
+  });
+
+  describe("inline media", () => {
+    // a png header with the size 4 by 3 and nothing after it
+    const PNG = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]),
+      Buffer.from("IHDR"),
+      Buffer.from([0, 0, 0, 4, 0, 0, 0, 3]),
+    ]);
+
+    async function upload(name: string, bytes: Buffer): Promise<AttachmentFile> {
+      await writeFile(join(folder, name), bytes);
+      return { name, path: join(folder, name) };
+    }
+
+    it("returns the media id and size of an uploaded png, and nothing for a zip or a short file", async () => {
+      const connection = await connect();
+      const uploads = [
+        await upload("01-shot.png", PNG),
+        await upload("02-trace.zip", Buffer.from("PK")),
+        await upload("03-short.png", Buffer.from("not a png")),
+      ];
+
+      const media = await connection.attach("DEMO-12", uploads);
+
+      const stored = stub.issues
+        .get("DEMO-12")
+        ?.attachments?.find((file) => file.name === "01-shot.png");
+      expect([...media]).toEqual([["01-shot.png", { id: stored?.mediaId, width: 4, height: 3 }]]);
+      expect(sent("GET").filter((line) => line.includes("/attachment/content/"))).toHaveLength(2);
+    });
+
+    it.each(["plain", "fail", "no-uuid"] as const)(
+      "logs one line and returns no entry when the lookup is %s",
+      async (answer) => {
+        stub.contentAnswer = answer;
+        const connection = await connect();
+
+        const media = await connection.attach("DEMO-12", [await upload("01-shot.png", PNG)]);
+
+        expect(media.size).toBe(0);
+        expect(logs.filter((line) => line.includes("no media id for 01-shot.png"))).toHaveLength(1);
+      },
+    );
+
+    it("sends the credential to the stub only, never to the media host", async () => {
+      const connection = await connect();
+
+      const media = await connection.attach("DEMO-12", [await upload("01-shot.png", PNG)]);
+
+      expect(media.size).toBe(1);
+      expect(stub.mediaRequests).toEqual([]);
+    });
+
+    it("shows an uploaded png in a comment the stub accepts, and the stub refuses an unknown id", async () => {
+      const connection = await connect();
+      const media = await connection.attach("DEMO-12", [await upload("01-shot.png", PNG)]);
+      const plain = jiraTracker.render(result({ attachments: ["01-shot.png"] }));
+
+      const shown = connection.showUploads?.(plain, media) as RenderedComment;
+      await connection.postComment("DEMO-12", shown, []);
+
+      expect(JSON.stringify(shown.adf)).toContain('"type":"mediaSingle"');
+      const unknown = new Map([["01-shot.png", { id: "not-known", width: 4, height: 3 }]]);
+      await expect(
+        connection.postComment(
+          "DEMO-12",
+          connection.showUploads?.(plain, unknown) as RenderedComment,
+          [],
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("returns the same comment when no media id applies", async () => {
+      const connection = await connect();
+      const plain = jiraTracker.render(result({ attachments: ["01-shot.png"] }));
+      const other = new Map([["02-other.png", { id: "media-2", width: 4, height: 3 }]]);
+
+      expect(connection.showUploads?.(plain, other)).toBe(plain);
+    });
+
+    it("edits with the plain comment, and posts nothing, when Jira refuses the media ids", async () => {
+      const shot = await upload("01-shot.png", PNG);
+      const connection = await connect();
+      const { url } = await connection.postComment("DEMO-12", jiraTracker.render(result()), []);
+      const id = new URL(url).searchParams.get("focusedCommentId") ?? "";
+      const send = globalThis.fetch;
+      let refused = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        if (
+          init?.method === "PUT" &&
+          typeof init.body === "string" &&
+          init.body.includes("mediaSingle")
+        ) {
+          refused += 1;
+          return Response.json({ errorMessages: ["ATTACHMENT_VALIDATION_ERROR"] }, { status: 400 });
+        }
+        return send(input, init);
+      });
+      stub.requests.length = 0;
+
+      const [outcome] = await postDirect([
+        planItem({
+          attachments: [shot.name],
+          edit: { url },
+          comment: jiraTracker.render(result({ attachments: [shot.name] })),
+        }),
+      ]);
+
+      expect(outcome).toMatchObject({ ok: true, url });
+      expect(refused).toBe(1);
+      expect(sent("POST").filter((line) => line.endsWith("/comment"))).toEqual([]);
+      expect(sent("PUT")).toEqual([`PUT /rest/api/3/issue/DEMO-12/comment/${id}`]);
+      expect(logs.filter((line) => line.includes("cannot edit comment"))).toHaveLength(1);
+    });
+
+    it("lists the files of a bug by name", async () => {
+      const connection = await connect();
+
+      await connection.createBug({
+        project: "DEMO",
+        issueType: "Bug",
+        summary: "Cart total is wrong",
+        labels: [],
+        description: jiraTracker.render(result({ attachments: ["01-shot.png"] })),
+        attachments: [await upload("01-shot.png", PNG)],
+        relatesTo: [],
+      });
+
+      const description = JSON.stringify([...stub.issues.values()].at(-1)?.description);
+      expect(description).toContain("Attached files: 01-shot.png");
+      expect(description).not.toContain("mediaSingle");
+    });
   });
 
   it("posts the ADF comment with a last paragraph of mentions and returns its browse URL", async () => {

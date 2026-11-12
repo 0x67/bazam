@@ -145,7 +145,7 @@ const manifest = definePlugin({
         ctx.log(`connected with ${token}`);
         return {
           ticket: async (key) => ({ key, status: "Open", done: false }),
-          attach: async () => {},
+          attach: async () => new Map(),
           postComment: async (key, comment) => ({ url: `https://tracker.example.test/${key}?chars=${comment.markdown.length}` }),
           editComment: async () => undefined,
           transition: async () => {},

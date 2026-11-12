@@ -1,4 +1,5 @@
 import { openAsBlob } from "node:fs";
+import { open } from "node:fs/promises";
 import type { JsonValue } from "@bazam/core/auth";
 import {
   trackerHttp,
@@ -14,7 +15,9 @@ import {
   type TrackerClientContext,
   type TrackerConnection,
   type TrackerHttp,
+  type UploadedMedia,
 } from "@bazam/core/report";
+import { withInlineMedia, type AdfDoc } from "./adf.ts";
 
 const ISSUE_KEY = /^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/;
 const PROJECT_KEY = /^[A-Z][A-Z0-9_]*$/;
@@ -26,6 +29,9 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost"]);
 const EDIT_REFUSED: ReadonlySet<number> = new Set([400, 403, 404]);
 // Jira takes 60 files per request; smaller batches keep each upload short
 const FILES_PER_REQUEST = 10;
+const MEDIA_UUID =
+  /^\/file\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/binary$/i;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Jira Cloud REST v3 with basic auth; REST calls go to `api` when set, browse links always use `site`. */
 export const jiraClient: TrackerClient = {
@@ -101,18 +107,64 @@ class JiraConnection implements TrackerConnection {
     };
   }
 
-  async attach(key: string, files: readonly AttachmentFile[]): Promise<void> {
+  async attach(key: string, files: readonly AttachmentFile[]): Promise<UploadedMedia> {
     checkKey(key);
+    const uploaded = new Map<string, { id: string; width?: number; height?: number }>();
     for (let start = 0; start < files.length; start += FILES_PER_REQUEST) {
       const form = new FormData();
       for (const file of files.slice(start, start + FILES_PER_REQUEST))
         form.append("file", await openAsBlob(file.path), file.name);
-      await this.#http.send({
+      const { body } = await this.#http.send({
         method: "POST",
         path: trackerPath`/rest/api/3/issue/${key}/attachments`,
         form,
         headers: { "X-Atlassian-Token": "no-check" },
       });
+      for (const entry of Array.isArray(body) ? (body as unknown[]) : []) {
+        const name = at(entry, "filename");
+        const id = at(entry, "id");
+        const file = files.find((candidate) => candidate.name === name);
+        if (file === undefined || !file.name.endsWith(".png")) continue;
+        if (typeof id !== "string" && typeof id !== "number") continue;
+        const media = await this.#mediaOf(String(id), file);
+        if (media !== undefined) uploaded.set(file.name, media);
+      }
+    }
+    return uploaded;
+  }
+
+  showUploads(comment: RenderedComment, uploaded: UploadedMedia): RenderedComment {
+    const adf = adfOf(comment) as AdfDoc;
+    const next = withInlineMedia(adf, uploaded);
+    return next === adf ? comment : { ...comment, adf: next };
+  }
+
+  // the media id Jira keeps for an attachment, read from the redirect its content URL answers with
+  async #mediaOf(
+    attachmentId: string,
+    file: AttachmentFile,
+  ): Promise<{ id: string; width: number; height: number } | undefined> {
+    try {
+      const { location } = await this.#http.send({
+        method: "GET",
+        path: trackerPath`/rest/api/3/attachment/content/${attachmentId}`,
+        redirect: "report",
+      });
+      const uuid =
+        location === undefined || !URL.canParse(location, this.#site.href)
+          ? undefined
+          : MEDIA_UUID.exec(new URL(location, this.#site).pathname)?.[1];
+      const size = await pngSize(file.path);
+      if (uuid === undefined || size === undefined) {
+        this.#ctx.log(`no media id for ${file.name} on its upload, so it stays listed by name`);
+        return undefined;
+      }
+      return { id: uuid, ...size };
+    } catch (error) {
+      this.#ctx.log(
+        `no media id for ${file.name}, so it stays listed by name: ${messageOf(error)}`,
+      );
+      return undefined;
     }
   }
 
@@ -267,6 +319,19 @@ class JiraConnection implements TrackerConnection {
     const url = new URL(trackerPath`/browse/${key}`, this.#site);
     if (commentId !== undefined) url.searchParams.set("focusedCommentId", commentId);
     return url.href;
+  }
+}
+
+// the width and height in the IHDR chunk, or undefined for a file that is not a png
+async function pngSize(path: string): Promise<{ width: number; height: number } | undefined> {
+  const header = Buffer.alloc(24);
+  const handle = await open(path);
+  try {
+    const { bytesRead } = await handle.read(header, 0, 24, 0);
+    if (bytesRead < 24 || !header.subarray(0, 8).equals(PNG_SIGNATURE)) return undefined;
+    return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
+  } finally {
+    await handle.close();
   }
 }
 

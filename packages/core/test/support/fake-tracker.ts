@@ -8,6 +8,7 @@ import type {
   TrackerClient,
   TrackerClientContext,
   TrackerConnection,
+  UploadedMedia,
 } from "../../src/report/index.ts";
 
 /**
@@ -63,6 +64,12 @@ export class FakeTrackerConnection implements TrackerConnection {
   readonly failures: Partial<Record<Method, string>> = {};
   /** What `createBug` reports as failed after it files the bug, as when an upload or a link is refused. */
   readonly bugProblems: string[] = [];
+  /** What `attach` reports as learned, as a tracker that shows uploads inline would. */
+  uploaded: UploadedMedia = new Map();
+  /** Shows the uploads inline; a connection that cannot leaves it unset. */
+  showUploads?: (comment: RenderedComment, uploaded: UploadedMedia) => RenderedComment;
+  /** The error a post or an edit throws for a comment, as when the tracker refuses its content. */
+  refuses?: (comment: RenderedComment) => Error | undefined;
   #lastComment = 10_000;
   #lastIssue = 900;
 
@@ -87,10 +94,11 @@ export class FakeTrackerConnection implements TrackerConnection {
     };
   }
 
-  async attach(key: string, files: readonly AttachmentFile[]): Promise<void> {
+  async attach(key: string, files: readonly AttachmentFile[]): Promise<UploadedMedia> {
     this.#record({ method: "attach", key, files: [...files] });
     this.#held(key);
     this.attachments.set(key, [...(this.attachments.get(key) ?? []), ...files]);
+    return this.uploaded;
   }
 
   async postComment(
@@ -100,6 +108,7 @@ export class FakeTrackerConnection implements TrackerConnection {
   ): Promise<PostedComment> {
     this.#record({ method: "postComment", key, comment, mentions: [...mentions] });
     this.#held(key);
+    this.#refuse(comment);
     this.#lastComment += 1;
     const url = `https://tracker.example.test/browse/${key}?focusedCommentId=${this.#lastComment}`;
     this.comments.set(key, [
@@ -117,6 +126,7 @@ export class FakeTrackerConnection implements TrackerConnection {
   ): Promise<PostedComment | undefined> {
     this.#record({ method: "editComment", key, url, comment, mentions: [...mentions] });
     this.#held(key);
+    this.#refuse(comment);
     const comments = this.comments.get(key) ?? [];
     const index = comments.findIndex((existing) => existing.url === url);
     if (index === -1) return undefined;
@@ -167,6 +177,11 @@ export class FakeTrackerConnection implements TrackerConnection {
     this.calls.push(call);
     const failure = this.failures[call.method];
     if (failure !== undefined) throw new Error(failure);
+  }
+
+  #refuse(comment: RenderedComment): void {
+    const error = this.refuses?.(comment);
+    if (error !== undefined) throw error;
   }
 
   #held(key: string): FakeTicket {

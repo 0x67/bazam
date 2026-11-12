@@ -13,7 +13,9 @@ import {
   type ItemOutcome,
   type PostPlan,
   type PostPlanItem,
+  type RenderedComment,
   type TrackerClient,
+  TrackerRequestFailed,
 } from "../src/report/index.ts";
 import {
   fakeTrackerClient,
@@ -283,6 +285,72 @@ describe("postPlanDirect", () => {
     });
     expect(client.contexts).toEqual([]);
     expect(connection.calls).toEqual([]);
+  });
+
+  describe("inline media", () => {
+    const earlier = "https://tracker.example.test/browse/DEMO-12?focusedCommentId=10000";
+    const media = new Map([["01-cart.png", { id: "media-1", width: 4, height: 3 }]]);
+    const inline = (comment: RenderedComment): RenderedComment => ({
+      ...comment,
+      markdown: `${comment.markdown} [inline]`,
+    });
+
+    beforeEach(() => {
+      connection.uploaded = media;
+      connection.showUploads = inline;
+    });
+
+    it("posts the comment with the uploads shown", async () => {
+      await post([item(FULL)], [fakeTrackerClient(connection)]);
+
+      expect(connection.comments.get("DEMO-12")?.[0]?.comment.markdown).toBe(
+        "**FAIL** the cart total is wrong [inline]",
+      );
+    });
+
+    it("edits the comment with the uploads shown", async () => {
+      connection.comments.set("DEMO-12", [
+        { url: earlier, comment: { markdown: "earlier run" }, mentions: [] },
+      ]);
+      await post([item({ ...FULL, edit: { url: earlier } })], [fakeTrackerClient(connection)]);
+
+      expect(connection.comments.get("DEMO-12")?.[0]?.comment.markdown).toBe(
+        "**FAIL** the cart total is wrong [inline]",
+      );
+    });
+
+    it("posts the plan's comment when the connection cannot show uploads", async () => {
+      delete connection.showUploads;
+      await post([item(FULL)], [fakeTrackerClient(connection)]);
+
+      expect(connection.comments.get("DEMO-12")?.[0]?.comment.markdown).toBe(
+        "**FAIL** the cart total is wrong",
+      );
+    });
+
+    it("posts the plan's comment when the tracker answers 400 to the one with media", async () => {
+      connection.refuses = (comment) =>
+        comment.markdown.endsWith("[inline]")
+          ? new TrackerRequestFailed("POST /comment answered 400", 400)
+          : undefined;
+      const [outcome] = await post([item(FULL)], [fakeTrackerClient(connection)]);
+
+      expect(outcome).toMatchObject({
+        ok: true,
+        actions: ["attached 01-cart.png", "posted a comment", "moved to In Progress"],
+      });
+      expect(connection.comments.get("DEMO-12")?.map((entry) => entry.comment.markdown)).toEqual([
+        "**FAIL** the cart total is wrong",
+      ]);
+    });
+
+    it("fails the item as before on any other error", async () => {
+      connection.refuses = () => new TrackerRequestFailed("POST /comment answered 500", 500);
+      const [outcome] = await post([item(FULL)], [fakeTrackerClient(connection)]);
+
+      expect(outcome).toMatchObject({ ok: false, error: "POST /comment answered 500" });
+      expect(connection.comments.get("DEMO-12")).toBeUndefined();
+    });
   });
 
   it("refuses an item whose project is not listed, or whose tracker has no site, and sends nothing for it", async () => {

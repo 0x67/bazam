@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { JsonValue } from "@bazam/core/auth";
 import type { CaseResult, Status } from "@bazam/core/result";
-import { ATTACHED_FILES_PREFIX, renderJiraAdf } from "../src/adf.ts";
+import { ATTACHED_FILES_PREFIX, renderJiraAdf, withInlineMedia, type AdfDoc } from "../src/adf.ts";
 import { renderJiraComment } from "../src/render.ts";
 
 const RUN_ID = "20261107-100000-ab12";
@@ -317,5 +317,93 @@ describe("renderJiraAdf", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("withInlineMedia", () => {
+  const png = { id: "00000000-0000-4000-8000-00000000000a", width: 4, height: 3 };
+  const uploaded = new Map([["01-dashboard.png", png]]);
+
+  function expandOf(doc: AdfDoc): { content: Record<string, JsonValue>[] } {
+    return doc.content.find((node) => (node as { type: string }).type === "expand") as never;
+  }
+
+  it("adds a mediaSingle per uploaded png before the files paragraph and takes the name off the list", () => {
+    const doc = withInlineMedia(renderJiraAdf(result()), uploaded);
+
+    const children = expandOf(doc).content;
+    expect(children.at(-2)).toEqual({
+      type: "mediaSingle",
+      attrs: { layout: "align-start" },
+      content: [
+        {
+          type: "media",
+          attrs: {
+            id: png.id,
+            type: "file",
+            collection: "",
+            alt: "01-dashboard.png",
+            width: 4,
+            height: 3,
+          },
+        },
+      ],
+    });
+    expect(textOf(children.at(-1) as JsonValue)).toBe(`${ATTACHED_FILES_PREFIX}02-trace.zip`);
+  });
+
+  it("drops the files paragraph when the list empties", () => {
+    const doc = withInlineMedia(
+      renderJiraAdf(result({ attachments: ["01-dashboard.png"] })),
+      uploaded,
+    );
+
+    expect(expandOf(doc).content.map((node) => node["type"])).toEqual(["table", "mediaSingle"]);
+  });
+
+  it("keeps a png the upload did not name, and a zip, listed", () => {
+    const original = renderJiraAdf(result({ attachments: ["02-trace.zip", "03-other.png"] }));
+
+    expect(withInlineMedia(original, uploaded)).toBe(original);
+  });
+
+  it("returns a document with no expand or no files paragraph unchanged", () => {
+    const bare = renderJiraAdf(result({ checks: [], attachments: [] }));
+    const noFiles = renderJiraAdf(result({ attachments: [] }));
+
+    expect(withInlineMedia(bare, uploaded)).toBe(bare);
+    expect(withInlineMedia(noFiles, uploaded)).toBe(noFiles);
+  });
+
+  it("does not touch a note that starts like the files paragraph", () => {
+    const original = renderJiraAdf(
+      result({ attachments: [], notes: [`${ATTACHED_FILES_PREFIX}01-dashboard.png`] }),
+    );
+
+    expect(withInlineMedia(original, uploaded)).toBe(original);
+  });
+
+  it("returns a document that the images would take over 30,000 characters unchanged", () => {
+    const build = (pad: number): AdfDoc => ({
+      version: 1,
+      type: "doc",
+      content: [
+        {
+          type: "expand",
+          attrs: { title: "Evidence" },
+          content: [
+            { type: "paragraph", content: [{ type: "text", text: "x".repeat(pad) }] },
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: `${ATTACHED_FILES_PREFIX}01-dashboard.png` }],
+            },
+          ],
+        },
+      ],
+    });
+    const original = build(30_000 - JSON.stringify(build(0)).length - 50);
+
+    expect(JSON.stringify(original).length).toBeLessThanOrEqual(30_000);
+    expect(withInlineMedia(original, uploaded)).toBe(original);
   });
 });

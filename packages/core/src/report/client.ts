@@ -37,10 +37,15 @@ export interface BugDraft {
   relatesTo: string[];
 }
 
+/** The media id, and the pixel size when known, of each uploaded file the client could learn, by file name. */
+export type UploadedMedia = ReadonlyMap<string, { id: string; width?: number; height?: number }>;
+
 /** What a tracker client does once connected; credentials stay inside it. */
 export interface TrackerConnection {
   ticket(key: string): Promise<TicketState>;
-  attach(key: string, files: readonly AttachmentFile[]): Promise<void>;
+  attach(key: string, files: readonly AttachmentFile[]): Promise<UploadedMedia>;
+  /** The comment with the uploads it names shown inline; a client that cannot leaves the method out. */
+  showUploads?(comment: RenderedComment, uploaded: UploadedMedia): RenderedComment;
   postComment(
     key: string,
     comment: RenderedComment,
