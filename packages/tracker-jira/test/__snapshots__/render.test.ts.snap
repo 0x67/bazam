@@ -1703,3 +1703,442 @@ Attached files: 01-dashboard.png, 02-trace.zip
 ",
 }
 `;
+
+exports[`renderJiraComment > matches the snapshot for a result with levels 1`] = `
+{
+  "adf": {
+    "content": [
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "strong",
+              },
+            ],
+            "text": "Passed",
+            "type": "text",
+          },
+          {
+            "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "Evidence",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Check",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Expected",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Observed",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Level",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Result",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "balance",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "10",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "10",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "core",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "other",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "a|*b",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "markup",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "<b>x</b>",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "none",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "1",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "ok",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "content": [
+          {
+            "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+    "version": 1,
+  },
+  "html": "<p><strong>Passed</strong> on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)</p><details><summary>Evidence</summary><table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Level</th><th>Result</th></tr></thead><tbody><tr><td>balance</td><td>10</td><td>10</td><td>core</td><td>ok</td></tr><tr><td>other</td><td>1</td><td>1</td><td>a|*b</td><td>ok</td></tr><tr><td>markup</td><td>1</td><td>1</td><td>&lt;b&gt;x&lt;/b&gt;</td><td>ok</td></tr><tr><td>none</td><td>1</td><td>1</td><td></td><td>ok</td></tr></tbody></table><p>Attached files: 01-dashboard.png, 02-trace.zip</p></details>",
+  "markdown": "**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)
+
+### Evidence
+
+| Check | Expected | Observed | Level | Result |
+| --- | --- | --- | --- | --- |
+| balance | 10 | 10 | core | ok |
+| other | 1 | 1 | a\\|\\*b | ok |
+| markup | 1 | 1 | \\<b\\>x\\</b\\> | ok |
+| none | 1 | 1 |  | ok |
+
+Attached files: 01-dashboard.png, 02-trace.zip
+",
+}
+`;

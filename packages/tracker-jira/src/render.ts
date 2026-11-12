@@ -1,11 +1,11 @@
 import {
-  cellText,
+  checkTable,
   escapeMarkdown,
   STATUS_LABELS,
   type MediaRefs,
   type TrackerRenderer,
 } from "@bazam/core/report";
-import type { CaseResult, CheckRecord } from "@bazam/core/result";
+import type { CaseResult } from "@bazam/core/result";
 import { checkResult, followupText, renderJiraAdf, resultSubject, type AdfDoc } from "./adf.ts";
 
 type MediaRef = MediaRefs[string];
@@ -39,10 +39,13 @@ function htmlComment(result: CaseResult, media: MediaRefs): string {
     if (ref === undefined) listed.push(name);
     else figures.push(figure(name, ref));
   }
+  const table = checkTable(result.checks, checkResult);
+  const htmlCells = (tag: string, cells: readonly string[]): string =>
+    `<tr>${cells.map((text) => `<${tag}>${escapeHtml(text)}</${tag}>`).join("")}</tr>`;
   const evidence = [
     result.checks.length === 0
       ? ""
-      : `<table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody>${result.checks.map(htmlRow).join("")}</tbody></table>`,
+      : `<table><thead>${htmlCells("th", table.headers)}</thead><tbody>${table.rows.map((cells) => htmlCells("td", cells)).join("")}</tbody></table>`,
     htmlList("Notes:", result.notes),
     ...figures,
     listed.length === 0 ? "" : `<p>Attached files: ${escapeHtml(listed.join(", "))}</p>`,
@@ -56,13 +59,14 @@ function htmlComment(result: CaseResult, media: MediaRefs): string {
 }
 
 function markdownComment(result: CaseResult): string {
+  const table = checkTable(result.checks, checkResult);
   const evidence = [
     result.checks.length === 0
       ? ""
       : [
-          "| Check | Expected | Observed | Result |",
-          "| --- | --- | --- | --- |",
-          ...result.checks.map(markdownRow),
+          markdownRow(table.headers),
+          `| ${table.headers.map(() => "---").join(" | ")} |`,
+          ...table.rows.map(markdownRow),
         ].join("\n"),
     markdownList("Notes:", result.notes),
     result.attachments.length === 0
@@ -77,16 +81,6 @@ function markdownComment(result: CaseResult): string {
   ]
     .filter((block) => block !== "")
     .join("\n\n")}\n`;
-}
-
-function htmlRow(check: CheckRecord): string {
-  const cells = [
-    check.name,
-    cellText(check.expected),
-    cellText(check.observed),
-    checkResult(check),
-  ];
-  return `<tr>${cells.map((text) => `<td>${escapeHtml(text)}</td>`).join("")}</tr>`;
 }
 
 function htmlList(label: string, items: readonly string[]): string {
@@ -115,13 +109,7 @@ function escapeHtml(text: string): string {
     .replaceAll("'", "&#39;");
 }
 
-function markdownRow(check: CheckRecord): string {
-  const cells = [
-    check.name,
-    cellText(check.expected),
-    cellText(check.observed),
-    checkResult(check),
-  ];
+function markdownRow(cells: readonly string[]): string {
   return `| ${cells.map(escapeMarkdown).join(" | ")} |`;
 }
 

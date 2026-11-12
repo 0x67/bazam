@@ -139,6 +139,36 @@ describe("renderJiraAdf", () => {
     expect(textOf(adf)).toBe(htmlText(html));
   });
 
+  it("adds a Level column only when a check has a level, as plain text", () => {
+    const levelled = result({
+      checks: [
+        {
+          name: "balance",
+          kind: "api",
+          expected: "10",
+          observed: "10",
+          ok: true,
+          level: "<b>x</b>",
+        },
+        { name: "none", kind: "ui", expected: "1", observed: "1", ok: true },
+      ],
+    });
+    const headers = (doc: ReturnType<typeof renderJiraAdf>): string[] =>
+      nodes(doc.content)
+        .filter((node) => node["type"] === "tableHeader")
+        .map((node) => textOf(node));
+
+    expect(headers(renderJiraAdf(result()))).toEqual(["Check", "Expected", "Observed", "Result"]);
+    expect(headers(renderJiraAdf(levelled))).toEqual([
+      "Check",
+      "Expected",
+      "Observed",
+      "Level",
+      "Result",
+    ]);
+    expect(renderJiraAdf(levelled)).toMatchSnapshot();
+  });
+
   it("renders an empty value as no text node and an empty cell as an empty paragraph", () => {
     const doc = renderJiraAdf(
       result({

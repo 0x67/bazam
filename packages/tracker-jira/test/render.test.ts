@@ -103,6 +103,15 @@ const RESULTS: Record<Status, CaseResult> = {
   }),
 };
 
+const LEVELLED = result({
+  checks: [
+    { name: "balance", kind: "api", expected: "10", observed: "10", ok: true, level: "core" },
+    { name: "other", kind: "api", expected: "1", observed: "1", ok: true, level: "a|*b" },
+    { name: "markup", kind: "ui", expected: "1", observed: "1", ok: true, level: "<b>x</b>" },
+    { name: "none", kind: "ui", expected: "1", observed: "1", ok: true },
+  ],
+});
+
 // one screenshot per result carries a collection and the trace has an id too, which must not inline it
 const MEDIA: MediaRefs = {
   [`${CASE_ID}/01-dashboard.png`]: { id: "media-dashboard-0001", collection: "contentId-10001" },
@@ -119,6 +128,22 @@ describe("renderJiraComment", () => {
 
   it.each(statuses)("matches the snapshot for a %s result with media", (status) => {
     expect(renderJiraComment(RESULTS[status], MEDIA)).toMatchSnapshot();
+  });
+
+  it("matches the snapshot for a result with levels", () => {
+    expect(renderJiraComment(LEVELLED)).toMatchSnapshot();
+  });
+
+  it("shows a Level column only when a check has a level, and escapes the level", () => {
+    const plain = renderJiraComment(RESULTS.pass);
+    const { markdown, html } = renderJiraComment(LEVELLED);
+
+    expect(plain.markdown).toContain("| Check | Expected | Observed | Result |");
+    expect(plain.html).not.toContain("<th>Level</th>");
+    expect(markdown).toContain("| Check | Expected | Observed | Level | Result |");
+    expect(markdown).toContain("| a\\|\\*b |");
+    expect(html).toContain("<th>Level</th><th>Result</th>");
+    expect(html).toContain("<td>&lt;b&gt;x&lt;/b&gt;</td>");
   });
 
   it.each(statuses)("opens both formats with the result line for a %s result", (status) => {

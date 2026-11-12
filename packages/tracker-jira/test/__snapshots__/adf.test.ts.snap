@@ -1,5 +1,278 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`renderJiraAdf > adds a Level column only when a check has a level, as plain text 1`] = `
+{
+  "content": [
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "Passed",
+          "type": "text",
+        },
+        {
+          "text": " on uat: AUTH-LOGIN-001 Customer signs in with an email code (run 20261107-100000-ab12)",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 3,
+      },
+      "content": [
+        {
+          "text": "Evidence",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Check",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Expected",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Observed",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Level",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "Result",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "balance",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "10",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "10",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "<b>x</b>",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "ok",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "none",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "1",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "1",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "ok",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "content": [
+        {
+          "text": "Attached files: 01-dashboard.png, 02-trace.zip",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
 exports[`renderJiraAdf > matches the snapshot for a blocked result 1`] = `
 {
   "content": [

@@ -1,5 +1,5 @@
 import type { JsonValue } from "@bazam/core/auth";
-import { cellText, STATUS_LABELS } from "@bazam/core/report";
+import { checkTable, STATUS_LABELS } from "@bazam/core/report";
 import type { CaseResult, CheckRecord } from "@bazam/core/result";
 
 /** An Atlassian Document Format body; a type alias so it passes as a `JsonValue`. */
@@ -7,7 +7,6 @@ export type AdfDoc = { version: 1; type: "doc"; content: JsonValue[] };
 
 // Jira refuses a body over 32,767 characters; the rest is room for mentions and masking
 const MAX_DOC_LENGTH = 30_000;
-const CHECK_HEADERS = ["Check", "Expected", "Observed", "Result"];
 
 /**
  * The comment in the order of the HTML comment, with the evidence under a level 3 heading and every attachment
@@ -86,6 +85,7 @@ function list(label: string, items: readonly string[]): JsonValue[] {
 }
 
 function checksTable(checks: readonly CheckRecord[]): JsonValue {
+  const table = checkTable(checks, checkResult);
   const row = (type: string, cells: readonly string[]): JsonValue => ({
     type: "tableRow",
     content: cells.map((cell) => ({ type, content: [paragraph(cell)] })),
@@ -93,15 +93,8 @@ function checksTable(checks: readonly CheckRecord[]): JsonValue {
   return {
     type: "table",
     content: [
-      row("tableHeader", CHECK_HEADERS),
-      ...checks.map((check) =>
-        row("tableCell", [
-          check.name,
-          cellText(check.expected),
-          cellText(check.observed),
-          checkResult(check),
-        ]),
-      ),
+      row("tableHeader", table.headers),
+      ...table.rows.map((cells) => row("tableCell", cells)),
     ],
   };
 }

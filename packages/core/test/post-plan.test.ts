@@ -10,7 +10,7 @@ import {
   type PostPlanInputs,
   type TrackerRenderer,
 } from "../src/report/index.ts";
-import type { CaseResult, Status } from "../src/result/index.ts";
+import type { CaseResult, CheckRecord, Status } from "../src/result/index.ts";
 
 const RUN = "20261107-100000-ab12";
 const NOW = new Date("2026-11-07T10:05:00Z");
@@ -304,6 +304,26 @@ describe("markdownTracker", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("adds a Level column only when a check has a level, and escapes the level", () => {
+    const base = result().checks[0] as CheckRecord;
+    const plain = markdownTracker("notion").render(result({ checks: [base] })).markdown;
+    const leveled = markdownTracker("notion").render(
+      result({
+        checks: [
+          { ...base, level: "core" },
+          { ...base, name: "other", level: "a|*b" },
+          { ...base, name: "none" },
+        ],
+      }),
+    ).markdown;
+
+    expect(plain).toContain("| Check | Expected | Observed | Result |");
+    expect(leveled).toContain("| Check | Expected | Observed | Level | Result |");
+    expect(leveled).toContain("| --- | --- | --- | --- | --- |");
+    expect(leveled).toContain("| other | visible | visible | a\\|\\*b | ok |");
+    expect(leveled).toContain("| none | visible | visible |  | ok |");
   });
 
   it("puts the reason under the result line when the case did not finish", () => {

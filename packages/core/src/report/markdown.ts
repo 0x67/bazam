@@ -1,4 +1,5 @@
 import type { CaseResult, Status } from "../result/index.ts";
+import { checkTable } from "./check-table.ts";
 import type { TrackerRenderer } from "./post-plan.ts";
 
 /** The label a tracker comment shows for each status. */
@@ -18,6 +19,7 @@ function markdownComment(result: CaseResult): string {
   const followups = result.followups.map(
     (followup) => `- ${escapeMarkdown(`${followup.item}: ${followup.hint}`)}`,
   );
+  const table = checkTable(result.checks, (check) => (check.ok ? "ok" : "not ok"));
   const subject = `${result.env}: ${result.caseId} ${result.title} (run ${result.runId})`;
   return [
     `**${STATUS_LABELS[result.status]}** on ${escapeMarkdown(subject)}`,
@@ -26,28 +28,15 @@ function markdownComment(result: CaseResult): string {
     "",
     "### Evidence",
     "",
-    "| Check | Expected | Observed | Result |",
-    "| --- | --- | --- | --- |",
-    ...result.checks.map((check) =>
-      row([
-        check.name,
-        cellText(check.expected),
-        cellText(check.observed),
-        check.ok ? "ok" : "not ok",
-      ]),
-    ),
+    row(table.headers),
+    `| ${table.headers.map(() => "---").join(" | ")} |`,
+    ...table.rows.map(row),
     ...(result.notes.length === 0 ? [] : ["", `Notes: ${escapeMarkdown(result.notes.join(" "))}`]),
     ...(result.attachments.length === 0
       ? []
       : ["", `Attachments: ${escapeMarkdown(result.attachments.join(", "))}`]),
     "",
   ].join("\n");
-}
-
-/** A check's expected or observed value as table cell text: a string as it is, anything else as JSON. */
-export function cellText(value: unknown): string {
-  if (value === undefined) return "";
-  return typeof value === "string" ? value : JSON.stringify(value);
 }
 
 // a pipe or line break inside a cell would end the table row
