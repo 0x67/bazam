@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { loadScanValues, scanFiles, type ScanFinding } from "@bazam/core/scan";
+import { loadScanValues, omittedAttachments, scanFiles, type ScanFinding } from "@bazam/core/scan";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
 import { plural } from "../io.ts";
@@ -18,7 +18,8 @@ export async function scanCommand(ctx: CommandContext): Promise<ExitCode> {
   if (flags.run === undefined) throw new CommandError("--run is required: name the run to scan");
   const { project, registry } = await ctx.load();
   const runDir = runDirOf(project.root, flags.run);
-  const [first] = await readResults(runDir);
+  const results = await readResults(runDir);
+  const [first] = results;
   if (first === undefined) throw new CommandError(`run ${flags.run} has no case results`);
   const env = project.config.envs[first.env];
   if (env === undefined)
@@ -34,15 +35,20 @@ export async function scanCommand(ctx: CommandContext): Promise<ExitCode> {
     around: new Date(first.startedAt),
   });
   const report = await scanFiles(runDir, files, values);
+  const omitted = await omittedAttachments(runDir, results);
+  const skipped = [
+    ...report.skipped,
+    ...[...omitted].map(([attachment, reason]) => `${attachment} is ${reason}`),
+  ];
   const text = [
     ...groups(report.findings).map(([file, kind, found]) => {
       const contexts = found.slice(0, SHOWN_CONTEXTS).map((finding) => `"${finding.context}"`);
       return `${file}: ${kind} x${found.length}: ${contexts.join(", ")}`;
     }),
     `${plural(report.files, "file")}, ${plural(report.findings.length, "finding")}`,
-    ...report.skipped.map((entry) => `skipped ${entry}`),
+    ...skipped.map((entry) => `skipped ${entry}`),
   ];
-  ctx.out.result(report, text.map((line) => `${line}\n`).join(""));
+  ctx.out.result({ ...report, skipped }, text.map((line) => `${line}\n`).join(""));
   return report.findings.length === 0 ? ExitCode.Pass : ExitCode.Fail;
 }
 

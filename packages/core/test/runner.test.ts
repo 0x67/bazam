@@ -208,6 +208,11 @@ function webSteps(): StepHandler[] {
       const text = new TextEncoder().encode(`password ${API_PASSWORD}`);
       await ctx.evidence.attach("leak", zipSync({ "trace.trace": text }), "zip");
     }),
+    // an attachment deleted before the run ends, as when a large trace is cleaned up
+    step("attach-gone", async (_payload, ctx) => {
+      const name = await ctx.evidence.attach("gone", new TextEncoder().encode("trace"), "zip");
+      await rm(join((ctx.session as FakeSession).options.runDir, "SHOP-GONE-001", name));
+    }),
     step("break-fixtures", async (_payload, ctx) => {
       await writeFile(
         join(projectRoot(ctx), "fixtures/identities.local.yaml"),
@@ -976,6 +981,21 @@ describe("runCases", () => {
     expect(item?.comment.markdown).not.toContain("01-leak.zip");
     expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
       "post plan withholds SHOP-LEAK-001/01-leak.zip: secret API_PASSWORD",
+    );
+  });
+
+  it("leaves out an attachment that is gone, logs it and lists it under omitted", async () => {
+    const { runDir } = await runProject([
+      testCase("SHOP-GONE-001", { steps: [{ "attach-gone": {} }, { crash: {} }] }),
+    ]);
+    const postPlan = JSON.parse(await readFile(join(runDir, "post-plan.json"), "utf8")) as {
+      items: { attachments: string[]; omitted?: unknown }[];
+    };
+    const [item] = postPlan.items;
+    expect(item?.attachments).toEqual(["SHOP-GONE-001/02-trace.zip"]);
+    expect(item?.omitted).toEqual([{ attachment: "SHOP-GONE-001/01-gone.zip", reason: "missing" }]);
+    expect(await readFile(join(runDir, "run.log"), "utf8")).toContain(
+      "post plan leaves out SHOP-GONE-001/01-gone.zip: missing",
     );
   });
 

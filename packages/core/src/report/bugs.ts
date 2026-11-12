@@ -44,6 +44,8 @@ export interface BugInputs {
   media?: MediaRefs;
   /** Attachments, as `<caseId>/<name>`, that a scan found holding a value; they are left out of every intent. */
   withheld?: ReadonlyMap<string, readonly string[]>;
+  /** Attachments, as `<caseId>/<name>`, that are gone or not plain names; they are left out of every intent. */
+  omitted?: ReadonlyMap<string, string>;
   /** Masks every intent, so a value registered after the run still applies. */
   redactor: Redactor;
 }
@@ -74,7 +76,9 @@ export function planBugs(inputs: BugInputs): BugIntent[] {
     const result = {
       ...full,
       attachments: full.attachments.filter(
-        (name) => !inputs.withheld?.has(`${full.caseId}/${name}`),
+        (name) =>
+          !inputs.withheld?.has(`${full.caseId}/${name}`) &&
+          !inputs.omitted?.has(`${full.caseId}/${name}`),
       ),
     };
     if (result.stage !== "regression" || (result.status !== "fail" && result.status !== "pass"))

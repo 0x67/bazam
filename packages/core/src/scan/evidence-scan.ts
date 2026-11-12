@@ -7,7 +7,6 @@ import {
   isTestEmailDomain,
   Redactor,
 } from "../redact/index.ts";
-import type { CaseResult } from "../result/index.ts";
 import { RUN_ID, secretOf, unescaped, type Secret } from "./forms.ts";
 
 export type FindingKind =
@@ -53,7 +52,6 @@ const IMAGE_MAGIC = [
 // the evidence store writes these result.json fields unmasked, since the harness makes them
 // (see packages/core/src/result/evidence.ts::EvidenceStore.finish)
 const HARNESS_FIELDS = ["seed", "values", "steps", "durationMs"];
-const VALUE_KINDS = ["fixture ", "secret ", "credential "];
 
 interface Mark {
   start: number;
@@ -86,26 +84,6 @@ export async function scanFiles(
     findings.push(...scanBytes(file, bytes, scan, skipped));
   }
   return { findings, files: scanned, skipped };
-}
-
-/** The attachments of the results that hold a fixture, secret or credential value, with those kinds. */
-export async function withheldAttachments(
-  runDir: string,
-  results: readonly CaseResult[],
-  values: ScanValues,
-): Promise<ReadonlyMap<string, readonly string[]>> {
-  const withheld = new Map<string, readonly string[]>();
-  for (const result of results) {
-    for (const name of result.attachments) {
-      const attachment = `${result.caseId}/${name}`;
-      const { findings } = await scanFiles(runDir, [attachment], values);
-      const kinds = [...new Set(findings.map((finding) => finding.kind))].filter((kind) =>
-        VALUE_KINDS.some((prefix) => kind.startsWith(prefix)),
-      );
-      if (kinds.length > 0) withheld.set(attachment, kinds.toSorted());
-    }
-  }
-  return withheld;
 }
 
 interface Scan {

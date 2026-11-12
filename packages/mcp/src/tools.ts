@@ -44,7 +44,7 @@ import {
   type PostPlan,
   type PostPlanItem,
 } from "@bazam/core/report";
-import { loadScanValues, withheldAttachments } from "@bazam/core/scan";
+import { loadScanValues, screenAttachments } from "@bazam/core/scan";
 import { newRunId, type CaseResult } from "@bazam/core/result";
 import { planCases } from "@bazam/core/run";
 import driverWeb from "@bazam/driver-web";
@@ -372,6 +372,7 @@ export const caseTools: readonly ToolDefinition[] = [
         redactor: deps.redactor,
         around: new Date(first.startedAt),
       });
+      const { withheld, omitted } = await screenAttachments(runDir, results, values);
       const plan = buildPostPlans({
         runId,
         env: first.env,
@@ -383,7 +384,8 @@ export const caseTools: readonly ToolDefinition[] = [
         transitions: project.config.trackers,
         resultLine: (name) => resultLineOf(project.config, name),
         ...(media === undefined ? {} : { media }),
-        withheld: await withheldAttachments(runDir, results, values),
+        withheld,
+        omitted,
         now: new Date(),
       });
       // only the comments are masked whole, as the runner does: the digit rule would break account ids and receipt URLs;
@@ -621,7 +623,13 @@ async function readResults(runDir: string, runId: string): Promise<CaseResult[]>
         throw error;
       },
     );
-    if (text !== undefined) results.push(JSON.parse(text) as CaseResult);
+    if (text === undefined) continue;
+    const result = JSON.parse(text) as CaseResult;
+    if (result.caseId !== entry.name)
+      throw new ToolError(
+        `the result in ${entry.name} names another case; result.json does not match its folder`,
+      );
+    results.push(result);
   }
   return results.sort(
     (a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId),

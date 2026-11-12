@@ -8,7 +8,7 @@ import type { PluginRegistry } from "../plugin/index.ts";
 import { resultLineOf, type Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { buildPostPlans, loadReceipts, PeopleRegistry } from "../report/index.ts";
-import { loadScanValues, withheldAttachments } from "../scan/index.ts";
+import { loadScanValues, screenAttachments, type AttachmentScreen } from "../scan/index.ts";
 import {
   writeRunStatus,
   writeRunSummary,
@@ -46,7 +46,7 @@ export async function finishRun(
     reason: redactor.text(test.reason),
   }));
   await writeRunSummary(runDir, results, masked);
-  const withheld = await withheldFrom(runDir, results, deps);
+  const screen = await screenFrom(runDir, results, deps);
   const postPlan = buildPostPlans({
     runId: deps.runId,
     env: env.name,
@@ -57,7 +57,7 @@ export async function finishRun(
     trackers: (name) => registry.tracker(name),
     transitions: project.config.trackers,
     resultLine: (name) => resultLineOf(project.config, name),
-    ...(withheld === undefined ? {} : { withheld }),
+    ...(screen === undefined ? {} : screen),
     now: new Date(),
   });
   // only the comments go through the redactor again: its digit rule would break account ids and receipt URLs
@@ -72,21 +72,23 @@ export async function finishRun(
   await deps.log.flush(join(runDir, "run.log"));
 }
 
-// a scan that fails leaves the plan without withheld attachments and never changes the run's outcome
-async function withheldFrom(
+// a scan that fails leaves the plan without the screen and never changes the run's outcome
+async function screenFrom(
   runDir: string,
   results: readonly CaseResult[],
   deps: FinishDeps,
-): Promise<ReadonlyMap<string, readonly string[]> | undefined> {
+): Promise<AttachmentScreen | undefined> {
   try {
     const { project, registry, env, redactor } = deps;
     const [first] = results;
     const around = first === undefined ? new Date() : new Date(first.startedAt);
     const values = await loadScanValues({ project, registry, env, redactor, around });
-    const withheld = await withheldAttachments(runDir, results, values);
-    for (const [attachment, kinds] of withheld)
+    const screen = await screenAttachments(runDir, results, values);
+    for (const [attachment, kinds] of screen.withheld)
       deps.log.line(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
-    return withheld;
+    for (const [attachment, reason] of screen.omitted)
+      deps.log.line(`post plan leaves out ${attachment}: ${reason}`);
+    return screen;
   } catch (error) {
     deps.log.line(`scanning the attachments failed: ${(error as Error).message}`);
     return undefined;

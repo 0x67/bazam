@@ -152,6 +152,31 @@ describe("buildPostPlans", () => {
     expect(item).not.toHaveProperty("withheld");
   });
 
+  it("leaves an omitted attachment out of the item and its comment, and lists it with its reason", () => {
+    const attachments = ["01-dashboard.png", "02-trace.zip", "../x.png"];
+    const omitted = new Map([
+      ["AUTH-LOGIN-001/02-trace.zip", "missing"],
+      ["AUTH-LOGIN-001/../x.png", "outside the case folder"],
+    ]);
+
+    const [item] = buildPostPlans(inputs([result({ attachments })], { omitted })).items;
+
+    expect(item?.attachments).toEqual(["AUTH-LOGIN-001/01-dashboard.png"]);
+    expect(item?.comment.markdown).toContain("01-dashboard.png");
+    expect(item?.comment.markdown).not.toContain("02-trace.zip");
+    expect(item?.comment.markdown).not.toContain("x.png");
+    expect(item?.omitted).toEqual([
+      { attachment: "AUTH-LOGIN-001/02-trace.zip", reason: "missing" },
+      { attachment: "AUTH-LOGIN-001/../x.png", reason: "outside the case folder" },
+    ]);
+  });
+
+  it("has no omitted key when nothing is omitted", () => {
+    const [item] = buildPostPlans(inputs([result()], { omitted: new Map() })).items;
+
+    expect(item).not.toHaveProperty("omitted");
+  });
+
   it("a case linked to two tickets gets one item per ticket", () => {
     const plan = buildPostPlans(
       inputs([result({ links: ["jira:DEMO-246", "notion:release-notes-42"] })]),

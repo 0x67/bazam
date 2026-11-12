@@ -48,6 +48,25 @@ describe("scan", () => {
     expect(stdout).toMatch(/\d+ files, 0 findings/);
   });
 
+  describe("skipped attachments", () => {
+    it("names an attachment that is gone or outside the case folder, and still exits 0", async () => {
+      const project = await ranProject();
+      const file = "runs/r1/SHOP-OK-001/result.json";
+      const result = JSON.parse(await project.read(file)) as { attachments: string[] };
+      // listed by the result, with no file behind it, as when a trace was deleted
+      const gone = "09-trace.zip";
+      result.attachments.push(gone);
+      result.attachments.push("../outside.txt");
+      await project.write(file, JSON.stringify(result));
+
+      const { code, stdout, stderr } = await project.cli("scan", "--run", "r1");
+
+      expect(code, stderr).toBe(ExitCode.Pass);
+      expect(stdout).toContain(`skipped SHOP-OK-001/${gone} is missing`);
+      expect(stdout).toContain("skipped SHOP-OK-001/../outside.txt is outside the case folder");
+    });
+  });
+
   it("exits 1 with one line per file and kind, and prints no value", async () => {
     const project = await ranProject();
     await project.write("runs/r1/SHOP-OK-001/leak.txt", `sent ${PIN} and again ${PIN}\n`);

@@ -490,6 +490,70 @@ describe("case tools", () => {
     ]);
   });
 
+  describe("omitted", () => {
+    const runId = "20261107-120000-abcd";
+    const caseDir = `runs/${runId}/DESK-LOOK-001`;
+    const resultOf = (fields: object) =>
+      JSON.stringify({
+        runId,
+        caseId: "DESK-LOOK-001",
+        title: "A person looks at the desk",
+        stage: "acceptance",
+        env: "demo",
+        target: "t",
+        links: ["jira:DEMO-1"],
+        status: "pass",
+        checks: [],
+        notes: [],
+        followups: [],
+        attachments: [],
+        challenges: [],
+        identities: [],
+        seed: 7,
+        values: {},
+        caseValues: {},
+        steps: [],
+        startedAt: "2026-11-07T12:00:00.000Z",
+        finishedAt: "2026-11-07T12:00:05.000Z",
+        durationMs: 5000,
+        ...fields,
+      });
+
+    it("report_plan leaves out an attachment that is gone or outside the case folder and lists it", async () => {
+      const project = await fixtureProject();
+      await project.write(
+        `${caseDir}/result.json`,
+        resultOf({ attachments: ["01-gone.txt", "02-clean.txt", "../outside.txt"] }),
+      );
+      await project.write(`${caseDir}/02-clean.txt`, "tidy\n");
+      await project.write(`runs/${runId}/outside.txt`, "text\n");
+      const mcp = await open(project.root);
+
+      const plan = await mcp.json<{
+        items: { attachments: string[]; omitted: unknown }[];
+      }>("report_plan", { runId });
+
+      expect(plan.items[0]?.attachments).toEqual(["DESK-LOOK-001/02-clean.txt"]);
+      expect(plan.items[0]?.omitted).toEqual([
+        { attachment: "DESK-LOOK-001/01-gone.txt", reason: "missing" },
+        { attachment: "DESK-LOOK-001/../outside.txt", reason: "outside the case folder" },
+      ]);
+    });
+
+    it("report_plan refuses a result that names another case, without the id it holds", async () => {
+      const project = await fixtureProject();
+      await project.write(`${caseDir}/result.json`, resultOf({ caseId: "DESK-ELSEWHERE-001" }));
+      const mcp = await open(project.root);
+
+      const result = await mcp.call("report_plan", { runId });
+
+      expect(result.isError).toBe(true);
+      const text = JSON.stringify(result.content);
+      expect(text).toContain("the result in DESK-LOOK-001 names another case");
+      expect(text).not.toContain("DESK-ELSEWHERE-001");
+    });
+  });
+
   it("evidence_get returns the result, the attachment paths and, when asked, the screenshots as images", async () => {
     const project = await fixtureProject();
     const runId = "20261107-120000-abcd";

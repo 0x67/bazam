@@ -84,6 +84,49 @@ describe("report", () => {
     );
   });
 
+  it("leaves out an attachment that is gone and one named outside the case folder", async () => {
+    const project = await ranProject();
+    const file = "runs/r1/SHOP-OK-001/result.json";
+    const result = JSON.parse(await project.read(file)) as { attachments: string[] };
+    // listed by the result, with no file behind it, as when a trace was deleted
+    const gone = "09-trace.zip";
+    result.attachments.push(gone);
+    await project.write("runs/r1/outside.txt", "text\n");
+    result.attachments.push("../outside.txt");
+    await project.write(file, JSON.stringify(result));
+
+    const { code, stdout, stderr } = await project.cli("report", "plan", "--run", "r1", "--json");
+
+    expect(code, stderr).toBe(ExitCode.Pass);
+    expect(stderr).toContain(`post plan leaves out SHOP-OK-001/${gone}: missing`);
+    expect(stderr).toContain(
+      "post plan leaves out SHOP-OK-001/../outside.txt: outside the case folder",
+    );
+    const plan = JSON.parse(stdout) as PostPlan;
+    expect(plan.items.map((item) => item.omitted)).toEqual(
+      Array(2).fill([
+        { attachment: `SHOP-OK-001/${gone}`, reason: "missing" },
+        { attachment: "SHOP-OK-001/../outside.txt", reason: "outside the case folder" },
+      ]),
+    );
+    expect(plan.items.flatMap((item) => item.attachments)).not.toContain(`SHOP-OK-001/${gone}`);
+  });
+
+  it("refuses a result that names another case, without printing the id it holds", async () => {
+    const project = await ranProject();
+    const file = "runs/r1/SHOP-OK-001/result.json";
+    const result = JSON.parse(await project.read(file)) as object;
+    await project.write(file, JSON.stringify({ ...result, caseId: "SHOP-ELSEWHERE-001" }));
+
+    const { code, stdout, stderr } = await project.cli("report", "plan", "--run", "r1", "--json");
+
+    expect(code).toBe(ExitCode.CouldNotStart);
+    expect(stderr).toContain(
+      "the result in SHOP-OK-001 names another case; result.json does not match its folder",
+    );
+    expect(stdout + stderr).not.toContain("SHOP-ELSEWHERE-001");
+  });
+
   it("words each comment with the tracker's result line from the project", async () => {
     const project = await ranProject();
     const config = JSON.parse(await project.read(BRAND.configFile)) as object;

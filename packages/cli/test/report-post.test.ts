@@ -288,6 +288,26 @@ describe("report post", () => {
     expect(stub.requests).toEqual([]);
   });
 
+  it("files a bug without an attachment of a failing case that is gone", async () => {
+    const project = await trackedProject();
+    await run(project, "r1");
+    const file = "runs/r1/SHOP-FAIL-001/result.json";
+    const result = JSON.parse(await project.read(file)) as { attachments: string[] };
+    // listed by the result, with no file behind it, as when a trace was deleted
+    const gone = "09-trace.zip";
+    result.attachments.push(gone);
+    await project.write(file, JSON.stringify(result));
+
+    const posted = await project.cli("report", "post", "--run", "r1");
+
+    expect(posted.code, posted.stderr).toBe(ExitCode.Pass);
+    expect(posted.stderr).toContain(`post plan leaves out SHOP-FAIL-001/${gone}: missing`);
+    const bug = stub.issues.get("DEMO-13");
+    expect(bug?.summary).toBe("[SHOP-FAIL-001] The shop reports an error fails in demo");
+    expect(JSON.stringify(stub.requests.map((request) => request.body))).not.toContain(gone);
+    expect(JSON.stringify(bug?.description)).not.toContain(gone);
+  });
+
   it("exits 2 without --run, and for a tracker with no site, in a dry run too", async () => {
     const project = await trackedProject({ site: false });
     await run(project, "r1");

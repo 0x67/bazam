@@ -24,6 +24,8 @@ export interface PostPlanItem {
   attachments: string[];
   /** Attachments left out of `attachments` because they hold a fixture, secret or credential value. */
   withheld?: { attachment: string; kinds: string[] }[];
+  /** Attachments left out of `attachments` because the file is gone or the name is not a plain file name. */
+  omitted?: { attachment: string; reason: string }[];
   transition?: string;
   mentions: { role: string; accountId?: string }[];
   /** Roles (`role:<name>`) and transitions (`transition:<status>`) the agent must look up. */
@@ -85,6 +87,8 @@ export interface PostPlanInputs {
   resultLine?: (tracker: string) => string | undefined;
   /** The kinds of value each attachment holds, by `<case-id>/<file>`; those attachments stay out of the plan. */
   withheld?: ReadonlyMap<string, readonly string[]>;
+  /** Why each attachment cannot be read, by `<case-id>/<file>`; those attachments stay out of the plan. */
+  omitted?: ReadonlyMap<string, string>;
   now: Date;
 }
 
@@ -122,12 +126,19 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
       ? inputs.receipts.latest(ticket.tracker, ticket.key, result.caseId)
       : undefined;
   const held = (name: string) => inputs.withheld?.get(`${result.caseId}/${name}`);
-  const kept = result.attachments.filter((name) => held(name) === undefined);
+  const dropped = (name: string) => inputs.omitted?.get(`${result.caseId}/${name}`);
+  const kept = result.attachments.filter(
+    (name) => held(name) === undefined && dropped(name) === undefined,
+  );
   const withheld = result.attachments.flatMap((name) => {
     const kinds = held(name);
     return kinds === undefined
       ? []
       : [{ attachment: `${result.caseId}/${name}`, kinds: [...kinds] }];
+  });
+  const omitted = result.attachments.flatMap((name) => {
+    const reason = dropped(name);
+    return reason === undefined ? [] : [{ attachment: `${result.caseId}/${name}`, reason }];
   });
   return {
     marker: `${BRAND.markerPrefix}:${result.caseId}:${result.runId}`,
@@ -143,6 +154,7 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
     ...(receipt === undefined ? {} : { edit: { url: receipt.url } }),
     attachments: kept.map((name) => `${result.caseId}/${name}`),
     ...(withheld.length === 0 ? {} : { withheld }),
+    ...(omitted.length === 0 ? {} : { omitted }),
     ...(transition === undefined ? {} : { transition }),
     mentions,
     unresolved: [

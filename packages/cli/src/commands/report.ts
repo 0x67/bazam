@@ -26,7 +26,7 @@ import {
   type PostPlanItem,
 } from "@bazam/core/report";
 import type { CaseResult } from "@bazam/core/result";
-import { loadScanValues, withheldAttachments } from "@bazam/core/scan";
+import { loadScanValues, screenAttachments } from "@bazam/core/scan";
 import { resolveSecret } from "@bazam/core/secrets";
 import { CommandError, ExitCode } from "../exit.ts";
 import type { CommandContext } from "../main.ts";
@@ -54,6 +54,7 @@ interface RebuiltPlan {
   results: CaseResult[];
   media: MediaRefs | undefined;
   withheld: ReadonlyMap<string, readonly string[]>;
+  omitted: ReadonlyMap<string, string>;
   plan: PostPlan;
 }
 
@@ -83,9 +84,11 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     redactor: ctx.redactor,
     around: new Date(first.startedAt),
   });
-  const withheld = await withheldAttachments(runDir, results, values);
+  const { withheld, omitted } = await screenAttachments(runDir, results, values);
   for (const [attachment, kinds] of withheld)
     ctx.out.log(`post plan withholds ${attachment}: ${kinds.join(", ")}`);
+  for (const [attachment, reason] of omitted)
+    ctx.out.log(`post plan leaves out ${attachment}: ${reason}`);
   const plan = buildPostPlans({
     runId: flags.run,
     env: first.env,
@@ -98,6 +101,7 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     resultLine: (name) => resultLineOf(project.config, name),
     ...(media === undefined ? {} : { media }),
     withheld,
+    omitted,
     now: new Date(),
   });
   // only the comments go through the redactor whole, as a run does when it writes post-plan.json: its digit rule
@@ -106,7 +110,17 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     ...plan,
     items: plan.items.map((item) => ({ ...item, comment: ctx.redactor.value(item.comment) })),
   };
-  return { project, registry, runId: flags.run, runDir, results, media, withheld, plan: masked };
+  return {
+    project,
+    registry,
+    runId: flags.run,
+    runDir,
+    results,
+    media,
+    withheld,
+    omitted,
+    plan: masked,
+  };
 }
 
 /** Prints the rebuilt post plan. */
@@ -123,7 +137,7 @@ async function reportPlan(ctx: CommandContext): Promise<ExitCode> {
  * declared secrets, to withhold attachments that hold them.
  */
 async function reportPost(ctx: CommandContext): Promise<ExitCode> {
-  const { project, registry, runId, runDir, results, media, withheld, plan } =
+  const { project, registry, runId, runDir, results, media, withheld, omitted, plan } =
     await rebuildPlan(ctx);
   const { config } = project;
   const { redactor } = ctx;
@@ -134,6 +148,7 @@ async function reportPost(ctx: CommandContext): Promise<ExitCode> {
     runDir,
     ...(media === undefined ? {} : { media }),
     withheld,
+    omitted,
     redactor,
   });
   const trackers = new Set([
@@ -265,7 +280,13 @@ export async function readResults(runDir: string): Promise<CaseResult[]> {
     const text = await readFile(join(runDir, entry.name, "result.json"), "utf8").catch(
       ignoreMissing,
     );
-    if (text !== undefined) results.push(JSON.parse(text) as CaseResult);
+    if (text === undefined) continue;
+    const result = JSON.parse(text) as CaseResult;
+    if (result.caseId !== entry.name)
+      throw new CommandError(
+        `the result in ${entry.name} names another case; result.json does not match its folder`,
+      );
+    results.push(result);
   }
   return results.sort(
     (a, b) => a.startedAt.localeCompare(b.startedAt) || a.caseId.localeCompare(b.caseId),

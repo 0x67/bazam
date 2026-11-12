@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { CaseResult } from "../src/result/index.ts";
-import { scanFiles, withheldAttachments, type ScanValues } from "../src/scan/index.ts";
+import { scanFiles, type ScanValues } from "../src/scan/index.ts";
 
 const RUN_ID = "20261107-101500-0a1b";
 const AROUND = Date.UTC(2026, 10, 7, 10, 15, 0);
@@ -198,29 +197,5 @@ describe("scanFiles", () => {
 
     expect(report.findings).toEqual([]);
     expect(report.skipped).toEqual(["case/broken.zip is not a readable zip"]);
-  });
-});
-
-describe("withheldAttachments", () => {
-  it("lists only the attachments that hold a fixture, secret or credential value", async () => {
-    await put(
-      "case-a/trace.zip",
-      zipSync({ "trace.trace": text(`typed ${PHONE_NATIONAL} and ${CREDENTIAL}`) }),
-    );
-    await put("case-a/mail.log", "reply to carol@corp.invalid\n");
-    await put("case-a/account.log", `account ${ACCOUNT_DIGITS}\n`);
-    await put("case-a/clean.log", "nothing here\n");
-    const results = [
-      {
-        caseId: "case-a",
-        attachments: ["trace.zip", "mail.log", "account.log", "clean.log"],
-      } as CaseResult,
-    ];
-
-    const withheld = await withheldAttachments(dir, results, values);
-
-    expect([...withheld]).toEqual([
-      ["case-a/trace.zip", ["credential ops/web", "fixture alice.phone"]],
-    ]);
   });
 });
