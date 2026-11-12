@@ -196,6 +196,7 @@ trackers:
     site: example.atlassian.net
     # api: https://api.atlassian.com/ex/jira/<cloudId>
     secrets: { email: JIRA_EMAIL, token: JIRA_API_TOKEN }
+    resultLine: "{status} on {env} {date} (as {identities})"
     projects:
       DEMO:
         transitions: { pass: Done, fail: In Progress }
@@ -207,6 +208,29 @@ trackers:
 2. `api`: the REST base when it is not `https://<site>`, such as a scoped API token's. Browse links still use `site`. A base that is not https gets `api must be an https URL; http only for 127.0.0.1 or localhost with a port`. Jira takes only the scoped form: `trackers.jira.api must be https://api.atlassian.com/ex/jira/<cloudId>; http only for 127.0.0.1 or localhost with a port`.
 3. `secrets`: `{}` when left out. Each key is a role and each value a secret name, read through `secrets.providers`. Jira reads the roles `email` and `token`; a missing one gets `trackers.jira.secrets.email is not set` or `trackers.jira.secrets.token is not set`. bazam masks their values in everything it writes, and no runner gets the variables that hold them.
 4. `projects.<project>`: `{}` when left out. The key is the project part of a ticket key, such as `DEMO` for `DEMO-12`. Jira takes capital letters, digits and underscores, starting with a letter: `trackers.jira.projects lists <project>, which is not a Jira project key: capital letters, digits and underscores, starting with a letter`.
+
+5. `resultLine`: the first line of each comment this tracker gets, `{status} on {env}: {case} {title} (run {run})` when left out. The same line opens a bug's description. A template holds literal text and these fields in braces:
+   1. `{status}`: `Passed`, `Failed`, `Blocked` or `Needs follow-up`, in bold.
+   2. `{env}`, `{case}` (the case id), `{title}`, `{run}` (the run id) and `{target}`.
+   3. `{date}`: the day the case finished, as `YYYY-MM-DD` in UTC.
+   4. `{identities}`: the identities the case acted as, separated by commas, or `nobody` when it acted as none.
+   5. Every value is escaped in the comment, so text from the app under test never becomes markup.
+   6. `bazam check` refuses a template with a field it does not know or a brace that belongs to no field, under its `schema` rule: `unknown field {enviroment}; the fields are status, env, date, identities, case, title, run, target` or `a { or } that is not part of a field`.
+
+**What a comment shows**
+
+A comment for a Jira ticket or bug has the same parts in the same order in its HTML, Markdown and Jira document forms. A tracker without its own renderer gets Markdown with the same order.
+
+1. The result line.
+2. `Reason: <reason>`, when the case has one.
+3. The callouts: first each note a case marks with `callout: true`, then each check it marks the same way, each group in the order the case recorded it. A callout note is always an error. A callout check is an error when it failed and a success when it passed, and reads `<check name>: expected <expected>, observed <observed>`. A follow-up is never a callout. In a Jira document and in the HTML a callout is an error or success panel; in Markdown it is a paragraph that starts `**Attention:**` (error) or `**Confirmed:**` (success).
+4. `Follow-up for a person:` and the follow-ups.
+5. The evidence, folded: an expand titled `Evidence` in the Jira document, a `<details>` element in the HTML, and under a `### Evidence` heading in Markdown. It holds the checks table (Check, Expected, Observed, Level, Result), `Notes:` and the attached files.
+6. The Level column appears only when some check has a level. A check without one gets an empty cell.
+7. Files are listed as `Attached files: <names>`. The generic Markdown comment lists them as `Attachments: <names>` and puts the notes on one line after `Notes:`.
+8. `bazam report post` shows each uploaded png inline in the Jira document, before the file list, and takes its name off the list. It uploads the files, asks Jira for each png's media id and reads the size from the png's own header. A file whose id Jira does not give stays on the list, and the run logs `no media id for <file>, so it stays listed by name: <reason>` when the lookup fails, or `no media id for <file> on its upload, so it stays listed by name` when Jira's answer holds no id. If Jira refuses the comment with inline images (HTTP 400), bazam logs `the tracker refused the comment with inline images, so it is posted without them: <message>` and posts the same comment with the files listed by name. A bug's description lists its files by name.
+9. A Jira document over 30000 characters keeps the result line, the reason, the callouts and the follow-ups. Each callout is cut to 2000 characters, and callouts past 15000 characters in all are left out. The document replaces the evidence with `The evidence is too long for a Jira comment; it is in run <id>`.
+10. An agent that posts the HTML itself passes each upload's media id to `report_plan` in `media`, which shows the screenshot in its figure.
 
 **Tracker projects**
 
@@ -245,6 +269,13 @@ A post plan leaves out each attachment that holds a fixture, secret or credentia
 1. The plan item lists each such attachment under `withheld`, as `{ attachment, kinds }`, and its comment never names it. `withheld` is left out when nothing is withheld.
 2. A run, `bazam report plan` and `bazam report post` write `post plan withholds <caseId>/<file>: <kinds>` for each one, to the run log or the terminal. `report_plan` returns `withheld` in its document.
 3. If the attachment scan throws, the run logs `scanning the attachments failed: <message>` and keeps every attachment in the plan.
+
+A post plan also leaves out each attachment that a result lists and cannot be read: its file is gone, its name is not a plain file name (letters, digits, dots, dashes and underscores, starting with a letter or digit, as bazam writes them), or it is a symbolic link. Such a name is never opened and a link is never followed; both get the reason `outside the case folder`.
+
+1. The plan item lists each one under `omitted`, as `{ attachment, reason }`, where `reason` is `missing` or `outside the case folder`. `omitted` is left out when nothing is omitted, and `report_plan` returns it too.
+2. A run, `bazam report plan` and `bazam report post` write `post plan leaves out <caseId>/<file>: <reason>` for each one. A bug's description leaves it out too.
+3. `bazam scan` adds `<caseId>/<file> is missing` or `<caseId>/<file> is outside the case folder` to its `skipped` lines. They never change its exit code.
+4. `bazam report` and `bazam scan` refuse a `result.json` whose `caseId` is not the name of its folder, with `the result in <folder> names another case; result.json does not match its folder` and exit code 2. The MCP tools refuse it the same way.
 
 **Doctor**
 

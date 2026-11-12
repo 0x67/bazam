@@ -172,6 +172,7 @@ targets:
 
 trackers:
   jira:
+    resultLine: "{status} in {env} on {date}: {case} {title}"
     projects:
       DEMO:
         transitions: { pass: Done, fail: In Progress, blocked: Blocked }

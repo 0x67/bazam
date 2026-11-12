@@ -8,12 +8,15 @@ cases:
     tags: [api]
     checks:
       - api:
-          {
-            request: "GET ${env.APP_URL}/api/key/whoami",
-            as: key-client,
-            status: 200,
-            body: { auth: api-key },
-          }
+          request: GET ${env.APP_URL}/api/key/whoami
+          as: key-client
+          status: 200
+        level: core
+      - api:
+          request: GET ${env.APP_URL}/api/key/whoami
+          as: key-client
+          body: { auth: api-key }
+        callout: true
 
   - id: API-BASIC-001
     title: Partner API accepts HTTP Basic credentials

@@ -67,7 +67,8 @@ interface RunSummary {
 
 interface CaseResult {
   status: string
-  checks: { name: string; ok: boolean }[]
+  checks: { name: string; ok: boolean; level?: string; callout?: boolean }[]
+  steps: { number: number; kind: string; list: string; durationMs: number }[]
   identities: string[]
 }
 
@@ -79,6 +80,16 @@ async function copyForRuns(): Promise<string> {
     join(copy, "fixtures/identities.local.yaml"),
   )
   return copy
+}
+
+// the demo's secrets, when the repository holds them
+async function copySecrets(copy: string): Promise<void> {
+  const demoSecrets = await readFile(join(EXAMPLES, ".bazam/secrets.env"), "utf8").catch(
+    () => undefined,
+  )
+  if (demoSecrets === undefined) return
+  await mkdir(join(copy, ".bazam"), { recursive: true })
+  await writeFile(join(copy, ".bazam/secrets.env"), demoSecrets, { mode: 0o600 })
 }
 
 async function resultOf(copy: string, stdout: string, caseId: string): Promise<CaseResult> {
@@ -166,13 +177,7 @@ describe("example project", () => {
 
   it("scans an acceptance run clean and lists the example identities in doctor", async () => {
     const copy = await copyForRuns()
-    const demoSecrets = await readFile(join(EXAMPLES, ".bazam/secrets.env"), "utf8").catch(
-      () => undefined,
-    )
-    if (demoSecrets !== undefined) {
-      await mkdir(join(copy, ".bazam"), { recursive: true })
-      await writeFile(join(copy, ".bazam/secrets.env"), demoSecrets, { mode: 0o600 })
-    }
+    await copySecrets(copy)
     const answers = join(copy, "fixtures/answers")
     const runAcceptance = [
       "run",
@@ -212,6 +217,40 @@ describe("example project", () => {
       expect(doctor.stdout).not.toContain(value)
     expect(doctor.code).toBe(0)
   }, 90_000)
+
+  it("records the marks and step times of API-KEY-001 and words its post plan with the result line", async () => {
+    const copy = await copyForRuns()
+    await copySecrets(copy)
+
+    const { code, stdout } = await cli([
+      "run",
+      "--root",
+      copy,
+      "--env",
+      "demo",
+      "--case",
+      "API-KEY-001",
+      "--json",
+    ])
+
+    const result = await resultOf(copy, stdout, "API-KEY-001")
+    expect(code).toBe(0)
+    expect(result.checks.map((check) => check.level)).toEqual(["core", undefined])
+    expect(result.checks.map((check) => check.callout)).toEqual([undefined, true])
+    expect(result.steps.length).toBeGreaterThan(0)
+    expect(result.steps.map((step) => step.number)).toEqual(
+      result.steps.map((_step, index) => index + 1),
+    )
+    const { runId } = JSON.parse(stdout) as RunSummary
+    const plan = JSON.parse(
+      await readFile(join(copy, "runs", runId, "post-plan.json"), "utf8"),
+    ) as {
+      items: { comment: { markdown: string } }[]
+    }
+    expect(plan.items[0]?.comment.markdown).toMatch(
+      /^\*\*Passed\*\* in demo on \d{4}-\d{2}-\d{2}: API-KEY-001 Partner API accepts the API key\n/,
+    )
+  }, 60_000)
 
   it("shows the role binding in plan", async () => {
     const result = await cli([

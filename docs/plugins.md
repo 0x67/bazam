@@ -16,13 +16,38 @@ An in-process plugin is a TypeScript module listed in `plugins:` of `bazam.confi
    }
    ```
 
-5. A step kind named `followup` conflicts with the core kind of that name, as `note` does, and the load fails with `PluginConflict`. Rename the plugin's kind.
+5. A step kind named `followup`, `level` or `callout` conflicts with the core kind or step key of that name, as `note` does, and the load fails with `PluginConflict`. Rename the plugin's kind.
 6. `result.json` holds what steps saved, through a `request` step's `save:` or `ctx.values.set`, as `caseValues`, an object of the last value each name got, finally steps included, without the `id` and `title` every case starts with. The run's redactor masks it, so a value it matches, such as a run of 8 or more digits, appears masked. A case that saved nothing, and an external case, hold `caseValues: {}`. `values` holds the run's values and is unchanged.
 
 7. `ctx.mask(value)` registers a value with the run's redactor. A trace, log, note, result and post plan written after the call mask it. A value of fewer than 4 characters is not registered. Call it for data a step types or reads that a person owns, such as an account number a step takes from a response, since a trace masks only credentials, registered values and configured patterns. Timestamps and ids stay in it.
 8. A built-in `fill` step registers each identity field its `${identity.<name>.<field>}` placeholders fill, before the step runs, so a phone number typed from a fixture never stays in the trace. A fixture field that `redaction.shown` lists is left unregistered by `fill`, while `ctx.mask` still registers it. Text without a placeholder registers nothing, and a placeholder that does not resolve is left to the step, which fails on it.
 9. A registered value is masked in notes too, so a note that names it shows it masked.
 10. A process plugin's step calls `host.mask` for the same effect. See [plugin-protocol.md](plugin-protocol.md).
+11. `result.json` also holds `callouts`, the texts of the notes a case marked with `callout: true` (always present, `[]` when none), and `steps`, one entry for each top-level step the case started, in the order they started: `{ number, kind, list, startedAt, durationMs }`. `number` is the step's number as failure messages count it, with flows expanded and the finally steps numbered after the last check. `list` is `steps`, `checks` or `finally`, `startedAt` an ISO time and `durationMs` a whole number of milliseconds. A step that threw has its entry; a step that never started has none, and neither does a finally step that was skipped or that the 2 minute budget left undone. A step that ran again after a lost session is one entry. The harness writes `steps`, so the redactor leaves it as it is. An external case and a case blocked before it launched hold `steps: []`. A `result.json` from before v0.6.0 has neither field, and `bazam report plan` still reads it.
+
+**Marking checks**
+
+A step takes `level` and `callout` beside `as`. They mark the checks that step records, so every step kind gets them, a plugin's included, with no change to its handler.
+
+```yaml
+checks:
+  - api: { request: "GET ${env.APP_URL}/api/key/whoami", as: key-client, status: 200 }
+    level: core
+  - note: The partner sandbox was down, so the key check ran against staging
+    callout: true
+```
+
+1. `level` is a label of 1 to 20 letters, digits and dashes, such as `core`. Any other value fails with `a level takes 1 to 20 letters, digits and dashes, such as core`. A comment shows it in the Level column of the checks table when some check has one.
+2. `callout: true` shows the check above the fold of a tracker comment, and on a `note` step it shows the note there instead of in the notes list. A callout note always shows as an error.
+3. A mark covers the whole step, nested steps included. A nested step's own mark wins over its holder's. A `use` step passes its `level` and `callout` to each flow step that does not set that mark itself.
+4. A check a plugin records with its own `level` or `callout` keeps it. A step's marks fill only the fields the check leaves out. A follow-up gets the level and never the callout.
+5. A `finally` step ignores both marks, since its checks are notes.
+6. In a process plugin, `host.evidence.record` takes `level` and `callout` in its check, and a level outside the form is refused. An in-process plugin's level is typed `string` and not checked, and every renderer escapes it. A plugin has no call for a callout note.
+
+**Breaking changes in v0.6.0**
+
+1. A project's own in-process tracker renderer now gets `render(result, options)`. `options` is `{ media?, resultLine? }`, where `media` was the second argument before. TypeScript does not flag the old signature, because a method's parameters are checked both ways. Read `options.media` where the renderer read its second argument.
+2. The step kinds `level` and `callout` are taken. A plugin that offers one fails to load with `PluginConflict`; rename the kind.
 
 **Order of a case**
 

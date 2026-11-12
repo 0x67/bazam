@@ -74,6 +74,16 @@ Two GitHub Actions workflows in `examples/ci/` run a bazam project in CI. `regre
 3. Create the `tracker` environment: Settings, Environments, New environment, named `tracker`. Under deployment branches and tags, pick "Selected branches and tags" and add only the default branch. Add the environment secrets `JIRA_EMAIL` and `JIRA_API_TOKEN`, or set them with `gh secret set JIRA_API_TOKEN --env tracker`.
 4. The `regression` and `promote` jobs declare that environment, so in a run dispatched from another branch GitHub refuses them before any of their steps runs. Inside those jobs, the tracker secrets reach only the step that posts or promotes.
 
+**Reading a result**
+
+Each case's `result.json` in the `regression-runs` artifact holds `steps`, one entry for each top-level step the case started: `{ number, kind, list, startedAt, durationMs }`. [plugins.md](plugins.md) lists the rules.
+
+1. `list` says where the step came from: `steps`, `checks` or `finally`. A flow's steps are numbered after it expands, so `number` matches the step numbers in failure messages.
+2. The first user action is the first entry whose `kind` acts on the page, such as `open`, `tap` or `fill`, not `request`, `api` or `note`. Its `startedAt` is when the case first acted as a user.
+3. A step that threw has an entry and ends the case, so the steps after it have none. A check that records a failure without throwing lets the later steps run; the failed checks are in `checks` with `ok: false`.
+4. `callouts` holds the notes a case marked to show above the fold of a comment, and each check carries its `level` and `callout`.
+5. `report post` shows each uploaded png inline in the Jira comment when Jira gives the file's media id, and lists the other files by name. A comment that Jira refuses with inline images is posted again with every file listed by name.
+
 **What others can see**
 
 1. Anyone signed in to GitHub can download the artifacts of a public repository: the regression evidence for 7 days, and the acceptance runs and the promotion patch for 1 day. The evidence and the acceptance runs hold screenshots, traces, logs and results.

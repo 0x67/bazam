@@ -157,7 +157,7 @@ The host's objects for a call, such as a step's evidence, stay in the host. Each
 10. `comment` and a `BugDraft`'s `description`: `{ markdown, html?, adf? }`, which core renders. A process tracker client converts them to its tracker's format itself.
 11. `Mention`: `{ role, accountId }`. `AttachmentFile`: `{ name, path }`, a file on the host's disk.
 12. `BugDraft`: `{ project, issueType, summary, labels, description, attachments: AttachmentFile[], relatesTo }`.
-13. `CheckRecord`: `{ name, kind, expected?, observed?, ok, hint? }`, where `kind` is `ui`, `api`, `guided`, `followup` or `external`.
+13. `CheckRecord`: `{ name, kind, expected?, observed?, ok, hint?, level?, callout? }`, where `kind` is `ui`, `api`, `guided`, `followup` or `external`. `level` is 1 to 20 letters, digits and dashes, and `host.evidence.record` refuses any other. `callout: true` shows the check above the fold of a tracker comment. A check that leaves either out gets the mark of the step it runs in, if that step has one.
 14. A field marked `?` may be left out. Leave it out rather than send `null`.
 
 **Contributions**
