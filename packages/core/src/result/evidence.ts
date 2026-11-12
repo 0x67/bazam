@@ -12,6 +12,16 @@ import {
 
 type Stage = CaseSpec["stage"];
 
+/** When one top-level step started and how long it took, as the harness measured it. */
+export interface StepTime {
+  /** The step's number, as failure messages count it. */
+  number: number;
+  kind: string;
+  list: "steps" | "checks" | "finally";
+  startedAt: string;
+  durationMs: number;
+}
+
 export interface CaseResult {
   runId: string;
   caseId: string;
@@ -35,6 +45,8 @@ export interface CaseResult {
   values: Record<string, string>;
   /** What the case's steps saved, masked as the rest of the result is. */
   caseValues: Record<string, string>;
+  /** The top-level steps the case started, in order; the harness made them, so they are not masked. */
+  steps: StepTime[];
   startedAt: string;
   finishedAt: string;
   durationMs: number;
@@ -52,6 +64,7 @@ export interface CaseMeta {
   seed: number;
   values: Record<string, string>;
   caseValues: Record<string, string>;
+  steps: StepTime[];
   startedAt: Date;
 }
 
@@ -138,15 +151,17 @@ export class EvidenceStore {
       seed: meta.seed,
       values: meta.values,
       caseValues: meta.caseValues,
+      steps: meta.steps,
       startedAt: meta.startedAt.toISOString(),
       finishedAt: now.toISOString(),
       durationMs: now.getTime() - meta.startedAt.getTime(),
     };
-    // the harness makes the seed, run values and duration, so none is a secret, but the digit-run pattern would mask long ones
+    // the harness makes the seed, run values, step times and duration, so none is a secret, but the digit-run pattern would mask long ones
     const masked: CaseResult = {
       ...this.#redactor.value(result),
       seed: meta.seed,
       values: meta.values,
+      steps: meta.steps,
       durationMs: result.durationMs,
     };
     await mkdir(this.#dir, { recursive: true });

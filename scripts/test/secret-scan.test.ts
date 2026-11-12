@@ -190,6 +190,7 @@ it("passes a short value inside numbers, run ids, result.json fields the harness
       status: "pass",
       seed: Number(PIN),
       values: { n: PIN },
+      steps: [{ number: 1, kind: PIN, list: "steps", startedAt: "", durationMs: Number(PIN) }],
       durationMs: Number(PIN),
     }),
   );

@@ -9,6 +9,7 @@ import { guardedHttp } from "../src/driver/http.ts";
 import { RunValues } from "../src/env/index.ts";
 import { definePlugin, PLUGIN_API_VERSION } from "../src/plugin/index.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
+import type { StepTime } from "../src/result/index.ts";
 import { CaseEvidence } from "../src/run/case-evidence.ts";
 import { CaseRun, type RunScope } from "../src/run/case-run.ts";
 import { CaseValues } from "../src/run/case-values.ts";
@@ -223,6 +224,7 @@ function testCase(
 
 interface CaseRan {
   notes: string[];
+  times: readonly StepTime[];
   browser: WatchedContext | undefined;
 }
 
@@ -308,7 +310,7 @@ async function runCase(
   await run.run().catch((caught: unknown) => {
     error = caught;
   });
-  return { notes, browser: contexts.get(identity), error };
+  return { notes, times: evidence.stepTimes, browser: contexts.get(identity), error };
 }
 
 const as = { as: "customer" };
@@ -371,6 +373,19 @@ describe("CaseRun when a step throws SessionLost", () => {
     expect(notes).toEqual([
       `refreshed customer's web credential after step 3 (land) landed on the login page`,
       "step 3 (land) ran again after refreshing customer's web credential",
+    ]);
+  });
+
+  it("records the step that ran twice as one entry", async () => {
+    lands = 1;
+    const { times } = await runCase(
+      testCase([{ look: true, ...as }, { expire: true }, { land: true, ...as }]),
+    );
+
+    expect(times.map(({ number, kind }) => [number, kind])).toEqual([
+      [1, "look"],
+      [2, "expire"],
+      [3, "land"],
     ]);
   });
 

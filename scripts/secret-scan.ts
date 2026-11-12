@@ -42,7 +42,7 @@ const USAGE =
 
 // the evidence store writes these result.json fields unmasked, since the harness makes them
 // (see packages/core/src/result/evidence.ts::EvidenceStore.finish)
-const HARNESS_FIELDS = ["seed", "values", "durationMs"];
+const HARNESS_FIELDS = ["seed", "values", "steps", "durationMs"];
 const ZIP_MAGIC = Buffer.from("PK\x03\x04", "latin1");
 // PNG and JPEG, the screenshots and screencast frames a run writes
 const IMAGE_MAGIC = [Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.from([0xff, 0xd8, 0xff])];

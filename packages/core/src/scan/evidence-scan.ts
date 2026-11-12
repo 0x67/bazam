@@ -52,7 +52,7 @@ const IMAGE_MAGIC = [
 ];
 // the evidence store writes these result.json fields unmasked, since the harness makes them
 // (see packages/core/src/result/evidence.ts::EvidenceStore.finish)
-const HARNESS_FIELDS = ["seed", "values", "durationMs"];
+const HARNESS_FIELDS = ["seed", "values", "steps", "durationMs"];
 const VALUE_KINDS = ["fixture ", "secret ", "credential "];
 
 interface Mark {

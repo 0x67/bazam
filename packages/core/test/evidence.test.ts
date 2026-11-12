@@ -28,6 +28,7 @@ const meta: CaseMeta = {
   seed: 42,
   values: { amount: "4.27" },
   caseValues: {},
+  steps: [],
   startedAt: new Date("2026-11-06T09:30:00.000Z"),
 };
 const heading: CheckRecord = {
@@ -98,6 +99,7 @@ describe("EvidenceStore", () => {
       identities: ["admin-1"],
       seed: 42,
       caseValues: {},
+      steps: [],
       values: { amount: "4.27" },
       startedAt: "2026-11-06T09:30:00.000Z",
       finishedAt: "2026-11-06T09:30:02.500Z",
@@ -215,6 +217,19 @@ describe("EvidenceStore", () => {
     });
   });
 
+  it("keeps the step times unmasked and writes them to result.json", async () => {
+    const store = newStore();
+    store.record(heading);
+    const steps = [
+      { number: 1, kind: "66655867", list: "steps" as const, startedAt: "x", durationMs: 66655867 },
+    ];
+
+    const result = await store.finish(completed, { ...meta, steps }, finishedAt);
+
+    expect(result.steps).toEqual(steps);
+    expect(JSON.parse(await readCaseFile("result.json")).steps).toEqual(steps);
+  });
+
   it("keeps run values and the duration readable when they hold eight or more digits", async () => {
     const store = newStore();
     store.record(heading);
@@ -279,6 +294,7 @@ describe("writeRunSummary", () => {
       seed: 42,
       values: {},
       caseValues: {},
+      steps: [],
       startedAt: "2026-11-06T09:30:00.000Z",
       finishedAt: "2026-11-06T09:30:02.500Z",
       durationMs: 2500,

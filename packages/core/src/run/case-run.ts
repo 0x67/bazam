@@ -32,6 +32,7 @@ import type { PluginRegistry } from "../plugin/index.ts";
 import { PluginCallFailed } from "../plugin/process.ts";
 import type { Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
+import type { StepTime } from "../result/index.ts";
 import { maskPrompt } from "./browser-login.ts";
 import type { CaseEvidence, StepMarks } from "./case-evidence.ts";
 import {
@@ -42,7 +43,7 @@ import {
   SessionLost,
   StepFailed,
 } from "./outcome.ts";
-import { caseSteps, FILL_STEP, finallySteps } from "./plan.ts";
+import { caseSteps, FILL_STEP, finallySteps, stepCount } from "./plan.ts";
 
 const CHALLENGE_PROMPT_TIMEOUT_MS = 5 * 60_000;
 const GUIDED_PROMPT_TIMEOUT_MS = 15 * 60_000;
@@ -163,13 +164,17 @@ export class CaseRun {
 
   /** Runs the steps and then the checks in order, the first one that throws ends them, and then the finally steps. */
   async run(): Promise<void> {
-    const steps = caseSteps(this.#parts.spec, this.#scope.project.flows);
+    const { flows } = this.#scope.project;
+    const steps = caseSteps(this.#parts.spec, flows);
+    const before = stepCount(this.#parts.spec, flows);
     try {
       for (const [index, step] of steps.entries()) {
         await this.#recovery;
         this.#throwPendingBlock();
         this.#stepRecovery = undefined;
-        await this.#step(step, index + 1, step.as);
+        await this.#timed(index + 1, stepKind(step), index < before ? "steps" : "checks", () =>
+          this.#step(step, index + 1, step.as),
+        );
       }
       await this.#recovery;
       this.#throwPendingBlock();
@@ -183,6 +188,28 @@ export class CaseRun {
       this.#closing = true;
       while (this.#recovery !== undefined) await this.#recovery;
       this.#noteUnreportedBlock();
+    }
+  }
+
+  /** Runs `run` and records when it started and how long it took, also when it throws. */
+  async #timed(
+    number: number,
+    kind: string,
+    list: StepTime["list"],
+    run: () => Promise<void>,
+  ): Promise<void> {
+    const startedAt = new Date().toISOString();
+    const began = performance.now();
+    try {
+      await run();
+    } finally {
+      this.#parts.evidence.stepTime({
+        number,
+        kind,
+        list,
+        startedAt,
+        durationMs: Math.round(performance.now() - began),
+      });
     }
   }
 
@@ -200,17 +227,18 @@ export class CaseRun {
   }
 
   /** Runs every finally step under its own signal and turns what goes wrong, and each check, into notes. Never throws. */
-  async #runFinally(stepCount: number): Promise<void> {
+  async #runFinally(before: number): Promise<void> {
     const steps = finallySteps(this.#parts.spec, this.#scope.project.flows);
     if (steps.length === 0) return;
     const { evidence } = this.#parts;
     this.#signal = AbortSignal.timeout(FINALLY_BUDGET_MS);
     for (const [index, step] of steps.entries()) {
-      const number = stepCount + index + 1;
+      const number = before + index + 1;
       const kind = stepKind(step);
+      await this.#recovery;
       if (this.#signal.aborted) {
         evidence.note(
-          `finally steps ${number} to ${stepCount + steps.length} did not run: the 2 minute budget ran out`,
+          `finally steps ${number} to ${before + steps.length} did not run: the 2 minute budget ran out`,
         );
         return;
       }
@@ -220,13 +248,15 @@ export class CaseRun {
       }
       this.#stepRecovery = undefined;
       let failure: unknown;
-      const checks = await evidence.recordAside(async () => {
-        try {
-          await this.#step(unmarked(step), number, step.as);
-        } catch (error) {
-          failure = error;
-        }
-      });
+      const checks = await evidence.recordAside(() =>
+        this.#timed(number, kind, "finally", async () => {
+          try {
+            await this.#step(unmarked(step), number, step.as);
+          } catch (error) {
+            failure = error;
+          }
+        }),
+      );
       if (failure !== undefined) {
         const cause = failure instanceof StepFailed ? failure.cause : failure;
         evidence.note(`finally step ${number} (${kind}) failed: ${messageOf(cause)}`);

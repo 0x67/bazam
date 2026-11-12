@@ -83,6 +83,7 @@ function result(runId: string, env: string, status: Status, finishedAt: string):
     seed: 7,
     values: {},
     caseValues: {},
+    steps: [],
     startedAt: finishedAt,
     finishedAt,
     durationMs: 0,

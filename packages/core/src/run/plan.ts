@@ -100,6 +100,11 @@ export function caseSteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>):
   return expandFlows([...spec.steps, ...spec.checks], flows);
 }
 
+/** How many of `caseSteps` come from the case's `steps` list, flows expanded; the rest are its checks. */
+export function stepCount(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>): number {
+  return expandFlows(spec.steps, flows).length;
+}
+
 /** The case's finally steps, flows expanded; their numbers follow the last check's. */
 export function finallySteps(spec: CaseSpec, flows: ReadonlyMap<string, FlowSpec>): Step[] {
   return expandFlows(spec.finally, flows);

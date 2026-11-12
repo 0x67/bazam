@@ -788,6 +788,34 @@ describe("runCases", () => {
     expect(blocked?.caseValues).toEqual({});
   });
 
+  it("writes the top-level steps a case started to result.json", async () => {
+    const { results, runDir } = await runProject(
+      [
+        testCase("SHOP-TIMES-001", {
+          steps: [{ keep: { name: "a", value: "1" } }, { note: "saw ${secret.API_PASSWORD}" }],
+          checks: [expectVisible],
+          finally: [{ keep: { name: "b", value: "2" } }],
+        }),
+      ],
+      {
+        localFixtures: { customer: { email: "keep" }, shopper: { email: "shopper@example.test" } },
+      },
+    );
+    const written = JSON.parse(
+      await readFile(join(runDir, "SHOP-TIMES-001", "result.json"), "utf8"),
+    );
+
+    expect(results[0]?.steps.map(({ number, kind, list }) => [number, kind, list])).toEqual([
+      [1, "keep", "steps"],
+      [2, "note", "steps"],
+      [3, "expect", "checks"],
+      [4, "keep", "finally"],
+    ]);
+    expect(written.steps).toEqual(results[0]?.steps);
+    expect(written.notes).not.toContain("saw keep");
+    expect(written.steps[0].kind).toBe("keep");
+  });
+
   it("writes status.json after each case", async () => {
     const verdict = (runDir: string) =>
       person(() => {

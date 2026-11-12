@@ -220,6 +220,7 @@ describe("recordExternalResults outcomes", () => {
       identities: [],
       values: {},
       caseValues: {},
+      steps: [],
       seed: 42,
       startedAt: "2026-11-08T10:15:00.000Z",
       finishedAt: "2026-11-08T10:16:30.000Z",

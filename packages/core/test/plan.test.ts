@@ -20,7 +20,7 @@ import {
   type PlanInputs,
   type RunPlan,
 } from "../src/run/index.ts";
-import { finallySteps, identitiesNamed } from "../src/run/plan.ts";
+import { finallySteps, identitiesNamed, stepCount } from "../src/run/plan.ts";
 import { fakeDriver, fakeStep } from "./support/fake-driver.ts";
 import { loadTestProject } from "./support/project.ts";
 
@@ -701,6 +701,31 @@ describe("finallySteps", () => {
     });
 
     expect(finallySteps(spec, flows)).toEqual([{ note: "disarmed" }, { note: "last" }]);
+  });
+});
+
+describe("stepCount", () => {
+  const flows = new Map<string, FlowSpec>([
+    ["greet", { name: "greet", params: [], steps: [{ note: "hi" }, { note: "again" }] }],
+  ]);
+
+  it("counts the steps after flows expand and leaves the checks out", () => {
+    const spec = CaseSpec.parse({
+      ...testCase("AUTH-COUNT-001", {}),
+      steps: [{ note: "act" }, { use: "greet" }],
+      checks: [{ note: "verify" }],
+    });
+
+    expect(stepCount(spec, flows)).toBe(3);
+  });
+
+  it("equals the length of the case's steps when it has no checks", () => {
+    const spec = CaseSpec.parse({
+      ...testCase("AUTH-COUNT-002", {}),
+      steps: [{ note: "act" }, { note: "more" }],
+    });
+
+    expect(stepCount(spec, flows)).toBe(2);
   });
 });
 

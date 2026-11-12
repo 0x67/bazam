@@ -126,6 +126,15 @@ describe("scanFiles", () => {
     ]);
   });
 
+  it("does not report a value inside the step times of result.json", async () => {
+    const steps = [{ number: 1, kind: PHONE_NATIONAL, list: "steps", durationMs: 12 }];
+    await put("case/result.json", JSON.stringify({ notes: [], steps }));
+
+    const report = await scanFiles(dir, ["case/result.json"], values);
+
+    expect(report.findings).toEqual([]);
+  });
+
   it("masks a short value behind an escape in the context of a nearby finding", async () => {
     const pin: ScanValues = {
       ...values,

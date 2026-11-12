@@ -464,6 +464,7 @@ class Run {
         seed,
         values: runValues.recorded(),
         caseValues: values.saved(),
+        steps: [...evidence.stepTimes],
         startedAt,
       },
       new Date(),

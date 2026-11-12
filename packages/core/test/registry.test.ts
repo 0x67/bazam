@@ -468,6 +468,7 @@ describe("PluginRegistry.tracker", () => {
       seed: 7,
       values: {},
       caseValues: {},
+      steps: [],
       startedAt: "2026-11-07T10:00:00.000Z",
       finishedAt: "2026-11-07T10:01:00.000Z",
       durationMs: 60_000,

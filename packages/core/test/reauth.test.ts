@@ -590,6 +590,25 @@ describe("CaseRun log in again after a 401", () => {
     ]);
   });
 
+  it("starts a finally step after the recovery an earlier finally step started", async () => {
+    refreshDelayMs = 60;
+    const runCase = await startRun([
+      {
+        ...testCase("SHOP-LOGIN-001", [{ look: true, as: "customer" }, { expire: true }]),
+        finally: [
+          { call: 1, as: "customer" },
+          { look: true, as: "customer" },
+        ],
+      },
+    ]);
+    const stepTime = vi.spyOn(CaseEvidence.prototype, "stepTime");
+
+    await runCase("SHOP-LOGIN-001");
+
+    const [first, second] = stepTime.mock.calls.map(([time]) => time).filter((t) => t.number > 2);
+    expect(Date.parse(second!.startedAt) - Date.parse(first!.startedAt)).toBeGreaterThanOrEqual(55);
+  });
+
   it("keeps the failed step's outcome and notes the reason when the step that got the 401 throws", async () => {
     refreshable = false;
     const runCase = await startRun([

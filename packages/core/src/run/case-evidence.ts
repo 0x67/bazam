@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Redactor } from "../redact/index.ts";
-import { EvidenceStore, followupCheck, type CheckRecord } from "../result/index.ts";
+import { EvidenceStore, followupCheck, type CheckRecord, type StepTime } from "../result/index.ts";
 
 /** The marks a step puts on the checks it records. */
 export interface StepMarks {
@@ -12,6 +12,7 @@ export interface StepMarks {
 export class CaseEvidence extends EvidenceStore {
   readonly #dir: string;
   readonly #checks: CheckRecord[] = [];
+  readonly #stepTimes: StepTime[] = [];
   #captured: CheckRecord[] | undefined;
   #aside: CheckRecord[] | undefined;
   #screenshot: string | undefined;
@@ -25,6 +26,15 @@ export class CaseEvidence extends EvidenceStore {
   /** The checks recorded so far, followups included; the runner derives from them the status it closes the driver session with. */
   get checks(): readonly CheckRecord[] {
     return this.#checks;
+  }
+
+  /** The top-level steps started so far, in the order they started. */
+  get stepTimes(): readonly StepTime[] {
+    return this.#stepTimes;
+  }
+
+  stepTime(time: StepTime): void {
+    this.#stepTimes.push(time);
   }
 
   /** Path of the latest screenshot, for a person's prompt. */
