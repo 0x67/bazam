@@ -6,6 +6,7 @@ import { ProjectConfig } from "../src/project.ts";
 import { defaultRedactionRules, Redactor } from "../src/redact/index.ts";
 import {
   applyBugs,
+  markdownTracker,
   planBugs,
   type BugInputs,
   type BugIntent,
@@ -165,6 +166,31 @@ describe("planBugs", () => {
         attachments: [
           { name: "01-cart.png", path: join(RUN_DIR, "CHECKOUT-CART-001", "01-cart.png") },
         ],
+      },
+    });
+  });
+
+  it("words the bug description and the comment with the tracker's result line", () => {
+    const config = ProjectConfig.parse({
+      envs: {},
+      trackers: {
+        jira: {
+          resultLine: "{status} in {env} ({case})",
+          projects: { DEMO: { bugs: { issueType: "Bug" } } },
+        },
+      },
+    });
+    const [intent] = planBugs({
+      ...inputs([result({ reason: REASON })]),
+      config,
+      renderer: markdownTracker,
+    });
+
+    expect(intent).toMatchObject({
+      draft: {
+        description: {
+          markdown: expect.stringMatching(/^\*\*Failed\*\* in uat \(CHECKOUT-CART-001\)\n/),
+        },
       },
     });
   });

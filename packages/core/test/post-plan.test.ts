@@ -231,6 +231,19 @@ describe("buildPostPlans", () => {
     expect(plan.items.map((item) => item.ticket.key)).toEqual(["DEMO-246"]);
   });
 
+  it("renders each ticket's comment with its tracker's result line, or the default line without one", () => {
+    const plan = buildPostPlans(
+      inputs([result({ links: ["jira:DEMO-246", "linear:ENG-4"] })], {
+        resultLine: (tracker) => (tracker === "jira" ? "{status} for {case}" : undefined),
+      }),
+    );
+
+    expect(plan.items.map((item) => item.comment.markdown.split("\n")[0])).toEqual([
+      "**Passed** for AUTH-LOGIN-001",
+      `**Passed** on uat: AUTH-LOGIN-001 Customer signs in with an email code (run ${RUN})`,
+    ]);
+  });
+
   it("passes the media references to the ticket's tracker renderer", () => {
     const media: MediaRefs = {
       "AUTH-LOGIN-001/01-dashboard.png": { id: "media-0001", collection: "contentId-1001" },
@@ -238,8 +251,8 @@ describe("buildPostPlans", () => {
     const seen: (MediaRefs | undefined)[] = [];
     const recording: TrackerRenderer = {
       tracker: "jira",
-      render: (_result, refs) => {
-        seen.push(refs);
+      render: (_result, options) => {
+        seen.push(options?.media);
         return { markdown: "body", html: "<p>body</p>" };
       },
     };
@@ -252,6 +265,17 @@ describe("buildPostPlans", () => {
 });
 
 describe("markdownTracker", () => {
+  it("words the first line from a result line template, escaping its text and bolding the status", () => {
+    const { markdown } = markdownTracker("notion").render(
+      result({ title: "Sign in <b>now</b>", identities: ["alice", "ops"] }),
+      { resultLine: "{env} {date}: {status} (as {identities}) {title}" },
+    );
+
+    expect(markdown.split("\n")[0]).toBe(
+      "uat 2026-11-07: **Passed** (as alice, ops) Sign in \\<b\\>now\\</b\\>",
+    );
+  });
+
   it("opens with the result line, then follow-ups, then checks, notes and attachments by file name", () => {
     const followup = result({
       status: "followup",

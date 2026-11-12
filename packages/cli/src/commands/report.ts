@@ -3,7 +3,12 @@ import { join, resolve } from "node:path";
 import { BRAND } from "@bazam/core/brand";
 import { CASE_ID } from "@bazam/core/case";
 import type { PluginRegistry } from "@bazam/core/plugin";
-import type { Project, ProjectConfig, TrackerConfig } from "@bazam/core/project";
+import {
+  resultLineOf,
+  type Project,
+  type ProjectConfig,
+  type TrackerConfig,
+} from "@bazam/core/project";
 import {
   applyBugs,
   buildPostPlans,
@@ -90,6 +95,7 @@ async function rebuildPlan(ctx: CommandContext): Promise<RebuiltPlan> {
     receipts: await loadReceipts(join(project.root, BRAND.stateDir)),
     trackers: (name) => registry.tracker(name),
     transitions: project.config.trackers,
+    resultLine: (name) => resultLineOf(project.config, name),
     ...(media === undefined ? {} : { media }),
     withheld,
     now: new Date(),

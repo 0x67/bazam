@@ -5,7 +5,7 @@ import type { LoadedCase } from "../case/index.ts";
 import type { Environment } from "../env/index.ts";
 import type { UnmappedTest } from "../ingest/index.ts";
 import type { PluginRegistry } from "../plugin/index.ts";
-import type { Project } from "../project.ts";
+import { resultLineOf, type Project } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import { buildPostPlans, loadReceipts, PeopleRegistry } from "../report/index.ts";
 import { loadScanValues, withheldAttachments } from "../scan/index.ts";
@@ -56,6 +56,7 @@ export async function finishRun(
     receipts: await loadReceipts(deps.stateDir),
     trackers: (name) => registry.tracker(name),
     transitions: project.config.trackers,
+    resultLine: (name) => resultLineOf(project.config, name),
     ...(withheld === undefined ? {} : { withheld }),
     now: new Date(),
   });

@@ -35,6 +35,7 @@ import { EnvsConfig, findPlaceholders } from "./env/index.ts";
 import { MappingFile } from "./ingest/mapping.ts";
 import type { PluginRegistry } from "./plugin/index.ts";
 import { RedactionConfig } from "./redact/index.ts";
+import { resultLineProblem } from "./report/result-line.ts";
 
 const SUITES_FILE = "suites.yaml";
 const MAPPING_RULE = "runner-mapping-valid";
@@ -142,6 +143,14 @@ export const TrackerConfig = z.strictObject({
   /** Secret names, read through `secrets.providers`. */
   secrets: z.record(z.string().min(1), z.string().min(1)).default({}),
   projects: z.record(z.string().min(1), TrackerProject).default({}),
+  /** The first line of each comment, such as `{status} on {env} {date} (as {identities})`. */
+  resultLine: z
+    .string()
+    .min(1)
+    .refine((template) => resultLineProblem(template) === undefined, {
+      error: (issue) => resultLineProblem(String(issue.input)) ?? "",
+    })
+    .optional(),
 });
 export type TrackerConfig = z.infer<typeof TrackerConfig>;
 
@@ -276,6 +285,11 @@ export const ProjectConfig = z
     }
   });
 export type ProjectConfig = z.infer<typeof ProjectConfig>;
+
+/** The tracker's own result line template, if the config sets one. */
+export function resultLineOf(config: ProjectConfig, tracker: string): string | undefined {
+  return Object.hasOwn(config.trackers, tracker) ? config.trackers[tracker]!.resultLine : undefined;
+}
 
 /** The runner a runner target names, with the target's env; undefined for a driver target or an unknown target. */
 export function runnerOf(

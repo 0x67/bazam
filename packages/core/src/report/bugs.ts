@@ -1,5 +1,5 @@
 import { BRAND } from "../brand.ts";
-import type { ProjectConfig, TrackerConfig } from "../project.ts";
+import { resultLineOf, type ProjectConfig, type TrackerConfig } from "../project.ts";
 import type { Redactor } from "../redact/index.ts";
 import type { CaseResult } from "../result/index.ts";
 import type { BugDraft, TrackerConnection } from "./client.ts";
@@ -88,7 +88,12 @@ export function planBugs(inputs: BugInputs): BugIntent[] {
       project: trackerProject(ref.key),
       label: bugLabel(result.caseId),
     };
-    const comment = redactor.value(inputs.renderer(ref.tracker).render(result, inputs.media));
+    const comment = redactor.value(
+      inputs.renderer(ref.tracker).render(result, {
+        media: inputs.media,
+        resultLine: resultLineOf(config, ref.tracker),
+      }),
+    );
     if (result.status === "pass")
       return [
         {

@@ -15,6 +15,7 @@ import {
 import {
   declaredSecretNames,
   loadProjectConfig,
+  resultLineOf,
   runnerOf,
   type ConfigLoad,
 } from "../src/project.ts";
@@ -576,5 +577,41 @@ describe("runner targets and process plugin entries", () => {
     expect(await issues(api("http://127.0.0.1/rest"))).toEqual([refused]);
     expect(await issues(api("http://api.example.test:8080"))).toEqual([refused]);
     expect(await issues(api("not a url"))).toEqual([[5, "trackers.jira.api: Invalid URL"]]);
+  });
+
+  it("refuses a result line with an unknown field or a stray brace, on its line", async () => {
+    const jira = (resultLine: string) => [
+      "trackers:",
+      "  jira:",
+      `    resultLine: "${resultLine}"`,
+    ];
+
+    expect(await issues(["envs: {}", ...jira("{status} on {enviroment}")])).toEqual([
+      [
+        4,
+        "trackers.jira.resultLine: unknown field {enviroment}; the fields are status, env, date, identities, case, title, run, target",
+      ],
+    ]);
+    expect(await issues(["envs: {}", ...jira("{status} on {env")])).toEqual([
+      [4, "trackers.jira.resultLine: a { or } that is not part of a field"],
+    ]);
+    expect(await issues(["envs: {}", ...jira("{status} on {env} {date}")])).toEqual([]);
+  });
+
+  it("gives the result line of its own tracker only", async () => {
+    const { config } = await load([
+      "envs: {}",
+      "trackers:",
+      "  jira:",
+      '    resultLine: "{status} on {env}"',
+      "  linear: {}",
+    ]);
+    if (config === undefined) throw new Error("the config has issues");
+
+    expect(resultLineOf(config, "jira")).toBe("{status} on {env}");
+    expect(resultLineOf(config, "linear")).toBeUndefined();
+    expect(resultLineOf(config, "notion")).toBeUndefined();
+    const inherited = { ...config, trackers: Object.create({ jira: { resultLine: "{env}" } }) };
+    expect(resultLineOf(inherited, "jira")).toBeUndefined();
   });
 });

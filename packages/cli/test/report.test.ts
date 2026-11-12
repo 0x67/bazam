@@ -84,6 +84,27 @@ describe("report", () => {
     );
   });
 
+  it("words each comment with the tracker's result line from the project", async () => {
+    const project = await ranProject();
+    const config = JSON.parse(await project.read(BRAND.configFile)) as object;
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({
+        ...config,
+        trackers: { jira: { resultLine: "{env} on {case}: {status}" } },
+      }),
+    );
+
+    const plan = await reportPlan(project);
+
+    expect(plan.items.map((item) => item.comment.markdown.split("\n")[0])).toEqual(
+      Array(2).fill("demo on SHOP-OK-001: **Passed**"),
+    );
+    expect(plan.items.map((item) => item.comment.html?.split("</p>")[0])).toEqual(
+      Array(2).fill("<p>demo on SHOP-OK-001: <strong>Passed</strong>"),
+    );
+  });
+
   it("records an ack, so the next plan for that case and ticket edits the comment", async () => {
     const project = await ranProject();
     const first = await reportPlan(project);

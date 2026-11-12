@@ -30,6 +30,7 @@ import {
   FIXTURES_FILE,
   loadProject,
   loadProjectConfig,
+  resultLineOf,
   type Project,
   type ProjectConfig,
 } from "@bazam/core/project";
@@ -380,6 +381,7 @@ export const caseTools: readonly ToolDefinition[] = [
         receipts: await loadReceipts(join(project.root, BRAND.stateDir)),
         trackers: (name) => registry.tracker(name),
         transitions: project.config.trackers,
+        resultLine: (name) => resultLineOf(project.config, name),
         ...(media === undefined ? {} : { media }),
         withheld: await withheldAttachments(runDir, results, values),
         now: new Date(),

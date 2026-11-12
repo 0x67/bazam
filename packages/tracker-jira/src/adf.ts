@@ -1,5 +1,10 @@
 import type { JsonValue } from "@bazam/core/auth";
-import { checkTable, STATUS_LABELS } from "@bazam/core/report";
+import {
+  checkTable,
+  DEFAULT_RESULT_LINE,
+  resultLineParts,
+  STATUS_LABELS,
+} from "@bazam/core/report";
 import type { CaseResult, CheckRecord } from "@bazam/core/result";
 
 /** An Atlassian Document Format body; a type alias so it passes as a `JsonValue`. */
@@ -14,14 +19,15 @@ const MAX_DOC_LENGTH = 30_000;
  * characters keeps the result line, the reason and the follow-ups, and a paragraph naming the run replaces the
  * evidence.
  */
-export function renderJiraAdf(result: CaseResult): AdfDoc {
+export function renderJiraAdf(result: CaseResult, template = DEFAULT_RESULT_LINE): AdfDoc {
   const head: JsonValue[] = [
     {
       type: "paragraph",
-      content: [
-        { type: "text", text: STATUS_LABELS[result.status], marks: [{ type: "strong" }] },
-        ...textNodes(` on ${resultSubject(result)}`),
-      ],
+      content: resultLineParts(template, result).flatMap((part) =>
+        "status" in part
+          ? [{ type: "text", text: STATUS_LABELS[part.status], marks: [{ type: "strong" }] }]
+          : textNodes(part.text),
+      ),
     },
     ...(result.reason === undefined ? [] : [paragraph(`Reason: ${result.reason}`)]),
     ...list("Follow-up for a person:", result.followups.map(followupText)),
@@ -45,10 +51,6 @@ export function renderJiraAdf(result: CaseResult): AdfDoc {
     ...head,
     paragraph(`The evidence is too long for a Jira comment; it is in run ${result.runId}`),
   ]);
-}
-
-export function resultSubject(result: CaseResult): string {
-  return `${result.env}: ${result.caseId} ${result.title} (run ${result.runId})`;
 }
 
 export function followupText(followup: CaseResult["followups"][number]): string {

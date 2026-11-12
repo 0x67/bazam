@@ -127,7 +127,7 @@ describe("renderJiraComment", () => {
   });
 
   it.each(statuses)("matches the snapshot for a %s result with media", (status) => {
-    expect(renderJiraComment(RESULTS[status], MEDIA)).toMatchSnapshot();
+    expect(renderJiraComment(RESULTS[status], { media: MEDIA })).toMatchSnapshot();
   });
 
   it("matches the snapshot for a result with levels", () => {
@@ -159,6 +159,20 @@ describe("renderJiraComment", () => {
 
     expect(markdown.startsWith(`**${label}** on ${line}\n`)).toBe(true);
     expect(html.startsWith(`<p><strong>${label}</strong> on ${line}</p>`)).toBe(true);
+  });
+
+  it("words the first line of the Markdown and the HTML from a result line template", () => {
+    const { markdown, html } = renderJiraComment(
+      result({ title: "Sign in <b>now</b>", identities: ["alice", "ops"] }),
+      { resultLine: "{env} {date}: {status} (as {identities}) {title}" },
+    );
+
+    expect(markdown.split("\n")[0]).toBe(
+      "uat 2026-11-07: **Passed** (as alice, ops) Sign in \\<b\\>now\\</b\\>",
+    );
+    expect(html.split("</p>")[0]).toBe(
+      "<p>uat 2026-11-07: <strong>Passed</strong> (as alice, ops) Sign in &lt;b&gt;now&lt;/b&gt;",
+    );
   });
 
   it("escapes markup from every result field in the HTML", () => {
@@ -193,7 +207,7 @@ describe("renderJiraComment", () => {
   it("inlines only png attachments that have a media reference and lists the rest by file name", () => {
     const { html } = renderJiraComment(
       result({ attachments: ["01-dashboard.png", "02-trace.zip", "03-statement.png"] }),
-      MEDIA,
+      { media: MEDIA },
     );
 
     expect(html.match(/<figure /g)).toHaveLength(1);
@@ -205,14 +219,16 @@ describe("renderJiraComment", () => {
   });
 
   it("leaves out data-collection when the media reference has none", () => {
-    const { html } = renderJiraComment(result({ attachments: ["01-code-entry.png"] }), MEDIA);
+    const { html } = renderJiraComment(result({ attachments: ["01-code-entry.png"] }), {
+      media: MEDIA,
+    });
 
     expect(html).toContain('data-id="media-code-entry-0002" data-alt="01-code-entry.png"');
     expect(html).not.toContain("data-collection");
   });
 
   it("lists every attachment by file name in the Markdown even when media is given", () => {
-    const { markdown } = renderJiraComment(RESULTS.pass, MEDIA);
+    const { markdown } = renderJiraComment(RESULTS.pass, { media: MEDIA });
 
     expect(markdown).toContain("Attached files: 01-dashboard.png, 02-trace.zip");
   });

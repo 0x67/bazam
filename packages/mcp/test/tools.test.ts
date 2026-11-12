@@ -399,6 +399,52 @@ describe("case tools", () => {
     expect(Object.keys(plan.items[0]!.comment).sort()).toEqual(["html", "markdown"]);
   });
 
+  it("report_plan words each comment with the tracker's result line from the project", async () => {
+    const project = await fixtureProject();
+    const runId = "20261107-120000-abcd";
+    const config = JSON.parse(await project.read(BRAND.configFile)) as object;
+    await project.write(
+      BRAND.configFile,
+      JSON.stringify({ ...config, trackers: { jira: { resultLine: "{case}: {status}" } } }),
+    );
+    await project.write(
+      `runs/${runId}/DESK-LOOK-001/result.json`,
+      JSON.stringify({
+        runId,
+        caseId: "DESK-LOOK-001",
+        title: "A person looks at the desk",
+        stage: "acceptance",
+        env: "demo",
+        target: "t",
+        links: ["jira:DEMO-1"],
+        status: "pass",
+        checks: [],
+        notes: [],
+        callouts: [],
+        followups: [],
+        attachments: [],
+        challenges: [],
+        identities: [],
+        seed: 7,
+        values: {},
+        caseValues: {},
+        steps: [],
+        startedAt: "2026-11-07T12:00:00.000Z",
+        finishedAt: "2026-11-07T12:00:05.000Z",
+        durationMs: 5000,
+      }),
+    );
+    const mcp = await open(project.root);
+
+    const plan = await mcp.json<{ items: { comment: { markdown: string } }[] }>("report_plan", {
+      runId,
+    });
+
+    expect(plan.items.map((item) => item.comment.markdown.split("\n")[0])).toEqual([
+      "DESK-LOOK-001: **Passed**",
+    ]);
+  });
+
   it("report_plan withholds an attachment that holds a fixture value and returns it under withheld", async () => {
     const project = await fixtureProject();
     const runId = "20261107-120000-abcd";

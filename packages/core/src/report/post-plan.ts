@@ -59,9 +59,15 @@ export interface RenderedComment {
   adf?: JsonValue;
 }
 
+export interface RenderOptions {
+  media?: MediaRefs | undefined;
+  /** The tracker's result line template; the default line when left out. */
+  resultLine?: string | undefined;
+}
+
 export interface TrackerRenderer {
   tracker: string;
-  render(result: CaseResult, media?: MediaRefs): RenderedComment;
+  render(result: CaseResult, options?: RenderOptions): RenderedComment;
 }
 
 export interface PostPlanInputs {
@@ -75,6 +81,8 @@ export interface PostPlanInputs {
   trackers: (name: string) => TrackerRenderer;
   transitions: TransitionMap;
   media?: MediaRefs;
+  /** The result line template of a tracker, if its config sets one. */
+  resultLine?: (tracker: string) => string | undefined;
   /** The kinds of value each attachment holds, by `<case-id>/<file>`; those attachments stay out of the plan. */
   withheld?: ReadonlyMap<string, readonly string[]>;
   now: Date;
@@ -126,7 +134,12 @@ function postPlanItem(result: CaseResult, ticket: TicketRef, inputs: PostPlanInp
     ticket,
     caseId: result.caseId,
     status: result.status,
-    comment: inputs.trackers(ticket.tracker).render({ ...result, attachments: kept }, inputs.media),
+    comment: inputs
+      .trackers(ticket.tracker)
+      .render(
+        { ...result, attachments: kept },
+        { media: inputs.media, resultLine: inputs.resultLine?.(ticket.tracker) },
+      ),
     ...(receipt === undefined ? {} : { edit: { url: receipt.url } }),
     attachments: kept.map((name) => `${result.caseId}/${name}`),
     ...(withheld.length === 0 ? {} : { withheld }),

@@ -1,17 +1,21 @@
 import {
   checkTable,
+  DEFAULT_RESULT_LINE,
   escapeMarkdown,
+  markdownResultLine,
+  resultLineParts,
   STATUS_LABELS,
   type MediaRefs,
+  type RenderOptions,
   type TrackerRenderer,
 } from "@bazam/core/report";
 import type { CaseResult } from "@bazam/core/result";
-import { checkResult, followupText, renderJiraAdf, resultSubject, type AdfDoc } from "./adf.ts";
+import { checkResult, followupText, renderJiraAdf, type AdfDoc } from "./adf.ts";
 
 type MediaRef = MediaRefs[string];
 
 /**
- * The comment opens with the result line and any reason, then follow-ups for a person, then the evidence.
+ * The comment opens with the result line (the tracker's template, or the default) and any reason, then follow-ups for a person, then the evidence.
  * The HTML folds the evidence and shows a screenshot inline when `media` holds its uploaded id.
  * Markdown has no fold or media embed (the Atlassian connector stores HTML tags in Markdown as
  * literal text), so its evidence goes under a heading and it lists every file by name. ADF, which
@@ -19,18 +23,18 @@ type MediaRef = MediaRefs[string];
  */
 export function renderJiraComment(
   result: CaseResult,
-  media: MediaRefs = {},
+  options: RenderOptions = {},
 ): { markdown: string; html: string; adf: AdfDoc } {
   return {
-    markdown: markdownComment(result),
-    html: htmlComment(result, media),
-    adf: renderJiraAdf(result),
+    markdown: markdownComment(result, options.resultLine),
+    html: htmlComment(result, options.media ?? {}, options.resultLine),
+    adf: renderJiraAdf(result, options.resultLine),
   };
 }
 
 export const jiraTracker: TrackerRenderer = { tracker: "jira", render: renderJiraComment };
 
-function htmlComment(result: CaseResult, media: MediaRefs): string {
+function htmlComment(result: CaseResult, media: MediaRefs, template?: string): string {
   const figures: string[] = [];
   const listed: string[] = [];
   for (const name of result.attachments) {
@@ -51,14 +55,14 @@ function htmlComment(result: CaseResult, media: MediaRefs): string {
     listed.length === 0 ? "" : `<p>Attached files: ${escapeHtml(listed.join(", "))}</p>`,
   ].join("");
   return [
-    `<p><strong>${STATUS_LABELS[result.status]}</strong> on ${escapeHtml(resultSubject(result))}</p>`,
+    `<p>${htmlResultLine(result, template)}</p>`,
     result.reason === undefined ? "" : `<p>Reason: ${escapeHtml(result.reason)}</p>`,
     htmlList("Follow-up for a person:", result.followups.map(followupText)),
     evidence === "" ? "" : `<details><summary>Evidence</summary>${evidence}</details>`,
   ].join("");
 }
 
-function markdownComment(result: CaseResult): string {
+function markdownComment(result: CaseResult, template?: string): string {
   const table = checkTable(result.checks, checkResult);
   const evidence = [
     result.checks.length === 0
@@ -74,13 +78,21 @@ function markdownComment(result: CaseResult): string {
       : `Attached files: ${escapeMarkdown(result.attachments.join(", "))}`,
   ].filter((block) => block !== "");
   return `${[
-    `**${STATUS_LABELS[result.status]}** on ${escapeMarkdown(resultSubject(result))}`,
+    markdownResultLine(result, template),
     result.reason === undefined ? "" : `Reason: ${escapeMarkdown(result.reason)}`,
     markdownList("Follow-up for a person:", result.followups.map(followupText)),
     ...(evidence.length === 0 ? [] : ["### Evidence", ...evidence]),
   ]
     .filter((block) => block !== "")
     .join("\n\n")}\n`;
+}
+
+function htmlResultLine(result: CaseResult, template = DEFAULT_RESULT_LINE): string {
+  return resultLineParts(template, result)
+    .map((part) =>
+      "status" in part ? `<strong>${STATUS_LABELS[part.status]}</strong>` : escapeHtml(part.text),
+    )
+    .join("");
 }
 
 function htmlList(label: string, items: readonly string[]): string {

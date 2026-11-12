@@ -139,6 +139,22 @@ describe("renderJiraAdf", () => {
     expect(textOf(adf)).toBe(htmlText(html));
   });
 
+  it("words the first paragraph from a result line template with the status bold in the middle", () => {
+    const doc = renderJiraAdf(
+      result({ identities: ["alice", "ops"] }),
+      "{env} {date}: {status} (as {identities})",
+    );
+
+    expect(doc.content[0]).toEqual({
+      type: "paragraph",
+      content: [
+        { type: "text", text: "uat 2026-11-07: " },
+        { type: "text", text: "Passed", marks: [{ type: "strong" }] },
+        { type: "text", text: " (as alice, ops)" },
+      ],
+    });
+  });
+
   it("adds a Level column only when a check has a level, as plain text", () => {
     const levelled = result({
       checks: [
