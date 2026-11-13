@@ -34,8 +34,9 @@ v0.7.0 changes nothing that an adopter's case files, config or plugins rely on.
 3. A process tracker plugin accepts tracker settings it does not know. A new host-side setting then cannot break an older plugin.
 4. Config and case loading warn about deprecated fields, and `bazam check` shows the warnings. The first one is the case field `needs`, which nothing reads.
 5. An `api` check can poll (`until: { timeoutMs, intervalMs }`), only if an adopter's case waits on a fixed sleep today.
-6. Still open: a named lock besides identities. Cases that change one global setting, such as a feature flag on an admin page, would then never run concurrently under `--workers`.
-7. `v0.7.0-rc.1` goes out first. Adopters run their suites on it, and `final` releases the same commit.
+6. Still open: a named lock besides identities. Cases that change one global setting, such as a feature flag on an admin page, would then never run concurrently under `--workers`. Its semantics follow the test locks of Playwright Test 1.65 (`TestDetails.lock`), including an exclusive lock.
+7. A per-environment setting turns off or narrows the two built-in masking rules: the part before `@` of an address outside `example.*`, and runs of 8 or more digits. An environment whose customer data is anonymized can then show account numbers and amounts, while registered secrets and fixture values stay masked.
+8. `v0.7.0-rc.1` goes out first. Adopters run their suites on it, and `final` releases the same commit.
 
 **Stage 3. The first adopter finishes its move on v0.7.x**
 
@@ -62,6 +63,19 @@ v0.7.0 changes nothing that an adopter's case files, config or plugins rely on.
 1. When every check passes, the frozen line continues, and a separate decision follows on whether bazam grows past its first adopter (Stage 4).
 2. When upgrade cost or reliability fails on two releases in a row, or upkeep runs over for two months, bazam takes fixes only and the adopter keeps the last release.
 
+**Question for the checkpoint: Playwright Test as the runner**
+
+The options are a rewrite of bazam as a Playwright Test library, where cases become TypeScript specs, and an engine that compiles YAML cases into Playwright tests and runs bazam's step loop inside each test, with no change to case files or plugins. A spike decides between them, on a branch after Stage 1, with no release:
+
+1. Compile the example project's cases into Playwright tests and compare their `result.json` files with `bazam run` on the same cases.
+2. Check that two cases with the same identity never overlap under Playwright's test locks.
+3. Run a case that fills a registered secret and fails, with Playwright's default reporters and tracing, and look for the secret in every output.
+4. Start two workers whose cases ask a person at the same moment, through a challenge service started in `globalSetup`. One prompt shows at a time, and no test times out during a 3-minute wait.
+5. Force a redirect to the login page in the middle of a case. The compiled engine recovers and reruns one step, while a plain spec can only retry the whole test.
+6. Read one value from a native Android screen on a USB phone through playwright-core's experimental `_android` API.
+
+When steps 4 and 5 pass, the rewrite and the engine both become Stage 4 candidates, and the rewrite needs a migration plan that the first adopter accepts. When either fails, the question closes and the current runner stays.
+
 **Stage 4. Growth, one theme per minor (after the checkpoint)**
 
 1. npm releases under the final name. Release tarballs keep working.
@@ -80,7 +94,7 @@ A check of a native app starts in the adopter's project, outside core.
 
 1. A `request` step saves the backend value, and a `guided` step asks a person to confirm that the app shows it, with `observe:` running the API check again. This works today with no new code.
 2. Before any code, check the device. The app's test build must run with USB debugging on, `uiautomator dump` must show the values, and a machine or a self-hosted runner must hold the phone.
-3. Then an in-process plugin step reads the screen over adb, or Maestro flows run when the check needs navigation. Appium comes in only if neither works.
+3. Then an in-process plugin step reads the screen over adb, through playwright-core's experimental `_android` API or `uiautomator dump`, or Maestro flows run when the check needs navigation. Appium comes in only if neither works.
 
 **Test management**
 
