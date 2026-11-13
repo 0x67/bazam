@@ -17,6 +17,8 @@ Pre-release. Nothing is published to npm yet. Each release is a GitHub Release w
 7. [Releasing](docs/releasing.md): cut a release and install one from its GitHub Release tarballs.
 8. [Example project](examples/): cases for every step kind, auth strategy and challenge resolver, run against the [demo app](examples/demo-app/README.md).
 9. [Authoring skill](skills/author/SKILL.md): how an agent drafts, runs and reports cases through the MCP server that `bazam mcp` starts.
+10. [Architecture](docs/architecture.md): package boundaries, where new code goes, stable surfaces and the compatibility rules.
+11. [Roadmap](ROADMAP.md): the stability-first plan, the checkpoint that decides growth, and what is parked or not planned.
 
 **License**
 
