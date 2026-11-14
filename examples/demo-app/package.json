@@ -14,7 +14,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "@simplewebauthn/server": "^14.0.3",
-    "hono": "^4.13.16",
+    "hono": "^4.13.18",
     "nodemailer": "^10.3.1"
   }
 }
